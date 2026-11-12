@@ -15,7 +15,9 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-/** Regression coverage for hierarchy Body overlays and Body-local shape interaction. */
+/**
+ * Regression coverage for hierarchy Body overlays and Body-local shape interaction.
+ */
 public class ResolvedPhysicsPoseTest {
     private static final float EPSILON = 0.0001f;
 

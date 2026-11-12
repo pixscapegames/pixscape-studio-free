@@ -9,7 +9,9 @@ import games.pixscape.studio.history.HistoryIdRegistry;
 
 import java.util.Objects;
 
-/** Applies one complete authored quad-deformation edit. */
+/**
+ * Applies one complete authored quad-deformation edit.
+ */
 public final class EditQuadDeformCommand implements Command, PreExecutionNoopCommand {
     public static final float ZERO_EPSILON = 0.0001f;
 

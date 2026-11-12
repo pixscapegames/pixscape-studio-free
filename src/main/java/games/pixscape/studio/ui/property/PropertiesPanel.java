@@ -142,7 +142,7 @@ public class PropertiesPanel extends DockablePanel {
         contentHolder.top().left().pad(8);
         tileAssetProperties = new TileAssetProperties(app.getSceneService()::getAssetMetaDatabase,
                 () -> games.pixscape.studio.io.StudioFs.requireStudioProjectDir(
-                        games.pixscape.studio.configuration.ProjectConfig.getInstance())
+                                games.pixscape.studio.configuration.ProjectConfig.getInstance())
                         .child(games.pixscape.studio.io.StudioFs.FILE_ASSETS_JSON),
                 database -> app.getCanvas().publishAssetMetaDatabase(database));
         animationAssetProperties = new AnimationAssetProperties(app.getSceneService()::getAssetMetaDatabase,
@@ -164,7 +164,8 @@ public class PropertiesPanel extends DockablePanel {
         hudInspectorView = new HudInspectorView(app.getHudEditorSession());
         showSceneProperties();
         app.getEditorDocumentManager().addListener(new EditorDocumentManager.Listener() {
-            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+            @Override
+            public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
                 showDocumentType(current != null ? current.type() : null);
             }
         });
@@ -361,7 +362,9 @@ public class PropertiesPanel extends DockablePanel {
         if (world == context.world()) clearSceneContext();
     }
 
-    /** Releases project inspection even when there is no document activation to observe. */
+    /**
+     * Releases project inspection even when there is no document activation to observe.
+     */
     public void clearProject() {
         if (inspectedResourceProperties() != null) clearContent();
         resourceAssetProperties.clearProject();
@@ -460,9 +463,10 @@ public class PropertiesPanel extends DockablePanel {
                 selectionService, layerService, sceneContext.physicsSelectionReconciler(),
                 canvas::disposeBox2dAfterPhysicsPurge, markSaveRequired);
         sceneProperties.bindLighting(sceneContext.sceneMeta(), enabled -> {
-            if(enabled && sceneContext.sceneMeta().useNormalMaps) {
-                if(sceneContext.sceneIdentity()==null)app.getSceneService().prepareGameObjectNormals(ctx.world,sceneContext.sceneMeta(),true);
-                else ctx.atlasStudioService.prepareSceneNormalMaps(sceneContext.sceneMeta(),true);
+            if (enabled && sceneContext.sceneMeta().useNormalMaps) {
+                if (sceneContext.sceneIdentity() == null)
+                    app.getSceneService().prepareGameObjectNormals(ctx.world, sceneContext.sceneMeta(), true);
+                else ctx.atlasStudioService.prepareSceneNormalMaps(sceneContext.sceneMeta(), true);
             }
             ctx.world.getSystem(games.pixscape.studio.system.StudioRenderSubmitSystem.class).setLightingEnabled(enabled);
         });
@@ -577,7 +581,9 @@ public class PropertiesPanel extends DockablePanel {
         }
     }
 
-    /** Game Object tabs edit an isolated hierarchy and deliberately expose no project Scene metadata. */
+    /**
+     * Game Object tabs edit an isolated hierarchy and deliberately expose no project Scene metadata.
+     */
     private void showGameObjectHint() {
         clearContent();
         contentHolder.add(new VisLabel("Select a Game Object element to edit its properties."))
@@ -747,7 +753,8 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     public void updateIfDirty() {
-        if (inspectedTileAnimationProperties() != null && !tileAnimationProperties.refresh()) restoreCurrentCanvasProperties();
+        if (inspectedTileAnimationProperties() != null && !tileAnimationProperties.refresh())
+            restoreCurrentCanvasProperties();
         if (hudLayerAssetProperties.getStage() != null) hudLayerAssetProperties.refreshIfChanged();
         if (inspectedResourceProperties() != null && !resourceAssetProperties.refreshIfChanged()) {
             restoreCurrentCanvasProperties();
@@ -799,7 +806,8 @@ public class PropertiesPanel extends DockablePanel {
             case TILED_MAP -> showTiledMapProperties(pendingTiledMap);
             case TILE_ASSET -> showTileAssetProperties(pendingTileAsset);
             case ANIMATION_ASSET -> showAnimationAssetProperties(pendingAnimationAsset);
-            case RESOURCE_ASSET, TILE_ANIMATION -> { } // Prepared at selection/reload boundaries.
+            case RESOURCE_ASSET, TILE_ANIMATION -> {
+            } // Prepared at selection/reload boundaries.
         }
     }
 
@@ -821,7 +829,7 @@ public class PropertiesPanel extends DockablePanel {
                 || node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.FONT
                 || node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.SKIN
                 || (node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.IMAGE && database != null
-                    && database.findById(node.assetId) instanceof games.pixscape.studio.asset.ImageAssetMeta)) {
+                && database.findById(node.assetId) instanceof games.pixscape.studio.asset.ImageAssetMeta)) {
             clearBindings();
             clearPhysicsContext();
             clearTiledMapContext();
@@ -864,7 +872,9 @@ public class PropertiesPanel extends DockablePanel {
         return resourceAssetProperties.getParent() == contentHolder ? resourceAssetProperties : null;
     }
 
-    /** Abandon a target explicitly; visual docking detaches the panel without calling this. */
+    /**
+     * Abandon a target explicitly; visual docking detaches the panel without calling this.
+     */
     private void clearContent() {
         if (inspectedTileAnimationProperties() != null) tileAnimationProperties.clearProject();
         if (inspectedResourceProperties() != null) resourceAssetProperties.clearProject();
@@ -928,10 +938,18 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     public void inspectTileAnimation(int id, boolean edit) {
-        clearBindings(); clearPhysicsContext(); clearTiledMapContext(); clearContent();
-        if (!tileAnimationProperties.select(id, edit)) { tileAnimationProperties.clearProject(); restoreCurrentCanvasProperties(); return; }
+        clearBindings();
+        clearPhysicsContext();
+        clearTiledMapContext();
+        clearContent();
+        if (!tileAnimationProperties.select(id, edit)) {
+            tileAnimationProperties.clearProject();
+            restoreCurrentCanvasProperties();
+            return;
+        }
         pendingView = PendingView.TILE_ANIMATION;
-        contentHolder.add(tileAnimationProperties).growX().top().left().row(); dirty = false;
+        contentHolder.add(tileAnimationProperties).growX().top().left().row();
+        dirty = false;
     }
 
     private void restoreCurrentCanvasProperties() {

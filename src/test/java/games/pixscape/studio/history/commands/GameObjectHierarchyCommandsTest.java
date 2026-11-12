@@ -278,10 +278,26 @@ public class GameObjectHierarchyCommandsTest {
             return entity;
         }
 
-        void process() { identities.rebuild(); world.process(); }
-        TransformComponent transform(int entity) { return world.getMapper(TransformComponent.class).get(entity); }
-        EntityIndexComponent index(int entity) { return world.getMapper(EntityIndexComponent.class).get(entity); }
-        PixscapeIdentityComponent identity(int entity) { return world.getMapper(PixscapeIdentityComponent.class).get(entity); }
-        void close() { identities.bind(null, null); world.dispose(); }
+        void process() {
+            identities.rebuild();
+            world.process();
+        }
+
+        TransformComponent transform(int entity) {
+            return world.getMapper(TransformComponent.class).get(entity);
+        }
+
+        EntityIndexComponent index(int entity) {
+            return world.getMapper(EntityIndexComponent.class).get(entity);
+        }
+
+        PixscapeIdentityComponent identity(int entity) {
+            return world.getMapper(PixscapeIdentityComponent.class).get(entity);
+        }
+
+        void close() {
+            identities.bind(null, null);
+            world.dispose();
+        }
     }
 }

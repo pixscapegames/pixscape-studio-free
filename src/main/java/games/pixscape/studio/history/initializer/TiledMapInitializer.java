@@ -23,7 +23,9 @@ import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.tiled.TiledAllocatorService;
 
-/** Dedicated deep snapshot/materializer for the transitional Tiled Map root entity. */
+/**
+ * Dedicated deep snapshot/materializer for the transitional Tiled Map root entity.
+ */
 public final class TiledMapInitializer implements Initializer {
     private final World world;
     private final TiledAllocatorService allocator;
@@ -49,7 +51,7 @@ public final class TiledMapInitializer implements Initializer {
     private boolean spatialEnabled;
     private float defaultTileAltitude;
     private float defaultTileHeight;
-    private final Array<games.pixscape.runtime.render.lighting.TileSurfaceDescription> lightingDescriptions=new Array<>();
+    private final Array<games.pixscape.runtime.render.lighting.TileSurfaceDescription> lightingDescriptions = new Array<>();
     private final IntArray tileXs = new IntArray();
     private final IntArray tileYs = new IntArray();
     private final IntArray tileAssetIds = new IntArray();
@@ -150,7 +152,7 @@ public final class TiledMapInitializer implements Initializer {
         spatialEnabled = tiled.spatialEnabled;
         defaultTileAltitude = tiled.defaultTileAltitude;
         defaultTileHeight = tiled.defaultTileHeight;
-        copyDescriptions(lightingDescriptions,tiled.lightingDescriptions);
+        copyDescriptions(lightingDescriptions, tiled.lightingDescriptions);
         if (tiled.tileXs == null || tiled.tileYs == null || tiled.tileAssetIds == null
                 || tiled.tileXs.size != tiled.tileAssetIds.size || tiled.tileYs.size != tiled.tileAssetIds.size) {
             throw new IllegalArgumentException("Tiled map snapshot requires consistent sparse coordinates.");
@@ -197,7 +199,8 @@ public final class TiledMapInitializer implements Initializer {
         }
         // Validate/compile while the original Map and its Spatial sources still exist.
         SceneMeta metaForPhysics = currentSceneMeta();
-        if (hasPhysicsBody && metaForPhysics == null) throw new IllegalStateException("SceneMeta required for Map physics capture.");
+        if (hasPhysicsBody && metaForPhysics == null)
+            throw new IllegalStateException("SceneMeta required for Map physics capture.");
         preparedPhysics = hasPhysicsBody
                 ? PhysicsService.prepareBodyCandidate(world, entityId, physicsShapes, metaForPhysics.pixelsPerMeter) : null;
     }
@@ -248,7 +251,7 @@ public final class TiledMapInitializer implements Initializer {
         tiled.spatialEnabled = spatialEnabled;
         tiled.defaultTileAltitude = defaultTileAltitude;
         tiled.defaultTileHeight = defaultTileHeight;
-        copyDescriptions(tiled.lightingDescriptions,lightingDescriptions);
+        copyDescriptions(tiled.lightingDescriptions, lightingDescriptions);
         copy(tiled.tileXs, tileXs);
         copy(tiled.tileYs, tileYs);
         copy(tiled.tileAssetIds, tileAssetIds);
@@ -341,12 +344,13 @@ public final class TiledMapInitializer implements Initializer {
     }
 
     private static void copyDescriptions(Array<games.pixscape.runtime.render.lighting.TileSurfaceDescription> target,
-                                         Array<games.pixscape.runtime.render.lighting.TileSurfaceDescription> source){
+                                         Array<games.pixscape.runtime.render.lighting.TileSurfaceDescription> source) {
         target.clear();
-        for(games.pixscape.runtime.render.lighting.TileSurfaceDescription item:source){
+        for (games.pixscape.runtime.render.lighting.TileSurfaceDescription item : source) {
             target.add(item.copy());
         }
     }
+
     private static void copy(IntArray target, IntArray source) {
         target.clear();
         if (source != null) target.addAll(source);

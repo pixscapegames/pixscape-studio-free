@@ -95,7 +95,9 @@ public final class SelectionService {
         setActivelayerIdInternal(layer, -1, source);
     }
 
-    /** Returns the explicit Tiled editing target, or {@code -1} when it is stale. */
+    /**
+     * Returns the explicit Tiled editing target, or {@code -1} when it is stale.
+     */
     public int getTiledMapEditingTargetEntityId() {
         if (!isValidTiledMapTarget(tiledMapEditingTargetEntityId, true)) {
             clearTiledMapEditingTarget();
@@ -345,7 +347,9 @@ public final class SelectionService {
         publish(source);
     }
 
-    /** Replaces the entity selection atomically and publishes only the final snapshot. */
+    /**
+     * Replaces the entity selection atomically and publishes only the final snapshot.
+     */
     public void replaceSelection(IntArray entityIds, SelectionSource source) {
         exitQuadEdit();
         IntArray accepted = new IntArray();
@@ -505,7 +509,9 @@ public final class SelectionService {
         return isEntityActive(e) && isEntityLayerLocked(e);
     }
 
-    /** Picking works against the last rendered ECS publication; no ancestry walks per hit. */
+    /**
+     * Picking works against the last rendered ECS publication; no ancestry walks per hit.
+     */
     public boolean isSelectableInPublishedViewport(int e) {
         if (mJointBase.has(e)) {
             var joint = mJointBase.get(e);
@@ -550,7 +556,9 @@ public final class SelectionService {
         publish(source, getSelectionSnapshot());
     }
 
-    /** Reprojects this context's retained selection after its document becomes active. */
+    /**
+     * Reprojects this context's retained selection after its document becomes active.
+     */
     public void publishCurrentSelection() {
         publish(SelectionSource.PROGRAMMATIC);
     }

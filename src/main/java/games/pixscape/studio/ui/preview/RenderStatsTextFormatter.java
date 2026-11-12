@@ -16,12 +16,18 @@ final class RenderStatsTextFormatter {
 
     static void appendCount(StringBuilder out, int value) {
         long magnitude = value;
-        if (magnitude < 0) { out.append('-'); magnitude = -magnitude; }
+        if (magnitude < 0) {
+            out.append('-');
+            magnitude = -magnitude;
+        }
         appendGroups(out, magnitude);
     }
 
     private static void appendGroups(StringBuilder out, long value) {
-        if (value < 1000) { out.append(value); return; }
+        if (value < 1000) {
+            out.append(value);
+            return;
+        }
         appendGroups(out, value / 1000);
         out.append(',');
         long group = value % 1000;
@@ -76,7 +82,7 @@ final class RenderStatsTextFormatter {
 
     static void appendDrawStagesLine(StringBuilder out, RenderStats stats) {
         out.append("Passes: ");
-        if(stats.forwardLighting)out.append("world=").append(stats.worldDraws);
+        if (stats.forwardLighting) out.append("world=").append(stats.worldDraws);
         else out.append("color=").append(stats.colorDraws).append(" receivers=").append(stats.receiverDraws)
                 .append(" accumulation=").append(stats.accumulationDraws).append(" ambient=").append(stats.ambientDraws);
         out.append(" shadows=").append(stats.shadowDraws).append(" present=").append(stats.presentationDraws)

@@ -322,10 +322,10 @@ public class ProjectConfigProjectIOValidationTest {
         String json = validProjectJson("Main", "scene1.json")
                 .replace("\"name\":\"Main\"",
                         "\"editorMode\":\"TILE\"," +
-                        "\"showPhysicsFixtures\":true," +
-                        "\"showPhysicsJoints\":true," +
-                        "\"mainCameraOffscreen\":true," +
-                        "\"name\":\"Main\"");
+                                "\"showPhysicsFixtures\":true," +
+                                "\"showPhysicsJoints\":true," +
+                                "\"mainCameraOffscreen\":true," +
+                                "\"name\":\"Main\"");
         FileHandle projectFile = writeProjectFile(dir, json);
 
         ProjectConfig loaded = ProjectConfig.ProjectIO.loadProject(projectFile);

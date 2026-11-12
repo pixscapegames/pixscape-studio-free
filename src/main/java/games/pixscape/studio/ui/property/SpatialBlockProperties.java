@@ -388,7 +388,9 @@ public final class SpatialBlockProperties extends VisTable {
         invalidateHierarchy();
     }
 
-    /** Refreshes only displayed geometry; does not rebuild constraints or publish authored data. */
+    /**
+     * Refreshes only displayed geometry; does not rebuild constraints or publish authored data.
+     */
     void refreshGeometry() {
         xField.refresh();
         yField.refresh();

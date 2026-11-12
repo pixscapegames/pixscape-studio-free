@@ -8,7 +8,9 @@ import games.pixscape.runtime.hud.document.HudDocumentV1;
 import java.util.List;
 import java.util.Objects;
 
-/** Immutable logical authored-resource closure for the selected HUD roots of one Scene. */
+/**
+ * Immutable logical authored-resource closure for the selected HUD roots of one Scene.
+ */
 public final class SceneHudDependencyClosure {
     public enum FileKind {
         SKIN_JSON,
@@ -27,7 +29,9 @@ public final class SceneHudDependencyClosure {
         }
     }
 
-    /** One stable project Image identity and its authored source file. */
+    /**
+     * One stable project Image identity and its authored source file.
+     */
     public record ImageDependency(int assetId, String logicalPath, String resourceName,
                                   String sourceRelPath) {
         public ImageDependency {
@@ -41,7 +45,9 @@ public final class SceneHudDependencyClosure {
         }
     }
 
-    /** One selected authored Skin and the files needed to reconstruct it without GL discovery. */
+    /**
+     * One selected authored Skin and the files needed to reconstruct it without GL discovery.
+     */
     public record SkinDependency(String skinId, List<FileDependency> files) {
         public SkinDependency {
             if (skinId == null || skinId.isBlank()) throw new IllegalArgumentException("Skin ID is required.");
@@ -49,7 +55,9 @@ public final class SceneHudDependencyClosure {
         }
     }
 
-    /** One standalone bitmap-font Asset and its descriptor/page source closure. */
+    /**
+     * One standalone bitmap-font Asset and its descriptor/page source closure.
+     */
     public record FontDependency(int assetId, String logicalPath, String descriptorPath,
                                  List<FileDependency> files, List<String> hudRoots) {
         public FontDependency {
@@ -62,7 +70,9 @@ public final class SceneHudDependencyClosure {
         }
     }
 
-    /** Immutable snapshot of the selected asset/document state and its logical resource categories. */
+    /**
+     * Immutable snapshot of the selected asset/document state and its logical resource categories.
+     */
     public record SelectedHudScreen(String screenId, HudScreenAsset asset, HudDocumentV1 document,
                                     boolean requiresSkin, boolean requiresAtlas,
                                     boolean requiresBuiltInLabelStyle) {
@@ -77,8 +87,15 @@ public final class SceneHudDependencyClosure {
             document = copyDocument(document);
         }
 
-        @Override public HudScreenAsset asset() { return copyAsset(asset); }
-        @Override public HudDocumentV1 document() { return copyDocument(document); }
+        @Override
+        public HudScreenAsset asset() {
+            return copyAsset(asset);
+        }
+
+        @Override
+        public HudDocumentV1 document() {
+            return copyDocument(document);
+        }
     }
 
     private final List<String> rootIds;
@@ -108,11 +125,25 @@ public final class SceneHudDependencyClosure {
         return new SceneHudDependencyClosure(List.of(), List.of(), List.of());
     }
 
-    public List<String> rootIds() { return rootIds; }
-    public List<SelectedHudScreen> selectedHudScreens() { return selectedHudScreens; }
-    public List<ImageDependency> imageDependencies() { return imageDependencies; }
-    public List<SkinDependency> skinDependencies() { return skinDependencies; }
-    public List<FontDependency> fontDependencies() { return fontDependencies; }
+    public List<String> rootIds() {
+        return rootIds;
+    }
+
+    public List<SelectedHudScreen> selectedHudScreens() {
+        return selectedHudScreens;
+    }
+
+    public List<ImageDependency> imageDependencies() {
+        return imageDependencies;
+    }
+
+    public List<SkinDependency> skinDependencies() {
+        return skinDependencies;
+    }
+
+    public List<FontDependency> fontDependencies() {
+        return fontDependencies;
+    }
 
     private static HudScreenAsset copyAsset(HudScreenAsset source) {
         HudScreenAsset copy = new HudScreenAsset();

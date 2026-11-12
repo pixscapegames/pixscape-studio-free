@@ -45,9 +45,15 @@ import games.pixscape.studio.ui.config.EditorOverlayPalette;
 public final class GizmoSystem extends BaseSystem {
     private boolean drawingAllowed;
 
-    public void setDrawingAllowed(boolean allowed) { drawingAllowed = allowed; }
+    public void setDrawingAllowed(boolean allowed) {
+        drawingAllowed = allowed;
+    }
 
-    @Override protected boolean checkProcessing() { return drawingAllowed; }
+    @Override
+    protected boolean checkProcessing() {
+        return drawingAllowed;
+    }
+
     private final SpatialCellPicker.Result spatialCell = new SpatialCellPicker.Result();
 
     private final StudioDrawContext ctx;
@@ -66,7 +72,11 @@ public final class GizmoSystem extends BaseSystem {
     private final SpatialTileSelectionService spatialTileSelectionService;
     private final SpatialStructureGeometryCache spatialStructureGeometryCache = new SpatialStructureGeometryCache();
     private final CornerProfileOverlay cornerOverview = new CornerProfileOverlay();
-    public CornerProfileOverlay cornerOverview(){return cornerOverview;}
+
+    public CornerProfileOverlay cornerOverview() {
+        return cornerOverview;
+    }
+
     private final SpatialWallEditSession spatialHandleSession = new SpatialWallEditSession();
     private int spatialHandleLayer = -1;
     private int spatialHandleBlock = -1;
@@ -402,20 +412,22 @@ public final class GizmoSystem extends BaseSystem {
         TiledLayerComponent tiled = mTiledLayer.getSafe(layerEntityId, null);
         if (component == null || component.blocks == null || tiled == null || tiled.data == null) return;
 
-        games.pixscape.studio.service.spatial.SpatialVerticalJoinProposal vertical=spatialBlockSelectionService.verticalJoinPreview();
-        if(vertical!=null && vertical.selected.entity==layerEntityId) {
+        games.pixscape.studio.service.spatial.SpatialVerticalJoinProposal vertical = spatialBlockSelectionService.verticalJoinPreview();
+        if (vertical != null && vertical.selected.entity == layerEntityId) {
             ctx.drawer.setColor(com.badlogic.gdx.graphics.Color.CYAN);
-            for(SpatialBlockData wall:vertical.candidate.reference.blocks.blocks)if(vertical.referenceMembers.contains(wall.id)) {
-                SpatialBlockProjection.projectBaseFootprint(vertical.candidate.reference.map,wall,tmpSpatialBlockBaseVerts);
-                SpatialBlockProjection.projectTopFootprint(vertical.candidate.reference.map,wall,tmpSpatialBlockTopVerts);
-                drawSpatialWallVolume(ctx.pxToWorld(3f));
-            }
-            ctx.drawer.setColor(vertical.valid?com.badlogic.gdx.graphics.Color.ORANGE:com.badlogic.gdx.graphics.Color.RED);
-            for(SpatialBlockData wall:vertical.after.blocks)if(vertical.affected.contains(wall.id)) {
-                SpatialBlockProjection.projectBaseFootprint(tiled.data,wall,tmpSpatialBlockBaseVerts);
-                SpatialBlockProjection.projectTopFootprint(tiled.data,wall,tmpSpatialBlockTopVerts);
-                drawSpatialWallVolume(ctx.pxToWorld(3f));
-            }
+            for (SpatialBlockData wall : vertical.candidate.reference.blocks.blocks)
+                if (vertical.referenceMembers.contains(wall.id)) {
+                    SpatialBlockProjection.projectBaseFootprint(vertical.candidate.reference.map, wall, tmpSpatialBlockBaseVerts);
+                    SpatialBlockProjection.projectTopFootprint(vertical.candidate.reference.map, wall, tmpSpatialBlockTopVerts);
+                    drawSpatialWallVolume(ctx.pxToWorld(3f));
+                }
+            ctx.drawer.setColor(vertical.valid ? com.badlogic.gdx.graphics.Color.ORANGE : com.badlogic.gdx.graphics.Color.RED);
+            for (SpatialBlockData wall : vertical.after.blocks)
+                if (vertical.affected.contains(wall.id)) {
+                    SpatialBlockProjection.projectBaseFootprint(tiled.data, wall, tmpSpatialBlockBaseVerts);
+                    SpatialBlockProjection.projectTopFootprint(tiled.data, wall, tmpSpatialBlockTopVerts);
+                    drawSpatialWallVolume(ctx.pxToWorld(3f));
+                }
             return;
         }
         int selectedBlockId = spatialBlockSelectionService.getSelectedBlockId();
@@ -426,16 +438,17 @@ public final class GizmoSystem extends BaseSystem {
         SpatialLinkProposal linkPreview = spatialBlockSelectionService.linkPreview();
         boolean mergedPreview = linkPreview != null && linkPreview.valid && !linkPreview.unlink;
         spatialStructureGeometryCache.synchronize(layerEntityId, component, tiled.data);
-        cornerOverview.synchronize(layerEntityId,tiled,component,tiledState.lightingMaps.get(layerEntityId),spatialStructureGeometryCache);
+        cornerOverview.synchronize(layerEntityId, tiled, component, tiledState.lightingMaps.get(layerEntityId), spatialStructureGeometryCache);
         for (int i = 0; i < spatialStructureGeometryCache.structureCount(); i++) {
             CompiledSpatialStructure structure = spatialStructureGeometryCache.structure(i);
             if (mergedPreview && linkPreview.replacesStructure(structure.structureId())) continue;
             ctx.drawer.setColor(EditorOverlayPalette.SPATIAL_NEUTRAL_COLOR);
-            float[] wire=linkPreview==null?cornerOverview.wire(structure.structureId()):null;
-            if(wire==null)drawCompiledStructure(tiled.data, structure, ctx.pxToWorld(1.25f));
-            else for(int p=0;p<wire.length;p+=4)ctx.drawer.line(wire[p],wire[p+1],wire[p+2],wire[p+3],ctx.pxToWorld(1.25f));
+            float[] wire = linkPreview == null ? cornerOverview.wire(structure.structureId()) : null;
+            if (wire == null) drawCompiledStructure(tiled.data, structure, ctx.pxToWorld(1.25f));
+            else for (int p = 0; p < wire.length; p += 4)
+                ctx.drawer.line(wire[p], wire[p + 1], wire[p + 2], wire[p + 3], ctx.pxToWorld(1.25f));
         }
-        if(linkPreview==null)drawCornerOverview();
+        if (linkPreview == null) drawCornerOverview();
 
         if (linkPreview == null && hoveredBlock != null && hoveredBlock.id != selectedBlockId
                 && !cornerOverview.replacesWall(hoveredBlock.id)
@@ -449,8 +462,8 @@ public final class GizmoSystem extends BaseSystem {
         if (linkPreview != null) {
             if (mergedPreview) {
                 ctx.drawer.setColor(com.badlogic.gdx.graphics.Color.CYAN);
-                for (int i=0;i<linkPreview.previewStructureCount();i++)
-                    drawCompiledStructure(tiled.data,linkPreview.previewStructure(i),ctx.pxToWorld(3f));
+                for (int i = 0; i < linkPreview.previewStructureCount(); i++)
+                    drawCompiledStructure(tiled.data, linkPreview.previewStructure(i), ctx.pxToWorld(3f));
                 return;
             }
             for (SpatialBlockData wall : linkPreview.after.blocks) {
@@ -463,13 +476,14 @@ public final class GizmoSystem extends BaseSystem {
             }
             return;
         }
-        for (SpatialBlockData wall : component.blocks) if (wall.id != selectedBlockId && spatialBlockSelectionService.isBlockSelected(wall.id)
-                && !cornerOverview.replacesWall(wall.id)) {
-            ctx.drawer.setColor(EditorOverlayPalette.HANDLE_COLOR);
-            SpatialBlockProjection.projectBaseFootprint(tiled.data, wall, tmpSpatialBlockBaseVerts);
-            SpatialBlockProjection.projectTopFootprint(tiled.data, wall, tmpSpatialBlockTopVerts);
-            drawSpatialWallVolume(ctx.pxToWorld(2.5f));
-        }
+        for (SpatialBlockData wall : component.blocks)
+            if (wall.id != selectedBlockId && spatialBlockSelectionService.isBlockSelected(wall.id)
+                    && !cornerOverview.replacesWall(wall.id)) {
+                ctx.drawer.setColor(EditorOverlayPalette.HANDLE_COLOR);
+                SpatialBlockProjection.projectBaseFootprint(tiled.data, wall, tmpSpatialBlockBaseVerts);
+                SpatialBlockProjection.projectTopFootprint(tiled.data, wall, tmpSpatialBlockTopVerts);
+                drawSpatialWallVolume(ctx.pxToWorld(2.5f));
+            }
         if (selectedBlock != null && !spatialBlockSelectionService.cornerProfile().active()) {
             SpatialWallEditSession activeSession = spatialBlockSelectionService.wallEditSession();
             SpatialBlockData displayedBlock = activeSession.isActive()
@@ -486,7 +500,7 @@ public final class GizmoSystem extends BaseSystem {
             ctx.drawer.setColor(EditorOverlayPalette.spatialWallColor(
                     true, selectedBlock.id == hoveredBlockId, previewActive,
                     spatialBlockSelectionService.isEditPreviewValid()));
-            if(!cornerOverview.replacesWall(selectedBlock.id)||activeSession.isActive())
+            if (!cornerOverview.replacesWall(selectedBlock.id) || activeSession.isActive())
                 drawSpatialWallVolume(ctx.pxToWorld(2.5f));
             for (int corner = 0; corner < 4; corner++) {
                 SpatialBlockInteractiveEditSupport.ResizeHandle handle = spatialCornerHandle(corner);
@@ -512,39 +526,40 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private void drawCornerProfile() {
-        CornerProfileEditSession edit=spatialBlockSelectionService.cornerProfile();
-        games.pixscape.runtime.render.lighting.RoundedWallSupport support=edit.support();
-        drawCornerSupport(support,edit.base(),edit.height());
-        for(int i=0;i<edit.vertexCount();i++) {
-            ctx.drawer.setColor(!edit.valid()?Color.SCARLET:i==0||i==edit.vertexCount()-1?Color.GOLD:Color.CYAN);
-            float x=edit.screenX(i),y=edit.screenY(i),size=ctx.pxToWorld(8);
-            if(i>0)ctx.drawer.line(edit.screenX(i-1),edit.screenY(i-1),x,y,ctx.pxToWorld(2));
-            ctx.drawer.filledRectangle(x-size*.5f,y-size*.5f,size,size);
+        CornerProfileEditSession edit = spatialBlockSelectionService.cornerProfile();
+        games.pixscape.runtime.render.lighting.RoundedWallSupport support = edit.support();
+        drawCornerSupport(support, edit.base(), edit.height());
+        for (int i = 0; i < edit.vertexCount(); i++) {
+            ctx.drawer.setColor(!edit.valid() ? Color.SCARLET : i == 0 || i == edit.vertexCount() - 1 ? Color.GOLD : Color.CYAN);
+            float x = edit.screenX(i), y = edit.screenY(i), size = ctx.pxToWorld(8);
+            if (i > 0) ctx.drawer.line(edit.screenX(i - 1), edit.screenY(i - 1), x, y, ctx.pxToWorld(2));
+            ctx.drawer.filledRectangle(x - size * .5f, y - size * .5f, size, size);
         }
     }
 
     private void drawCornerOverview() {
-        CornerProfileEditSession edit=spatialBlockSelectionService.cornerProfile();
-        for(int n=0;n<cornerOverview.size();n++) {
-            CornerProfileOverlay.Corner corner=cornerOverview.corner(n);
+        CornerProfileEditSession edit = spatialBlockSelectionService.cornerProfile();
+        for (int n = 0; n < cornerOverview.size(); n++) {
+            CornerProfileOverlay.Corner corner = cornerOverview.corner(n);
             // Only this occurrence is replaced by the detached preview; keep every other volume visible.
-            if(edit.isEditingOccurrence(corner.target()))continue;
-            drawCornerSupport(corner.support(),corner.base(),corner.height());
+            if (edit.isEditingOccurrence(corner.target())) continue;
+            drawCornerSupport(corner.support(), corner.base(), corner.height());
         }
-        if(edit.active())drawCornerProfile();
+        if (edit.active()) drawCornerProfile();
     }
 
-    private void drawCornerSupport(games.pixscape.runtime.render.lighting.RoundedWallSupport support,float base,float height) {
-        float width=ctx.pxToWorld(1.2f),top=base+height;
-        ctx.drawer.setColor(.25f,.8f,.85f,.65f);
-        for(int boundary=0;boundary<2;boundary++) {
-            float[] p=boundary==0?support.outerXY:support.innerXY;
-            for(int i=0;i<p.length;i+=2) {
-                float x=p[i]-p[i+1],y=(p[i]+p[i+1])*.5f;
-                ctx.drawer.line(x,y+base,x,y+top,width);
-                if(i+2<p.length) {
-                    float nx=p[i+2]-p[i+3],ny=(p[i+2]+p[i+3])*.5f;
-                    ctx.drawer.line(x,y+base,nx,ny+base,width);ctx.drawer.line(x,y+top,nx,ny+top,width);
+    private void drawCornerSupport(games.pixscape.runtime.render.lighting.RoundedWallSupport support, float base, float height) {
+        float width = ctx.pxToWorld(1.2f), top = base + height;
+        ctx.drawer.setColor(.25f, .8f, .85f, .65f);
+        for (int boundary = 0; boundary < 2; boundary++) {
+            float[] p = boundary == 0 ? support.outerXY : support.innerXY;
+            for (int i = 0; i < p.length; i += 2) {
+                float x = p[i] - p[i + 1], y = (p[i] + p[i + 1]) * .5f;
+                ctx.drawer.line(x, y + base, x, y + top, width);
+                if (i + 2 < p.length) {
+                    float nx = p[i + 2] - p[i + 3], ny = (p[i + 2] + p[i + 3]) * .5f;
+                    ctx.drawer.line(x, y + base, nx, ny + base, width);
+                    ctx.drawer.line(x, y + top, nx, ny + top, width);
                 }
             }
         }
@@ -1760,14 +1775,18 @@ public final class GizmoSystem extends BaseSystem {
         if (displayOffsetResolver != null) displayOffsetResolver.addTo(entityId, p);
     }
 
-    /** Converts authored Physics-service output into the hierarchy-resolved Body pose. */
+    /**
+     * Converts authored Physics-service output into the hierarchy-resolved Body pose.
+     */
     private void remapPhysicsPoint(int bodyEid, Vector2 point) {
         if (resolvedPhysicsPose != null) {
             resolvedPhysicsPose.remapAuthoredWorldPoint(bodyEid, point);
         }
     }
 
-    /** Converts authored Physics-service output into the hierarchy-resolved Body pose. */
+    /**
+     * Converts authored Physics-service output into the hierarchy-resolved Body pose.
+     */
     private void remapPhysicsPoints(int bodyEid, float[] points, int pointCount) {
         if (resolvedPhysicsPose != null) {
             resolvedPhysicsPose.remapAuthoredWorldPoints(bodyEid, points, pointCount);
@@ -1814,10 +1833,14 @@ public final class GizmoSystem extends BaseSystem {
 
     static float[] writeAxisAlignedCorners(
             float minX, float minY, float maxX, float maxY, float[] out) {
-        out[0] = minX; out[1] = minY;
-        out[2] = maxX; out[3] = minY;
-        out[4] = maxX; out[5] = maxY;
-        out[6] = minX; out[7] = maxY;
+        out[0] = minX;
+        out[1] = minY;
+        out[2] = maxX;
+        out[3] = minY;
+        out[4] = maxX;
+        out[5] = maxY;
+        out[6] = minX;
+        out[7] = maxY;
         return out;
     }
 

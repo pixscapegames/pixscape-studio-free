@@ -119,7 +119,9 @@ public final class SceneHudPackInputProjector {
         projectFonts(projectDir, skin, roots, skinFile, atlas, namespace, fonts);
     }
 
-    /** Projects all regions because arbitrary Skin JSON may dynamically request any atlas lookup name. */
+    /**
+     * Projects all regions because arbitrary Skin JSON may dynamically request any atlas lookup name.
+     */
     private static AtlasFacts parseAtlas(FileHandle projectDir, SceneHudDependencyClosure.SkinDependency skin,
                                          List<String> roots, FileHandle atlasFile, Namespace namespace) {
         TextureAtlasData data;
@@ -238,7 +240,7 @@ public final class SceneHudPackInputProjector {
                     "BitmapFont page");
             namespace.register(new Candidate(keys.get(page), SceneHudPackInputPlan.MaterialKind.FULL_IMAGE,
                     pagePath, null, provenance(SceneHudPackInputPlan.ProvenanceKind.BITMAP_FONT_PAGE,
-                            roots, null, null, null, null, null, null, descriptorPath, page)));
+                    roots, null, null, null, null, null, null, descriptorPath, page)));
         }
         output.add(new SceneHudPackInputPlan.BitmapFontProjection(descriptorPath, keys));
     }
@@ -269,7 +271,7 @@ public final class SceneHudPackInputProjector {
     }
 
     private static void collectImageRoots(HudNode node, String rootId,
-                                           Map<String, LinkedHashSet<String>> roots) {
+                                          Map<String, LinkedHashSet<String>> roots) {
         if (node == null) return;
         HudImageReferences.visit(node, (ignored, fieldPath, image) ->
                 collectImageRoot(image, rootId, roots));
@@ -358,7 +360,8 @@ public final class SceneHudPackInputProjector {
         }
         Path root = projectDir.file().toPath().toAbsolutePath().normalize();
         Path candidate = file.file().toPath().toAbsolutePath().normalize();
-        if (!candidate.startsWith(root)) throw new IllegalStateException(label + " escapes the Studio project directory.");
+        if (!candidate.startsWith(root))
+            throw new IllegalStateException(label + " escapes the Studio project directory.");
         return root.relativize(candidate).toString().replace('\\', '/');
     }
 
@@ -369,7 +372,9 @@ public final class SceneHudPackInputProjector {
             regionsByName = Map.copyOf(copy);
         }
 
-        private static AtlasFacts empty() { return new AtlasFacts(null, Map.of()); }
+        private static AtlasFacts empty() {
+            return new AtlasFacts(null, Map.of());
+        }
 
         private SceneHudBitmapFontResolution.Result resolve(String stem, int pageCount) {
             Map<String, List<Integer>> indexes = new LinkedHashMap<>();

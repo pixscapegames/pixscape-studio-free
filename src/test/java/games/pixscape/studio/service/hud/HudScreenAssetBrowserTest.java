@@ -7,7 +7,8 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class HudScreenAssetBrowserTest {
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
 
     @Test
     public void discoversOnlyHudScreenAssetsInStableOrder() throws Exception {

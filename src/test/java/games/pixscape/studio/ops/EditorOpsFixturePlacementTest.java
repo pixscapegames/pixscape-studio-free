@@ -51,7 +51,7 @@ public class EditorOpsFixturePlacementTest {
             Assert.assertEquals(1f, otherSceneShape.geometry.offsetX, 0.0001f);
             config.setCurrentSceneByName("Main");
 
-            for (int type : new int[] {PhysicsGeometryData.SHAPE_BOX, PhysicsGeometryData.SHAPE_CIRCLE}) {
+            for (int type : new int[]{PhysicsGeometryData.SHAPE_BOX, PhysicsGeometryData.SHAPE_CIRCLE}) {
                 PhysicsShapeData shape = PhysicsService.createDefaultShape(1);
                 shape.geometry.shapeType = type;
                 Assert.assertTrue(EditorOpsImpl.placeFixtureAtWorld(

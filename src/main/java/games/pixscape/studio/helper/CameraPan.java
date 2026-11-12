@@ -3,7 +3,9 @@ package games.pixscape.studio.helper;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector2;
 
-/** Shared grab-pan translation after both pointers have been resolved in one camera projection. */
+/**
+ * Shared grab-pan translation after both pointers have been resolved in one camera projection.
+ */
 public final class CameraPan {
     private CameraPan() {
     }

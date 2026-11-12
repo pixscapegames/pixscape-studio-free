@@ -6,7 +6,9 @@ import games.pixscape.runtime.render.ShaderOrigin;
 import games.pixscape.runtime.render.ShaderRole;
 import games.pixscape.runtime.service.ShaderRegistry;
 
-/** Display-only badges: selection and history continue to use the exact registry name. */
+/**
+ * Display-only badges: selection and history continue to use the exact registry name.
+ */
 public final class ShaderSelectBox extends VisSelectBox<String> {
     public static final String UNSPECIFIED = "Unspecified";
 
@@ -23,7 +25,8 @@ public final class ShaderSelectBox extends VisSelectBox<String> {
 
     public static String badge(String name) {
         var surface = ShaderRegistry.getSurface(ShaderRegistry.indexOf(name));
-        if (surface != null) return surface.lighting == games.pixscape.runtime.render.SurfaceShader.Lighting.LIT ? "Lit" : "Unlit";
+        if (surface != null)
+            return surface.lighting == games.pixscape.runtime.render.SurfaceShader.Lighting.LIT ? "Lit" : "Unlit";
         ShaderRole role = ShaderRegistry.getRole(ShaderRegistry.indexOf(name));
         if (role == ShaderRole.FX) return "FX";
         if (role == ShaderRole.LIGHT) return "Light source";

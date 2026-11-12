@@ -20,10 +20,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-/** Applies one complete logical layer order as compact sequential z values. */
+/**
+ * Applies one complete logical layer order as compact sequential z values.
+ */
 public final class ReorderLogicalLayerCommand
         implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
-    private record Entry(long historyId, int before, int after) { }
+    private record Entry(long historyId, int before, int after) {
+    }
 
     private final World world;
     private final HistoryIdRegistry historyIds;
@@ -45,7 +48,9 @@ public final class ReorderLogicalLayerCommand
         prepareIfNeeded();
     }
 
-    /** Deferred form used after multi-entity creation inside one composite history operation. */
+    /**
+     * Deferred form used after multi-entity creation inside one composite history operation.
+     */
     public static ReorderLogicalLayerCommand normalizeAfterCreation(
             World world,
             HistoryIdRegistry historyIds,
@@ -128,7 +133,7 @@ public final class ReorderLogicalLayerCommand
         IntArray order = requestedOrder != null
                 ? requestedOrder
                 : logicalOrderService.derive(
-                        layerIndex, resolveAdditionalEntityIds()).flattenedTopToBottom();
+                layerIndex, resolveAdditionalEntityIds()).flattenedTopToBottom();
         if (order == null || order.size == 0 || order.size - 1 > SortKey64.MAX_Z) {
             valid = false;
             return;

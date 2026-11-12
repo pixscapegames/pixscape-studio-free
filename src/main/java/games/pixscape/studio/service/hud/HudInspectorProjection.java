@@ -9,18 +9,25 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
-/** Read-only inspector rows derived directly from Runtime DTOs. */
+/**
+ * Read-only inspector rows derived directly from Runtime DTOs.
+ */
 public final class HudInspectorProjection {
     public static final String SCREEN_TITLE = "HUD SCREEN";
-    public record Field(String label, String value) {}
 
-    private HudInspectorProjection() {}
+    public record Field(String label, String value) {
+    }
+
+    private HudInspectorProjection() {
+    }
 
     public static List<Field> screen(HudEditorSession session) {
         return screen(session.screenId(), session.asset(), session.isDirty(), true);
     }
 
-    /** Common document description; preview diagnostics and editable controls belong to their views. */
+    /**
+     * Common document description; preview diagnostics and editable controls belong to their views.
+     */
     public static List<Field> screen(String screenId, HudScreenAsset asset, boolean dirty, boolean openDocument) {
         List<Field> rows = new ArrayList<>();
         rows.add(new Field("Screen ID", text(screenId)));
@@ -108,8 +115,19 @@ public final class HudInspectorProjection {
         rows.add(new Field("Offset Y", wholeNumber(free.offsetY)));
     }
 
-    private static String text(String value) { return value == null || value.isBlank() ? "—" : value; }
-    private static String number(Float value) { return value == null ? "Auto" : Float.toString(value); }
-    private static String wholeNumber(float value) { return String.format(Locale.ROOT, "%.0f", value); }
-    private static String dimension(float value) { return String.format(Locale.ROOT, "%.1f", value); }
+    private static String text(String value) {
+        return value == null || value.isBlank() ? "—" : value;
+    }
+
+    private static String number(Float value) {
+        return value == null ? "Auto" : Float.toString(value);
+    }
+
+    private static String wholeNumber(float value) {
+        return String.format(Locale.ROOT, "%.0f", value);
+    }
+
+    private static String dimension(float value) {
+        return String.format(Locale.ROOT, "%.1f", value);
+    }
 }

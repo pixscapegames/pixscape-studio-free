@@ -229,29 +229,29 @@ public class TmxObjectLayerPreflightTest {
     public void primitivePropertiesUseRuntimeTypesDefaultsAndExactNames() throws Exception {
         Path dir = Files.createTempDirectory("tmx-object-properties");
         FileHandle tmx = writeMap(dir, """
-                <objectgroup name="Gameplay">
-                  <properties>
-                    <property name="Title" value="Layer"/>
-                    <property name="title">lowercase</property>
-                  </properties>
-                  <object id="1">
-                    <properties>
-                      <property name="empty"/>
-                      <property name="multiline">First line
-Second line</property>
-                      <property name="enabled" type="bool" value="true"/>
-                      <property name="disabled" type="bool"/>
-                      <property name="positive" type="int" value="12"/>
-                      <property name="negative" type="int" value="-9"/>
-                      <property name="zero" type="int"/>
-                      <property name="ratio" type="float" value="1.25"/>
-                      <property name="defaultFloat" type="float"/>
-                      <property name="tint" type="color" value="#80FF0000"/>
-                      <property name="defaultTint" type="color"/>
-                    </properties>
-                  </object>
-                  <object id="2"><properties><property name="enabled" type="bool" value="false"/></properties></object>
-                </objectgroup>
+                                <objectgroup name="Gameplay">
+                                  <properties>
+                                    <property name="Title" value="Layer"/>
+                                    <property name="title">lowercase</property>
+                                  </properties>
+                                  <object id="1">
+                                    <properties>
+                                      <property name="empty"/>
+                                      <property name="multiline">First line
+                Second line</property>
+                                      <property name="enabled" type="bool" value="true"/>
+                                      <property name="disabled" type="bool"/>
+                                      <property name="positive" type="int" value="12"/>
+                                      <property name="negative" type="int" value="-9"/>
+                                      <property name="zero" type="int"/>
+                                      <property name="ratio" type="float" value="1.25"/>
+                                      <property name="defaultFloat" type="float"/>
+                                      <property name="tint" type="color" value="#80FF0000"/>
+                                      <property name="defaultTint" type="color"/>
+                                    </properties>
+                                  </object>
+                                  <object id="2"><properties><property name="enabled" type="bool" value="false"/></properties></object>
+                                </objectgroup>
                 """);
 
         TmxPreflightReport report = analyze(tmx);

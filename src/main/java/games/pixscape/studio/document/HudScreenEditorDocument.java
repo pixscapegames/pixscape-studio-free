@@ -8,7 +8,9 @@ import games.pixscape.studio.service.hud.HudDocumentEditSession;
 import games.pixscape.studio.service.hud.HudEditorSession;
 import games.pixscape.studio.service.hud.HudLayoutAuthoring;
 
-/** Authoritative per-tab HUD authoring/history state, lightweight when its preview is detached. */
+/**
+ * Authoritative per-tab HUD authoring/history state, lightweight when its preview is detached.
+ */
 public final class HudScreenEditorDocument extends OpenEditorDocument implements AutoCloseable {
     private final HudDocumentEditSession editSession;
     private HudEditorSession.Status loadingStatus = HudEditorSession.Status.CLOSED;
@@ -27,13 +29,34 @@ public final class HudScreenEditorDocument extends OpenEditorDocument implements
         editSession.addListener(this::resolveSelection);
     }
 
-    public String screenId() { return key().domainId(); }
-    public HudScreenAsset asset() { return editSession.asset(); }
-    public HudDocumentV1 document() { return editSession.document(); }
-    public HudDocumentEditSession editSession() { return editSession; }
-    public HudEditorSession.Status loadingStatus() { return loadingStatus; }
-    public String selectedNodeId() { return selectedNodeId; }
-    public String selectedCellId() { return selectedCellId; }
+    public String screenId() {
+        return key().domainId();
+    }
+
+    public HudScreenAsset asset() {
+        return editSession.asset();
+    }
+
+    public HudDocumentV1 document() {
+        return editSession.document();
+    }
+
+    public HudDocumentEditSession editSession() {
+        return editSession;
+    }
+
+    public HudEditorSession.Status loadingStatus() {
+        return loadingStatus;
+    }
+
+    public String selectedNodeId() {
+        return selectedNodeId;
+    }
+
+    public String selectedCellId() {
+        return selectedCellId;
+    }
+
     public void capture(HudEditorSession session) {
         if (session == null || !screenId().equals(session.screenId())) return;
         loadingStatus = session.status();
@@ -65,10 +88,20 @@ public final class HudScreenEditorDocument extends OpenEditorDocument implements
         }
     }
 
-    @Override public boolean isDirty() { return editSession.isDirty(); }
+    @Override
+    public boolean isDirty() {
+        return editSession.isDirty();
+    }
 
-    @Override public boolean closeable() { return true; }
-    @Override public void close() { editSession.close(); }
+    @Override
+    public boolean closeable() {
+        return true;
+    }
+
+    @Override
+    public void close() {
+        editSession.close();
+    }
 
     private static HudScreenAsset defaultAsset(String screenId) {
         HudScreenAsset asset = new HudScreenAsset();

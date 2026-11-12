@@ -24,7 +24,7 @@ final class GameObjectEntityDataMapper {
                 new GameObjectAsset.GameObjectEntityData();
         data.sourceEntityId = source.sourceEntityId;
         copySnapshotToAsset(source, data);
-        data.surfaceLighting=source.surfaceLighting==null?null:source.surfaceLighting.copy();
+        data.surfaceLighting = source.surfaceLighting == null ? null : source.surfaceLighting.copy();
 
         int entityId = entry.sourceEntityId();
         if (world.getMapper(GameObjectComponent.class).has(entityId)) {
@@ -58,7 +58,9 @@ final class GameObjectEntityDataMapper {
             data.pointLight.intensity = point.intensity;
             data.pointLight.radius = point.radius;
             data.pointLight.falloff = point.falloff;
-            data.pointLight.height=point.height;data.pointLight.shadowQuality=point.shadowQuality;data.pointLight.shadowResolution=point.shadowResolution;
+            data.pointLight.height = point.height;
+            data.pointLight.shadowQuality = point.shadowQuality;
+            data.pointLight.shadowResolution = point.shadowResolution;
             data.pointLight.enabled = point.enabled;
         }
         ConeLightComponent cone = world.getMapper(ConeLightComponent.class)
@@ -75,7 +77,9 @@ final class GameObjectEntityDataMapper {
             data.coneLight.inclinationDeg = cone.inclinationDeg;
             data.coneLight.softness = cone.softness;
             data.coneLight.falloff = cone.falloff;
-            data.coneLight.height=cone.height;data.coneLight.shadowQuality=cone.shadowQuality;data.coneLight.shadowResolution=cone.shadowResolution;
+            data.coneLight.height = cone.height;
+            data.coneLight.shadowQuality = cone.shadowQuality;
+            data.coneLight.shadowResolution = cone.shadowResolution;
             data.coneLight.enabled = cone.enabled;
         }
         return data;
@@ -84,7 +88,7 @@ final class GameObjectEntityDataMapper {
     EntityGraphEntry toGraphEntry(World world, GameObjectAsset.GameObjectEntityData data) {
         GenericEntitySnapshotData snapshot = new GenericEntitySnapshotData();
         snapshot.sourceEntityId = data.sourceEntityId;
-        snapshot.surfaceLighting=data.surfaceLighting==null?null:data.surfaceLighting.copy();
+        snapshot.surfaceLighting = data.surfaceLighting == null ? null : data.surfaceLighting.copy();
         if (data.transform != null) {
             snapshot.hasTransform = true;
             snapshot.x = data.transform.x;

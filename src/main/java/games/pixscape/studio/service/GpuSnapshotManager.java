@@ -233,13 +233,17 @@ public final class GpuSnapshotManager {
         }
     }
 
-    /** Rebinds the cached snapshot for the Scene attached to the shared render surface. */
+    /**
+     * Rebinds the cached snapshot for the Scene attached to the shared render surface.
+     */
     public void bindActiveSnapshot(String sceneTag) {
         verifyTag(sceneTag);
         bindSnapshot(sceneTag, activeSnapshots.get(sceneTag));
     }
 
-    /** Releases every GPU publication owned by a Scene document that has been closed. */
+    /**
+     * Releases every GPU publication owned by a Scene document that has been closed.
+     */
     public void releaseScene(String sceneTag) {
         verifyTag(sceneTag);
         PreparedAtlasPublication prepared = preparedPublications.remove(sceneTag);
@@ -323,7 +327,9 @@ public final class GpuSnapshotManager {
         flushDeferredDisposals();
     }
 
-    /** Returns whether the scene's active snapshot is also bound for rendering and contains the handle. */
+    /**
+     * Returns whether the scene's active snapshot is also bound for rendering and contains the handle.
+     */
     public boolean isHandlePublishedInCurrentBundle(String sceneTag, int textureHandle) {
         if (sceneTag == null || sceneTag.isEmpty() || textureHandle == 0) return false;
         AtlasRuntimeService.TextureArrayBundle sceneSnapshot = activeSnapshots.get(sceneTag);

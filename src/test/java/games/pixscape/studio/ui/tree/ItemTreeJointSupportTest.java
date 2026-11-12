@@ -13,10 +13,18 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class ItemTreeJointSupportTest {
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
 
-    @Test public void orphanIsAnErrorInsteadOfAnInvisibleTreeEntry() {
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
+
+    @Test
+    public void orphanIsAnErrorInsteadOfAnInvisibleTreeEntry() {
         for (boolean removeA : new boolean[]{true, false}) {
             try (Fixture f = new Fixture()) {
                 f.world.getMapper(PhysicsBodyComponent.class).remove(removeA ? f.a : f.b);
@@ -28,7 +36,8 @@ public class ItemTreeJointSupportTest {
         }
     }
 
-    @Test public void validJointIsAttachedToBodyAndRemainsSelectable() {
+    @Test
+    public void validJointIsAttachedToBodyAndRemainsSelectable() {
         try (Fixture f = new Fixture()) {
             ItemTreeJointSupport.attachJointNodes(f.world, f.tree, e -> false);
             EntityNode node = f.tree.findJointNode(f.joint);
@@ -45,15 +54,23 @@ public class ItemTreeJointSupportTest {
         final IdVisTree tree = new IdVisTree();
         final PhysicsSelectionService selection = new PhysicsSelectionService();
         final int a = world.create(), b = world.create(), joint = world.create();
+
         Fixture() {
             world.getMapper(PhysicsBodyComponent.class).create(a);
             world.getMapper(PhysicsBodyComponent.class).create(b);
             PhysicsJointComponent base = world.getMapper(PhysicsJointComponent.class).create(joint);
-            base.aEid = a; base.bEid = b;
+            base.aEid = a;
+            base.bEid = b;
             world.process();
             EntityNode body = new EntityNode("Body", null, a, true, EntityNode.NodeKind.BODY);
-            tree.add(body); tree.registerNode(body, a);
+            tree.add(body);
+            tree.registerNode(body, a);
         }
-        @Override public void close() { selection.dispose(); world.dispose(); }
+
+        @Override
+        public void close() {
+            selection.dispose();
+            world.dispose();
+        }
     }
 }

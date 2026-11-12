@@ -10,7 +10,8 @@ import static org.junit.Assert.assertEquals;
 public class HudFreeTransformTest {
     private static final float EPSILON = 0.001f;
 
-    @Test public void movePreservesCenterAnchorAndNonDefaultPivot() {
+    @Test
+    public void movePreservesCenterAnchorAndNonDefaultPivot() {
         HudFreePlacement placement = placement(HudHorizontalAnchor.CENTER, HudVerticalAnchor.CENTER, .5f, .25f);
         HudFreeTransform.Snapshot snapshot = HudFreeTransform.snapshot(placement, 20f, 40f,
                 100f, 80f, new HudTransformGeometry.Bounds(40f, 30f, 20f, 40f));
@@ -24,7 +25,8 @@ public class HudFreeTransformTest {
         assertEquals(40f, result.height(), EPSILON);
     }
 
-    @Test public void resizeWritesOnlyChangedAxisAndKeepsAnchorsAndPivotsUntouched() {
+    @Test
+    public void resizeWritesOnlyChangedAxisAndKeepsAnchorsAndPivotsUntouched() {
         HudFreePlacement placement = placement(HudHorizontalAnchor.RIGHT, HudVerticalAnchor.TOP, 1f, 1f);
         HudFreeTransform.Snapshot snapshot = HudFreeTransform.snapshot(placement, 30f, 40f,
                 200f, 100f, new HudTransformGeometry.Bounds(150f, 40f, 30f, 40f));
@@ -43,7 +45,8 @@ public class HudFreeTransformTest {
         assertEquals(1f, snapshot.pivotY(), EPSILON);
     }
 
-    @Test public void westResizeMovesOffsetWhileKeepingTheRightVisualEdgeFixed() {
+    @Test
+    public void westResizeMovesOffsetWhileKeepingTheRightVisualEdgeFixed() {
         HudFreePlacement placement = placement(HudHorizontalAnchor.LEFT, HudVerticalAnchor.BOTTOM, 0f, 0f);
         HudFreeTransform.Snapshot snapshot = HudFreeTransform.snapshot(placement, 30f, 20f,
                 100f, 100f, new HudTransformGeometry.Bounds(10f, 10f, 30f, 20f));
@@ -58,7 +61,8 @@ public class HudFreeTransformTest {
         assertEquals(20f, result.height(), EPSILON);
     }
 
-    @Test public void leftBottomAndRightTopMovesUseTheirActualAnchorOrigins() {
+    @Test
+    public void leftBottomAndRightTopMovesUseTheirActualAnchorOrigins() {
         HudFreePlacement leftBottom = placement(HudHorizontalAnchor.LEFT, HudVerticalAnchor.BOTTOM, 0f, 0f);
         HudFreeTransform.Snapshot leftSnapshot = HudFreeTransform.snapshot(leftBottom, 20f, 20f,
                 100f, 100f, new HudTransformGeometry.Bounds(10f, 15f, 20f, 20f));
@@ -76,7 +80,8 @@ public class HudFreeTransformTest {
         assertEquals(-44f, right.offsetY(), EPSILON);
     }
 
-    @Test public void northSouthAndCornerResizeResolveBothSizeAndOffsetAxes() {
+    @Test
+    public void northSouthAndCornerResizeResolveBothSizeAndOffsetAxes() {
         HudFreePlacement placement = placement(HudHorizontalAnchor.LEFT, HudVerticalAnchor.BOTTOM, 0f, 0f);
         HudFreeTransform.Snapshot snapshot = HudFreeTransform.snapshot(placement, 30f, 40f,
                 100f, 100f, new HudTransformGeometry.Bounds(10f, 20f, 30f, 40f));

@@ -41,9 +41,13 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
-/** Studio publication and diagnostic-reading boundary for {@code .gameobject} assets. */
+/**
+ * Studio publication and diagnostic-reading boundary for {@code .gameobject} assets.
+ */
 public final class GameObjectAssetService {
-    /** The one authoritative interpretation of a Game Object publication selection. */
+    /**
+     * The one authoritative interpretation of a Game Object publication selection.
+     */
     public enum SelectionMode {
         CONVERT_SELECTION,
         SAVE_EXISTING_GAME_OBJECT,
@@ -150,12 +154,16 @@ public final class GameObjectAssetService {
         return false;
     }
 
-    /** Compatibility preflight for callers that specifically require a wrapping conversion. */
+    /**
+     * Compatibility preflight for callers that specifically require a wrapping conversion.
+     */
     public boolean canConvertSelectionToGameObject(IntArray selection) {
         return classifySelection(selection).mode == SelectionMode.CONVERT_SELECTION;
     }
 
-    /** Returns the current preflight reason, or {@code null} when the requested action is available. */
+    /**
+     * Returns the current preflight reason, or {@code null} when the requested action is available.
+     */
     public String conversionRejection(IntArray selection) {
         return classifySelection(selection).rejection;
     }
@@ -194,14 +202,18 @@ public final class GameObjectAssetService {
         }
     }
 
-    /** Publishes a new immutable asset then wraps the same selected scene entities in its root. */
+    /**
+     * Publishes a new immutable asset then wraps the same selected scene entities in its root.
+     */
     public void convertSelectionToGameObject(
             FileHandle gameObjectFile, FileHandle previewFile, String logicalAssetId) {
         convertSelectionToGameObject(gameObjectFile, previewFile, logicalAssetId,
                 GameObjectPreviewWriter::writePlaceholder);
     }
 
-    /** Package-visible preview writer seam keeps conversion publication testable without a native Pixmap backend. */
+    /**
+     * Package-visible preview writer seam keeps conversion publication testable without a native Pixmap backend.
+     */
     void convertSelectionToGameObject(
             FileHandle gameObjectFile, FileHandle previewFile, String logicalAssetId,
             Consumer<FileHandle> previewWriter) {
@@ -246,7 +258,9 @@ public final class GameObjectAssetService {
                 GameObjectPreviewWriter::writePlaceholder);
     }
 
-    /** Package-visible writer seam keeps publication semantics testable without a native Pixmap backend. */
+    /**
+     * Package-visible writer seam keeps publication semantics testable without a native Pixmap backend.
+     */
     void saveExistingGameObjectAsAsset(
             FileHandle gameObjectFile, FileHandle previewFile, String logicalAssetId,
             Consumer<FileHandle> previewWriter) {
@@ -279,7 +293,9 @@ public final class GameObjectAssetService {
         }
     }
 
-    /** Instantiates one validated asset as a real hierarchy in one atomic History command. */
+    /**
+     * Instantiates one validated asset as a real hierarchy in one atomic History command.
+     */
     public EntityGraphInstantiationResult instantiateGameObject(
             FileHandle file, String logicalAssetId, int destinationLayer,
             float rootWorldX, float rootWorldY) {
@@ -291,12 +307,14 @@ public final class GameObjectAssetService {
             throw new IllegalStateException(
                     "Cannot instantiate a Game Object with authored Physics while scene Physics is disabled.");
         }
-        int activeLights=0;
-        for(var data:asset.entities)if(games.pixscape.runtime.render.lighting.ActiveLights.isActive(
-                data.visibility==null||data.visibility.visible,data.pointLight!=null,data.pointLight!=null&&data.pointLight.enabled,
-                data.coneLight!=null,data.coneLight!=null&&data.coneLight.enabled))activeLights++;
-        if(!historyManager.prepareLightCreation(activeLights,
-                ()->instantiateGameObject(file,logicalAssetId,destinationLayer,rootWorldX,rootWorldY)))return EntityGraphInstantiationResult.empty();
+        int activeLights = 0;
+        for (var data : asset.entities)
+            if (games.pixscape.runtime.render.lighting.ActiveLights.isActive(
+                    data.visibility == null || data.visibility.visible, data.pointLight != null, data.pointLight != null && data.pointLight.enabled,
+                    data.coneLight != null, data.coneLight != null && data.coneLight.enabled)) activeLights++;
+        if (!historyManager.prepareLightCreation(activeLights,
+                () -> instantiateGameObject(file, logicalAssetId, destinationLayer, rootWorldX, rootWorldY)))
+            return EntityGraphInstantiationResult.empty();
         String canonicalId = GameObjectAssetId.normalize(logicalAssetId);
         IntIntMap sourceToStable = new IntIntMap(asset.entities.size);
         for (GameObjectAsset.GameObjectEntityData data : asset.entities) {
@@ -360,11 +378,20 @@ public final class GameObjectAssetService {
                 () -> currentCreatedEntityIds(sourceToCreated)));
         if (rootSelection != null) {
             commands.add(new Command() {
-                @Override public String label() { return "Select Game Object Root"; }
-                @Override public void redo() {
+                @Override
+                public String label() {
+                    return "Select Game Object Root";
+                }
+
+                @Override
+                public void redo() {
                     rootSelection.accept(sourceToCreated.get(asset.rootSourceEntityId, -1));
                 }
-                @Override public void undo() { rootSelection.accept(-1); }
+
+                @Override
+                public void undo() {
+                    rootSelection.accept(-1);
+                }
             });
         }
         historyManager.execute(new CompositeCommand("Instantiate Game Object", commands));
@@ -379,7 +406,9 @@ public final class GameObjectAssetService {
         return false;
     }
 
-    /** Runs after all hierarchy Bodies and standalone joint entities have been created. */
+    /**
+     * Runs after all hierarchy Bodies and standalone joint entities have been created.
+     */
     private final class RemapAssetJointsCommand implements Command {
         private final Array<GameObjectAsset.GameObjectJointData> joints;
         private final int rootLocalEntityId;
@@ -388,13 +417,19 @@ public final class GameObjectAssetService {
 
         private RemapAssetJointsCommand(Array<GameObjectAsset.GameObjectJointData> joints, int rootLocalEntityId,
                                         IntIntMap entityMap, IntIntMap jointMap) {
-            this.joints = joints; this.rootLocalEntityId = rootLocalEntityId;
-            this.entityMap = entityMap; this.jointMap = jointMap;
+            this.joints = joints;
+            this.rootLocalEntityId = rootLocalEntityId;
+            this.entityMap = entityMap;
+            this.jointMap = jointMap;
         }
 
-        @Override public String label() { return "Remap Game Object Joints"; }
+        @Override
+        public String label() {
+            return "Remap Game Object Joints";
+        }
 
-        @Override public void redo() {
+        @Override
+        public void redo() {
             ComponentMapper<PhysicsJointComponent> bases = world.getMapper(PhysicsJointComponent.class);
             ComponentMapper<PhysicsGearJointComponent> gears = world.getMapper(PhysicsGearJointComponent.class);
             for (GameObjectAsset.GameObjectJointData source : joints) {
@@ -405,14 +440,16 @@ public final class GameObjectAssetService {
                 base.bEid = requiredMapping(entityMap, source.bodyBLocalEntityId, "Body B");
                 if (source.type == PhysicsJointComponent.TYPE_GEAR) {
                     PhysicsGearJointComponent gear = gears.getSafe(target, null);
-                    if (gear == null) throw new IllegalStateException("Created Game Object Gear joint lost its typed component.");
+                    if (gear == null)
+                        throw new IllegalStateException("Created Game Object Gear joint lost its typed component.");
                     gear.joint1Eid = requiredMapping(jointMap, source.gear.jointALocalId, "Gear source");
                     gear.joint2Eid = requiredMapping(jointMap, source.gear.jointBLocalId, "Gear source");
                 }
                 if (source.type == PhysicsJointComponent.TYPE_PULLEY) {
                     PhysicsPulleyJointComponent pulley = world.getMapper(PhysicsPulleyJointComponent.class)
                             .getSafe(target, null);
-                    if (pulley == null) throw new IllegalStateException("Created Game Object Pulley joint lost its typed component.");
+                    if (pulley == null)
+                        throw new IllegalStateException("Created Game Object Pulley joint lost its typed component.");
                     TransformComponent root = world.getMapper(TransformComponent.class).get(
                             requiredMapping(entityMap, rootLocalEntityId, "root"));
                     float ppm = pixelsPerMeter();
@@ -420,14 +457,19 @@ public final class GameObjectAssetService {
                             source.pulley.groundAnchorALocalX, source.pulley.groundAnchorALocalY, ppm);
                     float[] b = rootLocalMetersToWorldMeters(root,
                             source.pulley.groundAnchorBLocalX, source.pulley.groundAnchorBLocalY, ppm);
-                    pulley.groundAx = a[0]; pulley.groundAy = a[1]; pulley.groundBx = b[0]; pulley.groundBy = b[1];
+                    pulley.groundAx = a[0];
+                    pulley.groundAy = a[1];
+                    pulley.groundBx = b[0];
+                    pulley.groundBy = b[1];
                 }
                 DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
                 if (dirty != null) dirty.joint(target, JointDirtyBits.ALL);
             }
         }
 
-        @Override public void undo() { }
+        @Override
+        public void undo() {
+        }
     }
 
     private static int requiredMapping(IntIntMap map, int key, String label) {
@@ -436,7 +478,7 @@ public final class GameObjectAssetService {
     }
 
     private static float[] rootLocalMetersToWorldMeters(TransformComponent root,
-                                                          float localX, float localY, float ppm) {
+                                                        float localX, float localY, float ppm) {
         float cos = com.badlogic.gdx.math.MathUtils.cos(root.rotationRad);
         float sin = com.badlogic.gdx.math.MathUtils.sin(root.rotationRad);
         float frameX = root.x + root.originX - cos * root.scaleX * root.originX
@@ -449,7 +491,9 @@ public final class GameObjectAssetService {
                 (frameY + sin * root.scaleX * localWuX + cos * root.scaleY * localWuY) / ppm};
     }
 
-    /** Produces a flat diagnostic graph. Scene publication uses {@link #instantiateGameObject}. */
+    /**
+     * Produces a flat diagnostic graph. Scene publication uses {@link #instantiateGameObject}.
+     */
     public EntityGraph loadGameObject(FileHandle file) {
         GameObjectAsset asset = loader.load(file);
         List<EntityGraphEntry> entries = new ArrayList<>(asset.entities.size);
@@ -703,26 +747,39 @@ public final class GameObjectAssetService {
         root.parentSourceEntityId = -1;
         root.gameObject = new GameObjectAsset.GameObjectData();
         root.transform = new GameObjectAsset.TransformData();
-        root.transform.x = plan.rootX; root.transform.y = plan.rootY;
-        root.transform.originX = plan.rootOriginX; root.transform.originY = plan.rootOriginY;
-        root.transform.scaleX = 1f; root.transform.scaleY = 1f;
+        root.transform.x = plan.rootX;
+        root.transform.y = plan.rootY;
+        root.transform.originX = plan.rootOriginX;
+        root.transform.originY = plan.rootOriginY;
+        root.transform.scaleX = 1f;
+        root.transform.scaleY = 1f;
         root.entityIndex = new GameObjectAsset.EntityIndexData();
         root.entityIndex.zIndex = 0;
-        root.meta = new GameObjectAsset.MetaData(); root.meta.kind = EntityKind.GAME_OBJECT.name();
-        root.identity = new GameObjectAsset.IdentityData(); root.identity.name = "Game Object";
+        root.meta = new GameObjectAsset.MetaData();
+        root.meta.kind = EntityKind.GAME_OBJECT.name();
+        root.identity = new GameObjectAsset.IdentityData();
+        root.identity.name = "Game Object";
         return root;
     }
 
     private static void applyLocalTransform(GameObjectAsset.TransformData target, ConversionPlan plan,
                                             TransformComponent worldTransform, boolean childIsRoot) {
         TransformComponent root = new TransformComponent();
-        root.x = plan.rootX; root.y = plan.rootY; root.originX = plan.rootOriginX;
-        root.originY = plan.rootOriginY; root.scaleX = root.scaleY = 1f; root.refreshCaches();
+        root.x = plan.rootX;
+        root.y = plan.rootY;
+        root.originX = plan.rootOriginX;
+        root.originY = plan.rootOriginY;
+        root.scaleX = root.scaleY = 1f;
+        root.refreshCaches();
         TransformComponent local = GameObjectTransformMath.worldToLocal(
                 root, worldTransform, childIsRoot, new TransformComponent());
-        target.x = local.x; target.y = local.y; target.rotationRad = local.rotationRad;
-        target.scaleX = local.scaleX; target.scaleY = local.scaleY;
-        target.originX = local.originX; target.originY = local.originY;
+        target.x = local.x;
+        target.y = local.y;
+        target.rotationRad = local.rotationRad;
+        target.scaleX = local.scaleX;
+        target.scaleY = local.scaleY;
+        target.originX = local.originX;
+        target.originY = local.originY;
     }
 
     private IntArray collectConversionHierarchy(IntArray selectedTopToBottom) {
@@ -745,13 +802,17 @@ public final class GameObjectAssetService {
                     com.artemis.Aspect.all(GameObjectMemberComponent.class)).getEntities();
             for (int i = 0; i < bag.size(); i++) {
                 int entityId = bag.get(i);
-                if (knownEntities.contains(entityId) || !knownStableIds.contains(members.get(entityId).parentStableId)) continue;
+                if (knownEntities.contains(entityId) || !knownStableIds.contains(members.get(entityId).parentStableId))
+                    continue;
                 requireConvertibleSupported(entityId);
                 PixscapeIdentityComponent identity = identities.getSafe(entityId, null);
                 if (identity == null || identity.stableId <= 0) {
                     throw new IllegalArgumentException("Game Object hierarchy has malformed identity data.");
                 }
-                knownEntities.add(entityId); knownStableIds.add(identity.stableId); result.add(entityId); changed = true;
+                knownEntities.add(entityId);
+                knownStableIds.add(identity.stableId);
+                result.add(entityId);
+                changed = true;
             }
         } while (changed);
         return result;
@@ -816,16 +877,22 @@ public final class GameObjectAssetService {
 
     private record ConversionPlan(LayerLogicalOrderService.LayerOrder order, IntArray selectedTopToBottom,
                                   float rootX, float rootY, float rootOriginX, float rootOriginY,
-                                  String canonicalId) { }
+                                  String canonicalId) {
+    }
 
     private static final class Bounds {
         private float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY;
         private float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY;
         private boolean found;
+
         private void include(float x, float y) {
-            minX = Math.min(minX, x); minY = Math.min(minY, y);
-            maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); found = true;
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+            found = true;
         }
+
         private void include(float[] corners) {
             for (int i = 0; i < 8; i += 2) include(corners[i], corners[i + 1]);
         }
@@ -945,7 +1012,9 @@ public final class GameObjectAssetService {
         }
     }
 
-    /** Asset roots are authored at the origin; child transforms and joint anchors are local. */
+    /**
+     * Asset roots are authored at the origin; child transforms and joint anchors are local.
+     */
     private static void normalizeAssetRootPosition(GameObjectAsset asset) {
         if (asset == null || asset.rootSourceEntityId <= 0) {
             throw new IllegalStateException("Game Object asset root is required.");
@@ -964,12 +1033,17 @@ public final class GameObjectAssetService {
         throw new IllegalStateException("Game Object asset root is missing.");
     }
 
-    /** Converts current Scene world-meter pulley anchors to the asset root's local meter frame. */
+    /**
+     * Converts current Scene world-meter pulley anchors to the asset root's local meter frame.
+     */
     private void localizePulleyGroundAnchors(GameObjectAsset asset, GameObjectAsset.GameObjectJointData joint) {
         if (joint.type != PhysicsJointComponent.TYPE_PULLEY || joint.pulley == null) return;
         GameObjectAsset.GameObjectEntityData root = null;
         for (GameObjectAsset.GameObjectEntityData entity : asset.entities) {
-            if (entity.sourceEntityId == asset.rootSourceEntityId) { root = entity; break; }
+            if (entity.sourceEntityId == asset.rootSourceEntityId) {
+                root = entity;
+                break;
+            }
         }
         if (root == null || root.transform == null) {
             throw new IllegalStateException("Game Object Pulley capture requires the asset root transform.");
@@ -979,8 +1053,10 @@ public final class GameObjectAssetService {
                 joint.pulley.groundAnchorALocalX, joint.pulley.groundAnchorALocalY, ppm);
         float[] b = worldMetersToRootLocalMeters(root.transform,
                 joint.pulley.groundAnchorBLocalX, joint.pulley.groundAnchorBLocalY, ppm);
-        joint.pulley.groundAnchorALocalX = a[0]; joint.pulley.groundAnchorALocalY = a[1];
-        joint.pulley.groundAnchorBLocalX = b[0]; joint.pulley.groundAnchorBLocalY = b[1];
+        joint.pulley.groundAnchorALocalX = a[0];
+        joint.pulley.groundAnchorALocalY = a[1];
+        joint.pulley.groundAnchorBLocalX = b[0];
+        joint.pulley.groundAnchorBLocalY = b[1];
     }
 
     private float pixelsPerMeter() {
@@ -994,7 +1070,7 @@ public final class GameObjectAssetService {
     }
 
     private static float[] worldMetersToRootLocalMeters(GameObjectAsset.TransformData root,
-                                                          float worldX, float worldY, float ppm) {
+                                                        float worldX, float worldY, float ppm) {
         float cos = com.badlogic.gdx.math.MathUtils.cos(root.rotationRad);
         float sin = com.badlogic.gdx.math.MathUtils.sin(root.rotationRad);
         float frameX = root.x + root.originX - cos * root.scaleX * root.originX

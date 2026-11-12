@@ -4,7 +4,9 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.service.StudioEditingMode;
 import games.pixscape.studio.service.StudioEditingModeService;
 
-/** Central editor selection for physics sources and their compiled parts. */
+/**
+ * Central editor selection for physics sources and their compiled parts.
+ */
 public final class PhysicsSelectionService {
     public static final int NO_SHAPE = -1;
     public static final int NO_PART = -1;

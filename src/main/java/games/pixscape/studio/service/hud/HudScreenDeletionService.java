@@ -36,24 +36,33 @@ public final class HudScreenDeletionService {
         void delete(Path target) throws IOException;
     }
 
-    public record SceneReference(String sceneName, String referenceType) {}
+    public record SceneReference(String sceneName, String referenceType) {
+    }
 
     public record UsageReport(String screenId, List<SceneReference> references) {
         public UsageReport {
             screenId = HudScreenAssetId.normalize(screenId);
             references = List.copyOf(references);
         }
-        public boolean used() { return !references.isEmpty(); }
+
+        public boolean used() {
+            return !references.isEmpty();
+        }
     }
 
-    /** A successful move phase is acquired even when best-effort temporary-file cleanup fails. */
+    /**
+     * A successful move phase is acquired even when best-effort temporary-file cleanup fails.
+     */
     public record DeletionResult(String screenId, boolean documentDeleted,
                                  boolean deletionAcquired, List<String> temporaryFilesRemaining) {
         public DeletionResult {
             screenId = HudScreenAssetId.normalize(screenId);
             temporaryFilesRemaining = List.copyOf(temporaryFilesRemaining);
         }
-        public boolean hasCleanupWarning() { return !temporaryFilesRemaining.isEmpty(); }
+
+        public boolean hasCleanupWarning() {
+            return !temporaryFilesRemaining.isEmpty();
+        }
     }
 
     public static final class HudScreenInUseException extends IllegalStateException {
@@ -65,7 +74,9 @@ public final class HudScreenDeletionService {
             this.usage = usage;
         }
 
-        public UsageReport usage() { return usage; }
+        public UsageReport usage() {
+            return usage;
+        }
     }
 
     private final HudScreenAssetLoader loader;
@@ -88,7 +99,9 @@ public final class HudScreenDeletionService {
         this.deleter = Objects.requireNonNull(deleter, "deleter");
     }
 
-    /** Reads both live and persisted Scene metadata and returns each using Scene once. */
+    /**
+     * Reads both live and persisted Scene metadata and returns each using Scene once.
+     */
     public UsageReport inspectUsage(FileHandle projectDir, ProjectConfig liveConfiguration,
                                     String screenId) {
         String canonicalId = HudScreenAssetId.normalize(screenId);
@@ -107,7 +120,9 @@ public final class HudScreenDeletionService {
         return new UsageReport(canonicalId, sorted);
     }
 
-    /** Revalidates references immediately before moving the descriptor and its document out of the project. */
+    /**
+     * Revalidates references immediately before moving the descriptor and its document out of the project.
+     */
     public DeletionResult delete(FileHandle projectDir, ProjectConfig liveConfiguration, String screenId) {
         UsageReport usage = inspectUsage(projectDir, liveConfiguration, screenId);
         if (usage.used()) throw new HudScreenInUseException(usage);
@@ -180,7 +195,7 @@ public final class HudScreenDeletionService {
     }
 
     private boolean isDocumentReferencedByAnotherHud(FileHandle projectDir, Path root,
-                                                       Path targetDescriptor, Path targetDocument) {
+                                                     Path targetDescriptor, Path targetDocument) {
         FileHandle directory = projectDir.child(HudScreenAssetId.DIRECTORY);
         if (!directory.exists()) return false;
         for (FileHandle candidate : directory.list(HudScreenAsset.EXTENSION.substring(1))) {
@@ -302,6 +317,9 @@ public final class HudScreenDeletionService {
         }
     }
 
-    private record Targets(Path descriptor, Path document, boolean deleteDocument) {}
-    private record Move(Path source, Path staged) {}
+    private record Targets(Path descriptor, Path document, boolean deleteDocument) {
+    }
+
+    private record Move(Path source, Path staged) {
+    }
 }

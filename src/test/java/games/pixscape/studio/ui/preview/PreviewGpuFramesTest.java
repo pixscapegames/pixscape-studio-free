@@ -15,12 +15,25 @@ public class PreviewGpuFramesTest {
         int result = GL_TIMEOUT_EXPIRED;
         final List<Long> deleted = new ArrayList<>();
 
-        @Override long insertFence() { return ++lastFence; }
-        @Override int waitForFence(long fence) { waited = fence; return result; }
-        @Override void deleteFence(long fence) { deleted.add(fence); }
+        @Override
+        long insertFence() {
+            return ++lastFence;
+        }
+
+        @Override
+        int waitForFence(long fence) {
+            waited = fence;
+            return result;
+        }
+
+        @Override
+        void deleteFence(long fence) {
+            deleted.add(fence);
+        }
     }
 
-    @Test public void thirdFrameWaitsForOldestAndShutdownReleasesOutstandingFences() {
+    @Test
+    public void thirdFrameWaitsForOldestAndShutdownReleasesOutstandingFences() {
         FakeGpu gpu = new FakeGpu();
         assertTrue(gpu.tryBeginFrame());
         gpu.endFrame();

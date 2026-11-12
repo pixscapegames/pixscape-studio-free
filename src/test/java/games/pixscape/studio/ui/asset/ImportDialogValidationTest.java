@@ -12,11 +12,15 @@ import static org.junit.Assert.*;
 
 public class ImportDialogValidationTest {
 
-    @Test public void acceptsTextureAtlasAlongsideOrdinaryImages() throws Exception {
+    @Test
+    public void acceptsTextureAtlasAlongsideOrdinaryImages() throws Exception {
         for (String extension : new String[]{".atlas", ".ATLAS", ".png"}) {
             File file = File.createTempFile("import", extension);
-            try { assertTrue(ImportDialogValidation.isSupportedImportFile(new FileHandle(file))); }
-            finally { file.delete(); }
+            try {
+                assertTrue(ImportDialogValidation.isSupportedImportFile(new FileHandle(file)));
+            } finally {
+                file.delete();
+            }
         }
     }
 
@@ -67,7 +71,8 @@ public class ImportDialogValidationTest {
         assertFalse(ImportDialogValidation.isParticleFile(handle));
     }
 
-    @Test public void importValidation_jsonIsExplicitSkinCandidateNotImage() throws Exception {
+    @Test
+    public void importValidation_jsonIsExplicitSkinCandidateNotImage() throws Exception {
         File file = File.createTempFile("scene2d-skin", ".json");
         file.deleteOnExit();
         FileHandle handle = new FileHandle(file);

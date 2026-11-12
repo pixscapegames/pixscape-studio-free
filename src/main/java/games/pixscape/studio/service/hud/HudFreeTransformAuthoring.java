@@ -5,11 +5,15 @@ import games.pixscape.runtime.hud.document.HudDocumentV1;
 import games.pixscape.runtime.hud.document.HudNode;
 import games.pixscape.runtime.hud.document.HudPlacementKind;
 
-/** Pixscape document adapter for the narrow, document-first FREE transform mutation. */
+/**
+ * Pixscape document adapter for the narrow, document-first FREE transform mutation.
+ */
 final class HudFreeTransformAuthoring {
-    record FreeNode(String parentId, HudChild child) {}
+    record FreeNode(String parentId, HudChild child) {
+    }
 
-    private HudFreeTransformAuthoring() {}
+    private HudFreeTransformAuthoring() {
+    }
 
     static FreeNode find(HudDocumentV1 document, String nodeId) {
         return document == null || document.root == null || nodeId == null

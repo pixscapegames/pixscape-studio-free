@@ -9,9 +9,12 @@ import games.pixscape.studio.ui.asset.AssetNode;
 import java.util.Arrays;
 import java.util.Comparator;
 
-/** Minimal deterministic project-browser projection for Runtime HUD screen assets. */
+/**
+ * Minimal deterministic project-browser projection for Runtime HUD screen assets.
+ */
 public final class HudScreenAssetBrowser {
-    private HudScreenAssetBrowser() {}
+    private HudScreenAssetBrowser() {
+    }
 
     public static Array<AssetNode> scan(FileHandle projectDir) {
         Array<AssetNode> result = new Array<>();

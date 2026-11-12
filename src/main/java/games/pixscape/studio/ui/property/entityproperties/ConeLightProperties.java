@@ -92,7 +92,7 @@ public final class ConeLightProperties extends VisTable {
         super(true);
         buttonPicker.setColor(CommonLayout.BUTTON_COLOR);
         this.ctx = ctx;
-        lightingPanel = new LightingPanel(ctx,true);
+        lightingPanel = new LightingPanel(ctx, true);
 
         mVisibility = ctx.world.getMapper(VisibilityComponent.class);
         mEntityIndex = ctx.world.getMapper(EntityIndexComponent.class);
@@ -126,7 +126,7 @@ public final class ConeLightProperties extends VisTable {
                 (int e) -> mVisibility.get(e).isVisible(),
                 (Integer e, Boolean v) -> {
                     if (e == null) return;
-                    changeActivation(e,true,v);
+                    changeActivation(e, true, v);
                 }
         );
 
@@ -141,7 +141,7 @@ public final class ConeLightProperties extends VisTable {
                 },
                 (Integer e, Boolean v) -> {
                     if (e == null) return;
-                    changeActivation(e,false,v);
+                    changeActivation(e, false, v);
                 }
         );
 
@@ -533,13 +533,16 @@ public final class ConeLightProperties extends VisTable {
         markLightDirty(entityId);
     }
 
-    private void changeActivation(int entity,boolean visibility,boolean enabled){
-        try {ctx.history.execute(new games.pixscape.studio.history.commands.ChangeLightActivationCommand(
-                ctx.world,ctx.history.historyIds(),entity,visibility,enabled));}
-        catch(games.pixscape.runtime.render.lighting.LightingAdmissionException refusal){
-            if(getStage()!=null)games.pixscape.studio.ui.modal.Dialogs.showOKDialog(getStage(),"Lighting",refusal.getMessage());
+    private void changeActivation(int entity, boolean visibility, boolean enabled) {
+        try {
+            ctx.history.execute(new games.pixscape.studio.history.commands.ChangeLightActivationCommand(
+                    ctx.world, ctx.history.historyIds(), entity, visibility, enabled));
+        } catch (games.pixscape.runtime.render.lighting.LightingAdmissionException refusal) {
+            if (getStage() != null)
+                games.pixscape.studio.ui.modal.Dialogs.showOKDialog(getStage(), "Lighting", refusal.getMessage());
         }
-        visibleBinder.refresh();enabledBinder.refresh();
+        visibleBinder.refresh();
+        enabledBinder.refresh();
     }
 
     private void markLightDirty(int entityId) {

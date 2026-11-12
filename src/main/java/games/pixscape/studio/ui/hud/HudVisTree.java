@@ -4,7 +4,9 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
 import com.kotcrab.vis.ui.widget.VisTree;
 
-/** String-ID tree index for the active HUD projection. Mouse clicks choose one entry. */
+/**
+ * String-ID tree index for the active HUD projection. Mouse clicks choose one entry.
+ */
 public final class HudVisTree extends VisTree<HudTreeNode, String> {
     private final ObjectMap<String, HudTreeNode> nodesById = new ObjectMap<>();
     private final ObjectMap<String, HudTreeNode> cellsById = new ObjectMap<>();
@@ -28,11 +30,13 @@ public final class HudVisTree extends VisTree<HudTreeNode, String> {
         entriesByValue.put((String) node.getValue(), node);
     }
 
-    @Override public HudTreeNode findNode(String nodeId) {
+    @Override
+    public HudTreeNode findNode(String nodeId) {
         return nodeId == null ? null : nodesById.get(nodeId);
     }
 
-    @Override public void restoreExpandedValues(Array<String> values) {
+    @Override
+    public void restoreExpandedValues(Array<String> values) {
         for (String value : values) {
             HudTreeNode node = entriesByValue.get(value);
             if (node != null) {

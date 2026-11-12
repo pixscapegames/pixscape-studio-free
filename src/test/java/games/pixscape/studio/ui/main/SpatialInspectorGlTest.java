@@ -23,9 +23,12 @@ import java.nio.file.Files;
 import static org.junit.Assert.*;
 import static org.junit.Assume.assumeTrue;
 
-/** Real inspector routing and widgets in an isolated desktop context, without user projects. */
+/**
+ * Real inspector routing and widgets in an isolated desktop context, without user projects.
+ */
 public class SpatialInspectorGlTest {
-    @Test public void previewNotificationsRefreshOnlyTheBoundVolume() throws Exception {
+    @Test
+    public void previewNotificationsRefreshOnlyTheBoundVolume() throws Exception {
         assumeTrue("1".equals(System.getenv("PIXSCAPE_DOCUMENT_GL_TEST")));
         String previousHome = System.getProperty("user.home");
         ProjectConfig previousConfig = ProjectConfig.getInstance();
@@ -45,7 +48,9 @@ public class SpatialInspectorGlTest {
         try (var globals = new StudioGlTestScope()) {
             new Lwjgl3Application(new ApplicationAdapter() {
                 StudioApplicationAdapter studio;
-                @Override public void create() {
+
+                @Override
+                public void create() {
                     try {
                         studio = new StudioApplicationAdapter();
                         studio.create();
@@ -114,10 +119,17 @@ public class SpatialInspectorGlTest {
                         selection.clearEditPreview();
                         flush(panel);
                         assertEquals(-1, field(panel, "boundSpatialBlockId"));
-                    } catch (Throwable ex) { failure[0] = ex; }
-                    finally { Gdx.app.exit(); }
+                    } catch (Throwable ex) {
+                        failure[0] = ex;
+                    } finally {
+                        Gdx.app.exit();
+                    }
                 }
-                @Override public void dispose() { if (studio != null) studio.dispose(); }
+
+                @Override
+                public void dispose() {
+                    if (studio != null) studio.dispose();
+                }
             }, gl);
         } finally {
             System.setProperty("user.home", previousHome);

@@ -81,10 +81,10 @@ public final class FixtureCommandSupport {
         validateLinkedRelations(entityId, currentShapes, candidateShapes);
         PreparedPhysicsBodyCandidate prepared = containsLinkedShape(candidateShapes)
                 ? PhysicsService.prepareBodyCandidate(
-                        world,
-                        entityId,
-                        candidateShapes,
-                        requireCurrentPixelsPerMeter())
+                world,
+                entityId,
+                candidateShapes,
+                requireCurrentPixelsPerMeter())
                 : PhysicsService.prepareBodyCandidate(candidateShapes);
         ComponentMapper<PhysicsCompiledFixturesComponent> compiledMapper =
                 world.getMapper(PhysicsCompiledFixturesComponent.class);

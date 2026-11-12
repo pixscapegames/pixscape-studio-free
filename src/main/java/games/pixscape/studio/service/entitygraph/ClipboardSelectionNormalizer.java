@@ -13,7 +13,9 @@ import games.pixscape.runtime.component.PixscapeIdentityComponent;
 
 import java.util.Arrays;
 
-/** Normalizes supported V1 clipboard roots without mutating the Scene. */
+/**
+ * Normalizes supported V1 clipboard roots without mutating the Scene.
+ */
 public final class ClipboardSelectionNormalizer {
     private final World world;
     private final ComponentMapper<GameObjectComponent> roots;
@@ -32,12 +34,13 @@ public final class ClipboardSelectionNormalizer {
         if (selection != null) for (int i = 0; i < selection.size; i++) selected.add(selection.get(i));
         IntIntMap entityByStableId = entityByStableId();
         IntArray candidates = new IntArray();
-        for (IntSet.IntSetIterator it = selected.iterator(); it.hasNext;) candidates.add(it.next());
+        for (IntSet.IntSetIterator it = selected.iterator(); it.hasNext; ) candidates.add(it.next());
         sortByStableIdentity(candidates);
         IntArray result = new IntArray(false, candidates.size);
         for (int i = 0; i < candidates.size; i++) {
             int entityId = candidates.get(i);
-            if (!world.getEntityManager().isActive(entityId)) throw new IllegalArgumentException("Clipboard selection contains an inactive entity.");
+            if (!world.getEntityManager().isActive(entityId))
+                throw new IllegalArgumentException("Clipboard selection contains an inactive entity.");
             if (members.has(entityId) && !roots.has(entityId)) {
                 if (hasSelectedAncestor(entityId, selected, entityByStableId)) continue;
                 throw new IllegalArgumentException("Copying a Game Object member alone is not supported in V1.");

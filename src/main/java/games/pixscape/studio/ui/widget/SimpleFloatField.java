@@ -71,7 +71,9 @@ public final class SimpleFloatField extends VisTextField {
         return this;
     }
 
-    /** Sets display precision without changing the authored floating-point value. */
+    /**
+     * Sets display precision without changing the authored floating-point value.
+     */
     public SimpleFloatField withFractionDigits(int digits) {
         if (digits < 0 || digits > 6) throw new IllegalArgumentException("digits must be within [0,6]");
         exactText = false;

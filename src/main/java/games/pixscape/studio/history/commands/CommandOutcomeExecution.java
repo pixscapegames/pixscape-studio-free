@@ -1,6 +1,8 @@
 package games.pixscape.studio.history.commands;
 
-/** Internal bridge that keeps optional command outcomes out of the public command contract. */
+/**
+ * Internal bridge that keeps optional command outcomes out of the public command contract.
+ */
 public final class CommandOutcomeExecution {
     private CommandOutcomeExecution() {
     }

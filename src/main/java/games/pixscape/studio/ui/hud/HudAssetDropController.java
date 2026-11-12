@@ -13,7 +13,9 @@ import games.pixscape.studio.ui.asset.dnd.DragPayload;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-/** HUD target for the shared Assets drag payload and release lifecycle. */
+/**
+ * HUD target for the shared Assets drag payload and release lifecycle.
+ */
 public final class HudAssetDropController implements AutoCloseable {
     private final HudEditorSession session;
     private final HudImageAuthoringService imageAuthoring;
@@ -39,7 +41,9 @@ public final class HudAssetDropController implements AutoCloseable {
         updateAt(Gdx.input.getX(), Gdx.input.getY(), logicalWindowHeight, targetAvailable);
     }
 
-    /** Same frame route with an explicit pointer, used by deterministic interaction tests. */
+    /**
+     * Same frame route with an explicit pointer, used by deterministic interaction tests.
+     */
     void updateAt(int screenX, int screenY, int logicalWindowHeight, boolean targetAvailable) {
         DragPayload payload = DragContext.get().peek();
         if (payload == null) {
@@ -97,7 +101,9 @@ public final class HudAssetDropController implements AutoCloseable {
                 && payload.assetId > 0 && (payload.paths == null || payload.paths.size <= 1);
     }
 
-    /** Captures the editor document at drag discovery and permanently invalidates cross-document drags. */
+    /**
+     * Captures the editor document at drag discovery and permanently invalidates cross-document drags.
+     */
     public void observeActiveDocument() {
         DragPayload payload = DragContext.get().peek();
         if (payload == null) {
@@ -117,14 +123,18 @@ public final class HudAssetDropController implements AutoCloseable {
         }
     }
 
-    /** Releases HUD-only drag state while leaving the shared payload for another editor target. */
+    /**
+     * Releases HUD-only drag state while leaving the shared payload for another editor target.
+     */
     public void leaveHudTarget() {
         if (outsideHudTarget) return;
         outsideHudTarget = true;
         clearCursor();
     }
 
-    boolean isShowingForbiddenFeedback() { return cursorForbidden; }
+    boolean isShowingForbiddenFeedback() {
+        return cursorForbidden;
+    }
 
     private HudScreenEditorDocument activeHudDocument() {
         return documentManager.activeDocument() instanceof HudScreenEditorDocument hud ? hud : null;
@@ -166,5 +176,8 @@ public final class HudAssetDropController implements AutoCloseable {
         }
     }
 
-    @Override public void close() { forgetDrag(); }
+    @Override
+    public void close() {
+        forgetDrag();
+    }
 }

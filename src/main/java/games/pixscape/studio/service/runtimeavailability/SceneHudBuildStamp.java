@@ -16,9 +16,12 @@ import java.util.HexFormat;
 import java.util.Set;
 import java.util.TreeSet;
 
-/** Logical closure plus source bytes, not editor membership or filesystem timestamps. */
+/**
+ * Logical closure plus source bytes, not editor membership or filesystem timestamps.
+ */
 final class SceneHudBuildStamp {
-    private SceneHudBuildStamp() {}
+    private SceneHudBuildStamp() {
+    }
 
     static String of(FileHandle project, SceneHudDependencyClosure closure) {
         try {
@@ -42,7 +45,9 @@ final class SceneHudBuildStamp {
         }
     }
 
-    /** Recollect against this private source tree before projection: all later readers use these bytes. */
+    /**
+     * Recollect against this private source tree before projection: all later readers use these bytes.
+     */
     static void copySources(FileHandle project, SceneHudDependencyClosure closure, FileHandle snapshot) {
         try {
             Files.createDirectories(snapshot.file().toPath());
@@ -76,7 +81,10 @@ final class SceneHudBuildStamp {
         return path;
     }
 
-    private static void add(MessageDigest hash, String value) { add(hash, value.getBytes(StandardCharsets.UTF_8)); }
+    private static void add(MessageDigest hash, String value) {
+        add(hash, value.getBytes(StandardCharsets.UTF_8));
+    }
+
     private static void add(MessageDigest hash, byte[] bytes) {
         hash.update(ByteBuffer.allocate(Integer.BYTES).putInt(bytes.length).array());
         hash.update(bytes);

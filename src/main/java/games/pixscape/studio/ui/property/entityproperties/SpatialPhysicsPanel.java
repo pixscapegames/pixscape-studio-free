@@ -70,13 +70,14 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
                 if (enable && eligibleForActivation) {
                     games.pixscape.runtime.spatial.ActorSpatialRectangles rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
                     var animation = ctx.mAnim.getSafe(entityId, null);
-                    if (animation == null) rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
-                    else for (int i=0;i<animation.animationAssetIds.size;i++) {
-                        int asset=animation.animationAssetIds.get(i);
+                    if (animation == null)
+                        rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+                    else for (int i = 0; i < animation.animationAssetIds.size; i++) {
+                        int asset = animation.animationAssetIds.get(i);
                         if (!(ctx.assetMetaLookup.apply(asset) instanceof games.pixscape.studio.asset.AnimationAssetMeta meta))
                             throw new IllegalStateException("Missing animation asset " + asset);
-                        for (String clip:meta.clips.keys())
-                            rectangles.put(asset,clip,new games.pixscape.runtime.spatial.ActorSpatialRectangleData());
+                        for (String clip : meta.clips.keys())
+                            rectangles.put(asset, clip, new games.pixscape.runtime.spatial.ActorSpatialRectangleData());
                     }
                     command.withRectangles(rectangles);
                 }
@@ -112,7 +113,8 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         detailsBlock.show(false);
     }
 
-    @Override public void act(float delta) {
+    @Override
+    public void act(float delta) {
         super.act(delta);
         rectanglePanel.refreshCurrentRepresentation();
     }

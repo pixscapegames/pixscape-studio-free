@@ -75,11 +75,30 @@ public final class EditTiledLayerSpatialDefaultsCommand implements Command, Hist
         return noop;
     }
 
-    @Override public void redo() { redoOutcome(); }
-    @Override public void undo() { undoOutcome(); }
-    @Override public CommandOutcome executeOutcome() { return apply(after); }
-    @Override public CommandOutcome redoOutcome() { return apply(after); }
-    @Override public CommandOutcome undoOutcome() { return apply(before); }
+    @Override
+    public void redo() {
+        redoOutcome();
+    }
+
+    @Override
+    public void undo() {
+        undoOutcome();
+    }
+
+    @Override
+    public CommandOutcome executeOutcome() {
+        return apply(after);
+    }
+
+    @Override
+    public CommandOutcome redoOutcome() {
+        return apply(after);
+    }
+
+    @Override
+    public CommandOutcome undoOutcome() {
+        return apply(before);
+    }
 
     private CommandOutcome apply(Snapshot snapshot) {
         if (noop || snapshot == null) return CommandOutcome.NO_CHANGE;
@@ -124,7 +143,8 @@ public final class EditTiledLayerSpatialDefaultsCommand implements Command, Hist
         tiled.defaultTileAltitude = snapshot.defaultAltitude;
         tiled.defaultTileHeight = height;
         syncRuntimeDefaults(tiled);
-        if (linked) SpatialBlockCommandSupport.publishStaticTiledPhysicsCandidate(world, entityId, shapes.shapes, physics);
+        if (linked)
+            SpatialBlockCommandSupport.publishStaticTiledPhysicsCandidate(world, entityId, shapes.shapes, physics);
         markDirty(entityId);
         return CommandOutcome.APPLIED;
     }
@@ -133,7 +153,10 @@ public final class EditTiledLayerSpatialDefaultsCommand implements Command, Hist
         TiledMapLayerData source = tiled.data;
         TiledMapLayerData map = source == null ? tiled.createMapData() : new TiledMapLayerData(
                 source.mapWidth, source.mapHeight, source.tileWidth, source.tileHeight, source.chunkSize, source.projection);
-        if (source != null) { map.originX = source.originX; map.originY = source.originY; }
+        if (source != null) {
+            map.originX = source.originX;
+            map.originY = source.originY;
+        }
         map.defaultTileAltitude = altitude;
         map.defaultTileHeight = height;
         return map;

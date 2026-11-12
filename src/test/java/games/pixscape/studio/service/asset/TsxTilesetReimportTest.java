@@ -17,21 +17,25 @@ import java.util.Map;
 import static org.junit.Assert.*;
 
 public class TsxTilesetReimportTest {
-    @Rule public TemporaryFolder temp = new TemporaryFolder();
+    @Rule
+    public TemporaryFolder temp = new TemporaryFolder();
     private final AssetMetaDatabase db = new AssetMetaDatabase();
     private final TilesetReimportService importer = new TilesetReimportService(db);
     private FileHandle source, root, catalog, first, second;
 
-    @Before public void setup() throws Exception {
+    @Before
+    public void setup() throws Exception {
         GdxNativesLoader.load();
         source = new FileHandle(temp.newFolder("source"));
         root = new FileHandle(temp.newFolder("project"));
         catalog = root.child("assets.json");
         ImageIO.write(new BufferedImage(8, 8, BufferedImage.TYPE_INT_ARGB), "png", source.child("shared.png").file());
-        first = collection("first", 1); second = collection("second", 9);
+        first = collection("first", 1);
+        second = collection("second", 9);
     }
 
-    @Test public void importAsNewSeparatesHomonymousCollectionsAndSparseLocalIds() {
+    @Test
+    public void importAsNewSeparatesHomonymousCollectionsAndSparseLocalIds() {
         var one = apply(first, -1);
         var two = apply(second, -1);
         assertNotEquals(one.tilesetAssetId(), two.tilesetAssetId());
@@ -42,7 +46,8 @@ public class TsxTilesetReimportTest {
         assertEquals(two.tilesetAssetId(), importer.candidates(second, "same").get(0).id());
     }
 
-    @Test public void updateUsesChosenTilesetAndKeepsItsTileIdentityAndEditedProfile() {
+    @Test
+    public void updateUsesChosenTilesetAndKeepsItsTileIdentityAndEditedProfile() {
         var one = apply(first, -1);
         var two = apply(second, -1);
         ((TilesetAssetMeta) db.findById(one.tilesetAssetId())).offsetX = 17;
@@ -55,9 +60,11 @@ public class TsxTilesetReimportTest {
         assertTile(AssetMetaDatabase.load(catalog), one.localTileAssetIds().get(7), 9);
     }
 
-    @Test public void preparationAndCancellationDoNotChangeCatalogFilesOrAllocator() {
+    @Test
+    public void preparationAndCancellationDoNotChangeCatalogFilesOrAllocator() {
         var one = apply(first, -1);
-        String snapshot = db.toSnapshotJson(); byte[] saved = catalog.readBytes();
+        String snapshot = db.toSnapshotJson();
+        byte[] saved = catalog.readBytes();
         var tile = (TileAssetMeta) db.findById(one.localTileAssetIds().get(7));
         byte[] pixels = root.child(tile.sourceRelPath()).readBytes();
         importer.prepareTsx(second, root.child("orig/tiles"), one.tilesetAssetId(), ids -> Map.of());
@@ -68,11 +75,14 @@ public class TsxTilesetReimportTest {
         assertFalse(root.child("orig/tiles/same-2").exists());
     }
 
-    @Test public void failedUpdateRestoresPropertiesAndPersistedCatalog() {
+    @Test
+    public void failedUpdateRestoresPropertiesAndPersistedCatalog() {
         var one = apply(first, -1);
-        String snapshot = db.toSnapshotJson(); byte[] saved = catalog.readBytes();
+        String snapshot = db.toSnapshotJson();
+        byte[] saved = catalog.readBytes();
         var plan = importer.prepareTsx(second, root.child("orig/tiles"), one.tilesetAssetId(), ids -> Map.of());
-        assertThrows(IllegalStateException.class, () -> importer.apply(plan, (candidate, colors) -> {}, () -> {
+        assertThrows(IllegalStateException.class, () -> importer.apply(plan, (candidate, colors) -> {
+        }, () -> {
             assertTile(db, one.localTileAssetIds().get(7), 9);
             db.save(catalog);
             throw new IllegalStateException("Rejected publication");
@@ -81,7 +91,8 @@ public class TsxTilesetReimportTest {
         assertArrayEquals(saved, catalog.readBytes());
     }
 
-    @Test public void updateKeepsDistinctDefinitionsSharingAnImage() {
+    @Test
+    public void updateKeepsDistinctDefinitionsSharingAnImage() {
         first.writeString(first.readString().replace("</tileset>",
                 "<tile id=\"19\"><image source=\"shared.png\" width=\"8\" height=\"8\"/></tile></tileset>"), false);
         var one = apply(first, -1);
@@ -94,7 +105,8 @@ public class TsxTilesetReimportTest {
 
     private TilesetAssetImportService.TilesetImportResult apply(FileHandle tsx, int target) {
         var plan = importer.prepareTsx(tsx, root.child("orig/tiles"), target, ids -> Map.of());
-        return importer.apply(plan, (candidate, colors) -> {}, () -> db.save(catalog));
+        return importer.apply(plan, (candidate, colors) -> {
+        }, () -> db.save(catalog));
     }
 
     private FileHandle collection(String file, int cost) {

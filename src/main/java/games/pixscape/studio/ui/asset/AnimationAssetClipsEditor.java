@@ -11,9 +11,12 @@ import games.pixscape.studio.ui.property.entityproperties.AnimationClipsDialog;
 
 import java.util.function.Consumer;
 
-/** Shared entry point for the browser and Inspector's copy-based clip editor. */
+/**
+ * Shared entry point for the browser and Inspector's copy-based clip editor.
+ */
 public final class AnimationAssetClipsEditor {
-    private AnimationAssetClipsEditor() { }
+    private AnimationAssetClipsEditor() {
+    }
 
     public static void show(StudioApplicationAdapter app, int assetId, Stage stage) {
         if (app == null || stage == null) return;

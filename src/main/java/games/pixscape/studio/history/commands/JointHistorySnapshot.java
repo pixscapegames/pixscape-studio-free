@@ -5,7 +5,9 @@ import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.studio.history.HistoryIdRegistry;
 
-/** Restores joint references through history identities after ECS ids change. */
+/**
+ * Restores joint references through history identities after ECS ids change.
+ */
 final class JointHistorySnapshot {
     private final long aHistoryId;
     private final long bHistoryId;

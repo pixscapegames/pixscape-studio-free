@@ -56,7 +56,7 @@ public final class TiledSparseStorageHelper {
      * must continue to use {@link #setTile(TiledLayerComponent, int, int, int, byte)}.
      */
     public static NewLayerStorageBuilder beginNewLayerStorage(TiledLayerComponent comp,
-                                                               int expectedCellCount) {
+                                                              int expectedCellCount) {
         if (comp == null) {
             throw new IllegalArgumentException("comp is null");
         }
@@ -84,7 +84,9 @@ public final class TiledSparseStorageHelper {
             this.comp = comp;
         }
 
-        /** Appends one unique, non-empty source cell in deterministic traversal order. */
+        /**
+         * Appends one unique, non-empty source cell in deterministic traversal order.
+         */
         public void append(int gx, int gy, int assetId, byte transformFlags) {
             if (assetId <= 0) {
                 return;

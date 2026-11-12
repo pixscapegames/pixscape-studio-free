@@ -103,7 +103,9 @@ public final class ResourceAssetProperties extends VisTable {
         return reload();
     }
 
-    /** Shared HUD description, also used for the active Scene's association. */
+    /**
+     * Shared HUD description, also used for the active Scene's association.
+     */
     boolean selectHud(String id) {
         kind = AssetNode.Kind.HUD_SCREEN;
         screenId = id;
@@ -112,13 +114,15 @@ public final class ResourceAssetProperties extends VisTable {
         return true;
     }
 
-    /** Called only at selection/reload boundaries, never to poll the filesystem each frame. */
+    /**
+     * Called only at selection/reload boundaries, never to poll the filesystem each frame.
+     */
     boolean reload() {
         releasePreview();
         details.clearChildren();
         details.add(new VisLabel(kind == AssetNode.Kind.HUD_SCREEN ? HudInspectorProjection.SCREEN_TITLE
-                : kind == AssetNode.Kind.GAME_OBJECT ? "GAME OBJECT"
-                : kind == AssetNode.Kind.PARTICLE ? "PARTICLE EFFECT" : kind.name()))
+                        : kind == AssetNode.Kind.GAME_OBJECT ? "GAME OBJECT"
+                        : kind == AssetNode.Kind.PARTICLE ? "PARTICLE EFFECT" : kind.name()))
                 .colspan(2).center().padBottom(8).row();
         if (kind == AssetNode.Kind.GAME_OBJECT) return showGameObject();
         if (kind == AssetNode.Kind.HUD_SCREEN) {
@@ -140,7 +144,8 @@ public final class ResourceAssetProperties extends VisTable {
                 HudScreenAsset asset = displayedHud != null ? displayedHud.asset()
                         : new HudDocumentPersistenceService().load(project, screenId).asset();
                 for (HudInspectorProjection.Field field : HudInspectorProjection.screen(
-                        screenId, asset, displayedDirty, displayedHud != null)) row(field.label(), field.value());
+                        screenId, asset, displayedDirty, displayedHud != null))
+                    row(field.label(), field.value());
             } catch (RuntimeException failure) {
                 unavailableHud(failure.getMessage());
                 return true;
@@ -149,7 +154,8 @@ public final class ResourceAssetProperties extends VisTable {
             VisTextButton edit = new VisTextButton("Open HUD editor");
             edit.setName("openHudAssetEditor");
             edit.addListener(new ChangeListener() {
-                @Override public void changed(ChangeEvent event, Actor actor) {
+                @Override
+                public void changed(ChangeEvent event, Actor actor) {
                     String target = screenId;
                     leaveInspection.run();
                     app.openHudScreen(target);
@@ -192,7 +198,9 @@ public final class ResourceAssetProperties extends VisTable {
         row("Status", "Unavailable: " + message);
     }
 
-    /** O(1) identity/revision checks. Open HUD documents are authoritative, including unsaved edits. */
+    /**
+     * O(1) identity/revision checks. Open HUD documents are authoritative, including unsaved edits.
+     */
     boolean refreshIfChanged() {
         if (kind == AssetNode.Kind.GAME_OBJECT) {
             if (gameObjectReloadRequested) return reload();
@@ -211,7 +219,8 @@ public final class ResourceAssetProperties extends VisTable {
             String tag = activeImageAtlasTag();
             if (!Objects.equals(tag, imageAtlasTag)
                     || (tag != null ? app.getCanvas().getAtlasService().getAtlas(tag) : null) != imageAtlas
-                    || app.getCanvas().getAtlasService().publicationRevision(tag) != imageAtlasRevision) return reload();
+                    || app.getCanvas().getAtlasService().publicationRevision(tag) != imageAtlasRevision)
+                return reload();
             // Only read the published texture; never load, repack, or change its filtering here.
             if (imageVisual != null) refreshImageFilters();
         }
@@ -256,7 +265,8 @@ public final class ResourceAssetProperties extends VisTable {
         open.setName("openGameObjectAssetEditor");
         open.getLabel().setWrap(true);
         open.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 String target = source.path();
                 leaveInspection.run();
                 app.openGameObject(target);
@@ -288,8 +298,11 @@ public final class ResourceAssetProperties extends VisTable {
             throw new IllegalArgumentException("Image source is missing: " + source.name());
         // Validate even when the renderer still has cached pixels. A broken source must not look healthy.
         Pixmap pixels;
-        try { pixels = new Pixmap(source); }
-        catch (RuntimeException failure) { throw new IllegalArgumentException("Invalid image source: " + source.name(), failure); }
+        try {
+            pixels = new Pixmap(source);
+        } catch (RuntimeException failure) {
+            throw new IllegalArgumentException("Invalid image source: " + source.name(), failure);
+        }
         pixels.dispose();
         imageVisual = app.getCanvas().getAssetVisualResolver().resolveFirst(assetId, imageAtlasTag);
         if (imageVisual == null || imageVisual.texture().getTextureObjectHandle() == 0)

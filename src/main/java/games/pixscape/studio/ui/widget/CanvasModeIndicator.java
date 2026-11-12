@@ -9,7 +9,9 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.service.StudioEditingMode;
 import games.pixscape.studio.service.StudioEditingModeService;
 
-/** Decorative canvas overlay showing the authoritative Studio editing mode. */
+/**
+ * Decorative canvas overlay showing the authoritative Studio editing mode.
+ */
 public final class CanvasModeIndicator extends VisTable implements Disposable {
     private static final String NORMAL_BACKGROUND = "canvas-mode-background-normal";
     private static final String SPECIALIZED_BACKGROUND = "canvas-mode-background";

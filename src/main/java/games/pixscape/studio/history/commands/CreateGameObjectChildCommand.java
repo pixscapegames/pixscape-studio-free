@@ -17,7 +17,9 @@ import games.pixscape.studio.history.initializer.Initializer;
 
 import java.util.function.Consumer;
 
-/** Creates one supported entity directly as a Game Object child in one history operation. */
+/**
+ * Creates one supported entity directly as a Game Object child in one history operation.
+ */
 public final class CreateGameObjectChildCommand implements Command {
     private final World world;
     private final HistoryIdRegistry historyIds;
@@ -75,7 +77,10 @@ public final class CreateGameObjectChildCommand implements Command {
         return "Create " + childLabel + " in Game Object";
     }
 
-    @Override public int additionalActiveLights() { return createCommand.additionalActiveLights(); }
+    @Override
+    public int additionalActiveLights() {
+        return createCommand.additionalActiveLights();
+    }
 
     @Override
     public void redo() {
@@ -181,8 +186,8 @@ public final class CreateGameObjectChildCommand implements Command {
         TransformComponent parentWorldAfter = parentMember == null
                 ? GameObjectHierarchyCommandSupport.copy(authoredParentAfter)
                 : GameObjectTransformMath.localToWorld(
-                        grandParentWorld, authoredParentAfter, true,
-                        new TransformComponent());
+                grandParentWorld, authoredParentAfter, true,
+                new TransformComponent());
 
         TransformComponent childLocal = GameObjectTransformMath.worldToLocal(
                 parentWorldAfter, childWorld, new TransformComponent());
@@ -303,7 +308,9 @@ public final class CreateGameObjectChildCommand implements Command {
         }
 
         @Override
-        public int activeLightCount() { return delegate.activeLightCount(); }
+        public int activeLightCount() {
+            return delegate.activeLightCount();
+        }
 
         @Override
         public void init(int targetEid) {

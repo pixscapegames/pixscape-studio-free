@@ -3,10 +3,16 @@ package games.pixscape.studio.history.commands;
 public interface Command {
     String label();
 
-    /** Cold preflight: net additional authored active lights in this new command. */
-    default int additionalActiveLights() { return 0; }
+    /**
+     * Cold preflight: net additional authored active lights in this new command.
+     */
+    default int additionalActiveLights() {
+        return 0;
+    }
 
-    default boolean selectsLegacyBeforeLights() { return false; }
+    default boolean selectsLegacyBeforeLights() {
+        return false;
+    }
 
     void redo();
 

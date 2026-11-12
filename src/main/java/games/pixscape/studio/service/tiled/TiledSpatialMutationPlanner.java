@@ -9,9 +9,11 @@ import games.pixscape.runtime.spatial.SpatialTileOrderInvariantException;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.service.spatial.SpatialStructureTopology;
 
-/** Shared preflight and atomic publication boundary for tiled mutations affecting Spatial V3. */
+/**
+ * Shared preflight and atomic publication boundary for tiled mutations affecting Spatial V3.
+ */
 public final class TiledSpatialMutationPlanner {
-    public enum Status { ACCEPTED, REJECTED_LINKED_ANCHOR, REJECTED_SPATIAL_POST_STATE }
+    public enum Status {ACCEPTED, REJECTED_LINKED_ANCHOR, REJECTED_SPATIAL_POST_STATE}
 
     public static final class Result {
         private final Status status;
@@ -22,9 +24,17 @@ public final class TiledSpatialMutationPlanner {
             this.rejection = rejection;
         }
 
-        public Status status() { return status; }
-        public boolean accepted() { return status == Status.ACCEPTED; }
-        public TiledSpatialMutationRejection rejection() { return rejection; }
+        public Status status() {
+            return status;
+        }
+
+        public boolean accepted() {
+            return status == Status.ACCEPTED;
+        }
+
+        public TiledSpatialMutationRejection rejection() {
+            return rejection;
+        }
     }
 
     public Result preflight(TiledMutationPlan plan, SpatialBlocksComponent blocks, boolean after) {
@@ -68,15 +78,17 @@ public final class TiledSpatialMutationPlanner {
     public Result validateAndCommit(int layerEntityId, TiledMapLayerData map,
                                     SpatialBlocksComponent blocks, TiledMutationPlan plan,
                                     boolean after) {
-        return validateAndCommit(layerEntityId,map,blocks,plan,after,null);
+        return validateAndCommit(layerEntityId, map, blocks, plan, after, null);
     }
-    public Result validateAndCommit(int layerEntityId,TiledMapLayerData map,SpatialBlocksComponent blocks,
-            TiledMutationPlan plan,boolean after,com.badlogic.gdx.utils.Array<games.pixscape.runtime.render.lighting.TileSurfaceDescription> lightingDescriptions){
-        return validateAndCommit(layerEntityId,map,blocks,plan,after,lightingDescriptions,null);
+
+    public Result validateAndCommit(int layerEntityId, TiledMapLayerData map, SpatialBlocksComponent blocks,
+                                    TiledMutationPlan plan, boolean after, com.badlogic.gdx.utils.Array<games.pixscape.runtime.render.lighting.TileSurfaceDescription> lightingDescriptions) {
+        return validateAndCommit(layerEntityId, map, blocks, plan, after, lightingDescriptions, null);
     }
-    public Result validateAndCommit(int layerEntityId,TiledMapLayerData map,SpatialBlocksComponent blocks,
-            TiledMutationPlan plan,boolean after,com.badlogic.gdx.utils.Array<games.pixscape.runtime.render.lighting.TileSurfaceDescription> lightingDescriptions,
-            Runnable validateLighting){
+
+    public Result validateAndCommit(int layerEntityId, TiledMapLayerData map, SpatialBlocksComponent blocks,
+                                    TiledMutationPlan plan, boolean after, com.badlogic.gdx.utils.Array<games.pixscape.runtime.render.lighting.TileSurfaceDescription> lightingDescriptions,
+                                    Runnable validateLighting) {
         Result linked = preflight(plan, blocks, after);
         if (!linked.accepted()) return linked;
         if (plan == null || plan.isEmpty()) return accepted();
@@ -98,9 +110,10 @@ public final class TiledSpatialMutationPlanner {
                 compiled.ensure(blocks);
                 new SpatialTileOrderCache().ensure(layerEntityId, map, blocks, compiled);
             }
-            if(lightingDescriptions!=null&&lightingDescriptions.size>0
-                    ||games.pixscape.runtime.render.lighting.MapLightingGeometry.hasSilhouetteCasters(blocks)){
-                if(validateLighting==null)throw new IllegalArgumentException("Native tile resources are required to validate lighting");
+            if (lightingDescriptions != null && lightingDescriptions.size > 0
+                    || games.pixscape.runtime.render.lighting.MapLightingGeometry.hasSilhouetteCasters(blocks)) {
+                if (validateLighting == null)
+                    throw new IllegalArgumentException("Native tile resources are required to validate lighting");
                 validateLighting.run();
             }
             map.commitAtomicMutation();

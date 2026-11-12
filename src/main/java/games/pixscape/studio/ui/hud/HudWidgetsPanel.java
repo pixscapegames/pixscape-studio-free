@@ -25,7 +25,9 @@ import games.pixscape.studio.ui.docking.DockablePanel;
 import java.util.List;
 import java.util.function.Consumer;
 
-/** Persistent active-HUD widget toolbox using the normal dockable-panel lifecycle. */
+/**
+ * Persistent active-HUD widget toolbox using the normal dockable-panel lifecycle.
+ */
 public final class HudWidgetsPanel extends DockablePanel {
     private static final int MAX_CATEGORY_COLUMNS = 7;
     private static final Color ICON_OVER_TINT = new Color(0.78f, 0.92f, 1f, 1f);
@@ -114,12 +116,14 @@ public final class HudWidgetsPanel extends DockablePanel {
 
         session.addListener(this::requestRefresh);
         documentManager.addListener(new EditorDocumentManager.Listener() {
-            @Override public void documentActivated(OpenEditorDocument previous,
-                                                     OpenEditorDocument current) {
+            @Override
+            public void documentActivated(OpenEditorDocument previous,
+                                          OpenEditorDocument current) {
                 requestRefresh();
             }
 
-            @Override public void documentTitleChanged(OpenEditorDocument document) {
+            @Override
+            public void documentTitleChanged(OpenEditorDocument document) {
                 if (document == activeDocument()) requestRefresh();
             }
         });
@@ -282,7 +286,10 @@ public final class HudWidgetsPanel extends DockablePanel {
 
     private static Container<HorizontalGroup> categoryBody(HorizontalGroup buttons) {
         Container<HorizontalGroup> body = new Container<HorizontalGroup>(buttons) {
-            @Override public float getMinWidth() { return 0f; }
+            @Override
+            public float getMinWidth() {
+                return 0f;
+            }
         };
         body.left().fillX();
         return body;
@@ -290,8 +297,15 @@ public final class HudWidgetsPanel extends DockablePanel {
 
     static HorizontalGroup wrappingButtonGroup(Actor... buttons) {
         HorizontalGroup group = new HorizontalGroup() {
-            @Override public float getMinWidth() { return 0f; }
-            @Override public float getPrefWidth() { return 0f; }
+            @Override
+            public float getMinWidth() {
+                return 0f;
+            }
+
+            @Override
+            public float getPrefWidth() {
+                return 0f;
+            }
         };
         group.left().top().wrap(true).space(CommonLayout.HUD_WIDGET_GRID_GAP)
                 .wrapSpace(CommonLayout.HUD_WIDGET_GRID_GAP);
@@ -319,8 +333,15 @@ public final class HudWidgetsPanel extends DockablePanel {
         style.imageDisabled = skin.newDrawable(icon, ICON_DISABLED_TINT);
 
         ImageButton button = new ImageButton(style) {
-            @Override public float getPrefWidth() { return CommonLayout.HUD_WIDGET_BUTTON_SIZE; }
-            @Override public float getPrefHeight() { return CommonLayout.HUD_WIDGET_BUTTON_SIZE; }
+            @Override
+            public float getPrefWidth() {
+                return CommonLayout.HUD_WIDGET_BUTTON_SIZE;
+            }
+
+            @Override
+            public float getPrefHeight() {
+                return CommonLayout.HUD_WIDGET_BUTTON_SIZE;
+            }
         };
         button.getImage().setScaling(Scaling.fit);
         button.getImageCell().size(CommonLayout.HUD_WIDGET_ICON_SIZE);
@@ -333,32 +354,109 @@ public final class HudWidgetsPanel extends DockablePanel {
         return documentManager.activeDocument() instanceof HudScreenEditorDocument hud ? hud : null;
     }
 
-    ImageButton groupButton() { return groupButton; }
-    ImageButton tableButton() { return tableButton; }
-    ImageButton stackButton() { return stackButton; }
-    ImageButton containerButton() { return containerButton; }
-    ImageButton scrollPaneButton() { return scrollPaneButton; }
-    ImageButton windowButton() { return windowButton; }
-    ImageButton dialogButton() { return dialogButton; }
-    ImageButton labelButton() { return labelButton; }
-    ImageButton textraLabelButton() { return textraLabelButton; }
-    ImageButton textButtonButton() { return textButtonButton; }
-    ImageButton imageButtonButton() { return imageButtonButton; }
-    ImageButton imageTextButtonButton() { return imageTextButtonButton; }
-    ImageButton textFieldButton() { return textFieldButton; }
-    ImageButton selectBoxButton() { return selectBoxButton; }
-    ImageButton listButton() { return listButton; }
-    ImageButton checkBoxButton() { return checkBoxButton; }
-    ImageButton sliderButton() { return sliderButton; }
-    ImageButton progressBarButton() { return progressBarButton; }
-    VisTable content() { return content; }
-    HorizontalGroup layoutButtons() { return layoutButtons; }
-    HorizontalGroup textButtons() { return textButtons; }
-    HorizontalGroup buttonButtons() { return buttonButtons; }
-    HorizontalGroup selectionButtons() { return selectionButtons; }
-    VisScrollPane scrollPane() { return scrollPane; }
-    int projectionCount() { return projectionCount; }
-    boolean refreshPending() { return refreshPending; }
+    ImageButton groupButton() {
+        return groupButton;
+    }
+
+    ImageButton tableButton() {
+        return tableButton;
+    }
+
+    ImageButton stackButton() {
+        return stackButton;
+    }
+
+    ImageButton containerButton() {
+        return containerButton;
+    }
+
+    ImageButton scrollPaneButton() {
+        return scrollPaneButton;
+    }
+
+    ImageButton windowButton() {
+        return windowButton;
+    }
+
+    ImageButton dialogButton() {
+        return dialogButton;
+    }
+
+    ImageButton labelButton() {
+        return labelButton;
+    }
+
+    ImageButton textraLabelButton() {
+        return textraLabelButton;
+    }
+
+    ImageButton textButtonButton() {
+        return textButtonButton;
+    }
+
+    ImageButton imageButtonButton() {
+        return imageButtonButton;
+    }
+
+    ImageButton imageTextButtonButton() {
+        return imageTextButtonButton;
+    }
+
+    ImageButton textFieldButton() {
+        return textFieldButton;
+    }
+
+    ImageButton selectBoxButton() {
+        return selectBoxButton;
+    }
+
+    ImageButton listButton() {
+        return listButton;
+    }
+
+    ImageButton checkBoxButton() {
+        return checkBoxButton;
+    }
+
+    ImageButton sliderButton() {
+        return sliderButton;
+    }
+
+    ImageButton progressBarButton() {
+        return progressBarButton;
+    }
+
+    VisTable content() {
+        return content;
+    }
+
+    HorizontalGroup layoutButtons() {
+        return layoutButtons;
+    }
+
+    HorizontalGroup textButtons() {
+        return textButtons;
+    }
+
+    HorizontalGroup buttonButtons() {
+        return buttonButtons;
+    }
+
+    HorizontalGroup selectionButtons() {
+        return selectionButtons;
+    }
+
+    VisScrollPane scrollPane() {
+        return scrollPane;
+    }
+
+    int projectionCount() {
+        return projectionCount;
+    }
+
+    boolean refreshPending() {
+        return refreshPending;
+    }
 
     private static String display(HudNodeKind kind) {
         return kind == HudNodeKind.TEXT_BUTTON ? "Text Button"
@@ -372,7 +470,10 @@ public final class HudWidgetsPanel extends DockablePanel {
 
     private static ChangeListener change(Runnable action) {
         return new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) { action.run(); }
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                action.run();
+            }
         };
     }
 }

@@ -7,7 +7,8 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
 public class HudEditorSessionDropCoordinatesTest {
-    @Test public void logicalScreenPointerMapsToCanvasLocalCoordinates() {
+    @Test
+    public void logicalScreenPointerMapsToCanvasLocalCoordinates() {
         ScreenViewport viewport = new ScreenViewport();
         viewport.setScreenBounds(100, 50, 400, 200);
 
@@ -18,7 +19,8 @@ public class HudEditorSessionDropCoordinatesTest {
         assertEquals(100f, center.y, 0.001f);
     }
 
-    @Test public void movedCanvasOriginMapsPointerWithoutPan() {
+    @Test
+    public void movedCanvasOriginMapsPointerWithoutPan() {
         ScreenViewport viewport = new ScreenViewport();
         viewport.setScreenBounds(280, 160, 400, 200);
 

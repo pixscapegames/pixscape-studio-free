@@ -143,7 +143,9 @@ public class ConvertSelectionToGameObjectCommandTest {
         world.getMapper(EntityIndexComponent.class).create(entity).layerIndex = layer;
         world.getMapper(EntityIndexComponent.class).get(entity).zIndex = z;
         TransformComponent transform = world.getMapper(TransformComponent.class).create(entity);
-        transform.x = x; transform.y = y; transform.scaleX = transform.scaleY = 1f;
+        transform.x = x;
+        transform.y = y;
+        transform.scaleX = transform.scaleY = 1f;
         transform.refreshCaches();
         return entity;
     }

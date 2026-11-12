@@ -25,15 +25,19 @@ import static games.pixscape.studio.service.runtimeavailability.SceneHudPackMate
 import static org.junit.Assert.*;
 
 public class SceneHudPackInputMaterializerTest {
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
     private final SceneHudPackInputMaterializer materializer = new SceneHudPackInputMaterializer();
     private static final int[] PATTERN = {0xff0000ff, 0x00ff0080, 0x0000ffff, 0x12345600, 0xffffffff, 0x11223344};
 
-    @BeforeClass public static void bootGdx() {
-        if (Gdx.files == null) new HeadlessApplication(new ApplicationAdapter() {}, new HeadlessApplicationConfiguration());
+    @BeforeClass
+    public static void bootGdx() {
+        if (Gdx.files == null) new HeadlessApplication(new ApplicationAdapter() {
+        }, new HeadlessApplicationConfiguration());
     }
 
-    @Test public void fullImagesKeepExactBytesPixelsAndUnambiguousIndependentNames() throws Exception {
+    @Test
+    public void fullImagesKeepExactBytesPixelsAndUnambiguousIndependentNames() throws Exception {
         FileHandle root = root();
         FileHandle source = root.child("authored/arbitrary.png");
         png(source, 2, 3, PATTERN);
@@ -60,7 +64,8 @@ public class SceneHudPackInputMaterializerTest {
         assertOnlyPngs(out, 3);
     }
 
-    @Test public void nonPngImagesAreEncodedAsPngWithoutResizingOrFiltering() throws Exception {
+    @Test
+    public void nonPngImagesAreEncodedAsPngWithoutResizingOrFiltering() throws Exception {
         FileHandle root = root();
         FileHandle source = root.child("authored/page.bmp");
         source.parent().mkdirs();
@@ -76,7 +81,8 @@ public class SceneHudPackInputMaterializerTest {
         assertArrayEquals(original, source.readBytes());
     }
 
-    @Test public void ordinaryCropRetainsTrimNinePatchIndexAndCustomMetadataNotWholePage() throws Exception {
+    @Test
+    public void ordinaryCropRetainsTrimNinePatchIndexAndCustomMetadataNotWholePage() throws Exception {
         FileHandle root = root();
         int[] page = filled(6, 5, 0x998877ff);
         put(page, 6, 2, 1, 2, 3, PATTERN);
@@ -98,11 +104,15 @@ public class SceneHudPackInputMaterializerTest {
         assertArrayEquals(original, root.child("skin/page.png").readBytes());
         assertOnlyPngs(root.child("build/inputs"), 1);
         assertFalse(root.child("build/inputs/page.png").exists());
-        try { result.metadata().values().get("split").add(9); fail("Mutable metadata"); }
-        catch (UnsupportedOperationException expected) {}
+        try {
+            result.metadata().values().get("split").add(9);
+            fail("Mutable metadata");
+        } catch (UnsupportedOperationException expected) {
+        }
     }
 
-    @Test public void actualProjectorAtlasRotationNormalizesNonSquarePixelCoordinates() throws Exception {
+    @Test
+    public void actualProjectorAtlasRotationNormalizesNonSquarePixelCoordinates() throws Exception {
         FileHandle root = root();
         int[] stored = {PATTERN[1], PATTERN[3], PATTERN[5], PATTERN[0], PATTERN[2], PATTERN[4]};
         int[] page = filled(7, 6, 0x765432ff);
@@ -139,13 +149,15 @@ public class SceneHudPackInputMaterializerTest {
         assertEquals(new SemanticMetadata(10, 12, 4, 5, Map.of()), result.metadata());
     }
 
-    @Test public void fontRequirementsReuseSkinEntriesAndMaterializeFallbackPagesAndWhiteOnce() throws Exception {
+    @Test
+    public void fontRequirementsReuseSkinEntriesAndMaterializeFallbackPagesAndWhiteOnce() throws Exception {
         FileHandle root = root();
         png(root.child("skin/page.png"), 2, 3, PATTERN);
         png(root.child("fonts/not-the-stem.png"), 2, 3, PATTERN);
         png(root.child("fonts/random-a.png"), 1, 1, new int[]{PATTERN[0]});
         png(root.child("fonts/random-b.png"), 1, 1, new int[]{PATTERN[1]});
-        for (String name : List.of("atlas", "single", "multi")) root.child("fonts/" + name + ".fnt").writeString("descriptor", false);
+        for (String name : List.of("atlas", "single", "multi"))
+            root.child("fonts/" + name + ".fnt").writeString("descriptor", false);
         AtlasEntry atlas = skin("atlas", -1, region(0, 0, 2, 3, false, 2, 3, 0, 0, Map.of()));
         List<AtlasEntry> entries = List.of(atlas,
                 image("single", -1, "fonts/not-the-stem.png", ProvenanceKind.BITMAP_FONT_PAGE),
@@ -169,10 +181,15 @@ public class SceneHudPackInputMaterializerTest {
         assertPixels(out.child(result.entries().get(4).inputPath()), 1, 1, new int[]{0xffffffff});
         assertEquals(6, out.child(result.entries().get(4).inputPath()).readBytes()[25]); // PNG RGBA color type
         assertOnlyPngs(out, 5);
-        try { result.entries().clear(); fail("Mutable manifest"); } catch (UnsupportedOperationException expected) {}
+        try {
+            result.entries().clear();
+            fail("Mutable manifest");
+        } catch (UnsupportedOperationException expected) {
+        }
     }
 
-    @Test public void builtInLabelFontPageMaterializesFromTheRuntimeClasspath() throws Exception {
+    @Test
+    public void builtInLabelFontPageMaterializesFromTheRuntimeClasspath() throws Exception {
         FileHandle root = root();
         AtlasEntry builtIn = new AtlasEntry(
                 key(HudBuiltInLabelStyle.ATLAS_REGION, -1),
@@ -194,7 +211,8 @@ public class SceneHudPackInputMaterializerTest {
         assertOnlyPngs(out, 1);
     }
 
-    @Test public void deterministicRematerializationReplacesOnlyCompleteGeneratedContents() throws Exception {
+    @Test
+    public void deterministicRematerializationReplacesOnlyCompleteGeneratedContents() throws Exception {
         FileHandle root = root();
         png(root.child("authored/source.png"), 2, 3, PATTERN);
         png(root.child("skin/page.png"), 2, 3, PATTERN);
@@ -214,7 +232,8 @@ public class SceneHudPackInputMaterializerTest {
         assertNoCandidatesOrBackups(out);
     }
 
-    @Test public void invalidAndMissingSourcesAfterEarlierWritePreservePreviousTargetAndCleanCandidate() throws Exception {
+    @Test
+    public void invalidAndMissingSourcesAfterEarlierWritePreservePreviousTargetAndCleanCandidate() throws Exception {
         for (boolean missing : List.of(false, true)) {
             FileHandle root = root();
             png(root.child("authored/valid.png"), 2, 3, PATTERN);
@@ -235,7 +254,8 @@ public class SceneHudPackInputMaterializerTest {
         }
     }
 
-    @Test public void invalidGeometryRotationAndFontReferenceAlsoRollback() throws Exception {
+    @Test
+    public void invalidGeometryRotationAndFontReferenceAlsoRollback() throws Exception {
         FileHandle root = root();
         png(root.child("skin/page.png"), 2, 3, PATTERN);
         root.child("fonts/missing.fnt").writeString("descriptor", false);
@@ -258,7 +278,8 @@ public class SceneHudPackInputMaterializerTest {
         assertNoCandidatesOrBackups(out);
     }
 
-    @Test public void authoredSourcesProjectRootsAndTraversalCannotBeOverwritten() throws Exception {
+    @Test
+    public void authoredSourcesProjectRootsAndTraversalCannotBeOverwritten() throws Exception {
         FileHandle root = root();
         png(root.child("authored/source.png"), 2, 3, PATTERN);
         byte[] original = root.child("authored/source.png").readBytes();
@@ -270,64 +291,96 @@ public class SceneHudPackInputMaterializerTest {
         assertArrayEquals(original, root.child("authored/source.png").readBytes());
     }
 
-    private FileHandle root() throws Exception { return new FileHandle(temporary.newFolder()); }
+    private FileHandle root() throws Exception {
+        return new FileHandle(temporary.newFolder());
+    }
+
     private static SceneHudPackInputPlan plan(List<AtlasEntry> entries, List<BitmapFontProjection> fonts) {
         return new SceneHudPackInputPlan(List.of("hud/main"), entries, fonts);
     }
-    private static AtlasKey key(String name, int index) { return new AtlasKey(name, index); }
+
+    private static AtlasKey key(String name, int index) {
+        return new AtlasKey(name, index);
+    }
+
     private static ProjectionProvenance provenance(ProvenanceKind kind) {
         return new ProjectionProvenance(kind, List.of("hud/main"), null, null, null, null, null, null, null, null);
     }
+
     private static AtlasEntry image(String name, int index, String path, ProvenanceKind kind) {
         return new AtlasEntry(key(name, index), MaterialKind.FULL_IMAGE, path, null, List.of(provenance(kind)));
     }
+
     private static AtlasEntry skin(String name, int index, AtlasRegionMetadata metadata) {
         return new AtlasEntry(key(name, index), MaterialKind.SKIN_ATLAS_REGION, "skin/page.png", metadata,
                 List.of(provenance(ProvenanceKind.SKIN_ATLAS_REGION)));
     }
+
     private static AtlasRegionMetadata region(int left, int top, int width, int height, boolean rotate,
                                               int originalWidth, int originalHeight, float x, float y,
                                               Map<String, List<Integer>> values) {
         return new AtlasRegionMetadata("skin/page.png", "page.png", false, left, top, width, height,
                 rotate ? 90 : 0, rotate, false, originalWidth, originalHeight, x, y, values);
     }
+
     private static BitmapFontProjection font(String name, List<AtlasKey> keys) {
         return new BitmapFontProjection("fonts/" + name + ".fnt", keys);
     }
+
     private static void png(FileHandle file, int width, int height, int[] colors) {
         file.parent().mkdirs();
         Pixmap pixels = new Pixmap(width, height, Pixmap.Format.RGBA8888);
         try {
             pixels.setBlending(Pixmap.Blending.None);
-            for (int y = 0; y < height; y++) for (int x = 0; x < width; x++) pixels.drawPixel(x, y, colors[y * width + x]);
+            for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++) pixels.drawPixel(x, y, colors[y * width + x]);
             PixmapIO.writePNG(file, pixels);
-        } finally { pixels.dispose(); }
+        } finally {
+            pixels.dispose();
+        }
     }
+
     private static void assertPixels(FileHandle file, int width, int height, int[] expected) {
         Pixmap pixels = new Pixmap(file);
         try {
-            assertEquals(width, pixels.getWidth()); assertEquals(height, pixels.getHeight());
-            for (int y = 0; y < height; y++) for (int x = 0; x < width; x++)
-                assertEquals("pixel " + x + "," + y, expected[y * width + x], pixels.getPixel(x, y));
-        } finally { pixels.dispose(); }
+            assertEquals(width, pixels.getWidth());
+            assertEquals(height, pixels.getHeight());
+            for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++)
+                    assertEquals("pixel " + x + "," + y, expected[y * width + x], pixels.getPixel(x, y));
+        } finally {
+            pixels.dispose();
+        }
     }
+
     private static int[] filled(int width, int height, int color) {
-        int[] result = new int[width * height]; Arrays.fill(result, color); return result;
+        int[] result = new int[width * height];
+        Arrays.fill(result, color);
+        return result;
     }
+
     private static void put(int[] page, int pageWidth, int left, int top, int width, int height, int[] pixels) {
-        for (int y = 0; y < height; y++) for (int x = 0; x < width; x++) page[(top + y) * pageWidth + left + x] = pixels[y * width + x];
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++) page[(top + y) * pageWidth + left + x] = pixels[y * width + x];
     }
+
     private static List<String> paths(SceneHudPackMaterializationManifest manifest) {
         return manifest.entries().stream().map(MaterializedEntry::inputPath).toList();
     }
+
     private void expectFailure(FileHandle root, FileHandle out, SceneHudPackInputPlan plan) {
-        try { materializer.materialize(root, out, plan); fail("Expected failed materialization"); }
-        catch (IllegalArgumentException | IllegalStateException expected) {}
+        try {
+            materializer.materialize(root, out, plan);
+            fail("Expected failed materialization");
+        } catch (IllegalArgumentException | IllegalStateException expected) {
+        }
     }
+
     private static void assertNoCandidatesOrBackups(FileHandle out) {
         assertFalse(out.parent().child(".tmp").exists());
         for (FileHandle file : out.parent().list()) assertFalse(file.name(), file.name().startsWith(".backup-"));
     }
+
     private static void assertOnlyPngs(FileHandle out, int count) throws Exception {
         assertEquals(count, out.list().length);
         try (var files = Files.walk(out.file().toPath())) {

@@ -28,16 +28,38 @@ public final class GameObjectEditorDocument extends OpenEditorDocument implement
         this.rootEntityId = rootEntityId;
     }
 
-    public String assetId() { return key().domainId(); }
-    public FileHandle assetFile() { return assetFile; }
-    public SceneEditorContext context() { return context; }
-    public int rootEntityId() { return rootEntityId; }
-    public boolean isClosed() { return closed; }
+    public String assetId() {
+        return key().domainId();
+    }
 
-    @Override public boolean isDirty() { return !closed && context.isDirty(); }
-    @Override public boolean closeable() { return true; }
+    public FileHandle assetFile() {
+        return assetFile;
+    }
 
-    @Override public void close() {
+    public SceneEditorContext context() {
+        return context;
+    }
+
+    public int rootEntityId() {
+        return rootEntityId;
+    }
+
+    public boolean isClosed() {
+        return closed;
+    }
+
+    @Override
+    public boolean isDirty() {
+        return !closed && context.isDirty();
+    }
+
+    @Override
+    public boolean closeable() {
+        return true;
+    }
+
+    @Override
+    public void close() {
         if (closed) return;
         closed = true;
         context.dispose();

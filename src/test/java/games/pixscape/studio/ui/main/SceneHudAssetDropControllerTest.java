@@ -19,11 +19,16 @@ import org.junit.rules.TemporaryFolder;
 import static org.junit.Assert.*;
 
 public class SceneHudAssetDropControllerTest {
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
 
-    @After public void clearDrag() { DragContext.get().cancel(); }
+    @After
+    public void clearDrag() {
+        DragContext.get().cancel();
+    }
 
-    @Test public void realHudPayloadAssignsCapturedSceneAndDocumentSwitchInvalidatesDrag()
+    @Test
+    public void realHudPayloadAssignsCapturedSceneAndDocumentSwitchInvalidatesDrag()
             throws Exception {
         FileHandle root = new FileHandle(temporary.newFolder());
         new HudScreenAssetAuthoringService().create(root, "status");
@@ -37,7 +42,9 @@ public class SceneHudAssetDropControllerTest {
         SceneEditorDocument sceneB = documents.openScene("scene2", "B", contextB);
         SceneHudAssociationService associations = new SceneHudAssociationService(
                 () -> root, () -> cfg, new HudDocumentPersistenceService(),
-                ignored -> {}, (sceneTag, screenId) -> {});
+                ignored -> {
+                }, (sceneTag, screenId) -> {
+        });
         SceneHudAssetDropController controller = new SceneHudAssetDropController(
                 associations, documents);
 

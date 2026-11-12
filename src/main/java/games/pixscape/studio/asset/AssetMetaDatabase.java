@@ -299,7 +299,9 @@ public final class AssetMetaDatabase implements Json.Serializable {
         publishIndexes(candidateIndexes);
     }
 
-    /** Failed file imports must not recycle IDs allocated during preparation. */
+    /**
+     * Failed file imports must not recycle IDs allocated during preparation.
+     */
     public void restoreAfterFailedImport(AssetMetaDatabase restored) {
         int allocatedThrough = nextId;
         replaceStateFrom(restored);
@@ -458,8 +460,8 @@ public final class AssetMetaDatabase implements Json.Serializable {
 
                     @Override
                     public TiledProjection read(Json json,
-                                                                 JsonValue jsonData,
-                                                                 Class type) {
+                                                JsonValue jsonData,
+                                                Class type) {
                         return tiledProjectionFromWireName(
                                 jsonData != null ? jsonData.asString() : null);
                     }
@@ -504,8 +506,12 @@ public final class AssetMetaDatabase implements Json.Serializable {
         return db != null ? db : new AssetMetaDatabase();
     }
 
-    /** Canonical metadata-only snapshot for background jobs; capture on the editor thread. */
-    public String toSnapshotJson() { return JSON.toJson(this); }
+    /**
+     * Canonical metadata-only snapshot for background jobs; capture on the editor thread.
+     */
+    public String toSnapshotJson() {
+        return JSON.toJson(this);
+    }
 
     public static AssetMetaDatabase fromSnapshotJson(String content) {
         return JSON.fromJson(AssetMetaDatabase.class, content);

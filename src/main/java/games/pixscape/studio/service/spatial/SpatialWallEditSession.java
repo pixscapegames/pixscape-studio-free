@@ -9,7 +9,9 @@ import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.EditSpatialBlockCommand;
 
-/** One detached interactive wall edit; authoritative ECS data is never used as preview storage. */
+/**
+ * One detached interactive wall edit; authoritative ECS data is never used as preview storage.
+ */
 public final class SpatialWallEditSession {
     private static final int CLAMP_ITERATIONS = 16;
 
@@ -25,19 +27,34 @@ public final class SpatialWallEditSession {
     private String commitTitle = "Edit Spatial Wall";
     private int manipulatedFaces;
     private int mapContentRevision;
-    private float mapOriginX,mapOriginY,mapAltitude;
+    private float mapOriginX, mapOriginY, mapAltitude;
 
     public void configureGesture(float height, float xx, float xy, float yx, float yy) {
-        gesture=true; defaultHeight=height; guard.metrics(xx,xy,yx,yy);
+        gesture = true;
+        defaultHeight = height;
+        guard.metrics(xx, xy, yx, yy);
     }
-    public SpatialLinkProposal gestureProposal() { return guard!=null && guard.armed ? linkProposal : null; }
-    public int proposalBuilds() { return proposalBuilds; }
-    public String commitMessage() { return commitMessage; }
-    public String commitTitle() { return commitTitle; }
+
+    public SpatialLinkProposal gestureProposal() {
+        return guard != null && guard.armed ? linkProposal : null;
+    }
+
+    public int proposalBuilds() {
+        return proposalBuilds;
+    }
+
+    public String commitMessage() {
+        return commitMessage;
+    }
+
+    public String commitTitle() {
+        return commitTitle;
+    }
+
     public String gestureMessage() {
-        if(guard==null || guard.referenceId==0) return null;
-        if(guard.ambiguous) return "Ambiguous contact: volumes stay independent. Use Lier from the menu.";
-        if(!guard.armed) return "Contact: independent volumes. Push 12 logical pixels to propose Lier.";
+        if (guard == null || guard.referenceId == 0) return null;
+        if (guard.ambiguous) return "Ambiguous contact: volumes stay independent. Use Lier from the menu.";
+        if (!guard.armed) return "Contact: independent volumes. Push 12 logical pixels to propose Lier.";
         return linkDescription;
     }
 
@@ -65,13 +82,19 @@ public final class SpatialWallEditSession {
         this.wallId = wallId;
         this.committed = detached(source);
         this.map = map;
-        mapContentRevision=map.contentRevision();mapOriginX=map.originX;mapOriginY=map.originY;mapAltitude=map.defaultTileAltitude;
+        mapContentRevision = map.contentRevision();
+        mapOriginX = map.originX;
+        mapOriginY = map.originY;
+        mapAltitude = map.defaultTileAltitude;
         this.before = selected.copy();
         this.candidate = before.copy();
         this.attachments = SpatialWallAttachments.derive(this.committed, find(this.committed, wallId));
-        prepared=SpatialWallThicknessPropagation.prepare(committed.blocks,committed.links,wallId);
-        guard=new SpatialWallContactGuard(committed,before);
-        commitMessage=null;commitTitle="Edit Spatial Wall";manipulatedFaces=0;proposalBuilds=0;
+        prepared = SpatialWallThicknessPropagation.prepare(committed.blocks, committed.links, wallId);
+        guard = new SpatialWallContactGuard(committed, before);
+        commitMessage = null;
+        commitTitle = "Edit Spatial Wall";
+        manipulatedFaces = 0;
+        proposalBuilds = 0;
         Evaluation initial = evaluate(candidate, false);
         if (!initial.valid) {
             cancel();
@@ -85,7 +108,7 @@ public final class SpatialWallEditSession {
 
     public boolean updateMove(float dx, float dy) {
         if (!active) return false;
-        manipulatedFaces=15;
+        manipulatedFaces = 15;
         SpatialBlockData requested = before.copy();
         if (attachments.isAttached()) {
             if (!attachments.canSlide()) return reject("The established junctions have no common slide range.");
@@ -94,26 +117,34 @@ public final class SpatialWallEditSession {
             requested.x = before.x + (attachments.slideAxis() == SpatialWallAttachments.Axis.HORIZONTAL ? delta : 0f);
             requested.y = before.y + (attachments.slideAxis() == SpatialWallAttachments.Axis.VERTICAL ? delta : 0f);
         } else SpatialBlockInteractiveEditSupport.move(requested, before, dx, dy);
-        SpatialBlockData raw=before.copy();raw.x+=dx;raw.y+=dy;
-        return guarded(requested,raw);
+        SpatialBlockData raw = before.copy();
+        raw.x += dx;
+        raw.y += dy;
+        return guarded(requested, raw);
     }
 
     public boolean updateResize(SpatialBlockInteractiveEditSupport.ResizeHandle handle, float gx, float gy) {
         if (!active || handle == null) return false;
         if (!isHandleEnabled(handle)) return reject("This resize handle is locked by an established junction.");
 
-        manipulatedFaces=(handleMovesMinX(handle)?1:0) | (handleMovesMaxX(handle)?2:0)
-                | (handleMovesMinY(handle)?4:0) | (handleMovesMaxY(handle)?8:0);
+        manipulatedFaces = (handleMovesMinX(handle) ? 1 : 0) | (handleMovesMaxX(handle) ? 2 : 0)
+                | (handleMovesMinY(handle) ? 4 : 0) | (handleMovesMaxY(handle) ? 8 : 0);
         SpatialBlockData requested = before.copy();
         SpatialBlockInteractiveEditSupport.resize(requested, before, handle, gx, gy);
-        SpatialBlockData raw=before.copy();
-        if(handleMovesMinX(handle)){raw.x=gx;raw.width=before.x+before.width-gx;}
-        if(handleMovesMaxX(handle))raw.width=gx-before.x;
-        if(handleMovesMinY(handle)){raw.y=gy;raw.depth=before.y+before.depth-gy;}
-        if(handleMovesMaxY(handle))raw.depth=gy-before.y;
-        if(guard.referenceId>0 || sameFootprint(requested,candidate))return guarded(requested,raw);
+        SpatialBlockData raw = before.copy();
+        if (handleMovesMinX(handle)) {
+            raw.x = gx;
+            raw.width = before.x + before.width - gx;
+        }
+        if (handleMovesMaxX(handle)) raw.width = gx - before.x;
+        if (handleMovesMinY(handle)) {
+            raw.y = gy;
+            raw.depth = before.y + before.depth - gy;
+        }
+        if (handleMovesMaxY(handle)) raw.depth = gy - before.y;
+        if (guard.referenceId > 0 || sameFootprint(requested, candidate)) return guarded(requested, raw);
         Evaluation requestedEvaluation = evaluate(requested, false);
-        if (requestedEvaluation.valid) return guarded(requested,raw);
+        if (requestedEvaluation.valid) return guarded(requested, raw);
 
         SpatialBlockData best = before.copy();
         Evaluation bestEvaluation = evaluate(best, false);
@@ -131,7 +162,7 @@ public final class SpatialWallEditSession {
                 high = amount;
             }
         }
-        if (!sameFootprint(best,before)) return guarded(best,raw);
+        if (!sameFootprint(best, before)) return guarded(best, raw);
         return publish(bestEvaluation,
                 sameFootprint(best, before) ? "No junction-preserving resize range is available."
                         : "Resize stopped at the junction-preserving boundary.");
@@ -146,7 +177,7 @@ public final class SpatialWallEditSession {
 
     public boolean updateProperty(Float x, Float y, Float width, Float depth) {
         if (!active) return false;
-        manipulatedFaces=15;
+        manipulatedFaces = 15;
         SpatialBlockData requested = before.copy();
         if (x != null) requested.x = x;
         if (y != null) requested.y = y;
@@ -174,90 +205,118 @@ public final class SpatialWallEditSession {
     }
 
     private boolean guarded(SpatialBlockData requested, SpatialBlockData raw) {
-        if(guard.referenceId==0 && sameFootprint(requested,candidate) && sameFootprint(raw,candidate))return candidateValid;
-        if(guard.referenceId>0) {
-            float pixels=guard.overshoot(raw,candidate);
-            if(pixels>=-0.001f) {
-                guard.intention(pixels,manipulatedFaces==15 ? 0 : wallId,manipulatedFaces);prepareLink();return candidateValid;
+        if (guard.referenceId == 0 && sameFootprint(requested, candidate) && sameFootprint(raw, candidate))
+            return candidateValid;
+        if (guard.referenceId > 0) {
+            float pixels = guard.overshoot(raw, candidate);
+            if (pixels >= -0.001f) {
+                guard.intention(pixels, manipulatedFaces == 15 ? 0 : wallId, manipulatedFaces);
+                prepareLink();
+                return candidateValid;
             }
-            guard.referenceId=0;guard.armed=false;linkProposal=null;linkDescription=null;
+            guard.referenceId = 0;
+            guard.armed = false;
+            linkProposal = null;
+            linkDescription = null;
         }
-        if(sameFootprint(requested,candidate)) {
+        if (sameFootprint(requested, candidate)) {
             // At an envelope boundary the raw mouse can still push against an existing contact.
-            Array<SpatialBlockData> probe=copy(candidateTopology.walls);
-            for(int i=0;i<probe.size;i++) if(probe.get(i).id==wallId)probe.set(i,raw);
-            guard.sweep(candidateTopology.walls,probe,before.structureId);
-            if(guard.referenceId>0 && guard.amount<=0.000001f) {
-                guard.intention(guard.overshoot(raw,candidate),manipulatedFaces==15 ? 0 : wallId,manipulatedFaces);prepareLink();
-            } else guard.referenceId=0;
+            Array<SpatialBlockData> probe = copy(candidateTopology.walls);
+            for (int i = 0; i < probe.size; i++) if (probe.get(i).id == wallId) probe.set(i, raw);
+            guard.sweep(candidateTopology.walls, probe, before.structureId);
+            if (guard.referenceId > 0 && guard.amount <= 0.000001f) {
+                guard.intention(guard.overshoot(raw, candidate), manipulatedFaces == 15 ? 0 : wallId, manipulatedFaces);
+                prepareLink();
+            } else guard.referenceId = 0;
             return candidateValid;
         }
-        Evaluation desired=evaluate(requested,false);
-        if(!desired.valid)return reject(desired.reason);
-        guard.sweep(candidateTopology.walls,desired.plan.walls,before.structureId);
-        if(guard.referenceId>0) {
-            SpatialBlockData stopped=interpolate(candidate,desired.wall,guard.amount);
-            Evaluation contact=evaluate(stopped,false);
-            if(!contact.valid) {guard.referenceId=0;guard.armed=false;return reject(contact.reason);}
-            publish(contact,null);guard.intention(guard.overshoot(raw,candidate),manipulatedFaces==15 ? 0 : wallId,manipulatedFaces);prepareLink();return true;
+        Evaluation desired = evaluate(requested, false);
+        if (!desired.valid) return reject(desired.reason);
+        guard.sweep(candidateTopology.walls, desired.plan.walls, before.structureId);
+        if (guard.referenceId > 0) {
+            SpatialBlockData stopped = interpolate(candidate, desired.wall, guard.amount);
+            Evaluation contact = evaluate(stopped, false);
+            if (!contact.valid) {
+                guard.referenceId = 0;
+                guard.armed = false;
+                return reject(contact.reason);
+            }
+            publish(contact, null);
+            guard.intention(guard.overshoot(raw, candidate), manipulatedFaces == 15 ? 0 : wallId, manipulatedFaces);
+            prepareLink();
+            return true;
         }
-        return publish(desired,null);
+        return publish(desired, null);
     }
 
     private SpatialBlocksComponent contactSnapshot() {
-        SpatialBlocksComponent snapshot=detached(committed);snapshot.blocks=copy(candidateTopology.walls);return snapshot;
+        SpatialBlocksComponent snapshot = detached(committed);
+        snapshot.blocks = copy(candidateTopology.walls);
+        return snapshot;
     }
 
     private void prepareLink() {
-        if(!gesture || !guard.armed || guard.ambiguous || linkProposal!=null)return;
-        linkProposal=SpatialLinkProposal.gesture(committed,contactSnapshot(),map,guard.movingId,guard.referenceId,defaultHeight);
-        linkDescription=linkProposal.describe()+(linkProposal.valid
+        if (!gesture || !guard.armed || guard.ambiguous || linkProposal != null) return;
+        linkProposal = SpatialLinkProposal.gesture(committed, contactSnapshot(), map, guard.movingId, guard.referenceId, defaultHeight);
+        linkDescription = linkProposal.describe() + (linkProposal.valid
                 ? "\nRelease to apply Lier. Retreat below 6 logical pixels to keep independent." : "");
         proposalBuilds++;
     }
 
     public boolean commit(World world, HistoryManager history, SpatialBlockSelectionService selection) {
-        if(!active || !candidateValid || world==null || history==null) {cancel();return false;}
-        commitTitle=gestureProposal()!=null ? "Lier" : "Edit Spatial Wall";
-        games.pixscape.runtime.component.TiledLayerComponent tiled=world.getMapper(
-                games.pixscape.runtime.component.TiledLayerComponent.class).getSafe(layerEntityId,null);
-        if(gesture && (tiled==null || tiled.data!=map || map.contentRevision()!=mapContentRevision
-                || map.originX!=mapOriginX || map.originY!=mapOriginY || map.defaultTileAltitude!=mapAltitude)) {
-            commitMessage="The map changed during the gesture. Start a new manipulation.";cancel();return false;
+        if (!active || !candidateValid || world == null || history == null) {
+            cancel();
+            return false;
+        }
+        commitTitle = gestureProposal() != null ? "Lier" : "Edit Spatial Wall";
+        games.pixscape.runtime.component.TiledLayerComponent tiled = world.getMapper(
+                games.pixscape.runtime.component.TiledLayerComponent.class).getSafe(layerEntityId, null);
+        if (gesture && (tiled == null || tiled.data != map || map.contentRevision() != mapContentRevision
+                || map.originX != mapOriginX || map.originY != mapOriginY || map.defaultTileAltitude != mapAltitude)) {
+            commitMessage = "The map changed during the gesture. Start a new manipulation.";
+            cancel();
+            return false;
         }
         boolean changed;
-        if(gesture) {
-            SpatialLinkProposal applied=gestureProposal();
-            if(applied==null || !applied.valid) {
-                if(applied!=null)commitMessage=applied.diagnostic;
-                applied=SpatialLinkProposal.gesture(committed,contactSnapshot(),map,wallId,0,defaultHeight);
-                if(candidate.height!=before.height)applied.defaultHeight=candidate.height;
+        if (gesture) {
+            SpatialLinkProposal applied = gestureProposal();
+            if (applied == null || !applied.valid) {
+                if (applied != null) commitMessage = applied.diagnostic;
+                applied = SpatialLinkProposal.gesture(committed, contactSnapshot(), map, wallId, 0, defaultHeight);
+                if (candidate.height != before.height) applied.defaultHeight = candidate.height;
             }
-            games.pixscape.studio.history.commands.SpatialBlockLinkCommand command=
-                    new games.pixscape.studio.history.commands.SpatialBlockLinkCommand(world,history.historyIds(),layerEntityId,applied);
-            changed=!command.isNoop();if(changed)history.execute(command);
-            changed=changed && command.wasApplied();
-            if(!changed && !command.isNoop()) {
-                commitMessage=command.rejectionReason();
-                if(applied.referenceId>0) {
+            games.pixscape.studio.history.commands.SpatialBlockLinkCommand command =
+                    new games.pixscape.studio.history.commands.SpatialBlockLinkCommand(world, history.historyIds(), layerEntityId, applied);
+            changed = !command.isNoop();
+            if (changed) history.execute(command);
+            changed = changed && command.wasApplied();
+            if (!changed && !command.isNoop()) {
+                commitMessage = command.rejectionReason();
+                if (applied.referenceId > 0) {
                     // A rejected transaction publishes nothing; the contact snapshot has the same stale-state checks.
-                    games.pixscape.studio.history.commands.SpatialBlockLinkCommand safe=
-                            new games.pixscape.studio.history.commands.SpatialBlockLinkCommand(world,history.historyIds(),layerEntityId,
-                                    SpatialLinkProposal.gesture(committed,contactSnapshot(),map,wallId,0,defaultHeight));
-                    if(!safe.isNoop())history.execute(safe);
-                    changed=safe.wasApplied();
+                    games.pixscape.studio.history.commands.SpatialBlockLinkCommand safe =
+                            new games.pixscape.studio.history.commands.SpatialBlockLinkCommand(world, history.historyIds(), layerEntityId,
+                                    SpatialLinkProposal.gesture(committed, contactSnapshot(), map, wallId, 0, defaultHeight));
+                    if (!safe.isNoop()) history.execute(safe);
+                    changed = safe.wasApplied();
                 }
             }
         } else {
-            EditSpatialBlockCommand command=new EditSpatialBlockCommand(world,history.historyIds(),selection,layerEntityId,wallId,before,candidate);
-            changed=!command.isNoop();if(changed)history.execute(command);
+            EditSpatialBlockCommand command = new EditSpatialBlockCommand(world, history.historyIds(), selection, layerEntityId, wallId, before, candidate);
+            changed = !command.isNoop();
+            if (changed) history.execute(command);
         }
-        cancel();return changed;
+        cancel();
+        return changed;
     }
 
     public void cancel() {
         active = false;
-        prepared=null;guard=null;gesture=false;linkProposal=null;linkDescription=null;
+        prepared = null;
+        guard = null;
+        gesture = false;
+        linkProposal = null;
+        linkDescription = null;
         layerEntityId = SpatialBlockSelectionService.NO_MAP;
         wallId = SpatialBlockSelectionService.NO_BLOCK;
         committed = null;
@@ -271,17 +330,49 @@ public final class SpatialWallEditSession {
         for (int i = 0; i < handleEnabled.length; i++) handleEnabled[i] = false;
     }
 
-    public boolean isActive() { return active; }
-    public int layerEntityId() { return layerEntityId; }
-    public int wallId() { return wallId; }
-    public SpatialBlockData before() { return before != null ? before.copy() : null; }
-    public SpatialBlockData candidate() { return candidate; }
-    public SpatialStructureTopology.Plan candidateTopology() { return candidateTopology; }
-    public boolean isCandidateValid() { return candidateValid; }
-    public String rejectionReason() { return rejectionReason; }
-    public SpatialWallAttachments attachments() { return attachments; }
-    public boolean canMove() { return active && (!attachments.isAttached() || attachments.canSlide()); }
-    public boolean isSlidingAttachedWall() { return active && attachments.isAttached() && attachments.canSlide(); }
+    public boolean isActive() {
+        return active;
+    }
+
+    public int layerEntityId() {
+        return layerEntityId;
+    }
+
+    public int wallId() {
+        return wallId;
+    }
+
+    public SpatialBlockData before() {
+        return before != null ? before.copy() : null;
+    }
+
+    public SpatialBlockData candidate() {
+        return candidate;
+    }
+
+    public SpatialStructureTopology.Plan candidateTopology() {
+        return candidateTopology;
+    }
+
+    public boolean isCandidateValid() {
+        return candidateValid;
+    }
+
+    public String rejectionReason() {
+        return rejectionReason;
+    }
+
+    public SpatialWallAttachments attachments() {
+        return attachments;
+    }
+
+    public boolean canMove() {
+        return active && (!attachments.isAttached() || attachments.canSlide());
+    }
+
+    public boolean isSlidingAttachedWall() {
+        return active && attachments.isAttached() && attachments.canSlide();
+    }
 
     public boolean isHandleEnabled(SpatialBlockInteractiveEditSupport.ResizeHandle handle) {
         return active && handle != null && handleEnabled[handle.ordinal()];

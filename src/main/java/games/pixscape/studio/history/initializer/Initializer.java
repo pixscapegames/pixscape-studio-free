@@ -15,7 +15,9 @@ public interface Initializer {
      */
     void init(int targetEid);
 
-    default int activeLightCount() { return 0; }
+    default int activeLightCount() {
+        return 0;
+    }
 
     default String label() {
         return getClass().getSimpleName();

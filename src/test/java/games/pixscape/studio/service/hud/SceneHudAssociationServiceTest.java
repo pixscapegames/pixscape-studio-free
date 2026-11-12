@@ -16,14 +16,17 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 public class SceneHudAssociationServiceTest {
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
     private ProjectConfig previous;
 
-    @After public void restoreConfiguration() {
+    @After
+    public void restoreConfiguration() {
         if (previous != null) ProjectConfig.setInstance(previous);
     }
 
-    @Test public void associationReplacementRemovalAndHistoryStayBoundToOwningScene()
+    @Test
+    public void associationReplacementRemovalAndHistoryStayBoundToOwningScene()
             throws Exception {
         Fixture f = fixture();
         f.configuration.setCurrentSceneByName("Scene B");
@@ -60,7 +63,8 @@ public class SceneHudAssociationServiceTest {
         assertEquals("scene1=null", f.notifications.get(f.notifications.size() - 1));
     }
 
-    @Test public void invalidReferenceIsRejectedAndPersistedAssociationReloads() throws Exception {
+    @Test
+    public void invalidReferenceIsRejectedAndPersistedAssociationReloads() throws Exception {
         Fixture f = fixture();
 
         assertFalse(f.service.associate(f.sceneA, "hud/missing"));
@@ -113,6 +117,7 @@ public class SceneHudAssociationServiceTest {
         private games.pixscape.studio.configuration.SceneMeta metaA() {
             return configuration.getSceneMeta("Scene A");
         }
+
         private games.pixscape.studio.configuration.SceneMeta metaB() {
             return configuration.getSceneMeta("Scene B");
         }

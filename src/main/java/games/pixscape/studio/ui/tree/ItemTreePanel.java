@@ -138,7 +138,8 @@ public class ItemTreePanel extends DockablePanel {
         add(documentContent).grow();
 
         app.getEditorDocumentManager().addListener(new EditorDocumentManager.Listener() {
-            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+            @Override
+            public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
                 showDocumentType(current != null ? current.type() : null);
             }
         });
@@ -269,7 +270,9 @@ public class ItemTreePanel extends DockablePanel {
         documentContent.invalidateHierarchy();
     }
 
-    /** Identifies focus in the active HUD hierarchy without treating Scene tree focus as HUD input. */
+    /**
+     * Identifies focus in the active HUD hierarchy without treating Scene tree focus as HUD input.
+     */
     public boolean ownsHudKeyboardFocus(Actor focus) {
         return hudHierarchy.ownsKeyboardFocus(focus);
     }
@@ -301,12 +304,14 @@ public class ItemTreePanel extends DockablePanel {
         dirty = true;
     }
 
-    @Override public void act(float delta) {
+    @Override
+    public void act(float delta) {
         super.act(delta);
         itemMoves.update(delta);
     }
 
-    @Override protected void setStage(Stage stage) {
+    @Override
+    protected void setStage(Stage stage) {
         if (itemMoves != null && stage != getStage()) itemMoves.cancel();
         super.setStage(stage);
     }
@@ -360,7 +365,8 @@ public class ItemTreePanel extends DockablePanel {
         tree.addListener(new ClickListener() {
             private EntityNode activated;
 
-            @Override public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
                 activated = null;
                 if (!super.touchDown(event, x, y, pointer, button)) return false;
                 EntityNode node = tree.getNodeAt(y);
@@ -370,7 +376,8 @@ public class ItemTreePanel extends DockablePanel {
                 return true;
             }
 
-            @Override public void clicked(InputEvent event, float x, float y) {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
                 if (activated != null && !UIUtils.ctrl() && !UIUtils.shift()
                         && tree.getNodeAt(y) == activated && x >= activated.getActor().getX()
                         && tree.getSelection().size() == 1 && tree.getSelection().contains(activated)) {
@@ -529,8 +536,10 @@ public class ItemTreePanel extends DockablePanel {
                     return meta != null && meta.locked;
                 });
         for (EntityNode root : tree.getRootNodes()) rememberExpansion(root, expansion, true);
-        tree.invalidateHierarchy(); scroller.validate();
-        scroller.setScrollY(scrollY); scroller.updateVisualScroll();
+        tree.invalidateHierarchy();
+        scroller.validate();
+        scroller.setScrollY(scrollY);
+        scroller.updateVisualScroll();
         suppressTreeSelectionEvents = false;
         syncTreeSelectionFromModel(selectionService.getSelectionSnapshot(), false);
     }
@@ -656,105 +665,107 @@ public class ItemTreePanel extends DockablePanel {
             Stage stage,
             float stageX,
             float stageY) {
-                PopupMenu addMenu = new PopupMenu();
+        PopupMenu addMenu = new PopupMenu();
 
-                MenuItem addSprite = new MenuItem(addAssetActionLabel("Sprite", selectedAsset));
-                addSprite.setDisabled(!isSpriteAsset(selectedAsset));
-                addSprite.addListener(new ClickListener() {
-                    @Override
-                    public void clicked(InputEvent click, float itemX, float itemY) {
-                        if (addSprite.isDisabled()) return;
-                        int entityId = editorOps.createStandaloneSprite(
-                                selectedAsset.path, 0f, 0f, selectedAsset.name);
-                        if (entityId >= 0) {
-                            selectionService.selectOnly(entityId, SelectionService.SelectionSource.TREE);
-                        }
-                        click.handle();
-                    }
-                });
-                addMenu.addItem(addSprite);
+        MenuItem addSprite = new MenuItem(addAssetActionLabel("Sprite", selectedAsset));
+        addSprite.setDisabled(!isSpriteAsset(selectedAsset));
+        addSprite.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent click, float itemX, float itemY) {
+                if (addSprite.isDisabled()) return;
+                int entityId = editorOps.createStandaloneSprite(
+                        selectedAsset.path, 0f, 0f, selectedAsset.name);
+                if (entityId >= 0) {
+                    selectionService.selectOnly(entityId, SelectionService.SelectionSource.TREE);
+                }
+                click.handle();
+            }
+        });
+        addMenu.addItem(addSprite);
 
-                MenuItem addAnimation = new MenuItem(addAssetActionLabel("Animation", selectedAsset));
-                addAnimation.setDisabled(!isAnimationAsset(selectedAsset));
-                addAnimation.addListener(new ClickListener() {
-                    @Override
-                    public void clicked(InputEvent click, float itemX, float itemY) {
-                        if (addAnimation.isDisabled()) return;
-                        int entityId = editorOps.createAnimationSprite(
-                                selectedAsset.path, 0f, 0f, selectedAsset.name);
-                        if (entityId >= 0) {
-                            selectionService.selectOnly(entityId, SelectionService.SelectionSource.TREE);
-                        }
-                        click.handle();
-                    }
-                });
-                addMenu.addItem(addAnimation);
+        MenuItem addAnimation = new MenuItem(addAssetActionLabel("Animation", selectedAsset));
+        addAnimation.setDisabled(!isAnimationAsset(selectedAsset));
+        addAnimation.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent click, float itemX, float itemY) {
+                if (addAnimation.isDisabled()) return;
+                int entityId = editorOps.createAnimationSprite(
+                        selectedAsset.path, 0f, 0f, selectedAsset.name);
+                if (entityId >= 0) {
+                    selectionService.selectOnly(entityId, SelectionService.SelectionSource.TREE);
+                }
+                click.handle();
+            }
+        });
+        addMenu.addItem(addAnimation);
 
-                MenuItem addMap = new MenuItem("Tiled Map");
-                addMap.addListener(new ClickListener() {
-                    @Override
-                    public void clicked(InputEvent click, float itemX, float itemY) {
-                        new AddTiledMapDialog(request -> historyManager.execute(
-                                new AddTiledMapCommand(layerService, layerEntityId,
-                                        request.mapWidth(), request.mapHeight(), request.projection(),
-                                        request.tileWidth(), request.tileHeight(), request.chunkSize(),
-                                        mapEntityId -> {
-                                            if (mapEntityId >= 0) {
-                                                selectionService.clearSelection(
-                                                        SelectionService.SelectionSource.TREE);
-                                                selectionService.setTiledMapEditingTarget(mapEntityId,
-                                                        SelectionService.SelectionSource.TREE);
-                                            } else {
-                                                selectionService.clearTiledMapEditingTarget();
-                                            }
-                                        }))).show(getStage());
-                        click.handle();
-                    }
-                });
-                addMenu.addItem(addMap);
+        MenuItem addMap = new MenuItem("Tiled Map");
+        addMap.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent click, float itemX, float itemY) {
+                new AddTiledMapDialog(request -> historyManager.execute(
+                        new AddTiledMapCommand(layerService, layerEntityId,
+                                request.mapWidth(), request.mapHeight(), request.projection(),
+                                request.tileWidth(), request.tileHeight(), request.chunkSize(),
+                                mapEntityId -> {
+                                    if (mapEntityId >= 0) {
+                                        selectionService.clearSelection(
+                                                SelectionService.SelectionSource.TREE);
+                                        selectionService.setTiledMapEditingTarget(mapEntityId,
+                                                SelectionService.SelectionSource.TREE);
+                                    } else {
+                                        selectionService.clearTiledMapEditingTarget();
+                                    }
+                                }))).show(getStage());
+                click.handle();
+            }
+        });
+        addMenu.addItem(addMap);
 
-                MenuItem addGameObject = new MenuItem("Game Object");
-                addGameObject.addListener(new ClickListener() {
-                    @Override
-                    public void clicked(InputEvent click, float itemX, float itemY) {
-                        int entityId = editorOps.createGameObject(0f, 0f);
-                        if (entityId >= 0) {
-                            selectionService.selectOnly(
-                                    entityId, SelectionService.SelectionSource.TREE);
-                        }
-                        click.handle();
-                    }
-                });
-                addMenu.addItem(addGameObject);
+        MenuItem addGameObject = new MenuItem("Game Object");
+        addGameObject.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent click, float itemX, float itemY) {
+                int entityId = editorOps.createGameObject(0f, 0f);
+                if (entityId >= 0) {
+                    selectionService.selectOnly(
+                            entityId, SelectionService.SelectionSource.TREE);
+                }
+                click.handle();
+            }
+        });
+        addMenu.addItem(addGameObject);
 
-                PopupMenu lights = new PopupMenu();
-                MenuItem point = new MenuItem("Point Light");
-                point.addListener(new ClickListener() {
-                    @Override public void clicked(InputEvent click, float itemX, float itemY) {
-                        int entityId = editorOps.createPointLight(0f, 0f);
-                        selectionService.selectOnly(entityId, SelectionService.SelectionSource.TREE);
-                        click.handle();
-                    }
-                });
-                lights.addItem(point);
-                MenuItem cone = new MenuItem("Cone Light");
-                cone.addListener(new ClickListener() {
-                    @Override public void clicked(InputEvent click, float itemX, float itemY) {
-                        int entityId = editorOps.createConeLight(0f, 0f);
-                        selectionService.selectOnly(entityId, SelectionService.SelectionSource.TREE);
-                        click.handle();
-                    }
-                });
-                lights.addItem(cone);
-                MenuItem light = new MenuItem("Light");
-                light.setSubMenu(lights);
-                if(lightingEnabled())addMenu.addItem(light);
+        PopupMenu lights = new PopupMenu();
+        MenuItem point = new MenuItem("Point Light");
+        point.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent click, float itemX, float itemY) {
+                int entityId = editorOps.createPointLight(0f, 0f);
+                selectionService.selectOnly(entityId, SelectionService.SelectionSource.TREE);
+                click.handle();
+            }
+        });
+        lights.addItem(point);
+        MenuItem cone = new MenuItem("Cone Light");
+        cone.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent click, float itemX, float itemY) {
+                int entityId = editorOps.createConeLight(0f, 0f);
+                selectionService.selectOnly(entityId, SelectionService.SelectionSource.TREE);
+                click.handle();
+            }
+        });
+        lights.addItem(cone);
+        MenuItem light = new MenuItem("Light");
+        light.setSubMenu(lights);
+        if (lightingEnabled()) addMenu.addItem(light);
 
-                PopupMenu menu = new PopupMenu();
-                MenuItem add = new MenuItem("Add");
-                add.setSubMenu(addMenu);
-                menu.addItem(add);
-                menu.showMenu(stage, stageX, stageY);
+        PopupMenu menu = new PopupMenu();
+        MenuItem add = new MenuItem("Add");
+        add.setSubMenu(addMenu);
+        menu.addItem(add);
+        menu.showMenu(stage, stageX, stageY);
     }
 
     private void showGameObjectContextMenu(
@@ -802,15 +813,19 @@ public class ItemTreePanel extends DockablePanel {
     }
 
     private boolean lightingEnabled() {
-        var submit=world.getSystem(games.pixscape.studio.system.StudioRenderSubmitSystem.class);
-        return submit==null || submit.isLightingEnabled();
+        var submit = world.getSystem(games.pixscape.studio.system.StudioRenderSubmitSystem.class);
+        return submit == null || submit.isLightingEnabled();
     }
 
     interface GameObjectChildMenuActions {
         void addSprite();
+
         void addAnimation();
+
         void addPointLight();
+
         void addConeLight();
+
         void addGameObject();
     }
 
@@ -835,9 +850,10 @@ public class ItemTreePanel extends DockablePanel {
     static PopupMenu buildGameObjectAddMenu(
             AssetNode selectedAsset,
             GameObjectChildMenuActions actions) {
-        return buildGameObjectAddMenu(selectedAsset,actions,true);
+        return buildGameObjectAddMenu(selectedAsset, actions, true);
     }
-    static PopupMenu buildGameObjectAddMenu(AssetNode selectedAsset,GameObjectChildMenuActions actions,boolean allowLighting) {
+
+    static PopupMenu buildGameObjectAddMenu(AssetNode selectedAsset, GameObjectChildMenuActions actions, boolean allowLighting) {
         PopupMenu addMenu = new PopupMenu();
 
         MenuItem addSprite = new MenuItem(addAssetActionLabel("Sprite", selectedAsset));
@@ -883,7 +899,7 @@ public class ItemTreePanel extends DockablePanel {
         lights.addItem(cone);
         MenuItem light = new MenuItem("Light");
         light.setSubMenu(lights);
-        if(allowLighting)addMenu.addItem(light);
+        if (allowLighting) addMenu.addItem(light);
 
         MenuItem addGameObject = new MenuItem("Game Object");
         addGameObject.addListener(new ClickListener() {

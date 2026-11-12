@@ -11,8 +11,15 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 
 public class ItemTreeDocumentProjectionTest {
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
+
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
 
     @Test
     public void documentTypeSelectsSceneItemsHudHierarchyOrNoProjection() {

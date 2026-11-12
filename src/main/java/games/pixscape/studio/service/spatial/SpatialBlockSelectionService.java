@@ -13,24 +13,50 @@ public final class SpatialBlockSelectionService {
     private final com.badlogic.gdx.utils.IntArray selectedBlockIds = new com.badlogic.gdx.utils.IntArray();
     private SpatialLinkProposal linkPreview;
     private SpatialVerticalJoinProposal verticalJoinPreview;
-    public SpatialVerticalJoinProposal verticalJoinPreview() {return verticalJoinPreview;}
-    public void setVerticalJoinPreview(SpatialVerticalJoinProposal preview) {verticalJoinPreview=preview;}
 
-    public com.badlogic.gdx.utils.IntArray selectedBlockIds() { return new com.badlogic.gdx.utils.IntArray(selectedBlockIds); }
-    public boolean isBlockSelected(int id) { return selectedBlockIds.contains(id); }
-    public int selectedBlockCount() { return selectedBlockIds.size; }
-    public SpatialLinkProposal linkPreview() { return linkPreview; }
-    public void setLinkPreview(SpatialLinkProposal preview) { linkPreview = preview; }
+    public SpatialVerticalJoinProposal verticalJoinPreview() {
+        return verticalJoinPreview;
+    }
+
+    public void setVerticalJoinPreview(SpatialVerticalJoinProposal preview) {
+        verticalJoinPreview = preview;
+    }
+
+    public com.badlogic.gdx.utils.IntArray selectedBlockIds() {
+        return new com.badlogic.gdx.utils.IntArray(selectedBlockIds);
+    }
+
+    public boolean isBlockSelected(int id) {
+        return selectedBlockIds.contains(id);
+    }
+
+    public int selectedBlockCount() {
+        return selectedBlockIds.size;
+    }
+
+    public SpatialLinkProposal linkPreview() {
+        return linkPreview;
+    }
+
+    public void setLinkPreview(SpatialLinkProposal preview) {
+        linkPreview = preview;
+    }
 
     public void toggleBlock(int mapEntityId, int blockId) {
         cornerProfile.close();
-        if (editingMapEntityId != mapEntityId || selectedBlockIds.size == 0) { selectBlock(mapEntityId, blockId); return; }
+        if (editingMapEntityId != mapEntityId || selectedBlockIds.size == 0) {
+            selectBlock(mapEntityId, blockId);
+            return;
+        }
         int index = selectedBlockIds.indexOf(blockId);
         if (index >= 0) selectedBlockIds.removeIndex(index);
         else selectedBlockIds.add(blockId);
         selectedBlockId = selectedBlockIds.size == 0 ? NO_BLOCK : selectedBlockIds.peek();
-        clearEditPreview(); clearHoveredHandle(); publishSelectionChanged();
+        clearEditPreview();
+        clearHoveredHandle();
+        publishSelectionChanged();
     }
+
     private int hoveredBlockId = NO_BLOCK;
     private SpatialBlockInteractiveEditSupport.ResizeHandle hoveredResizeHandle;
     private boolean hoveredHeightHandle;
@@ -39,8 +65,15 @@ public final class SpatialBlockSelectionService {
     private boolean editPreviewValid;
     private final SpatialWallEditSession wallEditSession = new SpatialWallEditSession();
     private CornerProfileEditSession cornerProfile = new CornerProfileEditSession();
-    public CornerProfileEditSession cornerProfile(){return cornerProfile;}
-    public void setCornerProfile(CornerProfileEditSession session){cornerProfile.close();cornerProfile=session;}
+
+    public CornerProfileEditSession cornerProfile() {
+        return cornerProfile;
+    }
+
+    public void setCornerProfile(CornerProfileEditSession session) {
+        cornerProfile.close();
+        cornerProfile = session;
+    }
 
     private final int eventTag = EventFlow.tag(this);
     private final StudioEditingModeService studioEditingModeService;
@@ -60,15 +93,22 @@ public final class SpatialBlockSelectionService {
     }
 
     public void setContextActive(boolean active) {
-        if(!active)cornerProfile.close();
+        if (!active) cornerProfile.close();
         contextActive = active;
-        if (!active) { wallEditSession.cancel(); linkPreview=null; verticalJoinPreview=null; clearHover(); }
+        if (!active) {
+            wallEditSession.cancel();
+            linkPreview = null;
+            verticalJoinPreview = null;
+            clearHover();
+        }
     }
 
     public void dispose() {
         cornerProfile.close();
         contextActive = false;
-        linkPreview=null;verticalJoinPreview=null;wallEditSession.cancel();
+        linkPreview = null;
+        verticalJoinPreview = null;
+        wallEditSession.cancel();
         EventFlow.i().unsubscribe(EventFlow.TiledMapEditingTargetChanged.class, tiledTargetListener);
     }
 
@@ -104,9 +144,17 @@ public final class SpatialBlockSelectionService {
         return selectedBlockId > 0;
     }
 
-    public boolean isEditPreviewActive() { return editPreviewActive; }
-    public boolean isEditPreviewValid() { return editPreviewValid; }
-    public SpatialWallEditSession wallEditSession() { return wallEditSession; }
+    public boolean isEditPreviewActive() {
+        return editPreviewActive;
+    }
+
+    public boolean isEditPreviewValid() {
+        return editPreviewValid;
+    }
+
+    public SpatialWallEditSession wallEditSession() {
+        return wallEditSession;
+    }
 
     public void setEditPreview(boolean valid) {
         editPreviewActive = true;
@@ -153,7 +201,8 @@ public final class SpatialBlockSelectionService {
         editingMapEntityId = mapEntityId;
         setSpatialModeActive(true);
         selectedBlockId = blockId;
-        selectedBlockIds.clear(); selectedBlockIds.add(blockId);
+        selectedBlockIds.clear();
+        selectedBlockIds.add(blockId);
         linkPreview = null;
         verticalJoinPreview = null;
         hoveredBlockId = blockId;
@@ -210,7 +259,7 @@ public final class SpatialBlockSelectionService {
 
     public void clear() {
         cornerProfile.close();
-        verticalJoinPreview=null;
+        verticalJoinPreview = null;
         if (editingMapEntityId == NO_MAP && selectedBlockId == NO_BLOCK && hoveredBlockId == NO_BLOCK) return;
         editingMapEntityId = NO_MAP;
         setSpatialModeActive(false);

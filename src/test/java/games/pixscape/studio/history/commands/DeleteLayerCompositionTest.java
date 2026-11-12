@@ -7,7 +7,8 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class DeleteLayerCompositionTest {
-    @Test public void emptyAndOrdinaryLayersRestoreTheirPropertiesWithoutPublication() throws Exception {
+    @Test
+    public void emptyAndOrdinaryLayersRestoreTheirPropertiesWithoutPublication() throws Exception {
         try (var f = new AlignServiceTest.Fixture()) {
             var layers = f.context.layerService();
             int emptyIndex = layers.addLayerTop("Empty");
@@ -16,7 +17,8 @@ public class DeleteLayerCompositionTest {
             layers.setLayerLocked(empty, true); // Layer deletion never used content-edit locking.
             f.world.getMapper(LayerComponent.class).get(empty).spatialEnabled = true;
             var parallax = f.world.getMapper(LayerParallaxComponent.class).create(empty);
-            parallax.factorX = .3f; parallax.factorY = .7f;
+            parallax.factorX = .3f;
+            parallax.factorY = .7f;
             f.history.execute(new DeleteLayerCommand(layers, empty, null));
             f.history.undo();
             assertEquals("Retain me", layers.meta(1).description);
@@ -34,15 +36,21 @@ public class DeleteLayerCompositionTest {
         }
     }
 
-    @Test public void internalAndCrossLayerJointsRestoreReferencesWithoutDeletingOtherComposition() throws Exception {
+    @Test
+    public void internalAndCrossLayerJointsRestoreReferencesWithoutDeletingOtherComposition() throws Exception {
         try (var f = new AlignServiceTest.Fixture()) {
-            var layers = f.context.layerService(); layers.addLayerTop("B");
+            var layers = f.context.layerService();
+            layers.addLayerTop("B");
             int root = f.root(0, 0), a = f.sprite(10, 0, 10, 10), b = f.sprite(20, 0, 10, 10);
             int otherRoot = f.root(100, 0), other = f.sprite(5, 0, 10, 10);
-            f.attach(a, root); f.attach(b, root); f.attach(other, otherRoot);
+            f.attach(a, root);
+            f.attach(b, root);
+            f.attach(other, otherRoot);
             f.world.getMapper(EntityIndexComponent.class).get(root).layerIndex = 1;
             var bodies = f.world.getMapper(games.pixscape.runtime.component.physics.PhysicsBodyComponent.class);
-            bodies.create(a).gravityScale = .4f; bodies.create(b); bodies.create(other);
+            bodies.create(a).gravityScale = .4f;
+            bodies.create(b);
+            bodies.create(other);
             var physics = new games.pixscape.runtime.service.PhysicsService(f.world, null, f.context.sceneMeta());
             var shape = games.pixscape.runtime.service.PhysicsService.createDefaultShape(physics.allocateNewPhysicsShapeId());
             f.world.getMapper(games.pixscape.runtime.component.physics.PhysicsShapesComponent.class).create(a).shapes.add(shape);
@@ -62,8 +70,10 @@ public class DeleteLayerCompositionTest {
                 var joints = f.world.getMapper(games.pixscape.runtime.component.physics.PhysicsJointComponent.class);
                 var inside = joints.get(f.history.historyIds().entityOfHistoryId(ih));
                 var outside = joints.get(f.history.historyIds().entityOfHistoryId(eh));
-                assertEquals(restoredA, inside.aEid); assertEquals(f.history.historyIds().entityOfHistoryId(bh), inside.bEid);
-                assertEquals(restoredA, outside.aEid); assertEquals(other, outside.bEid);
+                assertEquals(restoredA, inside.aEid);
+                assertEquals(f.history.historyIds().entityOfHistoryId(bh), inside.bEid);
+                assertEquals(restoredA, outside.aEid);
+                assertEquals(other, outside.bEid);
                 assertEquals(.4f, bodies.get(restoredA).gravityScale, 0);
                 assertTrue(shape.contentEquals(f.world.getMapper(games.pixscape.runtime.component.physics.PhysicsShapesComponent.class)
                         .get(restoredA).shapes.first()));
@@ -71,22 +81,27 @@ public class DeleteLayerCompositionTest {
                         .get(restoredA).properties.getObjectStableId("other", -1));
                 f.history.redo();
             }
-            f.history.undo(); f.process();
+            f.history.undo();
+            f.process();
             assertEquals(2, f.world.getAspectSubscriptionManager().get(com.artemis.Aspect.all(
                     games.pixscape.runtime.component.physics.PhysicsJointComponent.class)).getEntities().size());
         }
     }
 
-    @Test public void brokenRelationRefusesCaptureBeforeDeletingOrRenumberingAnything() throws Exception {
+    @Test
+    public void brokenRelationRefusesCaptureBeforeDeletingOrRenumberingAnything() throws Exception {
         try (var f = new AlignServiceTest.Fixture()) {
-            var layers = f.context.layerService(); layers.addLayerTop("B");
+            var layers = f.context.layerService();
+            layers.addLayerTop("B");
             int root = f.root(0, 0), child = f.sprite(10, 20, 10, 10);
-            f.attach(child, root); f.process();
+            f.attach(child, root);
+            f.process();
             f.world.getMapper(GameObjectMemberComponent.class).get(child).parentStableId = Integer.MAX_VALUE;
             int cursor = f.history.getCursor(), stable = f.context.identityRegistry().getStableId(root);
             assertThrows(IllegalArgumentException.class, () -> f.history.execute(
                     new DeleteLayerCommand(layers, layers.getLayerEntity(0), null)));
-            assertEquals(cursor, f.history.getCursor()); assertEquals(2, layers.count());
+            assertEquals(cursor, f.history.getCursor());
+            assertEquals(2, layers.count());
             assertEquals(root, f.context.identityRegistry().findByStableId(stable));
             assertEquals(0, f.world.getMapper(EntityIndexComponent.class).get(root).layerIndex);
         }
@@ -95,17 +110,20 @@ public class DeleteLayerCompositionTest {
     private static int joint(AlignServiceTest.Fixture f, int a, int b) {
         int entity = f.world.create();
         var joint = f.world.getMapper(games.pixscape.runtime.component.physics.PhysicsJointComponent.class).create(entity);
-        joint.aEid = a; joint.bEid = b;
+        joint.aEid = a;
+        joint.bEid = b;
         f.world.getMapper(games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent.class).create(entity);
         f.history.historyIds().ensureForEntity(entity);
         return entity;
     }
 
-    @Test public void invalidJointEndpointRefusesDeletionBeforeMutation() throws Exception {
+    @Test
+    public void invalidJointEndpointRefusesDeletionBeforeMutation() throws Exception {
         try (var f = new AlignServiceTest.Fixture()) {
             int a = f.sprite(0, 0, 10, 10), b = f.sprite(20, 0, 10, 10);
             var bodies = f.world.getMapper(games.pixscape.runtime.component.physics.PhysicsBodyComponent.class);
-            bodies.create(a); bodies.create(b);
+            bodies.create(a);
+            bodies.create(b);
             int joint = joint(f, a, b);
             f.process();
             f.world.getMapper(games.pixscape.runtime.component.physics.PhysicsJointComponent.class).get(joint).bEid = -1;
@@ -120,11 +138,14 @@ public class DeleteLayerCompositionTest {
         }
     }
 
-    @Test public void deletingHistoricalLayerPreservesTransferredCompositionAndIndices() throws Exception {
+    @Test
+    public void deletingHistoricalLayerPreservesTransferredCompositionAndIndices() throws Exception {
         try (var f = new AlignServiceTest.Fixture()) {
             f.context.layerService().addLayerTop("B");
             int root = f.root(10, 20), nested = f.root(3, 4), child = f.sprite(7, 8, 10, 10);
-            f.attach(nested, root); f.attach(child, nested); f.process();
+            f.attach(nested, root);
+            f.attach(child, nested);
+            f.process();
             f.world.getMapper(EntityIndexComponent.class).get(root).layerIndex = 1;
             int stable = f.context.identityRegistry().getStableId(child);
             var layers = f.context.layerService();
@@ -139,17 +160,24 @@ public class DeleteLayerCompositionTest {
         }
     }
 
-    @Test public void deletingEffectiveLayerRestoresNestedCompositionThroughImmediateCycles() throws Exception {
+    @Test
+    public void deletingEffectiveLayerRestoresNestedCompositionThroughImmediateCycles() throws Exception {
         try (var f = new AlignServiceTest.Fixture()) {
-            var layers = f.context.layerService(); layers.addLayerTop("B");
+            var layers = f.context.layerService();
+            layers.addLayerTop("B");
             int root = f.root(10, 20), nested = f.root(3, 4), child = f.sprite(7, 8, 10, 10);
-            f.attach(nested, root); f.attach(child, nested); f.process();
+            f.attach(nested, root);
+            f.attach(child, nested);
+            f.process();
             f.world.getMapper(EntityIndexComponent.class).get(root).layerIndex = 1;
             int rootStable = f.context.identityRegistry().getStableId(root);
             int nestedStable = f.context.identityRegistry().getStableId(nested);
             int childStable = f.context.identityRegistry().getStableId(child);
-            f.t.get(child).originX = 2; f.t.get(child).originY = 6;
-            f.t.get(child).rotationRad = .4f; f.t.get(child).scaleX = -2; f.t.get(child).scaleY = 3;
+            f.t.get(child).originX = 2;
+            f.t.get(child).originY = 6;
+            f.t.get(child).rotationRad = .4f;
+            f.t.get(child).scaleX = -2;
+            f.t.get(child).scaleY = 3;
             f.world.getMapper(EntityIndexComponent.class).get(root).zIndex = 42;
             f.world.getMapper(EntityIndexComponent.class).get(nested).zIndex = 5;
             f.world.getMapper(EntityIndexComponent.class).get(child).zIndex = 9;
@@ -178,7 +206,8 @@ public class DeleteLayerCompositionTest {
                 assertEquals(9, f.world.getMapper(EntityIndexComponent.class).get(child).zIndex);
                 f.history.redo();
             }
-            f.history.undo(); f.process();
+            f.history.undo();
+            f.process();
             assertEquals(1, layers.getEffectiveLayerIndex(f.context.identityRegistry().findByStableId(childStable)));
         }
     }

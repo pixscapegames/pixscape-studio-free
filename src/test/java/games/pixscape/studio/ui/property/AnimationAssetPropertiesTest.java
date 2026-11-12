@@ -20,10 +20,18 @@ import java.lang.reflect.Proxy;
 import static org.junit.Assert.*;
 
 public class AnimationAssetPropertiesTest {
-    @BeforeClass public static void load() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unload() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void load() {
+        VisUiTestBootstrap.loadSkin();
+    }
 
-    @Test public void selectingPreviewClipDoesNotMutateAssetOrDefault() {
+    @AfterClass
+    public static void unload() {
+        VisUiTestBootstrap.unloadSkin();
+    }
+
+    @Test
+    public void selectingPreviewClipDoesNotMutateAssetOrDefault() {
         AssetMetaDatabase db = new AssetMetaDatabase();
         AnimationAssetMeta animation = animation(db);
         AtomicInteger configured = new AtomicInteger(-1);
@@ -43,11 +51,13 @@ public class AnimationAssetPropertiesTest {
         assertEquals(animation.id(), configured.get());
     }
 
-    @Test public void catalogReplacementRefreshesMetadataAndPreservesOnlyAnExistingPreviewClip() {
+    @Test
+    public void catalogReplacementRefreshesMetadataAndPreservesOnlyAnExistingPreviewClip() {
         AssetMetaDatabase db = new AssetMetaDatabase();
         AnimationAssetMeta animation = animation(db);
         AtomicReference<AssetMetaDatabase> catalog = new AtomicReference<>(db);
-        AnimationAssetProperties inspector = new AnimationAssetProperties(catalog::get, id -> {}, path -> new Array<>());
+        AnimationAssetProperties inspector = new AnimationAssetProperties(catalog::get, id -> {
+        }, path -> new Array<>());
         inspector.select(animation.id());
         clipBox(inspector).setSelected("walk");
         AssetMetaDatabase replacement = new AssetMetaDatabase();
@@ -64,7 +74,8 @@ public class AnimationAssetPropertiesTest {
         assertEquals("idle", clipBox(inspector).getSelected());
     }
 
-    @Test public void unnamedSingleFramePreviewStopsOnDetachWithoutDisposingBorrowedTexture() throws Exception {
+    @Test
+    public void unnamedSingleFramePreviewStopsOnDetachWithoutDisposingBorrowedTexture() throws Exception {
         AssetMetaDatabase db = new AssetMetaDatabase();
         AnimationAssetMeta animation = animation(db);
         animation.clips.clear();
@@ -72,13 +83,18 @@ public class AnimationAssetPropertiesTest {
         animation.frameCount = 1;
         AtomicInteger disposals = new AtomicInteger();
         Texture texture = new Texture(2, 2, Pixmap.Format.RGBA8888) {
-            @Override public void dispose() { disposals.incrementAndGet(); super.dispose(); }
+            @Override
+            public void dispose() {
+                disposals.incrementAndGet();
+                super.dispose();
+            }
         };
         Batch batch = (Batch) Proxy.newProxyInstance(Batch.class.getClassLoader(), new Class[]{Batch.class},
                 (proxy, method, args) -> null);
         Stage stage = new Stage(new ScreenViewport(), batch);
         try {
-            AnimationAssetProperties inspector = new AnimationAssetProperties(() -> db, id -> {}, path -> Array.with(texture));
+            AnimationAssetProperties inspector = new AnimationAssetProperties(() -> db, id -> {
+            }, path -> Array.with(texture));
             inspector.select(animation.id());
             stage.addActor(inspector);
             var preview = inspector.findActor("animationAssetPreview");

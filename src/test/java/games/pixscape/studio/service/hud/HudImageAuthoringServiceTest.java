@@ -20,11 +20,15 @@ import java.lang.reflect.Field;
 
 import static org.junit.Assert.*;
 
-/** Image placement remains an immediate authored edit; Runtime work is no longer its concern. */
+/**
+ * Image placement remains an immediate authored edit; Runtime work is no longer its concern.
+ */
 public class HudImageAuthoringServiceTest {
-    @Rule public TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public TemporaryFolder temporary = new TemporaryFolder();
 
-    @Test public void addPublishesImageImmediatelyWithoutOwningRuntimePreparation() throws Exception {
+    @Test
+    public void addPublishesImageImmediatelyWithoutOwningRuntimePreparation() throws Exception {
         FileHandle root = new FileHandle(temporary.newFolder());
         AssetMetaDatabase database = new AssetMetaDatabase();
         AssetMeta meta = database.registerIfAbsent(AssetType.IMAGE, "images/first",
@@ -37,8 +41,11 @@ public class HudImageAuthoringServiceTest {
         hud.setSelectedNodeId("root");
         HudEditorSession preview = projectedPreview(hud);
         HudDocumentEditSession.ActivePreview binding = (asset, candidate, validation) -> {
-            try { set(preview, "document", candidate); }
-            catch (Exception failure) { throw new AssertionError(failure); }
+            try {
+                set(preview, "document", candidate);
+            } catch (Exception failure) {
+                throw new AssertionError(failure);
+            }
         };
         hud.editSession().bindActivePreview(binding);
 
@@ -52,7 +59,8 @@ public class HudImageAuthoringServiceTest {
         }
     }
 
-    @Test public void invalidSelectionDoesNotPublishAnImage() throws Exception {
+    @Test
+    public void invalidSelectionDoesNotPublishAnImage() throws Exception {
         FileHandle root = new FileHandle(temporary.newFolder());
         EditorDocumentManager manager = new EditorDocumentManager();
         HudScreenEditorDocument hud = manager.openHudScreen(new HudScreenEditorDocument("hud/main", "Main",

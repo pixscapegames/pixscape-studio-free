@@ -115,7 +115,9 @@ public class RulerActor extends VisTable {
         return this;
     }
 
-    /** Rebinds this shared ruler to a canvas viewport without rebuilding docking layout. */
+    /**
+     * Rebinds this shared ruler to a canvas viewport without rebuilding docking layout.
+     */
     public void setProjection(OrthographicCamera camera, Viewport viewport) {
         this.worldCam = camera;
         this.projectionViewport = viewport;

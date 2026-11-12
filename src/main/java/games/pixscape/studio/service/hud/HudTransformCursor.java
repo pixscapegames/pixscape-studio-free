@@ -6,7 +6,9 @@ import com.badlogic.gdx.graphics.Cursor;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-/** Owns the system cursor only while the HUD transform gizmo needs a resize cursor. */
+/**
+ * Owns the system cursor only while the HUD transform gizmo needs a resize cursor.
+ */
 final class HudTransformCursor {
     private final Consumer<Cursor.SystemCursor> systemCursor;
     private Cursor.SystemCursor ownedCursor;
@@ -48,5 +50,7 @@ final class HudTransformCursor {
         ownedCursor = null;
     }
 
-    Cursor.SystemCursor ownedCursor() { return ownedCursor; }
+    Cursor.SystemCursor ownedCursor() {
+        return ownedCursor;
+    }
 }

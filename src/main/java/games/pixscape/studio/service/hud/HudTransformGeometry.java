@@ -1,6 +1,8 @@
 package games.pixscape.studio.service.hud;
 
-/** Pure overlay-local geometry for a conventional move/resize transform gizmo. */
+/**
+ * Pure overlay-local geometry for a conventional move/resize transform gizmo.
+ */
 public final class HudTransformGeometry {
     public static final float MINIMUM_SIZE = 1f;
 
@@ -8,20 +10,30 @@ public final class HudTransformGeometry {
         public Bounds {
             if (width < 0f || height < 0f) throw new IllegalArgumentException("Bounds must not be negative.");
         }
-        public float right() { return x + width; }
-        public float top() { return y + height; }
+
+        public float right() {
+            return x + width;
+        }
+
+        public float top() {
+            return y + height;
+        }
+
         public boolean contains(float pointX, float pointY) {
             return pointX >= x && pointX <= right() && pointY >= y && pointY <= top();
         }
     }
 
-    private HudTransformGeometry() {}
+    private HudTransformGeometry() {
+    }
 
     public static Bounds move(Bounds initial, float deltaX, float deltaY) {
         return new Bounds(initial.x + deltaX, initial.y + deltaY, initial.width, initial.height);
     }
 
-    /** Keeps a freely authored element fully inside the HUD reference rectangle. */
+    /**
+     * Keeps a freely authored element fully inside the HUD reference rectangle.
+     */
     public static Bounds clampToSurface(Bounds bounds, float surfaceWidth, float surfaceHeight) {
         float width = Math.min(bounds.width, surfaceWidth);
         float height = Math.min(bounds.height, surfaceHeight);
@@ -30,7 +42,9 @@ public final class HudTransformGeometry {
         return new Bounds(x, y, width, height);
     }
 
-    /** Resizes in local coordinates while deliberately keeping the opposite edge fixed. */
+    /**
+     * Resizes in local coordinates while deliberately keeping the opposite edge fixed.
+     */
     public static Bounds resize(Bounds initial, HudTransformHandle handle,
                                 float deltaX, float deltaY) {
         if (handle == null) throw new IllegalArgumentException("Transform handle is required.");
@@ -55,7 +69,9 @@ public final class HudTransformGeometry {
         return new Bounds(centerX - half, centerY - half, size, size);
     }
 
-    /** Corners deliberately win where their squares overlap an edge handle. */
+    /**
+     * Corners deliberately win where their squares overlap an edge handle.
+     */
     public static HudTransformHandle handleAt(Bounds bounds, float pointX, float pointY,
                                               float handleSize) {
         for (HudTransformHandle handle : HudTransformHandle.values()) {

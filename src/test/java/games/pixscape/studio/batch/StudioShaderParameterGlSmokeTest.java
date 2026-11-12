@@ -26,9 +26,15 @@ import org.junit.Test;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 
-/** Opt-in integration check for Studio's distinct vertex layout. */
+/**
+ * Opt-in integration check for Studio's distinct vertex layout.
+ */
 public class StudioShaderParameterGlSmokeTest {
-    @Test public void surfaceShaderManagerRoundTripsThroughRuntimeExport(){ games.pixscape.studio.ui.shaders.SurfaceShaderManagerGlCheck.verify(); }
+    @Test
+    public void surfaceShaderManagerRoundTripsThroughRuntimeExport() {
+        games.pixscape.studio.ui.shaders.SurfaceShaderManagerGlCheck.verify();
+    }
+
     private static final String FRAGMENT = "#version 330 core\n"
             + "flat in int v_paramId;\n"
             + "uniform sampler2D u_entityParams;\n"
@@ -57,7 +63,8 @@ public class StudioShaderParameterGlSmokeTest {
             AtlasRuntimeService.TextureArrayBundle bundle;
             FileHandle projectDir;
 
-            @Override public void create() {
+            @Override
+            public void create() {
                 try {
                     ShaderRegistry.initDefaults();
                     shader = new ShaderProgram(
@@ -251,7 +258,8 @@ public class StudioShaderParameterGlSmokeTest {
                 Assert.assertEquals(0, ShaderRegistry.getParameterLayout(index).slot(parameter));
             }
 
-            @Override public void dispose() {
+            @Override
+            public void dispose() {
                 if (batch != null) batch.close();
                 if (bundle != null) bundle.textureArray.dispose();
                 if (shader != null) shader.dispose();

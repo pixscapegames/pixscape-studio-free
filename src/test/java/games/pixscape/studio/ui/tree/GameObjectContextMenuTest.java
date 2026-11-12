@@ -17,11 +17,25 @@ import static org.junit.Assert.*;
 public class GameObjectContextMenuTest {
     private static final ItemTreePanel.GameObjectChildMenuActions NO_OP_ACTIONS =
             new ItemTreePanel.GameObjectChildMenuActions() {
-                @Override public void addSprite() { }
-                @Override public void addAnimation() { }
-                @Override public void addPointLight() { }
-                @Override public void addConeLight() { }
-                @Override public void addGameObject() { }
+                @Override
+                public void addSprite() {
+                }
+
+                @Override
+                public void addAnimation() {
+                }
+
+                @Override
+                public void addPointLight() {
+                }
+
+                @Override
+                public void addConeLight() {
+                }
+
+                @Override
+                public void addGameObject() {
+                }
             };
 
     @BeforeClass
@@ -73,11 +87,30 @@ public class GameObjectContextMenuTest {
         int[] calls = new int[5];
         ItemTreePanel.GameObjectChildMenuActions actions =
                 new ItemTreePanel.GameObjectChildMenuActions() {
-                    @Override public void addSprite() { calls[0]++; }
-                    @Override public void addAnimation() { calls[1]++; }
-                    @Override public void addPointLight() { calls[2]++; }
-                    @Override public void addConeLight() { calls[3]++; }
-                    @Override public void addGameObject() { calls[4]++; }
+                    @Override
+                    public void addSprite() {
+                        calls[0]++;
+                    }
+
+                    @Override
+                    public void addAnimation() {
+                        calls[1]++;
+                    }
+
+                    @Override
+                    public void addPointLight() {
+                        calls[2]++;
+                    }
+
+                    @Override
+                    public void addConeLight() {
+                        calls[3]++;
+                    }
+
+                    @Override
+                    public void addGameObject() {
+                        calls[4]++;
+                    }
                 };
 
         PopupMenu imageMenu = ItemTreePanel.buildGameObjectAddMenu(

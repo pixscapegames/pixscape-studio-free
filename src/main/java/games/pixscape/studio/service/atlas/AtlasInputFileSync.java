@@ -8,7 +8,9 @@ import games.pixscape.studio.io.StudioIO;
 import java.util.HashSet;
 import java.util.Set;
 
-/** Shared low-level file projection used by Scene and HUD atlas membership collectors. */
+/**
+ * Shared low-level file projection used by Scene and HUD atlas membership collectors.
+ */
 final class AtlasInputFileSync {
     private static final String INTERNAL_DIR = "__pixscape_internal__";
 
@@ -26,7 +28,9 @@ final class AtlasInputFileSync {
         return sync(projectDir, inputDir, requiredProjectRelativePaths, failOnMissingSource, false);
     }
 
-    /** HUD workers compare content, including same-size/same-timestamp source replacements. */
+    /**
+     * HUD workers compare content, including same-size/same-timestamp source replacements.
+     */
     static AtlasInputSyncResult sync(FileHandle projectDir, FileHandle inputDir,
                                      Set<String> requiredProjectRelativePaths,
                                      boolean failOnMissingSource, boolean compareContent) {

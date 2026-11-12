@@ -23,7 +23,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.Assert.*;
 
 public class SceneHudCompositionRendererTest {
-    @Test public void associationResolutionUsesCanonicalSceneAndHudIdentity() {
+    @Test
+    public void associationResolutionUsesCanonicalSceneAndHudIdentity() {
         ProjectConfig configuration = new ProjectConfig();
         configuration.createSceneMeta("Main");
         configuration.getSceneMeta("Main").defaultHudScreenId = " hud\\status ";
@@ -39,7 +40,8 @@ public class SceneHudCompositionRendererTest {
         assertEquals("hud/status", association.screenId());
     }
 
-    @Test public void openHudDocumentIsTheAuthoritativeCompositionSource() {
+    @Test
+    public void openHudDocumentIsTheAuthoritativeCompositionSource() {
         EditorDocumentManager documents = new EditorDocumentManager();
         HudScreenAsset asset = new HudScreenAsset();
         asset.documentId = "hud/status.json";
@@ -59,7 +61,8 @@ public class SceneHudCompositionRendererTest {
         assertTrue(open.isDirty());
     }
 
-    @Test public void compositionIgnoresEditorCamerasAndTracksOnlyCanvasBounds() {
+    @Test
+    public void compositionIgnoresEditorCamerasAndTracksOnlyCanvasBounds() {
         AtomicReference<SceneHudCompositionRenderer.Association> association =
                 new AtomicReference<>(association("scene-a", "hud/a"));
         FakePreparation preparation = new FakePreparation();
@@ -96,7 +99,8 @@ public class SceneHudCompositionRendererTest {
         assertTrue(view.closed);
     }
 
-    @Test public void refreshFailurePreservesSameAssociationButSwitchNeverShowsStaleHud() {
+    @Test
+    public void refreshFailurePreservesSameAssociationButSwitchNeverShowsStaleHud() {
         AtomicReference<SceneHudCompositionRenderer.Association> association =
                 new AtomicReference<>(association("scene-a", "hud/a"));
         FakePreparation preparation = new FakePreparation();
@@ -134,7 +138,8 @@ public class SceneHudCompositionRendererTest {
         assertEquals(1, second.draws);
     }
 
-    @Test public void visibilityHidesOnlyTheSelectedAssociationComposition() {
+    @Test
+    public void visibilityHidesOnlyTheSelectedAssociationComposition() {
         AtomicReference<SceneHudCompositionRenderer.Association> association =
                 new AtomicReference<>(association("scene-a", "hud/a"));
         FakePreparation preparation = new FakePreparation();
@@ -169,7 +174,8 @@ public class SceneHudCompositionRendererTest {
         renderer.close();
     }
 
-    @Test public void authoredRefreshRecomposesWithOwnedResourcesButResourceChangeRecreatesView() {
+    @Test
+    public void authoredRefreshRecomposesWithOwnedResourcesButResourceChangeRecreatesView() {
         var association = new AtomicReference<>(association("scene-a", "hud/a"));
         var preparation = new FakePreparation();
         preparation.generations.put("scene-a", 1L);
@@ -181,7 +187,9 @@ public class SceneHudCompositionRendererTest {
                     view.supportsRecompose = true;
                     views.add(view);
                     return view;
-                }, failure -> { throw failure; });
+                }, failure -> {
+            throw failure;
+        });
         Rectangle canvas = new Rectangle(0f, 0f, 320f, 180f);
 
         renderer.render("scene-a", canvas, 0f);
@@ -230,15 +238,18 @@ public class SceneHudCompositionRendererTest {
         private final Map<String, Long> generations = new HashMap<>();
         private final Map<String, Long> resourceGenerations = new HashMap<>();
 
-        @Override public void ensureSceneRequested(String sceneTag) {
+        @Override
+        public void ensureSceneRequested(String sceneTag) {
             requests.add(sceneTag);
         }
 
-        @Override public long publishedGeneration(String sceneTag) {
+        @Override
+        public long publishedGeneration(String sceneTag) {
             return generations.getOrDefault(sceneTag, 0L);
         }
 
-        @Override public long resourceGeneration(String sceneTag) {
+        @Override
+        public long resourceGeneration(String sceneTag) {
             return resourceGenerations.getOrDefault(sceneTag, publishedGeneration(sceneTag));
         }
     }
@@ -250,17 +261,30 @@ public class SceneHudCompositionRendererTest {
         private boolean supportsRecompose;
         private boolean closed;
 
-        @Override public void resize(int x, int y, int width, int height) {
+        @Override
+        public void resize(int x, int y, int width, int height) {
             resizes.add(x + "," + y + "," + width + "," + height);
         }
 
-        @Override public void act(float delta) {}
-        @Override public void draw() { draws++; }
-        @Override public boolean recompose(SceneHudCompositionRenderer.Association association) {
+        @Override
+        public void act(float delta) {
+        }
+
+        @Override
+        public void draw() {
+            draws++;
+        }
+
+        @Override
+        public boolean recompose(SceneHudCompositionRenderer.Association association) {
             if (!supportsRecompose) return false;
             recomposes++;
             return true;
         }
-        @Override public void close() { closed = true; }
+
+        @Override
+        public void close() {
+            closed = true;
+        }
     }
 }

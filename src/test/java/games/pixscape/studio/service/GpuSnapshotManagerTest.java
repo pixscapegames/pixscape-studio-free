@@ -152,7 +152,8 @@ public class GpuSnapshotManagerTest {
                         1, 1, 0, 0L, 0L, 0L, 0L, 0L),
                 false,
                 0L,
-                message -> { }
+                message -> {
+                }
         );
 
         manager.markDirty("first", "publish-first");
@@ -176,7 +177,8 @@ public class GpuSnapshotManagerTest {
                         1, 1, 0, 0L, 0L, 0L, 0L, 0L),
                 false,
                 0L,
-                message -> { }
+                message -> {
+                }
         );
 
         manager.markDirty("first", "publish-first");

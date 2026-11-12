@@ -2,7 +2,9 @@ package games.pixscape.studio.document;
 
 import java.util.Objects;
 
-/** Stable editor identity. Display titles are deliberately not part of document identity. */
+/**
+ * Stable editor identity. Display titles are deliberately not part of document identity.
+ */
 public record EditorDocumentKey(EditorDocumentType type, String domainId) {
     public EditorDocumentKey {
         Objects.requireNonNull(type, "type");

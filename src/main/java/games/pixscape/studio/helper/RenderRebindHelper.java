@@ -40,7 +40,9 @@ public final class RenderRebindHelper {
         );
     }
 
-    /** Rebinds after a prepared GPU snapshot has already been atomically published. */
+    /**
+     * Rebinds after a prepared GPU snapshot has already been atomically published.
+     */
     public static void rebindAfterPreparedSnapshot(
             WorldCanvas canvas,
             String sceneTag,
@@ -166,7 +168,9 @@ public final class RenderRebindHelper {
                 canvas != null ? canvas.getEcsWorld() : null);
     }
 
-    /** History callbacks retain the World that owns their command, even while another tab is active. */
+    /**
+     * History callbacks retain the World that owns their command, even while another tab is active.
+     */
     public static String rebindHistoryEntityRenderAssets(
             WorldCanvas canvas, String sceneTag, StudioAssetVisualResolver visualResolver,
             int entityId, World world) {
@@ -272,7 +276,9 @@ public final class RenderRebindHelper {
                 : "standalone";
     }
 
-    /** Binds borrowed pixels to an entity in either an editing or isolated capture World. */
+    /**
+     * Binds borrowed pixels to an entity in either an editing or isolated capture World.
+     */
     public static void applyVisual(TextureRegionComponent tr, RenderMaterialComponent mat,
                                    StudioAssetVisual visual, String atlasTag) {
         tr.u1 = visual.u1();

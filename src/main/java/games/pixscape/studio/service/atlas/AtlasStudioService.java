@@ -34,7 +34,8 @@ public final class AtlasStudioService extends AtlasRuntimeService {
     private PackCompletion lastCompletion;
     private static final String REPACK_REQUIRED_FILE = ".repack-required";
 
-    public record PackCompletion(String sceneTag, long generation, Throwable failure) {}
+    public record PackCompletion(String sceneTag, long generation, Throwable failure) {
+    }
 
     @FunctionalInterface
     interface PreparedPublisher {
@@ -43,89 +44,120 @@ public final class AtlasStudioService extends AtlasRuntimeService {
 
     private static final String TAG = "AtlasStudioService";
 
-    /** Cold per-tag lookup; scene documents can retain independent GPU publications. */
+    /**
+     * Cold per-tag lookup; scene documents can retain independent GPU publications.
+     */
     public static boolean usesNormalMaps(String sceneTag) {
-        for(var entry:ProjectConfig.getInstance().getScenesMap())
-            if(sceneTag.equals(ProjectConfig.sceneDirName(entry.value)))return entry.value.lightingEnabled && entry.value.useNormalMaps;
+        for (var entry : ProjectConfig.getInstance().getScenesMap())
+            if (sceneTag.equals(ProjectConfig.sceneDirName(entry.value)))
+                return entry.value.lightingEnabled && entry.value.useNormalMaps;
         return true;
     }
 
-    /** Command-time normal-only replacement. Color pages and snapshots keep their identity. */
-    public void prepareSceneNormalMaps(games.pixscape.studio.configuration.SceneMeta scene,boolean enabled) {
-        String tag=ProjectConfig.sceneDirName(scene);
-        if(tag==null || getAtlas(tag)==null)return;
-        FileHandle project=StudioFs.requireStudioProjectDir(ProjectConfig.getInstance());
-        if(enabled)prepareSceneNormals(project,tag,null,
+    /**
+     * Command-time normal-only replacement. Color pages and snapshots keep their identity.
+     */
+    public void prepareSceneNormalMaps(games.pixscape.studio.configuration.SceneMeta scene, boolean enabled) {
+        String tag = ProjectConfig.sceneDirName(scene);
+        if (tag == null || getAtlas(tag) == null) return;
+        FileHandle project = StudioFs.requireStudioProjectDir(ProjectConfig.getInstance());
+        if (enabled) prepareSceneNormals(project, tag, null,
                 games.pixscape.studio.asset.AssetMetaDatabase.load(project.child(StudioFs.FILE_ASSETS_JSON)));
-        replaceNormalMaps(tag,enabled?project.child(StudioFs.DIR_ATLASES).child(tag+games.pixscape.runtime.service.NormalMapAtlas.SUFFIX+".atlas"):null);
+        replaceNormalMaps(tag, enabled ? project.child(StudioFs.DIR_ATLASES).child(tag + games.pixscape.runtime.service.NormalMapAtlas.SUFFIX + ".atlas") : null);
     }
 
-    /** Isolated Game Object authoring uses grouped normal pages and full-image color coordinates. */
-    public void prepareAuthoringNormals(FileHandle project,World world,java.util.Set<String> required,
-            games.pixscape.studio.asset.AssetMetaDatabase db) {
-        boolean declared=false;
-        for(int i=0;i<db.size();i++)if(db.assetAt(i) instanceof games.pixscape.studio.asset.TileAssetMeta tile
-                && tile.normalSourceRelPath!=null && required.contains(tile.sourceRelPath())){declared=true;break;}
-        if(!declared){world.getSystem(games.pixscape.runtime.system.LightingGeometrySystem.class).publishAuthoringNormals(null);return;}
-        FileHandle candidate=games.pixscape.studio.io.AtomicDirectoryPublication.createCandidate(project.child(StudioFs.DIR_ATLASES).child("authoring-normals"));
-        boolean transferred=false;
+    /**
+     * Isolated Game Object authoring uses grouped normal pages and full-image color coordinates.
+     */
+    public void prepareAuthoringNormals(FileHandle project, World world, java.util.Set<String> required,
+                                        games.pixscape.studio.asset.AssetMetaDatabase db) {
+        boolean declared = false;
+        for (int i = 0; i < db.size(); i++)
+            if (db.assetAt(i) instanceof games.pixscape.studio.asset.TileAssetMeta tile
+                    && tile.normalSourceRelPath != null && required.contains(tile.sourceRelPath())) {
+                declared = true;
+                break;
+            }
+        if (!declared) {
+            world.getSystem(games.pixscape.runtime.system.LightingGeometrySystem.class).publishAuthoringNormals(null);
+            return;
+        }
+        FileHandle candidate = games.pixscape.studio.io.AtomicDirectoryPublication.createCandidate(project.child(StudioFs.DIR_ATLASES).child("authoring-normals"));
+        boolean transferred = false;
         try {
-            FileHandle colors=candidate.child("input");colors.mkdirs();
-            for(String source:required) {
-                FileHandle file=project.child(source);
-                if(file.exists() && !file.isDirectory())file.copyTo(colors.child(file.name()));
+            FileHandle colors = candidate.child("input");
+            colors.mkdirs();
+            for (String source : required) {
+                FileHandle file = project.child(source);
+                if (file.exists() && !file.isDirectory()) file.copyTo(colors.child(file.name()));
             }
-            NormalAtlasPackingService.sync(project,colors,db,required);
-            FileHandle output=candidate.child("output");NormalAtlasPackingService.pack(colors,output,"authoring");
-            FileHandle descriptor=output.child("authoring.normals.atlas");
-            if(descriptor.exists()){
+            NormalAtlasPackingService.sync(project, colors, db, required);
+            FileHandle output = candidate.child("output");
+            NormalAtlasPackingService.pack(colors, output, "authoring");
+            FileHandle descriptor = output.child("authoring.normals.atlas");
+            if (descriptor.exists()) {
                 world.getSystem(games.pixscape.runtime.system.LightingGeometrySystem.class)
-                    .publishAuthoringNormals(new games.pixscape.runtime.service.NormalMapAtlas("authoring",descriptor,null),
-                            ()->games.pixscape.studio.io.AtomicDirectoryPublication.discardCandidate(candidate));
-                transferred=true;
+                        .publishAuthoringNormals(new games.pixscape.runtime.service.NormalMapAtlas("authoring", descriptor, null),
+                                () -> games.pixscape.studio.io.AtomicDirectoryPublication.discardCandidate(candidate));
+                transferred = true;
             }
-        }finally{if(!transferred)games.pixscape.studio.io.AtomicDirectoryPublication.discardCandidate(candidate);}
+        } finally {
+            if (!transferred) games.pixscape.studio.io.AtomicDirectoryPublication.discardCandidate(candidate);
+        }
     }
 
-    /** Cold Scene activation: prepare newly declared normal resources without repacking color pages. */
-    public static void prepareSceneNormals(FileHandle project,String tag,java.util.Set<String> required,
-            games.pixscape.studio.asset.AssetMetaDatabase db) {
-        FileHandle root=project.child(StudioFs.DIR_ATLASES),colors=root.child(StudioFs.DIR_INPUT).child(tag);
-        FileHandle colorDescriptor=root.child(tag+".atlas");
-        if(required==null && db!=null && colorDescriptor.exists()){
-            required=new java.util.HashSet<>();
-            var data=new TextureAtlas.TextureAtlasData(colorDescriptor,root,false);
-            for(var region:data.getRegions()){
-                int marker=region.name.lastIndexOf("__a");if(marker<0)continue;
-                var asset=db.findById(Integer.parseInt(region.name.substring(marker+3)));
-                if(asset instanceof games.pixscape.studio.asset.TileAssetMeta tile && tile.normalSourceRelPath!=null){
-                    String source=tile.sourceRelPath();
-                    if(!colors.child(new FileHandle(source).name()).exists())
-                        throw new IllegalStateException("Normal preparation requires scene color input: asset "+tile.id()+" in "+tag);
+    /**
+     * Cold Scene activation: prepare newly declared normal resources without repacking color pages.
+     */
+    public static void prepareSceneNormals(FileHandle project, String tag, java.util.Set<String> required,
+                                           games.pixscape.studio.asset.AssetMetaDatabase db) {
+        FileHandle root = project.child(StudioFs.DIR_ATLASES), colors = root.child(StudioFs.DIR_INPUT).child(tag);
+        FileHandle colorDescriptor = root.child(tag + ".atlas");
+        if (required == null && db != null && colorDescriptor.exists()) {
+            required = new java.util.HashSet<>();
+            var data = new TextureAtlas.TextureAtlasData(colorDescriptor, root, false);
+            for (var region : data.getRegions()) {
+                int marker = region.name.lastIndexOf("__a");
+                if (marker < 0) continue;
+                var asset = db.findById(Integer.parseInt(region.name.substring(marker + 3)));
+                if (asset instanceof games.pixscape.studio.asset.TileAssetMeta tile && tile.normalSourceRelPath != null) {
+                    String source = tile.sourceRelPath();
+                    if (!colors.child(new FileHandle(source).name()).exists())
+                        throw new IllegalStateException("Normal preparation requires scene color input: asset " + tile.id() + " in " + tag);
                     required.add(source);
                 }
             }
         }
-        FileHandle input=NormalAtlasPackingService.input(colors);
-        var oldInputs=ProjectFileCleanupService.snapshotDirectory(input);
-        var oldPages=ProjectFileCleanupService.snapshotAtlasPages(root,tag+games.pixscape.runtime.service.NormalMapAtlas.SUFFIX);
-        FileHandle candidate=null;boolean publishing=false;
+        FileHandle input = NormalAtlasPackingService.input(colors);
+        var oldInputs = ProjectFileCleanupService.snapshotDirectory(input);
+        var oldPages = ProjectFileCleanupService.snapshotAtlasPages(root, tag + games.pixscape.runtime.service.NormalMapAtlas.SUFFIX);
+        FileHandle candidate = null;
+        boolean publishing = false;
         try {
-            var change=NormalAtlasPackingService.sync(project,colors,db,required);
-            boolean declared=!input.child("sources.tsv").readString("UTF-8").isBlank();
-            FileHandle descriptor=root.child(tag+games.pixscape.runtime.service.NormalMapAtlas.SUFFIX+".atlas");
-            if(!change.changed() && (declared==descriptor.exists()))return;
-            candidate=games.pixscape.studio.io.AtomicDirectoryPublication.createCandidate(root.child(tag+"-normal-preparation"));
-            NormalAtlasPackingService.pack(colors,candidate,tag);
-            publishing=true;ProjectFileCleanupService.deleteSceneAtlasFiles(project,tag+games.pixscape.runtime.service.NormalMapAtlas.SUFFIX);
-            for(FileHandle file:candidate.list())file.copyTo(root.child(file.name()));
-        }catch(RuntimeException failure){
-            if(publishing){ProjectFileCleanupService.deleteSceneAtlasFiles(project,tag+games.pixscape.runtime.service.NormalMapAtlas.SUFFIX);ProjectFileCleanupService.restoreAtlasPagesFromSnapshot(root,oldPages);}
-            ProjectFileCleanupService.restoreDirectoryFromSnapshot(input,oldInputs);throw failure;
-        }finally{if(candidate!=null)games.pixscape.studio.io.AtomicDirectoryPublication.discardCandidate(candidate);}
+            var change = NormalAtlasPackingService.sync(project, colors, db, required);
+            boolean declared = !input.child("sources.tsv").readString("UTF-8").isBlank();
+            FileHandle descriptor = root.child(tag + games.pixscape.runtime.service.NormalMapAtlas.SUFFIX + ".atlas");
+            if (!change.changed() && (declared == descriptor.exists())) return;
+            candidate = games.pixscape.studio.io.AtomicDirectoryPublication.createCandidate(root.child(tag + "-normal-preparation"));
+            NormalAtlasPackingService.pack(colors, candidate, tag);
+            publishing = true;
+            ProjectFileCleanupService.deleteSceneAtlasFiles(project, tag + games.pixscape.runtime.service.NormalMapAtlas.SUFFIX);
+            for (FileHandle file : candidate.list()) file.copyTo(root.child(file.name()));
+        } catch (RuntimeException failure) {
+            if (publishing) {
+                ProjectFileCleanupService.deleteSceneAtlasFiles(project, tag + games.pixscape.runtime.service.NormalMapAtlas.SUFFIX);
+                ProjectFileCleanupService.restoreAtlasPagesFromSnapshot(root, oldPages);
+            }
+            ProjectFileCleanupService.restoreDirectoryFromSnapshot(input, oldInputs);
+            throw failure;
+        } finally {
+            if (candidate != null) games.pixscape.studio.io.AtomicDirectoryPublication.discardCandidate(candidate);
+        }
     }
 
-    /** Import preflight uses the scene packer policy without publishing any atlas generation. */
+    /**
+     * Import preflight uses the scene packer policy without publishing any atlas generation.
+     */
     public static void validateTilesetImportCandidate(FileHandle candidate, java.util.List<String> colors) {
         if (colors.isEmpty()) return;
         FileHandle work = games.pixscape.studio.io.AtomicDirectoryPublication.createCandidate(candidate);
@@ -141,11 +173,14 @@ public final class AtlasStudioService extends AtlasRuntimeService {
         }
     }
 
-    /** One synchronous import boundary: all packs finish before any visible page set is replaced.
-     * The caller holds the source/catalog backup until this operation and resource acceptance succeed. */
+    /**
+     * One synchronous import boundary: all packs finish before any visible page set is replaced.
+     * The caller holds the source/catalog backup until this operation and resource acceptance succeed.
+     */
     public void repackImportedScenes(ProjectConfig cfg, FileHandle project, java.util.Set<String> tags,
                                      Runnable synchronizeInputs, Runnable acceptResources) {
-        repackImportedScenes(cfg, project, tags, synchronizeInputs, acceptResources, ignored -> {});
+        repackImportedScenes(cfg, project, tags, synchronizeInputs, acceptResources, ignored -> {
+        });
     }
 
     public void repackImportedScenes(ProjectConfig cfg, FileHandle project, java.util.Set<String> tags,
@@ -160,12 +195,13 @@ public final class AtlasStudioService extends AtlasRuntimeService {
                 });
     }
 
-    @FunctionalInterface interface ImportScenePacker {
+    @FunctionalInterface
+    interface ImportScenePacker {
         SceneAtlasCoverage.Validation pack(ProjectConfig cfg, String tag, FileHandle project, FileHandle output);
     }
 
     static void repackImportedScenes(ProjectConfig cfg, FileHandle project, java.util.Set<String> tags,
-                                    Runnable synchronizeInputs, Runnable acceptResources, ImportScenePacker packer) {
+                                     Runnable synchronizeInputs, Runnable acceptResources, ImportScenePacker packer) {
         FileHandle atlasRoot = project.child(StudioFs.DIR_ATLASES);
         Map<String, com.badlogic.gdx.utils.Array<ProjectFileCleanupService.FileSnapshotEntry>> oldPages = new HashMap<>();
         Map<String, com.badlogic.gdx.utils.Array<ProjectFileCleanupService.FileSnapshotEntry>> oldInputs = new HashMap<>();
@@ -177,7 +213,7 @@ public final class AtlasStudioService extends AtlasRuntimeService {
             for (String tag : tags) {
                 oldPages.put(tag, ProjectFileCleanupService.snapshotAtlasPages(atlasRoot, tag));
                 oldInputs.put(tag, ProjectFileCleanupService.snapshotDirectory(atlasRoot.child(StudioFs.DIR_INPUT).child(tag)));
-                oldNormalInputs.put(tag,ProjectFileCleanupService.snapshotDirectory(NormalAtlasPackingService.input(atlasRoot.child(StudioFs.DIR_INPUT).child(tag))));
+                oldNormalInputs.put(tag, ProjectFileCleanupService.snapshotDirectory(NormalAtlasPackingService.input(atlasRoot.child(StudioFs.DIR_INPUT).child(tag))));
             }
             synchronizeInputs.run();
             for (String tag : tags) {
@@ -191,12 +227,14 @@ public final class AtlasStudioService extends AtlasRuntimeService {
                 for (FileHandle file : outputs.get(tag).list()) file.copyTo(atlasRoot.child(file.name()));
             }
             // Required cleanup still belongs to the reversible part of the import.
-            for (FileHandle output : outputs.values()) games.pixscape.studio.io.AtomicDirectoryPublication.discardCandidate(output);
+            for (FileHandle output : outputs.values())
+                games.pixscape.studio.io.AtomicDirectoryPublication.discardCandidate(output);
             outputs.clear();
             acceptResources.run();
             for (String tag : tags) {
                 FileHandle marker = atlasRoot.child(StudioFs.DIR_INPUT).child(tag).child(REPACK_REQUIRED_FILE);
-                if (marker.exists() && !marker.delete()) throw new IllegalStateException("Cannot clear atlas repack marker: " + tag);
+                if (marker.exists() && !marker.delete())
+                    throw new IllegalStateException("Cannot clear atlas repack marker: " + tag);
             }
         } catch (RuntimeException | Error failure) {
             operationFailure = failure;
@@ -207,14 +245,17 @@ public final class AtlasStudioService extends AtlasRuntimeService {
                         ProjectFileCleanupService.restoreAtlasPagesFromSnapshot(atlasRoot, oldPages.get(tag));
                     }
                     ProjectFileCleanupService.restoreDirectoryFromSnapshot(atlasRoot.child(StudioFs.DIR_INPUT).child(tag), oldInputs.get(tag));
-                    ProjectFileCleanupService.restoreDirectoryFromSnapshot(NormalAtlasPackingService.input(atlasRoot.child(StudioFs.DIR_INPUT).child(tag)),oldNormalInputs.get(tag));
-                } catch (RuntimeException rollbackFailure) { failure.addSuppressed(rollbackFailure); }
+                    ProjectFileCleanupService.restoreDirectoryFromSnapshot(NormalAtlasPackingService.input(atlasRoot.child(StudioFs.DIR_INPUT).child(tag)), oldNormalInputs.get(tag));
+                } catch (RuntimeException rollbackFailure) {
+                    failure.addSuppressed(rollbackFailure);
+                }
             }
             throw failure;
         } finally {
             for (FileHandle output : outputs.values()) {
-                try { games.pixscape.studio.io.AtomicDirectoryPublication.discardCandidate(output); }
-                catch (RuntimeException cleanupFailure) {
+                try {
+                    games.pixscape.studio.io.AtomicDirectoryPublication.discardCandidate(output);
+                } catch (RuntimeException cleanupFailure) {
                     if (operationFailure != null) operationFailure.addSuppressed(cleanupFailure);
                     else throw cleanupFailure;
                 }
@@ -224,7 +265,9 @@ public final class AtlasStudioService extends AtlasRuntimeService {
 
     private StudioAssetVisualResolver assetVisualResolver;
 
-    /** Scene-only worker result: temporary atlas files plus the prepared GPU publication. */
+    /**
+     * Scene-only worker result: temporary atlas files plus the prepared GPU publication.
+     */
     static final class ScenePrepared implements AutoCloseable {
         private final String sceneTag;
         private final FileHandle outputDir;
@@ -234,9 +277,9 @@ public final class AtlasStudioService extends AtlasRuntimeService {
         private PreparedAtlasPublication preparedPublication;
 
         ScenePrepared(String sceneTag, FileHandle outputDir, FileHandle atlasFile,
-                              SceneAtlasCoverage.Validation validation,
-                              PreparedAtlasPublication preparedPublication,
-                              boolean inputsChangedDuringPack) {
+                      SceneAtlasCoverage.Validation validation,
+                      PreparedAtlasPublication preparedPublication,
+                      boolean inputsChangedDuringPack) {
             this.sceneTag = sceneTag;
             this.outputDir = outputDir;
             this.atlasFile = atlasFile;
@@ -347,11 +390,21 @@ public final class AtlasStudioService extends AtlasRuntimeService {
         return repackCoordinator.hasQueuedOrRunningFor(sceneTag);
     }
 
-    public long currentPackGeneration() { return repackCoordinator.currentGeneration(); }
-    public String currentPackSceneTag() { return repackCoordinator.currentTargetKey(); }
-    public PackCompletion lastPackCompletion() { return lastCompletion; }
+    public long currentPackGeneration() {
+        return repackCoordinator.currentGeneration();
+    }
 
-    /** A marker survives failed work and restart; atlas region names cannot prove pixel freshness. */
+    public String currentPackSceneTag() {
+        return repackCoordinator.currentTargetKey();
+    }
+
+    public PackCompletion lastPackCompletion() {
+        return lastCompletion;
+    }
+
+    /**
+     * A marker survives failed work and restart; atlas region names cannot prove pixel freshness.
+     */
     public void markRepackRequired(FileHandle projectDir, String tag) {
         FileHandle marker = repackMarker(projectDir, tag);
         if (!marker.exists()) {
@@ -377,7 +430,9 @@ public final class AtlasStudioService extends AtlasRuntimeService {
         return inputDir != null && inputDir.child(REPACK_REQUIRED_FILE).exists();
     }
 
-    /** Reuses the last complete descriptor check while inputs and published files are unchanged. */
+    /**
+     * Reuses the last complete descriptor check while inputs and published files are unchanged.
+     */
     public boolean coversCurrentInput(String tag, FileHandle inputDir, FileHandle atlasFile) {
         try {
             if (isRepackRequired(inputDir)) return false;
@@ -423,7 +478,7 @@ public final class AtlasStudioService extends AtlasRuntimeService {
             FileHandle pngFile = outputDir.child(sceneTag + ".png");
 
             waitForAtlasFiles(atlasFile, pngFile);
-            preparedPublication = PreparedAtlasPublication.prepare(sceneTag, generation, atlasFile,usesNormalMaps(sceneTag));
+            preparedPublication = PreparedAtlasPublication.prepare(sceneTag, generation, atlasFile, usesNormalMaps(sceneTag));
 
             return new ScenePrepared(
                     sceneTag,
@@ -489,10 +544,10 @@ public final class AtlasStudioService extends AtlasRuntimeService {
         Gdx.app.log(TAG, "Applying async pack for scene=" + tag + " gen=" + generation);
 
         PreparedAtlasPublication.Uploaded uploaded = null;
-        games.pixscape.runtime.service.NormalMapAtlas uploadedNormals=null;
-        com.badlogic.gdx.utils.Array<ProjectFileCleanupService.FileSnapshotEntry> previousPageFiles=null;
-        FileHandle replacementRoot=null;
-        boolean replacingFiles=false,runtimePublished=false;
+        games.pixscape.runtime.service.NormalMapAtlas uploadedNormals = null;
+        com.badlogic.gdx.utils.Array<ProjectFileCleanupService.FileSnapshotEntry> previousPageFiles = null;
+        FileHandle replacementRoot = null;
+        boolean replacingFiles = false, runtimePublished = false;
         long applyStarted = System.nanoTime();
         long deleteAndCopyNs = 0L;
         long atlasPublicationNs = 0L;
@@ -537,7 +592,7 @@ public final class AtlasStudioService extends AtlasRuntimeService {
             if (preparedPublication == null) {
                 throw new IllegalStateException("Atlas artifact has no prepared publication candidate.");
             }
-            if(!usesNormalMaps(tag))preparedPublication.omitNormalMaps();
+            if (!usesNormalMaps(tag)) preparedPublication.omitNormalMaps();
             long currentGeneration = repackCoordinator.currentGeneration();
             if (!snapshotManager.acceptPreparedPublication(preparedPublication, currentGeneration)) return;
 
@@ -555,12 +610,12 @@ public final class AtlasStudioService extends AtlasRuntimeService {
             textureArrayUploadNs = uploaded.textureArrayUploadNs();
             atlasAssemblyNs = uploaded.atlasAssemblyNs();
             if (generation != repackCoordinator.currentGeneration()) return;
-            uploadedNormals=uploaded.takeNormals();
+            uploadedNormals = uploaded.takeNormals();
 
             long phaseStarted = System.nanoTime();
-            replacementRoot=atlasesDir;
-            previousPageFiles=ProjectFileCleanupService.snapshotAtlasPages(atlasesDir,tag);
-            replacingFiles=true;
+            replacementRoot = atlasesDir;
+            previousPageFiles = ProjectFileCleanupService.snapshotAtlasPages(atlasesDir, tag);
+            replacingFiles = true;
             ProjectFileCleanupService.deleteSceneAtlasFiles(projectDir, tag);
             copyAtlasArtifactToFinalDir(artifact, atlasesDir);
             deleteAndCopyNs = System.nanoTime() - phaseStarted;
@@ -569,12 +624,14 @@ public final class AtlasStudioService extends AtlasRuntimeService {
 
             phaseStarted = System.nanoTime();
             // The option may have been re-enabled since the worker prepared color pages.
-            if(uploadedNormals==null && usesNormalMaps(tag)) {
-                FileHandle normals=atlasesDir.child(tag+games.pixscape.runtime.service.NormalMapAtlas.SUFFIX+".atlas");
-                if(normals.exists())uploadedNormals=new games.pixscape.runtime.service.NormalMapAtlas(tag,normals,uploaded.atlas());
+            if (uploadedNormals == null && usesNormalMaps(tag)) {
+                FileHandle normals = atlasesDir.child(tag + games.pixscape.runtime.service.NormalMapAtlas.SUFFIX + ".atlas");
+                if (normals.exists())
+                    uploadedNormals = new games.pixscape.runtime.service.NormalMapAtlas(tag, normals, uploaded.atlas());
             }
-            publishPreparedAtlas(tag, uploaded.takeAtlas(),uploadedNormals);uploadedNormals=null;
-            runtimePublished=true;
+            publishPreparedAtlas(tag, uploaded.takeAtlas(), uploadedNormals);
+            uploadedNormals = null;
+            runtimePublished = true;
             atlasPublicationNs = System.nanoTime() - phaseStarted;
 
             phaseStarted = System.nanoTime();
@@ -602,17 +659,19 @@ public final class AtlasStudioService extends AtlasRuntimeService {
             canvas.refreshParticleRuntimeAvailability();
             completePublishedPack(tag, generation, publishedValidation, projectDir);
         } catch (RuntimeException | Error failure) {
-            if(replacingFiles && !runtimePublished)try{
-                ProjectFileCleanupService.deleteSceneAtlasFiles(replacementRoot.parent(),tag);
-                ProjectFileCleanupService.restoreAtlasPagesFromSnapshot(replacementRoot,previousPageFiles);
-            }catch(RuntimeException rollbackFailure){failure.addSuppressed(rollbackFailure);}
+            if (replacingFiles && !runtimePublished) try {
+                ProjectFileCleanupService.deleteSceneAtlasFiles(replacementRoot.parent(), tag);
+                ProjectFileCleanupService.restoreAtlasPagesFromSnapshot(replacementRoot, previousPageFiles);
+            } catch (RuntimeException rollbackFailure) {
+                failure.addSuppressed(rollbackFailure);
+            }
             validatedAtlases.remove(tag);
             lastCompletion = new PackCompletion(tag, generation, failure);
             if (Gdx.app != null) Gdx.app.error(TAG,
                     "Atlas publication failed scene=" + tag + " gen=" + generation, failure);
         } finally {
             if (uploaded != null) uploaded.close();
-            if(uploadedNormals!=null)uploadedNormals.dispose();
+            if (uploadedNormals != null) uploadedNormals.dispose();
             artifact.close();
             if (Boolean.getBoolean(GpuSnapshotManager.PROPERTY_DIAGNOSTICS)) {
                 Gdx.app.log(TAG,
@@ -640,8 +699,8 @@ public final class AtlasStudioService extends AtlasRuntimeService {
         lastCompletion = new PackCompletion(tag, generation, null);
     }
 
-    private void publishPreparedAtlas(String tag,TextureAtlas atlas,games.pixscape.runtime.service.NormalMapAtlas normals) {
-        publishOwnedAtlas(tag, atlas,normals);
+    private void publishPreparedAtlas(String tag, TextureAtlas atlas, games.pixscape.runtime.service.NormalMapAtlas normals) {
+        publishOwnedAtlas(tag, atlas, normals);
         if (assetVisualResolver != null) {
             assetVisualResolver.invalidateAtlasTag(tag);
         }
@@ -659,7 +718,7 @@ public final class AtlasStudioService extends AtlasRuntimeService {
         for (FileHandle child : artifact.outputDir().list()) {
             if (child == null || child.isDirectory()) continue;
             String name = child.name();
-            if (ProjectFileCleanupService.isSceneAtlasFile(tag,name)) {
+            if (ProjectFileCleanupService.isSceneAtlasFile(tag, name)) {
                 child.copyTo(atlasesDir.child(name));
             }
         }

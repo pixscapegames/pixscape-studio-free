@@ -28,7 +28,9 @@ import games.pixscape.studio.ui.widget.FloatField;
 import games.pixscape.studio.ui.widget.SimpleTextField;
 import games.pixscape.studio.ui.widget.UiBinders;
 
-/** Authoritative property panel for one actual Tiled Map entity. */
+/**
+ * Authoritative property panel for one actual Tiled Map entity.
+ */
 public final class TiledMapProperties extends VisTable {
 
     private final World world;
@@ -206,36 +208,52 @@ public final class TiledMapProperties extends VisTable {
                 .growX()
                 .row();
         // Native text button; no bound ECS button wrapper is needed for opening a modal.
-        com.kotcrab.vis.ui.widget.VisTextButton lighting=new com.kotcrab.vis.ui.widget.VisTextButton("Lighting descriptions...");
+        com.kotcrab.vis.ui.widget.VisTextButton lighting = new com.kotcrab.vis.ui.widget.VisTextButton("Lighting descriptions...");
         lighting.setName("tiledMapLightingDescriptions");
-        lighting.addListener(new ChangeListener(){@Override public void changed(ChangeEvent event,Actor actor){showLightingDescriptions();}});
+        lighting.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                showLightingDescriptions();
+            }
+        });
         add(lighting).colspan(2).left().row();
     }
 
-    private void showLightingDescriptions(){
-        if(!isValidMap(mapEntityId)||history==null)return;
-        final int entity=mapEntityId;
-        com.badlogic.gdx.utils.Json json=new com.badlogic.gdx.utils.Json();
-        games.pixscape.studio.ui.widget.SimpleTextArea text=new games.pixscape.studio.ui.widget.SimpleTextArea().withMultilineEditing();
-        text.setText(json.prettyPrint(json.toJson(mTiled.get(entity).lightingDescriptions,com.badlogic.gdx.utils.Array.class,
+    private void showLightingDescriptions() {
+        if (!isValidMap(mapEntityId) || history == null) return;
+        final int entity = mapEntityId;
+        com.badlogic.gdx.utils.Json json = new com.badlogic.gdx.utils.Json();
+        games.pixscape.studio.ui.widget.SimpleTextArea text = new games.pixscape.studio.ui.widget.SimpleTextArea().withMultilineEditing();
+        text.setText(json.prettyPrint(json.toJson(mTiled.get(entity).lightingDescriptions, com.badlogic.gdx.utils.Array.class,
                 games.pixscape.runtime.render.lighting.TileSurfaceDescription.class)));
-        VisLabel error=new VisLabel("");error.setWrap(true);
-        StudioDialog dialog=new StudioDialog("Tile lighting descriptions (explicit profiles)"){
-            @Override protected void result(Object result){
-                if(!Boolean.TRUE.equals(result))return;
-                try{
-                    var values=json.fromJson(com.badlogic.gdx.utils.Array.class,games.pixscape.runtime.render.lighting.TileSurfaceDescription.class,text.getText());
-                    var command=new EditTileLightingDescriptionsCommand(world,history.historyIds(),entity,values);
+        VisLabel error = new VisLabel("");
+        error.setWrap(true);
+        StudioDialog dialog = new StudioDialog("Tile lighting descriptions (explicit profiles)") {
+            @Override
+            protected void result(Object result) {
+                if (!Boolean.TRUE.equals(result)) return;
+                try {
+                    var values = json.fromJson(com.badlogic.gdx.utils.Array.class, games.pixscape.runtime.render.lighting.TileSurfaceDescription.class, text.getText());
+                    var command = new EditTileLightingDescriptionsCommand(world, history.historyIds(), entity, values);
                     history.execute(command);
-                    if(command.rejection()!=null){error.setText(command.rejection());cancel();return;}
+                    if (command.rejection() != null) {
+                        error.setText(command.rejection());
+                        cancel();
+                        return;
+                    }
                     flagPreviewSaveRequired();
-                }catch(RuntimeException invalid){error.setText(invalid.getMessage());cancel();}
+                } catch (RuntimeException invalid) {
+                    error.setText(invalid.getMessage());
+                    cancel();
+                }
             }
         };
         dialog.getContentTable().add(new VisLabel("One description per asset ID. rounded: {centerGX: 1, centerGY: 1, radiusCells: 1}.\nSix facets; requires two compatible tile-linked walls. No automatic image detection.")).width(730).left().row();
         dialog.getContentTable().add(text).width(730).height(310).grow().row();
         dialog.getContentTable().add(error).width(730).left().row();
-        dialog.button("Apply",true);dialog.button("Cancel",false);dialog.show(getStage());
+        dialog.button("Apply", true);
+        dialog.button("Cancel", false);
+        dialog.show(getStage());
     }
 
     public void setMapEntityId(int mapEntityId) {
@@ -313,8 +331,8 @@ public final class TiledMapProperties extends VisTable {
     }
 
     private UiBinders.IntSpinnerBinder originBinder(Spinner spinner,
-                                                     IntSpinnerModel model,
-                                                     boolean xAxis) {
+                                                    IntSpinnerModel model,
+                                                    boolean xAxis) {
         return new UiBinders.IntSpinnerBinder(
                 world,
                 spinner,

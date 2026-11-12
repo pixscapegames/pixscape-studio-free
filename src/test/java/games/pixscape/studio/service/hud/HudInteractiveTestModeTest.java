@@ -33,10 +33,13 @@ import java.util.concurrent.Callable;
 import static org.junit.Assert.*;
 
 public class HudInteractiveTestModeTest {
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
 
-    @BeforeClass public static void bootGdx() {
-        if (Gdx.app == null) new HeadlessApplication(new ApplicationAdapter() {},
+    @BeforeClass
+    public static void bootGdx() {
+        if (Gdx.app == null) new HeadlessApplication(new ApplicationAdapter() {
+        },
                 new HeadlessApplicationConfiguration());
         Gdx.graphics = (Graphics) Proxy.newProxyInstance(Graphics.class.getClassLoader(),
                 new Class<?>[]{Graphics.class}, (proxy, method, args) -> {
@@ -66,7 +69,8 @@ public class HudInteractiveTestModeTest {
         }
     }
 
-    @Test public void freshNativeInstanceUsesUnsavedDocumentAndCannotMutateAuthoringState()
+    @Test
+    public void freshNativeInstanceUsesUnsavedDocumentAndCannotMutateAuthoringState()
             throws Exception {
         FileHandle project = new FileHandle(temporary.newFolder("project"));
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
@@ -113,7 +117,8 @@ public class HudInteractiveTestModeTest {
         }
     }
 
-    @Test public void testModeFollowsCanvasResizeWithoutScalingFreeWidgets() throws Exception {
+    @Test
+    public void testModeFollowsCanvasResizeWithoutScalingFreeWidgets() throws Exception {
         FileHandle project = new FileHandle(temporary.newFolder("resize-mode"));
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
         HudNode badge = new HudNode("badge", HudNodeKind.GROUP);
@@ -151,7 +156,8 @@ public class HudInteractiveTestModeTest {
         }
     }
 
-    @Test public void newlyCreatedHudFillsEditAndTestSurfacesAfterReopen() throws Exception {
+    @Test
+    public void newlyCreatedHudFillsEditAndTestSurfacesAfterReopen() throws Exception {
         FileHandle project = new FileHandle(temporary.newFolder("created-adaptive"));
         String id = new HudScreenAssetAuthoringService().create(project, "adaptive");
         HudDocumentPersistenceService persistence = new HudDocumentPersistenceService();
@@ -196,7 +202,8 @@ public class HudInteractiveTestModeTest {
         }
     }
 
-    @Test public void listSelectionAndItemsStayTransientAcrossTestSessions() throws Exception {
+    @Test
+    public void listSelectionAndItemsStayTransientAcrossTestSessions() throws Exception {
         FileHandle project = new FileHandle(temporary.newFolder("list-mode"));
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
         HudNode list = new HudNode("list", HudNodeKind.LIST);
@@ -232,7 +239,8 @@ public class HudInteractiveTestModeTest {
         }
     }
 
-    @Test public void resultDialogIsEditableInEditAndFreshlyClosedInTest() throws Exception {
+    @Test
+    public void resultDialogIsEditableInEditAndFreshlyClosedInTest() throws Exception {
         FileHandle project = new FileHandle(temporary.newFolder("dialog-results"));
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
         HudNode dialog = new HudNode("dialog", HudNodeKind.DIALOG);
@@ -282,7 +290,8 @@ public class HudInteractiveTestModeTest {
         }
     }
 
-    @Test public void dialogIsVisibleInEditAndStartsClosedOnEveryTestSession()
+    @Test
+    public void dialogIsVisibleInEditAndStartsClosedOnEveryTestSession()
             throws Exception {
         FileHandle project = new FileHandle(temporary.newFolder("dialog-mode"));
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
@@ -324,7 +333,8 @@ public class HudInteractiveTestModeTest {
         }
     }
 
-    @Test public void authoredDialogActionsUseProductionTestInputRouter() throws Exception {
+    @Test
+    public void authoredDialogActionsUseProductionTestInputRouter() throws Exception {
         FileHandle project = new FileHandle(temporary.newFolder("dialog-actions"));
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
         HudNode opener = new HudNode("opener", HudNodeKind.TEXT_BUTTON);
@@ -404,7 +414,8 @@ public class HudInteractiveTestModeTest {
         inputs.touchUp(x, y, 0, 0);
     }
 
-    @Test public void resourceInvalidationAndDocumentSuspensionDestroyTheTestStage() throws Exception {
+    @Test
+    public void resourceInvalidationAndDocumentSuspensionDestroyTheTestStage() throws Exception {
         FileHandle project = new FileHandle(temporary.newFolder("lifecycle"));
         HudScreenEditorDocument document = new HudScreenEditorDocument(
                 "hud/main", "Main", asset(),
@@ -428,7 +439,8 @@ public class HudInteractiveTestModeTest {
         }
     }
 
-    @Test public void studioOverlayWinsNewInputAndCapturedHudDragEndsOutsideCanvas() throws Exception {
+    @Test
+    public void studioOverlayWinsNewInputAndCapturedHudDragEndsOutsideCanvas() throws Exception {
         FileHandle project = new FileHandle(temporary.newFolder("input"));
         HudNode button = new HudNode("play", HudNodeKind.TEXT_BUTTON);
         button.textButton = new HudTextButtonData();
@@ -448,13 +460,16 @@ public class HudInteractiveTestModeTest {
             int[] hudDown = {0};
             int[] hudUp = {0};
             testedButton.addListener(new InputListener() {
-                @Override public boolean touchDown(InputEvent event, float x, float y,
-                                                   int pointer, int mouseButton) {
+                @Override
+                public boolean touchDown(InputEvent event, float x, float y,
+                                         int pointer, int mouseButton) {
                     hudDown[0]++;
                     return true;
                 }
-                @Override public void touchUp(InputEvent event, float x, float y,
-                                              int pointer, int mouseButton) {
+
+                @Override
+                public void touchUp(InputEvent event, float x, float y,
+                                    int pointer, int mouseButton) {
                     hudUp[0]++;
                 }
             });
@@ -466,8 +481,9 @@ public class HudInteractiveTestModeTest {
             overlay.setTouchable(Touchable.enabled);
             int[] overlayDown = {0};
             overlay.addListener(new InputListener() {
-                @Override public boolean touchDown(InputEvent event, float x, float y,
-                                                   int pointer, int mouseButton) {
+                @Override
+                public boolean touchDown(InputEvent event, float x, float y,
+                                         int pointer, int mouseButton) {
                     overlayDown[0]++;
                     return true;
                 }
@@ -492,7 +508,8 @@ public class HudInteractiveTestModeTest {
         }
     }
 
-    @Test public void testMaterializesNativeTooltipAndRootWindowWithoutChangingAuthoredData()
+    @Test
+    public void testMaterializesNativeTooltipAndRootWindowWithoutChangingAuthoredData()
             throws Exception {
         FileHandle project = new FileHandle(temporary.newFolder("native-widgets"));
         HudNode root = new HudNode("window", HudNodeKind.WINDOW);
@@ -537,7 +554,8 @@ public class HudInteractiveTestModeTest {
         }
     }
 
-    @Test public void nestedWindowKeepsItsParentRelativeCoordinates() throws Exception {
+    @Test
+    public void nestedWindowKeepsItsParentRelativeCoordinates() throws Exception {
         FileHandle project = new FileHandle(temporary.newFolder("nested-window"));
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
         HudNode child = new HudNode("nested", HudNodeKind.WINDOW);
@@ -567,7 +585,8 @@ public class HudInteractiveTestModeTest {
         }
     }
 
-    @Test public void rightReleaseCannotEndLeftHudDragAndStudioCannotStealItsCompletion()
+    @Test
+    public void rightReleaseCannotEndLeftHudDragAndStudioCannotStealItsCompletion()
             throws Exception {
         FileHandle project = new FileHandle(temporary.newFolder("multi-button"));
         HudNode root = new HudNode("play", HudNodeKind.TEXT_BUTTON);
@@ -585,15 +604,20 @@ public class HudInteractiveTestModeTest {
             int[] dragged = {0};
             int[] released = {0};
             button.addListener(new InputListener() {
-                @Override public boolean touchDown(InputEvent event, float x, float y,
-                                                   int pointer, int mouseButton) {
+                @Override
+                public boolean touchDown(InputEvent event, float x, float y,
+                                         int pointer, int mouseButton) {
                     return mouseButton == 0;
                 }
-                @Override public void touchDragged(InputEvent event, float x, float y, int pointer) {
+
+                @Override
+                public void touchDragged(InputEvent event, float x, float y, int pointer) {
                     dragged[0]++;
                 }
-                @Override public void touchUp(InputEvent event, float x, float y,
-                                              int pointer, int mouseButton) {
+
+                @Override
+                public void touchUp(InputEvent event, float x, float y,
+                                    int pointer, int mouseButton) {
                     released[0]++;
                 }
             });
@@ -604,11 +628,14 @@ public class HudInteractiveTestModeTest {
             overlay.setTouchable(Touchable.disabled);
             int[] overlayDrags = {0};
             overlay.addListener(new InputListener() {
-                @Override public boolean touchDown(InputEvent event, float x, float y,
-                                                   int pointer, int mouseButton) {
+                @Override
+                public boolean touchDown(InputEvent event, float x, float y,
+                                         int pointer, int mouseButton) {
                     return mouseButton == 1;
                 }
-                @Override public void touchDragged(InputEvent event, float x, float y, int pointer) {
+
+                @Override
+                public void touchDragged(InputEvent event, float x, float y, int pointer) {
                     overlayDrags[0]++;
                 }
             });
@@ -636,7 +663,8 @@ public class HudInteractiveTestModeTest {
         }
     }
 
-    @Test public void rightButtonReleaseOnPointerZeroKeepsTheLeftNativeTouchFocus()
+    @Test
+    public void rightButtonReleaseOnPointerZeroKeepsTheLeftNativeTouchFocus()
             throws Exception {
         FileHandle project = new FileHandle(temporary.newFolder("same-pointer-buttons"));
         HudNode root = new HudNode("play", HudNodeKind.TEXT_BUTTON);
@@ -653,15 +681,20 @@ public class HudInteractiveTestModeTest {
             int[] leftDrags = {0};
             int[] leftUps = {0};
             session.testActor("play").addListener(new InputListener() {
-                @Override public boolean touchDown(InputEvent event, float x, float y,
-                                                   int pointer, int button) {
+                @Override
+                public boolean touchDown(InputEvent event, float x, float y,
+                                         int pointer, int button) {
                     return true;
                 }
-                @Override public void touchDragged(InputEvent event, float x, float y, int pointer) {
+
+                @Override
+                public void touchDragged(InputEvent event, float x, float y, int pointer) {
                     leftDrags[0]++;
                 }
-                @Override public void touchUp(InputEvent event, float x, float y,
-                                              int pointer, int button) {
+
+                @Override
+                public void touchUp(InputEvent event, float x, float y,
+                                    int pointer, int button) {
                     if (button == 0) leftUps[0]++;
                 }
             });
@@ -681,7 +714,8 @@ public class HudInteractiveTestModeTest {
         }
     }
 
-    @Test public void leavingCanvasOrEnteringStudioOverlayEndsNativeHoverAndTooltip()
+    @Test
+    public void leavingCanvasOrEnteringStudioOverlayEndsNativeHoverAndTooltip()
             throws Exception {
         FileHandle project = new FileHandle(temporary.newFolder("hover-exit"));
         HudNode root = new HudNode("play", HudNodeKind.TEXT_BUTTON);
@@ -704,8 +738,9 @@ public class HudInteractiveTestModeTest {
             tooltip.getManager().hideAll();
             int[] exits = {0};
             button.addListener(new InputListener() {
-                @Override public void exit(InputEvent event, float x, float y,
-                                           int pointer, Actor toActor) {
+                @Override
+                public void exit(InputEvent event, float x, float y,
+                                 int pointer, Actor toActor) {
                     if (pointer == -1) exits[0]++;
                 }
             });
@@ -715,7 +750,8 @@ public class HudInteractiveTestModeTest {
             overlay.setBounds(0f, 0f, 800f, 800f);
             overlay.setTouchable(Touchable.disabled);
             overlay.addListener(new InputListener() {
-                @Override public boolean mouseMoved(InputEvent event, float x, float y) {
+                @Override
+                public boolean mouseMoved(InputEvent event, float x, float y) {
                     return true;
                 }
             });
@@ -748,7 +784,8 @@ public class HudInteractiveTestModeTest {
         }
     }
 
-    @Test public void modalWindowCannotKeepNativeHoverAfterCanvasExit() throws Exception {
+    @Test
+    public void modalWindowCannotKeepNativeHoverAfterCanvasExit() throws Exception {
         FileHandle project = new FileHandle(temporary.newFolder("modal-hover-exit"));
         HudNode root = new HudNode("window", HudNodeKind.WINDOW);
         emptyTable(root);
@@ -771,8 +808,9 @@ public class HudInteractiveTestModeTest {
             tooltip.getManager().hideAll();
             int[] exits = {0};
             window.addListener(new InputListener() {
-                @Override public void exit(InputEvent event, float x, float y,
-                                           int pointer, Actor toActor) {
+                @Override
+                public void exit(InputEvent event, float x, float y,
+                                 int pointer, Actor toActor) {
                     if (pointer == -1) exits[0]++;
                 }
             });
@@ -807,7 +845,8 @@ public class HudInteractiveTestModeTest {
         }
     }
 
-    @Test public void reopeningTestModeDoesNotRetainThePreviousNativeGesture() throws Exception {
+    @Test
+    public void reopeningTestModeDoesNotRetainThePreviousNativeGesture() throws Exception {
         FileHandle project = new FileHandle(temporary.newFolder("gesture-lifecycle"));
         HudNode root = new HudNode("play", HudNodeKind.TEXT_BUTTON);
         root.textButton = new HudTextButtonData();
@@ -856,7 +895,10 @@ public class HudInteractiveTestModeTest {
     }
 
     private static void desktopAct(HudEditorSession session, float delta) throws Exception {
-        withDesktopApplication(() -> { session.act(delta); return null; });
+        withDesktopApplication(() -> {
+            session.act(delta);
+            return null;
+        });
     }
 
     private static <T> T withDesktopApplication(Callable<T> action) throws Exception {
@@ -864,11 +906,17 @@ public class HudInteractiveTestModeTest {
         Gdx.app = (Application) Proxy.newProxyInstance(Application.class.getClassLoader(),
                 new Class<?>[]{Application.class}, (proxy, method, args) -> {
                     if (method.getName().equals("getType")) return Application.ApplicationType.Desktop;
-                    try { return method.invoke(previous, args); }
-                    catch (InvocationTargetException failure) { throw failure.getCause(); }
+                    try {
+                        return method.invoke(previous, args);
+                    } catch (InvocationTargetException failure) {
+                        throw failure.getCause();
+                    }
                 });
-        try { return action.call(); }
-        finally { Gdx.app = previous; }
+        try {
+            return action.call();
+        } finally {
+            Gdx.app = previous;
+        }
     }
 
     private static HudScreenAsset asset() {

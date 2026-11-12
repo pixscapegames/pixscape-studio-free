@@ -31,47 +31,52 @@ public class SpatialDrawnPlaneTest {
         float[][] cases = {{0, 0, 0}, {128, 128, 0}, {256, 256, 0},
                 {128, 160, 32}, {128, 96, -32}};
         for (TiledProjection projection : new TiledProjection[]{TiledProjection.ISO, TiledProjection.ORTHO}) {
-        for (float[] c : cases) {
-            try (Fixture f = new Fixture(c[0], projection)) {
-                SpatialBlockData block = f.create(27, 18, 27, 19);
-                Assert.assertEquals(c[0], block.altitude, 0);
-                Assert.assertEquals(27, block.x, 0);
-                Assert.assertEquals(18, block.y, 0);
-                Assert.assertEquals(1, block.width, 0);
-                Assert.assertEquals(2, block.depth, 0);
-                Assert.assertEquals(2, block.linkedTileRefs.size);
-                if (c[1] != c[0]) {
-                    SpatialBlockData after = block.copy(); after.altitude = c[1];
-                    f.history.execute(new EditSpatialBlockCommand(f.world, f.history.historyIds(),
-                            f.selection, f.owner, block.id, block, after));
-                    block = f.blocks().blocks.first();
-                }
-                assertProjectionAndManipulation(f.map, f.blocks(), block, c[2]);
-                // A tile-specific absolute altitude is independent of the map plane.
-                f.map.setTileSpatialOverride(27, 18, 512, 20, 0);
-                Assert.assertEquals(512, f.map.getTileAltitude(27, 18), 0);
-                assertProjectionAndManipulation(f.map, f.blocks(), block, c[2]);
-                FileHandle file = new FileHandle(File.createTempFile("spatial-plane-", ".json"));
-                World loaded = world();
-                try {
-                    SceneService.saveScene(f.world, file, false);
-                    SceneMetaRuntime meta = new SceneMetaRuntime(); meta.nextEntityStableId = 2;
-                    SceneLoader.loadScene(loaded, file, false, meta);
-                    int owner = loaded.getAspectSubscriptionManager().get(Aspect.all(TiledLayerComponent.class))
-                            .getEntities().get(0);
-                    TiledLayerComponent tiled = loaded.getMapper(TiledLayerComponent.class).get(owner);
-                    SpatialBlocksComponent blocks = loaded.getMapper(SpatialBlocksComponent.class).get(owner);
-                    Assert.assertEquals(c[0], tiled.defaultTileAltitude, 0);
-                    Assert.assertEquals(c[1], blocks.blocks.first().altitude, 0);
-                    Assert.assertEquals(128, blocks.blocks.first().height, 0);
-                    TiledMapLayerData map = tiled.createMapData();
-                    for (int i = 0; i < tiled.tileAssetIds.size; i++) {
-                        map.setTile(tiled.tileXs.get(i), tiled.tileYs.get(i), tiled.tileAssetIds.get(i));
+            for (float[] c : cases) {
+                try (Fixture f = new Fixture(c[0], projection)) {
+                    SpatialBlockData block = f.create(27, 18, 27, 19);
+                    Assert.assertEquals(c[0], block.altitude, 0);
+                    Assert.assertEquals(27, block.x, 0);
+                    Assert.assertEquals(18, block.y, 0);
+                    Assert.assertEquals(1, block.width, 0);
+                    Assert.assertEquals(2, block.depth, 0);
+                    Assert.assertEquals(2, block.linkedTileRefs.size);
+                    if (c[1] != c[0]) {
+                        SpatialBlockData after = block.copy();
+                        after.altitude = c[1];
+                        f.history.execute(new EditSpatialBlockCommand(f.world, f.history.historyIds(),
+                                f.selection, f.owner, block.id, block, after));
+                        block = f.blocks().blocks.first();
                     }
-                    assertProjectionAndManipulation(map, blocks, blocks.blocks.first(), c[2]);
-                } finally { loaded.dispose(); file.delete(); }
+                    assertProjectionAndManipulation(f.map, f.blocks(), block, c[2]);
+                    // A tile-specific absolute altitude is independent of the map plane.
+                    f.map.setTileSpatialOverride(27, 18, 512, 20, 0);
+                    Assert.assertEquals(512, f.map.getTileAltitude(27, 18), 0);
+                    assertProjectionAndManipulation(f.map, f.blocks(), block, c[2]);
+                    FileHandle file = new FileHandle(File.createTempFile("spatial-plane-", ".json"));
+                    World loaded = world();
+                    try {
+                        SceneService.saveScene(f.world, file, false);
+                        SceneMetaRuntime meta = new SceneMetaRuntime();
+                        meta.nextEntityStableId = 2;
+                        SceneLoader.loadScene(loaded, file, false, meta);
+                        int owner = loaded.getAspectSubscriptionManager().get(Aspect.all(TiledLayerComponent.class))
+                                .getEntities().get(0);
+                        TiledLayerComponent tiled = loaded.getMapper(TiledLayerComponent.class).get(owner);
+                        SpatialBlocksComponent blocks = loaded.getMapper(SpatialBlocksComponent.class).get(owner);
+                        Assert.assertEquals(c[0], tiled.defaultTileAltitude, 0);
+                        Assert.assertEquals(c[1], blocks.blocks.first().altitude, 0);
+                        Assert.assertEquals(128, blocks.blocks.first().height, 0);
+                        TiledMapLayerData map = tiled.createMapData();
+                        for (int i = 0; i < tiled.tileAssetIds.size; i++) {
+                            map.setTile(tiled.tileXs.get(i), tiled.tileYs.get(i), tiled.tileAssetIds.get(i));
+                        }
+                        assertProjectionAndManipulation(map, blocks, blocks.blocks.first(), c[2]);
+                    } finally {
+                        loaded.dispose();
+                        file.delete();
+                    }
+                }
             }
-        }
         }
     }
 
@@ -139,8 +144,8 @@ public class SpatialDrawnPlaneTest {
     }
 
     private static void assertProjectionAndManipulation(TiledMapLayerData map,
-                                                         SpatialBlocksComponent blocks,
-                                                         SpatialBlockData b, float displacement) {
+                                                        SpatialBlocksComponent blocks,
+                                                        SpatialBlockData b, float displacement) {
         float[] base = new float[8], top = new float[8];
         SpatialBlockProjection.projectBaseFootprint(map, b, base);
         SpatialBlockProjection.projectTopFootprint(map, b, top);
@@ -170,8 +175,10 @@ public class SpatialDrawnPlaneTest {
         Assert.assertEquals(b.x, preview.x, 0);
         Assert.assertEquals(b.y, preview.y, 0);
         Assert.assertEquals(b.linkedTileRefs.size, preview.linkedTileRefs.size);
-        SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache(); compiled.ensure(blocks);
-        SpatialProjectedFaceCache faces = new SpatialProjectedFaceCache(); faces.ensure(compiled, map);
+        SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
+        compiled.ensure(blocks);
+        SpatialProjectedFaceCache faces = new SpatialProjectedFaceCache();
+        faces.ensure(compiled, map);
         Assert.assertTrue(faces.faceCount > 0);
         for (int face = 0; face < faces.faceCount; face++) {
             CompiledSpatialStructure structure = compiled.structure(0);
@@ -196,31 +203,53 @@ public class SpatialDrawnPlaneTest {
         final SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
         final int owner = world.create();
         final TiledMapLayerData map;
-        Fixture(float altitude) { this(altitude, TiledProjection.ISO); }
+
+        Fixture(float altitude) {
+            this(altitude, TiledProjection.ISO);
+        }
+
         Fixture(float altitude, TiledProjection projection) {
             world.getMapper(PixscapeIdentityComponent.class).create(owner).stableId = 1;
             TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(owner);
-            tiled.mapWidthCells = 50; tiled.mapHeightCells = 50; tiled.tileWidth = 256; tiled.tileHeight = 128;
+            tiled.mapWidthCells = 50;
+            tiled.mapHeightCells = 50;
+            tiled.tileWidth = 256;
+            tiled.tileHeight = 128;
             tiled.projection = projection;
             tiled.chunkSize = 16;
-            tiled.originX = 37; tiled.originY = -83;
-            tiled.defaultTileAltitude = altitude; tiled.defaultTileHeight = 128;
+            tiled.originX = 37;
+            tiled.originY = -83;
+            tiled.defaultTileAltitude = altitude;
+            tiled.defaultTileHeight = 128;
             map = tiled.data = tiled.createMapData();
-            map.setTile(27, 18, 151); map.setTile(27, 19, 139);
+            map.setTile(27, 18, 151);
+            map.setTile(27, 19, 139);
             for (int gy = 22; gy <= 24; gy++) map.setTile(36, gy, 1);
             for (int gx = 36; gx <= 38; gx++) map.setTile(gx, 22, 1);
             world.process();
         }
-        SpatialBlocksComponent blocks() { return world.getMapper(SpatialBlocksComponent.class).get(owner); }
+
+        SpatialBlocksComponent blocks() {
+            return world.getMapper(SpatialBlocksComponent.class).get(owner);
+        }
+
         SpatialBlockData create(int x0, int y0, int x1, int y1) {
             SpatialCellPicker.Result hit = new SpatialCellPicker.Result();
             Assert.assertTrue(SpatialCellPicker.pickForSpatialSelection(map, null,
                     map.tileToWorldX(x0, y0) + 128, map.tileToWorldY(x0, y0) + 64, hit));
-            Assert.assertEquals(x0, hit.gx); Assert.assertEquals(y0, hit.gy);
-            tiles.beginDrag(owner, hit.gx, hit.gy); tiles.updateDrag(x1, y1); tiles.finishDrag();
+            Assert.assertEquals(x0, hit.gx);
+            Assert.assertEquals(y0, hit.gy);
+            tiles.beginDrag(owner, hit.gx, hit.gy);
+            tiles.updateDrag(x1, y1);
+            tiles.finishDrag();
             Assert.assertTrue(SpatialWallCreationService.executeSelectedRectangle(world, history, selection, tiles));
             return blocks().blocks.peek();
         }
-        public void close() { tiles.dispose(); selection.dispose(); world.dispose(); }
+
+        public void close() {
+            tiles.dispose();
+            selection.dispose();
+            world.dispose();
+        }
     }
 }

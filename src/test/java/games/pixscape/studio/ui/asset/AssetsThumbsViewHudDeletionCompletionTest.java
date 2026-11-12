@@ -9,7 +9,8 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 
 public class AssetsThumbsViewHudDeletionCompletionTest {
-    @Test public void acquiredDeletionClosesRefreshesThenWarnsWithoutTreatingCleanupAsFailure() {
+    @Test
+    public void acquiredDeletionClosesRefreshesThenWarnsWithoutTreatingCleanupAsFailure() {
         HudScreenDeletionService.DeletionResult deletion = new HudScreenDeletionService.DeletionResult(
                 "hud/status", true, true, List.of("C:/project/hud/status.json.delete-leftover"));
         ArrayList<String> events = new ArrayList<>();

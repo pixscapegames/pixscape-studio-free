@@ -180,7 +180,9 @@ public class HudDocumentEditSessionTest {
     @Test
     public void authoredPublicationListenerFailureCannotRollBackPublishedHistory() {
         HudDocumentEditSession session = session(document("root"));
-        session.addAuthoredPublicationListener(ignored -> { throw new IllegalStateException("observer failed"); });
+        session.addAuthoredPublicationListener(ignored -> {
+            throw new IllegalStateException("observer failed");
+        });
         resize(session, 10f);
         assertEquals(1, session.historySize());
         assertEquals(10f, session.document().root.actor.width, 0f);
@@ -207,10 +209,25 @@ public class HudDocumentEditSessionTest {
     public void explicitResourceCatalogRejectsUnavailableRuntimeResourceBeforePreview() {
         HudDocumentEditSession session = session(document("root"));
         HudResourceCatalog none = new HudResourceCatalog() {
-            @Override public boolean hasRegion(String name) { return false; }
-            @Override public boolean hasDrawable(String name) { return false; }
-            @Override public boolean hasLabelStyle(String name) { return false; }
-            @Override public boolean hasTextButtonStyle(String name) { return false; }
+            @Override
+            public boolean hasRegion(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasDrawable(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasLabelStyle(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasTextButtonStyle(String name) {
+                return false;
+            }
         };
         try {
             session.edit("Add label", candidate -> {

@@ -536,8 +536,8 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
         }
 
         private static RuntimeAvailabilityItem gameObject(String gameObjectId,
-                                                      FileHandle gameObjectFile,
-                                                      FileHandle previewFile) {
+                                                          FileHandle gameObjectFile,
+                                                          FileHandle previewFile) {
             return new RuntimeAvailabilityItem(
                     RuntimeAvailabilityCategory.GAME_OBJECTS,
                     gameObjectId,

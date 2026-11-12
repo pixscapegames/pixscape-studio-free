@@ -22,13 +22,17 @@ public class ChangeBlendModeCommandTest {
     private final int actor = world.create();
     private final RenderMaterialComponent material = world.getMapper(RenderMaterialComponent.class).create(actor);
 
-    @After public void dispose() { world.dispose(); }
+    @After
+    public void dispose() {
+        world.dispose();
+    }
 
     private void choose(BlendMode blend) {
         history.execute(new ChangeBlendModeCommand(world, scene, history.historyIds(), actor, blend));
     }
 
-    @Test public void referenceRejectsBothMultiplyModesWithoutChangingSavedStateOrDiscardingRedo() {
+    @Test
+    public void referenceRejectsBothMultiplyModesWithoutChangingSavedStateOrDiscardingRedo() {
         scene.lightingEnabled = true;
         material.blendModeId = ALPHA.id;
         choose(ADDITIVE);
@@ -44,7 +48,8 @@ public class ChangeBlendModeCommandTest {
         assertEquals(ADDITIVE.id, material.blendModeId);
     }
 
-    @Test public void activationChecksPendingMaterialsBeforePreparationOrMarkingDirty() {
+    @Test
+    public void activationChecksPendingMaterialsBeforePreparationOrMarkingDirty() {
         material.blendModeId = ALPHA.id;
         choose(MULTIPLY);
         history.markSaved();
@@ -57,9 +62,11 @@ public class ChangeBlendModeCommandTest {
         assertFalse(history.isDirty());
     }
 
-    @Test public void undoAndRedoRecheckActivationInTheOwningScene() {
+    @Test
+    public void undoAndRedoRecheckActivationInTheOwningScene() {
         material.blendModeId = ALPHA.id;
-        history.execute(new SetSceneLightingCommand(world, scene, true, enabled -> {}, null));
+        history.execute(new SetSceneLightingCommand(world, scene, true, enabled -> {
+        }, null));
         history.undo();
         material.blendModeId = MULTIPLY.id;
         history.redo();
@@ -68,14 +75,16 @@ public class ChangeBlendModeCommandTest {
         material.blendModeId = ALPHA.id;
         history.redo();
         assertTrue(scene.lightingEnabled);
-        history.execute(new SetSceneLightingCommand(world, scene, false, enabled -> {}, null));
+        history.execute(new SetSceneLightingCommand(world, scene, false, enabled -> {
+        }, null));
         material.blendModeId = MULTIPLY.id;
         history.undo();
         assertFalse(scene.lightingEnabled);
         assertEquals(2, history.getCursor());
     }
 
-    @Test public void preferredForwardWithoutLightsUsesReferenceUntilALightIsActive() {
+    @Test
+    public void preferredForwardWithoutLightsUsesReferenceUntilALightIsActive() {
         scene.lightingEnabled = scene.forwardLighting = true;
         material.blendModeId = ALPHA.id;
         choose(ADDITIVE_ALPHA);
@@ -89,7 +98,8 @@ public class ChangeBlendModeCommandTest {
         assertEquals(PREMULT_ALPHA.id, material.blendModeId);
     }
 
-    @Test public void blendHistoryUsesItsOwnDocumentEvenWhenAnotherSceneIsLit() {
+    @Test
+    public void blendHistoryUsesItsOwnDocumentEvenWhenAnotherSceneIsLit() {
         ProjectConfig previous = ProjectConfig.getInstance();
         try {
             ProjectConfig other = new ProjectConfig();
@@ -109,11 +119,12 @@ public class ChangeBlendModeCommandTest {
         }
     }
 
-    @Test public void aLightUsesTheAdditiveModesInBothRenderers() {
+    @Test
+    public void aLightUsesTheAdditiveModesInBothRenderers() {
         scene.lightingEnabled = true;
         world.getMapper(PointLightComponent.class).create(actor);
         material.blendModeId = ADDITIVE.id;
-        for (boolean forward : new boolean[] {false, true}) {
+        for (boolean forward : new boolean[]{false, true}) {
             scene.forwardLighting = forward;
             choose(ADDITIVE_ALPHA);
             choose(ALPHA);

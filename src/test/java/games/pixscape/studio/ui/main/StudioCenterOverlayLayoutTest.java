@@ -19,8 +19,15 @@ import java.lang.reflect.Proxy;
 import static org.junit.Assert.*;
 
 public class StudioCenterOverlayLayoutTest {
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
+
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
 
     @Test
     public void hudLayersFillCenterWithoutForcingDockPanelsOffscreen() {
@@ -59,7 +66,8 @@ public class StudioCenterOverlayLayoutTest {
         }
     }
 
-    @Test public void hudDropObstructionAllowsOnlyTheCanvasInputSurface() {
+    @Test
+    public void hudDropObstructionAllowsOnlyTheCanvasInputSurface() {
         HudCanvasInputHost inputHost = new HudCanvasInputHost(
                 new games.pixscape.studio.service.hud.HudEditorSession());
 
@@ -69,8 +77,8 @@ public class StudioCenterOverlayLayoutTest {
     }
 
     private static void assertHostFillsCenterAfterResize(VisTable root, Stack center, Actor inputHost,
-                                                           VisTable statusOverlay, Actor rightDock,
-                                                           Stage stage, float width, float height) {
+                                                         VisTable statusOverlay, Actor rightDock,
+                                                         Stage stage, float width, float height) {
         root.setSize(width, height);
         validate(root);
 

@@ -78,14 +78,22 @@ public class TransformPanel extends CollapsibleWidget {
         uniformScaleRow = row("Scale:", uniformScaleField);
         widthRow = row("Width:", widthLabel);
         heightRow = row("Height:", heightLabel);
-        originXCell = root.add(originXRow).left(); root.row();
-        originYCell = root.add(originYRow).left(); root.row();
-        rotationCell = root.add(rotationRow).left(); root.row();
-        scaleXCell = root.add(scaleXRow).left(); root.row();
-        scaleYCell = root.add(scaleYRow).left(); root.row();
-        uniformScaleCell = root.add(uniformScaleRow).left(); root.row();
-        widthCell = root.add(widthRow).left(); root.row();
-        heightCell = root.add(heightRow).left(); root.row();
+        originXCell = root.add(originXRow).left();
+        root.row();
+        originYCell = root.add(originYRow).left();
+        root.row();
+        rotationCell = root.add(rotationRow).left();
+        root.row();
+        scaleXCell = root.add(scaleXRow).left();
+        root.row();
+        scaleYCell = root.add(scaleYRow).left();
+        root.row();
+        uniformScaleCell = root.add(uniformScaleRow).left();
+        root.row();
+        widthCell = root.add(widthRow).left();
+        root.row();
+        heightCell = root.add(heightRow).left();
+        root.row();
     }
 
     public void setEntityId(int entityId) {

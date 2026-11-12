@@ -42,7 +42,9 @@ public final class TiledPreviewService {
         this.brushSession = session;
     }
 
-    public TiledBrushSession brushSession() { return brushSession; }
+    public TiledBrushSession brushSession() {
+        return brushSession;
+    }
 
     public void show(TiledMapLayerData map,
                      String atlasTag,

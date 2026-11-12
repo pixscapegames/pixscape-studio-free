@@ -3,11 +3,15 @@ package games.pixscape.studio.document;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-/** Routes document commands from menus/shortcuts to the exact active document. */
+/**
+ * Routes document commands from menus/shortcuts to the exact active document.
+ */
 public final class ActiveDocumentCommandRouter {
     public interface SceneCommands {
         void save(SceneEditorDocument document, Runnable onSuccess, Consumer<Throwable> onFailure);
+
         boolean undo(SceneEditorDocument document);
+
         boolean redo(SceneEditorDocument document);
     }
 
@@ -18,7 +22,9 @@ public final class ActiveDocumentCommandRouter {
 
     public interface GameObjectCommands {
         void save(GameObjectEditorDocument document);
+
         boolean undo(GameObjectEditorDocument document);
+
         boolean redo(GameObjectEditorDocument document);
     }
 

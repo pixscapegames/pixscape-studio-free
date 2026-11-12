@@ -202,5 +202,6 @@ public class SpatialStructureHistoryTest {
     }
 
     private record Fixture(World world, int layer, SpatialBlocksComponent walls,
-                           HistoryManager history, SpatialBlockSelectionService selection) { }
+                           HistoryManager history, SpatialBlockSelectionService selection) {
+    }
 }

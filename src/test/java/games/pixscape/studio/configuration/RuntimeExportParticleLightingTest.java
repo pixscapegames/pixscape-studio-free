@@ -19,7 +19,8 @@ import java.nio.file.Path;
 import static org.junit.Assert.assertEquals;
 
 public class RuntimeExportParticleLightingTest {
-    @Test public void exportedInstancesRetainIndependentAmbientParticipation() throws Exception {
+    @Test
+    public void exportedInstancesRetainIndependentAmbientParticipation() throws Exception {
         Path studio = Files.createTempDirectory("particle-lighting-export-studio");
         Path user = Files.createTempDirectory("particle-lighting-export-user");
         Files.createDirectories(studio.resolve(StudioFs.DIR_SCENES));

@@ -8,7 +8,9 @@ import games.pixscape.studio.asset.TileAssetMeta;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** Asset-level edit: persistence succeeds before metadata is republished. No scene entity is mutated. */
+/**
+ * Asset-level edit: persistence succeeds before metadata is republished. No scene entity is mutated.
+ */
 public final class EditTilePropertiesCommand implements Command, PreExecutionNoopCommand {
     private final AssetMetaDatabase database;
     private final int assetId;
@@ -17,7 +19,7 @@ public final class EditTilePropertiesCommand implements Command, PreExecutionNoo
     private final Consumer<AssetMetaDatabase> publisher;
 
     public EditTilePropertiesCommand(AssetMetaDatabase database, int assetId, PropertySet after,
-                                      Supplier<FileHandle> assetsFile, Consumer<AssetMetaDatabase> publisher) {
+                                     Supplier<FileHandle> assetsFile, Consumer<AssetMetaDatabase> publisher) {
         this.database = database;
         this.assetId = assetId;
         this.before = tile().properties.copy();
@@ -26,10 +28,25 @@ public final class EditTilePropertiesCommand implements Command, PreExecutionNoo
         this.publisher = publisher;
     }
 
-    @Override public String label() { return "Edit Tile Properties"; }
-    @Override public boolean isNoop() { return EditCustomPropertiesCommand.sameProperties(before, after); }
-    @Override public void redo() { apply(after); }
-    @Override public void undo() { apply(before); }
+    @Override
+    public String label() {
+        return "Edit Tile Properties";
+    }
+
+    @Override
+    public boolean isNoop() {
+        return EditCustomPropertiesCommand.sameProperties(before, after);
+    }
+
+    @Override
+    public void redo() {
+        apply(after);
+    }
+
+    @Override
+    public void undo() {
+        apply(before);
+    }
 
     private TileAssetMeta tile() {
         if (!(database.findById(assetId) instanceof TileAssetMeta tile))

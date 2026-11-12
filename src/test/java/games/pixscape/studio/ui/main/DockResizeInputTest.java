@@ -26,20 +26,38 @@ import org.junit.rules.TemporaryFolder;
 import static org.junit.Assert.*;
 
 public class DockResizeInputTest {
-    @Rule public TemporaryFolder temporary = new TemporaryFolder();
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @Rule
+    public TemporaryFolder temporary = new TemporaryFolder();
 
-    @Test public void escapeCancelsNativeResizeBeforeHudTestAndOtherwiseKeepsItsNormalRoute() throws Exception {
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
+
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
+
+    @Test
+    public void escapeCancelsNativeResizeBeforeHudTestAndOtherwiseKeepsItsNormalRoute() throws Exception {
         Graphics previous = Gdx.graphics;
         Gdx.graphics = new MockGraphics() {
-            @Override public int getWidth() { return 1200; }
-            @Override public int getHeight() { return 800; }
+            @Override
+            public int getWidth() {
+                return 1200;
+            }
+
+            @Override
+            public int getHeight() {
+                return 800;
+            }
         };
         try (DockingTestFixture f = DockingTestFixture.create()) {
             HudEditorSession hud = new HudEditorSession(AssetMetaDatabase::new, () -> f.floatingStage.getBatch());
             try {
-                HudScreenAsset asset = new HudScreenAsset(); asset.documentId = "hud/main.json";
+                HudScreenAsset asset = new HudScreenAsset();
+                asset.documentId = "hud/main.json";
                 hud.open(new FileHandle(temporary.newFolder()), new HudScreenEditorDocument("hud/main", "Main", asset,
                         new HudDocumentV1(new HudNode("root", HudNodeKind.GROUP))));
                 assertTrue(hud.enterTestMode());
@@ -84,13 +102,18 @@ public class DockResizeInputTest {
                 hud.exitTestMode();
                 inputs.keyDown(Input.Keys.ESCAPE);
                 assertEquals(1, studioEscapes[0]);
-            } finally { hud.dispose(); }
-        } finally { Gdx.graphics = previous; }
+            } finally {
+                hud.dispose();
+            }
+        } finally {
+            Gdx.graphics = previous;
+        }
     }
 
     private static InputListener escapeCounter(int[] count) {
         return new InputListener() {
-            @Override public boolean keyDown(InputEvent event, int key) {
+            @Override
+            public boolean keyDown(InputEvent event, int key) {
                 if (key != Input.Keys.ESCAPE) return false;
                 count[0]++;
                 return true;

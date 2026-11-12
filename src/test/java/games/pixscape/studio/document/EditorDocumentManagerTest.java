@@ -72,13 +72,18 @@ public class EditorDocumentManagerTest {
         EditorDocumentManager manager = new EditorDocumentManager();
         List<String> events = new ArrayList<>();
         manager.addListener(new EditorDocumentManager.Listener() {
-            @Override public void documentOpened(OpenEditorDocument document) {
+            @Override
+            public void documentOpened(OpenEditorDocument document) {
                 events.add("open:" + document.key().domainId());
             }
-            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+
+            @Override
+            public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
                 events.add("active:" + (current == null ? "none" : current.key().domainId()));
             }
-            @Override public void documentClosed(OpenEditorDocument document) {
+
+            @Override
+            public void documentClosed(OpenEditorDocument document) {
                 events.add("close:" + document.key().domainId());
             }
         });
@@ -116,7 +121,10 @@ public class EditorDocumentManagerTest {
         EditorDocumentManager manager = new EditorDocumentManager();
         HudScreenEditorDocument first = manager.openHudScreen("hud/first", "First");
         HudScreenEditorDocument second = manager.openHudScreen("hud/second", "Second");
-        first.editSession().edit("Resize root", candidate -> { candidate.root.actor.width = 1f; return candidate; });
+        first.editSession().edit("Resize root", candidate -> {
+            candidate.root.actor.width = 1f;
+            return candidate;
+        });
         AtomicReference<HudScreenEditorDocument> pending = new AtomicReference<>();
         manager.setDirtyHudCloseHandler(pending::set);
         assertFalse(manager.requestClose(first.key()));
@@ -132,7 +140,10 @@ public class EditorDocumentManagerTest {
     public void dirtyHudSaveFailureOrCancelLeavesDocumentAndHistoryAlive() {
         EditorDocumentManager manager = new EditorDocumentManager();
         HudScreenEditorDocument hud = manager.openHudScreen("hud/main", "HUD");
-        hud.editSession().edit("Resize root", candidate -> { candidate.root.actor.width = 1f; return candidate; });
+        hud.editSession().edit("Resize root", candidate -> {
+            candidate.root.actor.width = 1f;
+            return candidate;
+        });
         AtomicReference<HudScreenEditorDocument> pending = new AtomicReference<>();
         manager.setDirtyHudCloseHandler(pending::set);
 
@@ -173,10 +184,13 @@ public class EditorDocumentManagerTest {
         EditorDocumentManager manager = new EditorDocumentManager();
         List<String> events = new ArrayList<>();
         manager.addListener(new EditorDocumentManager.Listener() {
-            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+            @Override
+            public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
                 events.add("activate");
             }
-            @Override public void documentClosed(OpenEditorDocument document) {
+
+            @Override
+            public void documentClosed(OpenEditorDocument document) {
                 events.add("close");
             }
         });
@@ -207,7 +221,8 @@ public class EditorDocumentManagerTest {
         return context("scene0");
     }
 
-    @Test public void ownershipIncludesGameObjectsAndEndsAtClose() {
+    @Test
+    public void ownershipIncludesGameObjectsAndEndsAtClose() {
         EditorDocumentManager manager = new EditorDocumentManager();
         SceneEditorContext assetContext = context(null);
         GameObjectEditorDocument asset = manager.openGameObject(gameObject("asset", assetContext));
@@ -222,7 +237,8 @@ public class EditorDocumentManagerTest {
         temporary.dispose();
     }
 
-    @Test public void failedActivationCompensatesPartialObserversWithoutReplayingThem() {
+    @Test
+    public void failedActivationCompensatesPartialObserversWithoutReplayingThem() {
         EditorDocumentManager manager = new EditorDocumentManager();
         var first = manager.openHudScreen("first", "First");
         var second = manager.openHudScreen("second", "Second");
@@ -231,20 +247,26 @@ public class EditorDocumentManagerTest {
         AtomicReference<OpenEditorDocument> tab = new AtomicReference<>(first);
         int[] failures = {0};
         manager.addListener(new EditorDocumentManager.Listener() {
-            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+            @Override
+            public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
                 canvas.set(current);
             }
-            @Override public void activationFailed(OpenEditorDocument previous, OpenEditorDocument attempted) {
+
+            @Override
+            public void activationFailed(OpenEditorDocument previous, OpenEditorDocument attempted) {
                 canvas.set(previous);
             }
         });
         manager.addListener(new EditorDocumentManager.Listener() {
-            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+            @Override
+            public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
                 tab.set(current);
                 failures[0]++;
                 throw new IllegalStateException("Inspector failed after changing state");
             }
-            @Override public void activationFailed(OpenEditorDocument previous, OpenEditorDocument attempted) {
+
+            @Override
+            public void activationFailed(OpenEditorDocument previous, OpenEditorDocument attempted) {
                 tab.set(previous);
             }
         });
@@ -256,12 +278,14 @@ public class EditorDocumentManagerTest {
         manager.clearForTeardown();
     }
 
-    @Test public void failedOpeningRemovesRegistrationAndReleasesOnlyTheCandidate() {
+    @Test
+    public void failedOpeningRemovesRegistrationAndReleasesOnlyTheCandidate() {
         EditorDocumentManager manager = new EditorDocumentManager();
         var first = manager.openGameObject(gameObject("first", context(null)));
         var candidate = gameObject("failed", context(null));
         manager.addListener(new EditorDocumentManager.Listener() {
-            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+            @Override
+            public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
                 throw new IllegalStateException("Activation failure");
             }
         });
@@ -274,15 +298,21 @@ public class EditorDocumentManagerTest {
         manager.clearForTeardown();
     }
 
-    @Test public void failedOpenedNotificationRemovesPartialRegistration() {
+    @Test
+    public void failedOpenedNotificationRemovesPartialRegistration() {
         EditorDocumentManager manager = new EditorDocumentManager();
         var candidate = gameObject("failed", context(null));
         int[] closed = {0};
         manager.addListener(new EditorDocumentManager.Listener() {
-            @Override public void documentOpened(OpenEditorDocument document) {
+            @Override
+            public void documentOpened(OpenEditorDocument document) {
                 throw new IllegalStateException("Tab creation failure");
             }
-            @Override public void documentClosed(OpenEditorDocument document) { closed[0]++; }
+
+            @Override
+            public void documentClosed(OpenEditorDocument document) {
+                closed[0]++;
+            }
         });
         assertThrows(IllegalStateException.class, () -> manager.openGameObject(candidate));
         assertNull(manager.activeDocument());
@@ -291,12 +321,14 @@ public class EditorDocumentManagerTest {
         assertEquals(1, closed[0]);
     }
 
-    @Test public void rejectedCloseFallbackPreservesTheActiveDocumentAndItsWorld() {
+    @Test
+    public void rejectedCloseFallbackPreservesTheActiveDocumentAndItsWorld() {
         EditorDocumentManager manager = new EditorDocumentManager();
         manager.openGameObject(gameObject("first", context(null)));
         var second = manager.openGameObject(gameObject("second", context(null)));
         manager.addListener(new EditorDocumentManager.Listener() {
-            @Override public void validateActivation(OpenEditorDocument current) {
+            @Override
+            public void validateActivation(OpenEditorDocument current) {
                 throw new IllegalStateException("Fallback cannot activate");
             }
         });

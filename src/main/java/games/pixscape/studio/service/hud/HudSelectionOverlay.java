@@ -12,9 +12,11 @@ import games.pixscape.studio.helper.ShapeHelper;
 import java.util.List;
 import java.util.Objects;
 
-/** One editor-only overlay layer above the authored HUD host. */
+/**
+ * One editor-only overlay layer above the authored HUD host.
+ */
 final class HudSelectionOverlay extends Group {
-    enum VisualState { IDLE, HOVERED, SELECTED }
+    enum VisualState {IDLE, HOVERED, SELECTED}
 
     private List<HudSelectionTarget> targets = List.of();
     private HudSelectionTarget hoveredTarget;
@@ -58,10 +60,17 @@ final class HudSelectionOverlay extends Group {
         addActor(transformGizmo);
     }
 
-    List<HudSelectionTarget> targets() { return targets; }
-    HudSelectionTarget hoveredTarget() { return hoveredTarget; }
+    List<HudSelectionTarget> targets() {
+        return targets;
+    }
 
-    /** Canonical overlay-local target resolution used by both click and hover. */
+    HudSelectionTarget hoveredTarget() {
+        return hoveredTarget;
+    }
+
+    /**
+     * Canonical overlay-local target resolution used by both click and hover.
+     */
     HudSelectionTarget findTargetAt(float x, float y) {
         Actor hit = hit(x, y, true);
         return hit instanceof TargetActor targetActor ? targetActor.target : null;
@@ -73,19 +82,38 @@ final class HudSelectionOverlay extends Group {
         return true;
     }
 
-    boolean clearHoveredTarget() { return setHoveredTarget(null); }
+    boolean clearHoveredTarget() {
+        return setHoveredTarget(null);
+    }
 
     VisualState visualState(HudSelectionTarget target) {
         if (target.selected()) return VisualState.SELECTED;
         return target.equals(hoveredTarget) ? VisualState.HOVERED : VisualState.IDLE;
     }
 
-    void showTransformGizmo(HudTransformGeometry.Bounds bounds) { transformGizmo.showFor(bounds); }
-    void clearTransformGizmo() { transformGizmo.clearGizmo(); }
-    HudTransformHandle transformHandleAt(float x, float y) { return transformGizmo.handleAt(x, y); }
-    boolean containsTransformBounds(float x, float y) { return transformGizmo.contains(x, y); }
-    HudTransformGeometry.Bounds transformBounds() { return transformGizmo.bounds(); }
-    boolean isShowingTransformGizmo() { return transformGizmo.isVisible(); }
+    void showTransformGizmo(HudTransformGeometry.Bounds bounds) {
+        transformGizmo.showFor(bounds);
+    }
+
+    void clearTransformGizmo() {
+        transformGizmo.clearGizmo();
+    }
+
+    HudTransformHandle transformHandleAt(float x, float y) {
+        return transformGizmo.handleAt(x, y);
+    }
+
+    boolean containsTransformBounds(float x, float y) {
+        return transformGizmo.contains(x, y);
+    }
+
+    HudTransformGeometry.Bounds transformBounds() {
+        return transformGizmo.bounds();
+    }
+
+    boolean isShowingTransformGizmo() {
+        return transformGizmo.isVisible();
+    }
 
     void previewSelectedBounds(HudTransformGeometry.Bounds bounds) {
         if (selectedActor != null) selectedActor.setBounds(bounds.x(), bounds.y(), bounds.width(), bounds.height());
@@ -136,7 +164,9 @@ final class HudSelectionOverlay extends Group {
         for (Rectangle bound : bounds) {
             Actor actor = new Actor() {
                 private final Color color = new Color(0.25f, 1f, 0.45f, 0.75f);
-                @Override public void draw(Batch batch, float parentAlpha) {
+
+                @Override
+                public void draw(Batch batch, float parentAlpha) {
                     float previous = batch.getPackedColor();
                     batch.setColor(color.r, color.g, color.b, color.a * parentAlpha);
                     float edge = Math.min(2f, Math.min(getWidth(), getHeight()) * 0.5f);
@@ -171,7 +201,8 @@ final class HudSelectionOverlay extends Group {
             setBounds(target.x(), target.y(), target.width(), target.height());
         }
 
-        @Override public void draw(Batch batch, float parentAlpha) {
+        @Override
+        public void draw(Batch batch, float parentAlpha) {
             VisualState state = visualState(target);
             if (state == VisualState.IDLE) return;
             Color color = state == VisualState.SELECTED ? SELECTED : HOVERED;
@@ -182,7 +213,9 @@ final class HudSelectionOverlay extends Group {
         }
     }
 
-    /** A transient, non-interactive outline: it is not a selection overlay for the document root. */
+    /**
+     * A transient, non-interactive outline: it is not a selection overlay for the document root.
+     */
     private static final class DropFeedbackActor extends com.badlogic.gdx.scenes.scene2d.Group {
         private static final Color FILL = new Color(0.22f, 0.72f, 1f, 0.09f);
         private static final Color BORDER = new Color(0.22f, 0.72f, 1f, 0.92f);
@@ -208,7 +241,8 @@ final class HudSelectionOverlay extends Group {
             label.setPosition(6f, Math.max(2f, getHeight() - label.getHeight() - 4f));
         }
 
-        @Override public void draw(Batch batch, float parentAlpha) {
+        @Override
+        public void draw(Batch batch, float parentAlpha) {
             float previous = batch.getPackedColor();
             batch.setColor(FILL.r, FILL.g, FILL.b, FILL.a * parentAlpha);
             batch.draw(ShapeHelper.whitePixelRegion(), getX(), getY(), getWidth(), getHeight());

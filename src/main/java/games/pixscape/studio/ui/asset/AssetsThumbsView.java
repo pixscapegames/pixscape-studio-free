@@ -983,7 +983,8 @@ public final class AssetsThumbsView extends VisTable {
         if (node.kind == AssetNode.Kind.TILED_ANIMATION) {
             MenuItem edit = new MenuItem("Edit animation");
             edit.addListener(new ClickListener() {
-                @Override public void clicked(InputEvent event, float x, float y) {
+                @Override
+                public void clicked(InputEvent event, float x, float y) {
                     if (openListener != null) openListener.accept(node);
                 }
             });
@@ -2016,7 +2017,9 @@ public final class AssetsThumbsView extends VisTable {
         layout();
     }
 
-    /** Grid replacement abandons owned previews; stage detachment alone does not. */
+    /**
+     * Grid replacement abandons owned previews; stage detachment alone does not.
+     */
     private void clearGrid() {
         grid.clear();
         tileWidgets.clear();

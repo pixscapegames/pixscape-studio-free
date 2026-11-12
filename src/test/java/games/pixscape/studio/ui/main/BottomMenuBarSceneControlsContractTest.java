@@ -22,8 +22,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.*;
 
 public class BottomMenuBarSceneControlsContractTest {
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
+
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
 
     @Test
     public void selectorProjectsTheCompleteCatalogWithoutAnyOpenDocuments() {
@@ -166,7 +173,7 @@ public class BottomMenuBarSceneControlsContractTest {
     @Test
     public void popupListHasAnExplicitClickPathForAnUnchangedSelection() throws Exception {
         String source = Files.readString(Path.of(
-                "src/main/java/games/pixscape/studio/ui/main/BottomMenuBar.java"),
+                        "src/main/java/games/pixscape/studio/ui/main/BottomMenuBar.java"),
                 StandardCharsets.UTF_8);
 
         assertTrue(source.contains("sceneSelectBox.getList().addListener(new ClickListener()"));

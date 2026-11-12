@@ -21,14 +21,18 @@ import java.awt.image.BufferedImage;
 import static org.junit.Assert.*;
 
 public class SceneAtlasReuseIntegrationTest {
-    @Rule public TemporaryFolder temporaryFolder = new TemporaryFolder();
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
-    @BeforeClass public static void app() {
-        if (Gdx.app == null) new HeadlessApplication(new ApplicationAdapter() {},
+    @BeforeClass
+    public static void app() {
+        if (Gdx.app == null) new HeadlessApplication(new ApplicationAdapter() {
+        },
                 new HeadlessApplicationConfiguration());
     }
 
-    @Test public void unchangedSaveSkipsAndMissingCarRepacksExactlyOnce() throws Exception {
+    @Test
+    public void unchangedSaveSkipsAndMissingCarRepacksExactlyOnce() throws Exception {
         FileHandle project = new FileHandle(temporaryFolder.newFolder("project"));
         FileHandle input = project.child("atlases/input/scene");
         FileHandle atlases = project.child("atlases");
@@ -59,7 +63,8 @@ public class SceneAtlasReuseIntegrationTest {
         }
     }
 
-    @Test public void snapshotRejectsInputsChangedDuringPackAndNewResultCoversThem() throws Exception {
+    @Test
+    public void snapshotRejectsInputsChangedDuringPackAndNewResultCoversThem() throws Exception {
         FileHandle project = new FileHandle(temporaryFolder.newFolder("changing-project"));
         FileHandle input = project.child("atlases/input/scene");
         input.mkdirs();
@@ -80,7 +85,8 @@ public class SceneAtlasReuseIntegrationTest {
         assertTrue(SceneAtlasCoverage.coversInput(input, second.child("scene.atlas")));
     }
 
-    @Test public void saveCompletionRequiresPublishedGenerationAndPropagatesFailure() {
+    @Test
+    public void saveCompletionRequiresPublishedGenerationAndPropagatesFailure() {
         assertFalse(SceneService.packPublishedOrThrow("scene", 4, null, true));
         try {
             SceneService.packPublishedOrThrow("scene", 4, null, false);

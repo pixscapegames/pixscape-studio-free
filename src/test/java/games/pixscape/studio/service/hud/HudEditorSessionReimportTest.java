@@ -15,9 +15,11 @@ import java.lang.reflect.Field;
 import static org.junit.Assert.*;
 
 public class HudEditorSessionReimportTest {
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
 
-    @Test public void failedResourceReloadRetainsBoundPreviewAndMarksItStale() throws Exception {
+    @Test
+    public void failedResourceReloadRetainsBoundPreviewAndMarksItStale() throws Exception {
         FileHandle project = new FileHandle(temporary.newFolder());
         HudScreenAsset asset = new HudScreenAsset();
         asset.documentId = "hud/a.json";

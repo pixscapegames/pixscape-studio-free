@@ -957,7 +957,8 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
                 try {
                     if (app == null) {
                         onImportTilesetDirectory.importDirectory(directory, settings);
-                        dialog.fadeOut(); fadeOut();
+                        dialog.fadeOut();
+                        fadeOut();
                     } else {
                         var service = app.getSceneService();
                         var candidates = service.tilesetImportCandidates(directory,
@@ -965,7 +966,10 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
                         new TilesetImportReviewDialog(candidates,
                                 id -> service.prepareTilesetDirectoryImport(directory, settings, id),
                                 plan -> service.applyTilesetImportPlanWithProgress(plan, getStage(),
-                                        result -> { dialog.fadeOut(); fadeOut(); },
+                                        result -> {
+                                            dialog.fadeOut();
+                                            fadeOut();
+                                        },
                                         failure -> setSlicingDialogError(dialog, errorLabel, errorCell,
                                                 ImportDialogApplySupport.userMessageFor(failure)))).show(getStage());
                     }
@@ -2065,8 +2069,13 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
                     final int next = index + 1;
                     new TilesetImportReviewDialog(service.tilesetImportCandidates(source, name),
                             id -> service.prepareTilesetAtlasImport(item, id),
-                            plan -> { item.tilesetPlan = plan; reviewTilesetItems(next); }).show(getStage());
-                } catch (RuntimeException failure) { setInlineError(ImportDialogApplySupport.userMessageFor(failure)); }
+                            plan -> {
+                                item.tilesetPlan = plan;
+                                reviewTilesetItems(next);
+                            }).show(getStage());
+                } catch (RuntimeException failure) {
+                    setInlineError(ImportDialogApplySupport.userMessageFor(failure));
+                }
                 return;
             }
         }

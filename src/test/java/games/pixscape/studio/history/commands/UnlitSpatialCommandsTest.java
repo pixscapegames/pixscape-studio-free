@@ -38,7 +38,8 @@ import java.nio.file.Files;
 import static org.junit.Assert.*;
 
 public class UnlitSpatialCommandsTest {
-    @Test public void orthoShadowAndOccluderEditsUseOwningSceneDuringUndoRedo() {
+    @Test
+    public void orthoShadowAndOccluderEditsUseOwningSceneDuringUndoRedo() {
         ProjectConfig previous = ProjectConfig.getInstance();
         try (Fixture f = new Fixture()) {
             ProjectConfig other = new ProjectConfig();
@@ -66,10 +67,13 @@ public class UnlitSpatialCommandsTest {
             assertEquals(0, f.state.lightingMaps.size);
             assertFalse(f.scene.lightingEnabled);
             assertTrue(other.getCurrentSceneMeta().lightingEnabled);
-        } finally { ProjectConfig.setInstance(previous); }
+        } finally {
+            ProjectConfig.setInstance(previous);
+        }
     }
 
-    @Test public void offStillRejectsInvalidGeometryAndLinksAtomically() {
+    @Test
+    public void offStillRejectsInvalidGeometryAndLinksAtomically() {
         try (Fixture f = new Fixture()) {
             SpatialBlockData invalid = f.block().copy();
             invalid.width = -1;
@@ -86,7 +90,8 @@ public class UnlitSpatialCommandsTest {
         }
     }
 
-    @Test public void onWithoutLightsAdmitsOrthoReceiversButStillRejectsRoundedGeometry() {
+    @Test
+    public void onWithoutLightsAdmitsOrthoReceiversButStillRejectsRoundedGeometry() {
         try (Fixture f = new Fixture()) {
             // Deliberately leave the renderer flag OFF: the model is authoritative.
             f.scene.lightingEnabled = true;
@@ -101,12 +106,15 @@ public class UnlitSpatialCommandsTest {
             assertTrue(command.rejection(), command.rejection().contains("ISO"));
             assertEquals(0, f.tiled.lightingDescriptions.size);
             assertEquals(cursor, f.history.getCursor());
-            f.history.undo();assertFalse(f.block().shadowCaster);
-            f.history.redo();assertTrue(f.block().shadowCaster);
+            f.history.undo();
+            assertFalse(f.block().shadowCaster);
+            f.history.redo();
+            assertTrue(f.block().shadowCaster);
         }
     }
 
-    @Test public void descriptionsOffRemainAuthoredDirtyAndUndoableWithoutNativeResources() {
+    @Test
+    public void descriptionsOffRemainAuthoredDirtyAndUndoableWithoutNativeResources() {
         try (Fixture f = new Fixture()) {
             f.history.execute(f.descriptions());
             assertEquals(1, f.tiled.lightingDescriptions.size);
@@ -119,7 +127,8 @@ public class UnlitSpatialCommandsTest {
         }
     }
 
-    @Test public void brushRoundTripsAcrossLightingActivationButAnchorErasureStillRejects() {
+    @Test
+    public void brushRoundTripsAcrossLightingActivationButAnchorErasureStillRejects() {
         try (Fixture f = new Fixture()) {
             f.block().shadowCaster = true;
             TiledBrushSession stroke = new TiledBrushSession(f.entity);
@@ -141,14 +150,16 @@ public class UnlitSpatialCommandsTest {
             f.history.undo();
             assertEquals(0, f.history.getCursor());
             assertEquals(0, f.tiled.data.getTile(4, 4));
-            f.history.redo();assertEquals(7, f.tiled.data.getTile(4, 4));
+            f.history.redo();
+            assertEquals(7, f.tiled.data.getTile(4, 4));
             f.scene.lightingEnabled = false;
             f.history.undo();
             assertEquals(0, f.tiled.data.getTile(4, 4));
         }
     }
 
-    @Test public void editedLightingPropertiesSurviveRealSceneSaveAndReload() throws Exception {
+    @Test
+    public void editedLightingPropertiesSurviveRealSceneSaveAndReload() throws Exception {
         try (Fixture f = new Fixture()) {
             SpatialBlockData edited = f.block().copy();
             edited.shadowCaster = true;
@@ -171,7 +182,10 @@ public class UnlitSpatialCommandsTest {
                 assertTrue(block.shadeUnlitFaces);
                 assertEquals(1.25f, loaded.getMapper(TiledLayerComponent.class).get(entity)
                         .lightingDescriptions.first().rounded.centerGX, 0);
-            } finally { loaded.dispose(); file.delete(); }
+            } finally {
+                loaded.dispose();
+                file.delete();
+            }
         }
     }
 
@@ -213,10 +227,14 @@ public class UnlitSpatialCommandsTest {
             world.process();
         }
 
-        SpatialBlockData block() { return blocks.blocks.first(); }
+        SpatialBlockData block() {
+            return blocks.blocks.first();
+        }
+
         EditSpatialBlockCommand edit(SpatialBlockData value) {
             return new EditSpatialBlockCommand(world, history.historyIds(), null, entity, 1, block(), value);
         }
+
         EditTileLightingDescriptionsCommand descriptions() {
             TileSurfaceDescription value = new TileSurfaceDescription();
             value.assetId = 7;
@@ -226,10 +244,15 @@ public class UnlitSpatialCommandsTest {
             values.add(value);
             return new EditTileLightingDescriptionsCommand(world, history.historyIds(), entity, values);
         }
+
         TiledBrushCommand brush(TiledBrushSession stroke) {
             return new TiledBrushCommand(world, null, history.historyIds(), history.historyIds().ensureForEntity(entity),
                     stroke.toPlan(), new TiledSpatialMutationPlanner());
         }
-        @Override public void close() { world.dispose(); }
+
+        @Override
+        public void close() {
+            world.dispose();
+        }
     }
 }

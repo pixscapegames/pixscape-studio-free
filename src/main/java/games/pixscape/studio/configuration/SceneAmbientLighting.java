@@ -1,6 +1,8 @@
 package games.pixscape.studio.configuration;
 
-/** Keeps authored ambient controls authoritative over exported runtime multipliers. */
+/**
+ * Keeps authored ambient controls authoritative over exported runtime multipliers.
+ */
 public final class SceneAmbientLighting {
     public static final float DEFAULT_RED = 0.20f;
     public static final float DEFAULT_GREEN = 0.20f;
@@ -9,7 +11,9 @@ public final class SceneAmbientLighting {
     private SceneAmbientLighting() {
     }
 
-    /** Migrates legacy multiplier-only data, applies authored defaults, then derives runtime data. */
+    /**
+     * Migrates legacy multiplier-only data, applies authored defaults, then derives runtime data.
+     */
     public static void applyDefaultsAndDerive(SceneMeta meta) {
         if (meta == null) return;
 
@@ -41,7 +45,9 @@ public final class SceneAmbientLighting {
         deriveRuntimeMultipliers(meta);
     }
 
-    /** Derives runtime multipliers from normalized authored color and intensity. */
+    /**
+     * Derives runtime multipliers from normalized authored color and intensity.
+     */
     public static void deriveRuntimeMultipliers(SceneMeta meta) {
         if (meta == null) return;
 

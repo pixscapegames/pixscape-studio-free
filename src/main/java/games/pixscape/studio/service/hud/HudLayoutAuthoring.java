@@ -6,7 +6,9 @@ import games.pixscape.studio.ui.config.CommonLayout;
 import java.util.HashSet;
 import java.util.Set;
 
-/** Pure mutations for the deliberately narrow STEP-6B.2 layout-child authoring slice. */
+/**
+ * Pure mutations for the deliberately narrow STEP-6B.2 layout-child authoring slice.
+ */
 public final class HudLayoutAuthoring {
     public enum StructureAction {
         INSERT_ROW_BEFORE, INSERT_ROW_AFTER, INSERT_COLUMN_BEFORE, INSERT_COLUMN_AFTER,
@@ -14,7 +16,9 @@ public final class HudLayoutAuthoring {
     }
 
     public record CellPosition(String tableId, int row, int cellIndex, int column, int colspan) {
-        public int endColumn() { return column + colspan; }
+        public int endColumn() {
+            return column + colspan;
+        }
     }
 
     public static CellPosition cellPosition(HudDocumentV1 document, String cellId) {
@@ -33,7 +37,9 @@ public final class HudLayoutAuthoring {
         return null;
     }
 
-    /** Null means the requested structural edit is currently available. */
+    /**
+     * Null means the requested structural edit is currently available.
+     */
     public static String structureRejection(HudDocumentV1 document, StructureAction action,
                                             String anchorId, String otherId) {
         CellPosition anchor = cellPosition(document, anchorId);
@@ -96,7 +102,9 @@ public final class HudLayoutAuthoring {
         return null;
     }
 
-    /** Mutates an isolated candidate only and returns the cell to select after publication. */
+    /**
+     * Mutates an isolated candidate only and returns the cell to select after publication.
+     */
     public static String editStructure(HudDocumentV1 candidate, StructureAction action,
                                        String anchorId, String otherId) {
         CellPosition anchor = cellPosition(candidate, anchorId);
@@ -208,12 +216,15 @@ public final class HudLayoutAuthoring {
         Set<String> ids = new HashSet<>();
         collectCellIds(root, ids);
         HudTableCell cell = new HudTableCell();
-        do { cell.id = "cell-" + java.util.UUID.randomUUID(); }
+        do {
+            cell.id = "cell-" + java.util.UUID.randomUUID();
+        }
         while (ids.contains(cell.id));
         cell.constraints.minWidth = 64f;
         cell.constraints.minHeight = 32f;
         return cell;
     }
+
     private HudLayoutAuthoring() {
     }
 
@@ -221,7 +232,9 @@ public final class HudLayoutAuthoring {
         return document != null && canAccept(find(document.root, parentId));
     }
 
-    /** Removes one non-root child relation and returns its surviving parent ID, or {@code null}. */
+    /**
+     * Removes one non-root child relation and returns its surviving parent ID, or {@code null}.
+     */
     public static String removeChild(HudDocumentV1 candidate, String nodeId) {
         if (candidate == null || candidate.root == null || nodeId == null
                 || nodeId.equals(candidate.root.id)) return null;
@@ -255,7 +268,10 @@ public final class HudLayoutAuthoring {
         do {
             taken = false;
             for (HudDialogResultButton entry : dialog.dialog.resultButtons)
-                if (entry != null && resultId.equals(entry.resultId)) { taken = true; break; }
+                if (entry != null && resultId.equals(entry.resultId)) {
+                    taken = true;
+                    break;
+                }
             if (taken) resultId = "result-" + ++suffix;
         } while (taken);
         dialog.dialog.resultButtons.add(new HudDialogResultButton(button, resultId, true));
@@ -266,12 +282,13 @@ public final class HudLayoutAuthoring {
         HudNode dialog = resultButtonOwner(candidate, buttonId);
         if (dialog == null || (offset != -1 && offset != 1)) return false;
         var entries = dialog.dialog.resultButtons;
-        for (int i = 0; i < entries.size(); i++) if (buttonId.equals(entries.get(i).button.id)) {
-            int target = i + offset;
-            if (target < 0 || target >= entries.size()) return false;
-            java.util.Collections.swap(entries, i, target);
-            return true;
-        }
+        for (int i = 0; i < entries.size(); i++)
+            if (buttonId.equals(entries.get(i).button.id)) {
+                int target = i + offset;
+                if (target < 0 || target >= entries.size()) return false;
+                java.util.Collections.swap(entries, i, target);
+                return true;
+            }
         return false;
     }
 
@@ -292,48 +309,62 @@ public final class HudLayoutAuthoring {
         if (node.dialog != null && node.dialog.resultButtons != null)
             for (HudDialogResultButton entry : node.dialog.resultButtons)
                 if (entry != null && entry.button != null && buttonId.equals(entry.button.id)) return node;
-        if (node.children != null) for (HudChild child : node.children) if (child != null) {
-            HudNode owner = resultButtonOwner(child.node, buttonId);
-            if (owner != null) return owner;
-        }
-        if (node.table != null && node.table.rows != null) for (HudTableRow row : node.table.rows)
-            if (row != null && row.cells != null) for (HudTableCell cell : row.cells) if (cell != null) {
-                HudNode owner = resultButtonOwner(cell.content, buttonId);
+        if (node.children != null) for (HudChild child : node.children)
+            if (child != null) {
+                HudNode owner = resultButtonOwner(child.node, buttonId);
                 if (owner != null) return owner;
             }
+        if (node.table != null && node.table.rows != null) for (HudTableRow row : node.table.rows)
+            if (row != null && row.cells != null) for (HudTableCell cell : row.cells)
+                if (cell != null) {
+                    HudNode owner = resultButtonOwner(cell.content, buttonId);
+                    if (owner != null) return owner;
+                }
         return null;
     }
 
-    /** Returns the immediate parent of one non-root node, without mutating the document. */
+    /**
+     * Returns the immediate parent of one non-root node, without mutating the document.
+     */
     public static String parentId(HudDocumentV1 document, String nodeId) {
         if (document == null || document.root == null || nodeId == null
                 || nodeId.equals(document.root.id)) return null;
         return parentId(document.root, nodeId);
     }
 
-    /** Returns a node's immediate authored child relation, or {@code null} for the root/missing node. */
+    /**
+     * Returns a node's immediate authored child relation, or {@code null} for the root/missing node.
+     */
     public static HudChild childRelation(HudDocumentV1 document, String nodeId) {
         if (document == null || document.root == null || nodeId == null
                 || nodeId.equals(document.root.id)) return null;
         return childRelation(document.root, nodeId);
     }
 
-    /** Returns the explicit cell that owns a widget, or null for non-tabular placement. */
+    /**
+     * Returns the explicit cell that owns a widget, or null for non-tabular placement.
+     */
     public static HudTableCell containingCell(HudDocumentV1 document, String nodeId) {
         return document != null ? containingCell(document.root, nodeId) : null;
     }
 
-    /** Returns an explicit cell by its persistent ID. */
+    /**
+     * Returns an explicit cell by its persistent ID.
+     */
     public static HudTableCell cell(HudDocumentV1 document, String cellId) {
         return document != null ? cell(document.root, cellId) : null;
     }
 
-    /** Returns the TABLE, WINDOW, or DIALOG that owns an explicit cell. */
+    /**
+     * Returns the TABLE, WINDOW, or DIALOG that owns an explicit cell.
+     */
     public static HudNode tableOwner(HudDocumentV1 document, String cellId) {
         return document != null ? tableOwner(document.root, cellId) : null;
     }
 
-    /** Exchanges only the direct contents of two cells in the same authored table. */
+    /**
+     * Exchanges only the direct contents of two cells in the same authored table.
+     */
     public static boolean moveCellContent(HudDocumentV1 candidate, String tableId,
                                           String sourceCellId, String widgetId, String destinationCellId) {
         if (candidate == null || tableId == null || sourceCellId == null || widgetId == null
@@ -352,13 +383,16 @@ public final class HudLayoutAuthoring {
 
     private static HudTableCell directCell(HudNode table, String cellId) {
         if (table.table.rows == null) return null;
-        for (HudTableRow row : table.table.rows) if (row != null && row.cells != null)
-            for (HudTableCell cell : row.cells)
-                if (cell != null && cellId.equals(cell.id)) return cell;
+        for (HudTableRow row : table.table.rows)
+            if (row != null && row.cells != null)
+                for (HudTableCell cell : row.cells)
+                    if (cell != null && cellId.equals(cell.id)) return cell;
         return null;
     }
 
-    /** Returns the first unoccupied explicit cell in native document order. */
+    /**
+     * Returns the first unoccupied explicit cell in native document order.
+     */
     public static HudTableCell firstEmptyCell(HudNode tableParent) {
         if (tableParent == null || !isTabular(tableParent.kind) || tableParent.table == null
                 || tableParent.table.rows == null) return null;
@@ -369,12 +403,16 @@ public final class HudLayoutAuthoring {
         return null;
     }
 
-    /** Returns the live authored node by ID, or {@code null}. */
+    /**
+     * Returns the live authored node by ID, or {@code null}.
+     */
     public static HudNode node(HudDocumentV1 document, String nodeId) {
         return document != null ? find(document.root, nodeId) : null;
     }
 
-    /** Mutates only the supplied isolated candidate and returns the new persisted ID, or null. */
+    /**
+     * Mutates only the supplied isolated candidate and returns the new persisted ID, or null.
+     */
     public static String addChild(
             HudDocumentV1 candidate, String parentId, HudNodeKind childKind) {
         if (!isAuthorableKind(childKind) || candidate == null) return null;
@@ -423,7 +461,9 @@ public final class HudLayoutAuthoring {
         return childId;
     }
 
-    /** Adds a TABLE with an explicit, initially empty grid. */
+    /**
+     * Adds a TABLE with an explicit, initially empty grid.
+     */
     public static String addTable(HudDocumentV1 candidate, String parentId, int rows, int columns) {
         if (rows < 1 || columns < 1 || candidate == null) return null;
         String id = addChild(candidate, parentId, HudNodeKind.TABLE);
@@ -442,7 +482,9 @@ public final class HudLayoutAuthoring {
         return document != null ? nextId(document.root, "image") : null;
     }
 
-    /** Adds a Label using native Scene2D natural sizing unless the parent constrains it. */
+    /**
+     * Adds a Label using native Scene2D natural sizing unless the parent constrains it.
+     */
     public static String addLabel(HudDocumentV1 candidate, String parentId,
                                   String text, String styleName) {
         if (candidate == null || text == null) return null;
@@ -458,7 +500,9 @@ public final class HudLayoutAuthoring {
         return labelId;
     }
 
-    /** Adds a Textra TypingLabel with the first-version authored defaults. */
+    /**
+     * Adds a Textra TypingLabel with the first-version authored defaults.
+     */
     public static String addTextraLabel(HudDocumentV1 candidate, String parentId,
                                         String text, String styleName) {
         if (candidate == null || text == null) return null;
@@ -475,7 +519,9 @@ public final class HudLayoutAuthoring {
         return labelId;
     }
 
-    /** Adds a TextButton using native Scene2D natural sizing unless the parent constrains it. */
+    /**
+     * Adds a TextButton using native Scene2D natural sizing unless the parent constrains it.
+     */
     public static String addTextButton(HudDocumentV1 candidate, String parentId,
                                        String text, String styleName) {
         if (candidate == null || text == null) return null;
@@ -491,7 +537,9 @@ public final class HudLayoutAuthoring {
         return buttonId;
     }
 
-    /** Adds an ImageButton using native Scene2D natural sizing unless the parent constrains it. */
+    /**
+     * Adds an ImageButton using native Scene2D natural sizing unless the parent constrains it.
+     */
     public static String addImageButton(HudDocumentV1 candidate, String parentId, String styleName) {
         if (candidate == null) return null;
         HudNode parent = find(candidate.root, parentId);
@@ -505,7 +553,9 @@ public final class HudLayoutAuthoring {
         return buttonId;
     }
 
-    /** Adds an ImageTextButton using native Scene2D natural sizing unless the parent constrains it. */
+    /**
+     * Adds an ImageTextButton using native Scene2D natural sizing unless the parent constrains it.
+     */
     public static String addImageTextButton(HudDocumentV1 candidate, String parentId,
                                             String text, String styleName) {
         if (candidate == null || text == null) return null;
@@ -520,7 +570,9 @@ public final class HudLayoutAuthoring {
         return buttonId;
     }
 
-    /** Adds a TextField using native Scene2D natural sizing unless the parent constrains it. */
+    /**
+     * Adds a TextField using native Scene2D natural sizing unless the parent constrains it.
+     */
     public static String addTextField(HudDocumentV1 candidate, String parentId, String styleName) {
         if (candidate == null) return null;
         HudNode parent = find(candidate.root, parentId);
@@ -534,7 +586,9 @@ public final class HudLayoutAuthoring {
         return fieldId;
     }
 
-    /** Adds a SelectBox with the bounded native defaults and automatic dimensions. */
+    /**
+     * Adds a SelectBox with the bounded native defaults and automatic dimensions.
+     */
     public static String addSelectBox(HudDocumentV1 candidate, String parentId, String styleName) {
         if (candidate == null) return null;
         HudNode parent = find(candidate.root, parentId);
@@ -551,7 +605,9 @@ public final class HudLayoutAuthoring {
         return boxId;
     }
 
-    /** Adds a native List with useful sample rows and automatic dimensions. */
+    /**
+     * Adds a native List with useful sample rows and automatic dimensions.
+     */
     public static String addList(HudDocumentV1 candidate, String parentId, String styleName) {
         if (candidate == null) return null;
         HudNode parent = find(candidate.root, parentId);
@@ -568,7 +624,9 @@ public final class HudLayoutAuthoring {
         return id;
     }
 
-    /** Adds a CheckBox using native Scene2D natural sizing unless the parent constrains it. */
+    /**
+     * Adds a CheckBox using native Scene2D natural sizing unless the parent constrains it.
+     */
     public static String addCheckBox(HudDocumentV1 candidate, String parentId, String styleName) {
         if (candidate == null) return null;
         HudNode parent = find(candidate.root, parentId);
@@ -582,7 +640,9 @@ public final class HudLayoutAuthoring {
         return boxId;
     }
 
-    /** Adds a Slider using native Scene2D defaults and natural sizing. */
+    /**
+     * Adds a Slider using native Scene2D defaults and natural sizing.
+     */
     public static String addSlider(HudDocumentV1 candidate, String parentId, String styleName) {
         if (candidate == null) return null;
         HudNode parent = find(candidate.root, parentId);
@@ -595,7 +655,9 @@ public final class HudLayoutAuthoring {
         return sliderId;
     }
 
-    /** Adds a non-interactive native ProgressBar using the Slider numeric defaults. */
+    /**
+     * Adds a non-interactive native ProgressBar using the Slider numeric defaults.
+     */
     public static String addProgressBar(HudDocumentV1 candidate, String parentId, String styleName) {
         if (candidate == null) return null;
         HudNode parent = find(candidate.root, parentId);
@@ -608,20 +670,26 @@ public final class HudLayoutAuthoring {
         return progressBarId;
     }
 
-    /** Adds a REGION Image while preserving the exact parent-driven placement policy. */
+    /**
+     * Adds a REGION Image while preserving the exact parent-driven placement policy.
+     */
     public static String addImage(HudDocumentV1 candidate, String parentId,
                                   String expectedId, String resourceName) {
         return addImage(candidate, parentId, expectedId, resourceName, null);
     }
 
-    /** Adds an Image and applies pointer-local coordinates only for a free-position Group parent. */
+    /**
+     * Adds an Image and applies pointer-local coordinates only for a free-position Group parent.
+     */
     public static String addImage(HudDocumentV1 candidate, String parentId,
                                   String expectedId, String resourceName,
                                   HudFreePlacement freePlacement) {
         return addImage(candidate, parentId, expectedId, resourceName, freePlacement, 0f, 0f);
     }
 
-    /** Adds an Image with parent-appropriate natural sizing defaults. */
+    /**
+     * Adds an Image with parent-appropriate natural sizing defaults.
+     */
     public static String addImage(HudDocumentV1 candidate, String parentId,
                                   String expectedId, String resourceName,
                                   HudFreePlacement freePlacement,
@@ -702,21 +770,23 @@ public final class HudLayoutAuthoring {
         if (node == null || nodeId == null) return null;
         if (nodeId.equals(node.id)) return node;
         if (node.dialog != null && node.dialog.resultButtons != null)
-            for (HudDialogResultButton entry : node.dialog.resultButtons) if (entry != null) {
-                HudNode found = find(entry.button, nodeId);
-                if (found != null) return found;
-            }
+            for (HudDialogResultButton entry : node.dialog.resultButtons)
+                if (entry != null) {
+                    HudNode found = find(entry.button, nodeId);
+                    if (found != null) return found;
+                }
         if (node.children != null) for (HudChild child : node.children) {
             if (child == null) continue;
             HudNode found = find(child.node, nodeId);
             if (found != null) return found;
         }
         if (isTabular(node.kind) && node.table != null && node.table.rows != null) {
-            for (HudTableRow row : node.table.rows) if (row != null && row.cells != null)
-                for (HudTableCell cell : row.cells) {
-                    HudNode found = cell != null ? find(cell.content, nodeId) : null;
-                    if (found != null) return found;
-                }
+            for (HudTableRow row : node.table.rows)
+                if (row != null && row.cells != null)
+                    for (HudTableCell cell : row.cells) {
+                        HudNode found = cell != null ? find(cell.content, nodeId) : null;
+                        if (found != null) return found;
+                    }
         }
         return null;
     }
@@ -744,17 +814,18 @@ public final class HudLayoutAuthoring {
             if (nestedParentId != null) return nestedParentId;
         }
         if (isTabular(parent.kind) && parent.table != null && parent.table.rows != null) {
-            for (HudTableRow row : parent.table.rows) if (row != null && row.cells != null)
-                for (HudTableCell cell : row.cells) {
-                    if (cell == null || cell.content == null) continue;
-                    if (nodeId.equals(cell.content.id)) {
-                        collectIds(cell.content, removed);
-                        cell.content = null;
-                        return parent.id;
+            for (HudTableRow row : parent.table.rows)
+                if (row != null && row.cells != null)
+                    for (HudTableCell cell : row.cells) {
+                        if (cell == null || cell.content == null) continue;
+                        if (nodeId.equals(cell.content.id)) {
+                            collectIds(cell.content, removed);
+                            cell.content = null;
+                            return parent.id;
+                        }
+                        String nestedParentId = removeChild(cell.content, nodeId, removed);
+                        if (nestedParentId != null) return nestedParentId;
                     }
-                    String nestedParentId = removeChild(cell.content, nodeId, removed);
-                    if (nestedParentId != null) return nestedParentId;
-                }
         }
         return null;
     }
@@ -773,8 +844,9 @@ public final class HudLayoutAuthoring {
             }
         }
         if (isTabular(node.kind) && node.table != null && node.table.rows != null) {
-            for (HudTableRow row : node.table.rows) if (row != null && row.cells != null)
-                for (HudTableCell cell : row.cells) if (cell != null) removeWindowActionsTo(cell.content, removed);
+            for (HudTableRow row : node.table.rows)
+                if (row != null && row.cells != null)
+                    for (HudTableCell cell : row.cells) if (cell != null) removeWindowActionsTo(cell.content, removed);
         }
     }
 
@@ -791,13 +863,14 @@ public final class HudLayoutAuthoring {
             if (nestedParentId != null) return nestedParentId;
         }
         if (isTabular(parent.kind) && parent.table != null && parent.table.rows != null) {
-            for (HudTableRow row : parent.table.rows) if (row != null && row.cells != null)
-                for (HudTableCell cell : row.cells) {
-                    if (cell == null || cell.content == null) continue;
-                    if (nodeId.equals(cell.content.id)) return parent.id;
-                    String nestedParentId = parentId(cell.content, nodeId);
-                    if (nestedParentId != null) return nestedParentId;
-                }
+            for (HudTableRow row : parent.table.rows)
+                if (row != null && row.cells != null)
+                    for (HudTableCell cell : row.cells) {
+                        if (cell == null || cell.content == null) continue;
+                        if (nodeId.equals(cell.content.id)) return parent.id;
+                        String nestedParentId = parentId(cell.content, nodeId);
+                        if (nestedParentId != null) return nestedParentId;
+                    }
         }
         return null;
     }
@@ -823,7 +896,9 @@ public final class HudLayoutAuthoring {
         throw new IllegalStateException("No available HUD node ID for " + prefix + ".");
     }
 
-    /** Creates a new HUD with a viewport-sized root Table and one editable cell. */
+    /**
+     * Creates a new HUD with a viewport-sized root Table and one editable cell.
+     */
     public static HudDocumentV1 newScreenDocument() {
         HudNode root = new HudNode("root", HudNodeKind.TABLE);
         root.table = newTableLayout(root, 1, 1, false);
@@ -833,9 +908,11 @@ public final class HudLayoutAuthoring {
         return new HudDocumentV1(root);
     }
 
-    /** Creates the complete first-version explicit grid without publishing any document mutation. */
+    /**
+     * Creates the complete first-version explicit grid without publishing any document mutation.
+     */
     public static HudTableLayout newTableLayout(HudNode root, int rows, int columns,
-                                                 boolean applyCreationMinimums) {
+                                                boolean applyCreationMinimums) {
         if (rows < 1 || columns < 1) throw new IllegalArgumentException("Table dimensions must be positive.");
         HudTableLayout layout = new HudTableLayout();
         layout.columns = columns;
@@ -882,26 +959,29 @@ public final class HudLayoutAuthoring {
             if (child != null) collectIds(child.node, ids);
         }
         if (isTabular(node.kind) && node.table != null && node.table.rows != null) {
-            for (HudTableRow row : node.table.rows) if (row != null && row.cells != null)
-                for (HudTableCell cell : row.cells) if (cell != null) collectIds(cell.content, ids);
+            for (HudTableRow row : node.table.rows)
+                if (row != null && row.cells != null)
+                    for (HudTableCell cell : row.cells) if (cell != null) collectIds(cell.content, ids);
         }
     }
 
     private static HudTableCell containingCell(HudNode node, String nodeId) {
         if (node == null || nodeId == null) return null;
         if (isTabular(node.kind) && node.table != null && node.table.rows != null) {
-            for (HudTableRow row : node.table.rows) if (row != null && row.cells != null)
-                for (HudTableCell cell : row.cells) {
-                    if (cell == null) continue;
-                    if (cell.content != null && nodeId.equals(cell.content.id)) return cell;
-                    HudTableCell nested = containingCell(cell.content, nodeId);
-                    if (nested != null) return nested;
-                }
+            for (HudTableRow row : node.table.rows)
+                if (row != null && row.cells != null)
+                    for (HudTableCell cell : row.cells) {
+                        if (cell == null) continue;
+                        if (cell.content != null && nodeId.equals(cell.content.id)) return cell;
+                        HudTableCell nested = containingCell(cell.content, nodeId);
+                        if (nested != null) return nested;
+                    }
         }
-        if (node.children != null) for (HudChild child : node.children) if (child != null) {
-            HudTableCell nested = containingCell(child.node, nodeId);
-            if (nested != null) return nested;
-        }
+        if (node.children != null) for (HudChild child : node.children)
+            if (child != null) {
+                HudTableCell nested = containingCell(child.node, nodeId);
+                if (nested != null) return nested;
+            }
         return null;
     }
 
@@ -914,28 +994,31 @@ public final class HudLayoutAuthoring {
                 HudTableCell nested = cell(candidate.content, cellId);
                 if (nested != null) return nested;
             }
-        if (node.children != null) for (HudChild child : node.children) if (child != null) {
-            HudTableCell nested = cell(child.node, cellId);
-            if (nested != null) return nested;
-        }
+        if (node.children != null) for (HudChild child : node.children)
+            if (child != null) {
+                HudTableCell nested = cell(child.node, cellId);
+                if (nested != null) return nested;
+            }
         return null;
     }
 
     private static HudNode tableOwner(HudNode node, String cellId) {
         if (node == null || cellId == null) return null;
         if (isTabular(node.kind) && node.table != null && node.table.rows != null) {
-            for (HudTableRow row : node.table.rows) if (row != null && row.cells != null)
-                for (HudTableCell candidate : row.cells) {
-                    if (candidate == null) continue;
-                    if (cellId.equals(candidate.id)) return node;
-                    HudNode nested = tableOwner(candidate.content, cellId);
-                    if (nested != null) return nested;
-                }
+            for (HudTableRow row : node.table.rows)
+                if (row != null && row.cells != null)
+                    for (HudTableCell candidate : row.cells) {
+                        if (candidate == null) continue;
+                        if (cellId.equals(candidate.id)) return node;
+                        HudNode nested = tableOwner(candidate.content, cellId);
+                        if (nested != null) return nested;
+                    }
         }
-        if (node.children != null) for (HudChild child : node.children) if (child != null) {
-            HudNode nested = tableOwner(child.node, cellId);
-            if (nested != null) return nested;
-        }
+        if (node.children != null) for (HudChild child : node.children)
+            if (child != null) {
+                HudNode nested = tableOwner(child.node, cellId);
+                if (nested != null) return nested;
+            }
         return null;
     }
 

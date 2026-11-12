@@ -26,14 +26,18 @@ import java.util.stream.Stream;
 import static org.junit.Assert.*;
 
 public class SceneHudDependencyCollectorTest {
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
 
-    @BeforeClass public static void bootGdx() {
-        if (Gdx.files == null) new HeadlessApplication(new ApplicationAdapter() {},
+    @BeforeClass
+    public static void bootGdx() {
+        if (Gdx.files == null) new HeadlessApplication(new ApplicationAdapter() {
+        },
                 new HeadlessApplicationConfiguration());
     }
 
-    @Test public void emptyAndDuplicateRootsProduceAnEmptyOrStableSelectedClosure() throws Exception {
+    @Test
+    public void emptyAndDuplicateRootsProduceAnEmptyOrStableSelectedClosure() throws Exception {
         FileHandle root = root();
         AssetMetaDatabase database = new AssetMetaDatabase();
         SceneHudDependencyCollector collector = new SceneHudDependencyCollector();
@@ -47,7 +51,8 @@ public class SceneHudDependencyCollectorTest {
         assertEquals(1, closure.selectedHudScreens().size());
     }
 
-    @Test public void selectedSavedRootsRemainOrderedAndExcludeUnrelatedSavedAndOpenScreens() throws Exception {
+    @Test
+    public void selectedSavedRootsRemainOrderedAndExcludeUnrelatedSavedAndOpenScreens() throws Exception {
         FileHandle root = root();
         AssetMetaDatabase database = new AssetMetaDatabase();
         String selected = registerImage(root, database, "selected");
@@ -67,7 +72,8 @@ public class SceneHudDependencyCollectorTest {
                 .map(SceneHudDependencyClosure.ImageDependency::resourceName).toList());
     }
 
-    @Test public void selectedOpenSnapshotOverridesSavedStateWithoutLeakingOtherSnapshots() throws Exception {
+    @Test
+    public void selectedOpenSnapshotOverridesSavedStateWithoutLeakingOtherSnapshots() throws Exception {
         FileHandle root = root();
         AssetMetaDatabase database = new AssetMetaDatabase();
         String saved = registerImage(root, database, "saved");
@@ -85,7 +91,8 @@ public class SceneHudDependencyCollectorTest {
                 .map(SceneHudDependencyClosure.ImageDependency::resourceName).toList());
     }
 
-    @Test public void regionImagesResolveStableAssetIdentityAndDeduplicateAcrossNodesAndRoots() throws Exception {
+    @Test
+    public void regionImagesResolveStableAssetIdentityAndDeduplicateAcrossNodesAndRoots() throws Exception {
         FileHandle root = root();
         AssetMetaDatabase database = new AssetMetaDatabase();
         String shared = registerImage(root, database, "shared");
@@ -104,7 +111,8 @@ public class SceneHudDependencyCollectorTest {
         assertEquals(meta.sourceRelPath(), dependency.sourceRelPath());
     }
 
-    @Test public void imageButtonCollectsEveryConfiguredRegionState() throws Exception {
+    @Test
+    public void imageButtonCollectsEveryConfiguredRegionState() throws Exception {
         FileHandle root = root();
         AssetMetaDatabase database = new AssetMetaDatabase();
         String up = registerImage(root, database, "up");
@@ -126,7 +134,8 @@ public class SceneHudDependencyCollectorTest {
                 .map(SceneHudDependencyClosure.ImageDependency::resourceName).toList());
     }
 
-    @Test public void missingRegionMetadataOrSourceFailsWithTheSelectedRootAndNode() throws Exception {
+    @Test
+    public void missingRegionMetadataOrSourceFailsWithTheSelectedRootAndNode() throws Exception {
         FileHandle root = root();
         AssetMetaDatabase database = new AssetMetaDatabase();
         save(root, "hud/main", new HudScreenAsset(), regionDocument("missing__a99"));
@@ -145,7 +154,8 @@ public class SceneHudDependencyCollectorTest {
         }
     }
 
-    @Test public void drawableLabelAndTextButtonRequireAndShareOneSkinClosure() throws Exception {
+    @Test
+    public void drawableLabelAndTextButtonRequireAndShareOneSkinClosure() throws Exception {
         FileHandle root = root();
         AssetMetaDatabase database = new AssetMetaDatabase();
         createSkin(root, "skins/game.json", true, true);
@@ -173,7 +183,8 @@ public class SceneHudDependencyCollectorTest {
                         .map(file -> file.kind() + ":" + file.projectRelativePath()).toList());
     }
 
-    @Test public void builtInLabelRequiresSceneAtlasButNoUserSkin() throws Exception {
+    @Test
+    public void builtInLabelRequiresSceneAtlasButNoUserSkin() throws Exception {
         FileHandle root = root();
         AssetMetaDatabase database = new AssetMetaDatabase();
         save(root, "hud/default-label", new HudScreenAsset(), builtInLabelDocument());
@@ -189,7 +200,8 @@ public class SceneHudDependencyCollectorTest {
         assertTrue(closure.skinDependencies().isEmpty());
     }
 
-    @Test public void builtInTextButtonRequiresPackedDefaultsButNoUserSkin() throws Exception {
+    @Test
+    public void builtInTextButtonRequiresPackedDefaultsButNoUserSkin() throws Exception {
         FileHandle root = root();
         HudDocumentV1 document = buttonDocument();
         document.root.children.get(0).node.textButton.styleName = null;
@@ -206,7 +218,8 @@ public class SceneHudDependencyCollectorTest {
         assertTrue(closure.skinDependencies().isEmpty());
     }
 
-    @Test public void builtInTextFieldRequiresPackedFontAndGraphicsButNoUserSkin() throws Exception {
+    @Test
+    public void builtInTextFieldRequiresPackedFontAndGraphicsButNoUserSkin() throws Exception {
         FileHandle root = root();
         HudNode field = new HudNode("field", HudNodeKind.TEXT_FIELD);
         field.textField = new HudTextFieldData();
@@ -223,7 +236,8 @@ public class SceneHudDependencyCollectorTest {
         assertTrue(closure.skinDependencies().isEmpty());
     }
 
-    @Test public void builtInSliderRequiresAtlasButNoSkinOrFontDependency() throws Exception {
+    @Test
+    public void builtInSliderRequiresAtlasButNoSkinOrFontDependency() throws Exception {
         FileHandle root = root();
         HudNode slider = new HudNode("slider", HudNodeKind.SLIDER);
         slider.slider = new HudSliderData();
@@ -241,7 +255,8 @@ public class SceneHudDependencyCollectorTest {
         assertTrue(closure.fontDependencies().isEmpty());
     }
 
-    @Test public void missingSkinFontOrFontPageFailsPreciselyForTheOwningRoot() throws Exception {
+    @Test
+    public void missingSkinFontOrFontPageFailsPreciselyForTheOwningRoot() throws Exception {
         FileHandle root = root();
         AssetMetaDatabase database = new AssetMetaDatabase();
         save(root, "hud/no-skin", new HudScreenAsset(), labelDocument());
@@ -257,7 +272,8 @@ public class SceneHudDependencyCollectorTest {
                 "BitmapFont 'default' descriptor 'hud.fnt' page 'hud.png' is missing", "hud/missing-page");
     }
 
-    @Test public void singlePageAtlasBackedFontNeedsNoFallbackPageFileAndRetainsSkinAtlasFiles()
+    @Test
+    public void singlePageAtlasBackedFontNeedsNoFallbackPageFileAndRetainsSkinAtlasFiles()
             throws Exception {
         FileHandle root = root();
         AssetMetaDatabase database = new AssetMetaDatabase();
@@ -279,7 +295,8 @@ public class SceneHudDependencyCollectorTest {
         assertEquals(null, Gdx.gl);
     }
 
-    @Test public void shippedStyleDescriptorPageCanBeAbsentWhenAtlasProvidesDescriptorStem()
+    @Test
+    public void shippedStyleDescriptorPageCanBeAbsentWhenAtlasProvidesDescriptorStem()
             throws Exception {
         FileHandle root = root();
         AssetMetaDatabase database = new AssetMetaDatabase();
@@ -297,7 +314,8 @@ public class SceneHudDependencyCollectorTest {
                 .anyMatch(file -> file.projectRelativePath().endsWith("default.png")));
     }
 
-    @Test public void fontWithoutAtlasRegionFallsBackToEveryFntPageFile() throws Exception {
+    @Test
+    public void fontWithoutAtlasRegionFallsBackToEveryFntPageFile() throws Exception {
         FileHandle root = root();
         AssetMetaDatabase database = new AssetMetaDatabase();
         writeSkin(root, "skins/game.json", "hud.fnt");
@@ -314,7 +332,8 @@ public class SceneHudDependencyCollectorTest {
                         && file.projectRelativePath().equals("skins/hud.png")));
     }
 
-    @Test public void completeIndexedAtlasFontResolvesMultipageDescriptorWithoutPageFiles()
+    @Test
+    public void completeIndexedAtlasFontResolvesMultipageDescriptorWithoutPageFiles()
             throws Exception {
         FileHandle root = root();
         AssetMetaDatabase database = new AssetMetaDatabase();
@@ -330,7 +349,8 @@ public class SceneHudDependencyCollectorTest {
                 .anyMatch(file -> file.kind() == SceneHudDependencyClosure.FileKind.BITMAP_FONT_PAGE));
     }
 
-    @Test public void incompleteIndexedAtlasFontFailsInsteadOfMixingFallbackPages() throws Exception {
+    @Test
+    public void incompleteIndexedAtlasFontFailsInsteadOfMixingFallbackPages() throws Exception {
         FileHandle root = root();
         AssetMetaDatabase database = new AssetMetaDatabase();
         writeSkin(root, "skins/game.json", "multi.fnt");
@@ -343,7 +363,8 @@ public class SceneHudDependencyCollectorTest {
         assertRootFailure(root, database, "incomplete indexed regions", "hud/main");
     }
 
-    @Test public void atlasRegionsWithoutTheZeroIndexUseTheFntPageFallback() throws Exception {
+    @Test
+    public void atlasRegionsWithoutTheZeroIndexUseTheFntPageFallback() throws Exception {
         FileHandle root = root();
         AssetMetaDatabase database = new AssetMetaDatabase();
         writeSkin(root, "skins/game.json", "multi.fnt");
@@ -362,7 +383,8 @@ public class SceneHudDependencyCollectorTest {
                         .map(SceneHudDependencyClosure.FileDependency::projectRelativePath).toList());
     }
 
-    @Test public void malformedFontDescriptorReportsItsOwningRootAndDescriptor() throws Exception {
+    @Test
+    public void malformedFontDescriptorReportsItsOwningRootAndDescriptor() throws Exception {
         FileHandle root = root();
         AssetMetaDatabase database = new AssetMetaDatabase();
         writeSkin(root, "skins/game.json", "hud.fnt");
@@ -372,7 +394,8 @@ public class SceneHudDependencyCollectorTest {
         assertRootFailure(root, database, "descriptor 'hud.fnt' is malformed", "hud/main");
     }
 
-    @Test public void malformedSkinAtlasReportsItsOwningRootAndAtlas() throws Exception {
+    @Test
+    public void malformedSkinAtlasReportsItsOwningRootAndAtlas() throws Exception {
         FileHandle root = root();
         AssetMetaDatabase database = new AssetMetaDatabase();
         writeSkin(root, "skins/game.json", "hud.fnt");
@@ -383,7 +406,8 @@ public class SceneHudDependencyCollectorTest {
         assertRootFailure(root, database, "Skin atlas 'game.atlas' is malformed", "hud/main");
     }
 
-    @Test public void collectionIsReadOnlyAndReturnsDefensiveSelectedScreenSnapshots() throws Exception {
+    @Test
+    public void collectionIsReadOnlyAndReturnsDefensiveSelectedScreenSnapshots() throws Exception {
         FileHandle root = root();
         AssetMetaDatabase database = new AssetMetaDatabase();
         String region = registerImage(root, database, "icon");
@@ -406,7 +430,8 @@ public class SceneHudDependencyCollectorTest {
         assertNotSame(returnedDocument, closure.selectedHudScreens().get(0).document());
     }
 
-    @Test public void sceneOpenSnapshotIsAStableCopyForScenePreparation() {
+    @Test
+    public void sceneOpenSnapshotIsAStableCopyForScenePreparation() {
         HudScreenAsset asset = assetFor("hud/main");
         HudScreenEditorDocument editor = new HudScreenEditorDocument("hud/main", "Main", asset, group());
         SceneHudScreenSnapshot snapshot = SceneHudScreenSnapshot.snapshotOpen(List.of(editor)).get(0);
@@ -417,7 +442,8 @@ public class SceneHudDependencyCollectorTest {
         assertEquals("hud/main", snapshot.screenId());
     }
 
-    @Test public void changedOpenSkinAssociationCollectsOnlyTheCurrentSkin() throws Exception {
+    @Test
+    public void changedOpenSkinAssociationCollectsOnlyTheCurrentSkin() throws Exception {
         FileHandle root = root();
         root.child("orig/skins/1/first.json").writeString("{}", false, "UTF-8");
         root.child("orig/skins/2/second.json").writeString("{}", false, "UTF-8");
@@ -564,13 +590,13 @@ public class SceneHudDependencyCollectorTest {
                 """);
         for (int i = 0; i < nameIndexPairs.length; i += 2) {
             text.append(nameIndexPairs[i]).append("""
-
-                  rotate: false
-                  xy: 0, 0
-                  size: 1, 1
-                  orig: 1, 1
-                  offset: 0, 0
-                  index: """).append(nameIndexPairs[i + 1]).append('\n');
+                    
+                    rotate: false
+                    xy: 0, 0
+                    size: 1, 1
+                    orig: 1, 1
+                    offset: 0, 0
+                    index: """).append(nameIndexPairs[i + 1]).append('\n');
         }
         atlas.writeString(text.toString(), false, "UTF-8");
         atlas.sibling("game.png").writeString("page", false, "UTF-8");

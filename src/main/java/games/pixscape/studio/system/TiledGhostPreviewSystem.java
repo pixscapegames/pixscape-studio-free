@@ -160,11 +160,11 @@ public final class TiledGhostPreviewSystem extends BaseSystem implements Profile
                 ghostVisible
                         ? Color.toFloatBits(1f, 1f, 1f, alpha)
                         : Color.toFloatBits(
-                                previewService.tintR(),
-                                previewService.tintG(),
-                                previewService.tintB(),
-                                previewService.tintA()
-                        )
+                        previewService.tintR(),
+                        previewService.tintG(),
+                        previewService.tintB(),
+                        previewService.tintA()
+                )
         );
 
         SpriteBatch batch = ctx.batch;

@@ -31,7 +31,9 @@ public final class FolderTreeBuilder {
         return rootNode;
     }
 
-    /** Adds a logical Asset root even before its physical import directory exists. */
+    /**
+     * Adds a logical Asset root even before its physical import directory exists.
+     */
     public static VisTree.Node buildFoldersIncludingEmptyRoot(
             VisTree tree,
             FileHandle rootDir,

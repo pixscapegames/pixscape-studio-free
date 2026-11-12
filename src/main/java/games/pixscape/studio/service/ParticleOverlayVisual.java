@@ -6,7 +6,9 @@ import com.kotcrab.vis.ui.VisUI;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.studio.helper.StudioDrawContext;
 
-/** Temporary shared Item Tree/viewport visual for particle emitters. */
+/**
+ * Temporary shared Item Tree/viewport visual for particle emitters.
+ */
 public final class ParticleOverlayVisual {
     public static final float MARKER_SIZE_PX = 24f;
 

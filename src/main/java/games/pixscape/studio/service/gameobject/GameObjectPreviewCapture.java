@@ -35,23 +35,33 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.system.StudioRenderSubmitSystem;
 
-/** One saved-asset capture through the editor's normal hierarchy/geometry/sort/submit pipeline.
+/**
+ * One saved-asset capture through the editor's normal hierarchy/geometry/sort/submit pipeline.
  * The temporary World never attaches to the canvas and has no input, UI, scripts or simulation.
  * Only the framebuffer survives capture; source textures remain borrowed from Studio's caches.
  * Capture resolution is bounded to 1024 pixels per side. The existing standalone material pass
- * is used, as in an unpacked GameObject editor: no lighting, normal maps or atlas-only shaders. */
+ * is used, as in an unpacked GameObject editor: no lighting, normal maps or atlas-only shaders.
+ */
 public final class GameObjectPreviewCapture implements Disposable {
     private static final int MAX_CAPTURE_SIZE = 1024;
     private FrameBuffer framebuffer;
     private TextureRegion region;
     private float width, height;
 
-    public TextureRegion region() { return region; }
-    public float width() { return width; }
-    public float height() { return height; }
+    public TextureRegion region() {
+        return region;
+    }
+
+    public float width() {
+        return width;
+    }
+
+    public float height() {
+        return height;
+    }
 
     public static GameObjectPreviewCapture capture(GameObjectAsset asset, FileHandle project,
-            AssetMetaDatabase database, AtlasRuntimeService atlases, StudioAssetVisualResolver visuals) {
+                                                   AssetMetaDatabase database, AtlasRuntimeService atlases, StudioAssetVisualResolver visuals) {
         GameObjectPreviewCapture result = new GameObjectPreviewCapture();
         CaptureState state = new CaptureState();
         World world = null;
@@ -62,12 +72,14 @@ public final class GameObjectPreviewCapture implements Disposable {
             batch = factory.batch;
             var camera = new OrthographicCamera(1, 1);
             var dynamic = new DynamicEntityRenderState();
-            var layers = new LayerStateSOA(); layers.setCapacity(1);
+            var layers = new LayerStateSOA();
+            layers.setCapacity(1);
             var queue = new FrameRenderQueue(false);
             var tiled = new TiledMapRenderState();
             var stats = new RenderStats();
             var settings = new SceneMeta();
-            settings.lightingEnabled = false; settings.physicsEnabled = false;
+            settings.lightingEnabled = false;
+            settings.physicsEnabled = false;
             var submit = new StudioRenderSubmitSystem(layers, queue, camera, batch, stats, new RenderStatsSink(.5f))
                     .setSceneSettings(settings).setRenderDomains(dynamic, tiled);
             world = WorldConfigFactory.buildWorld(camera, dynamic, layers, new DrawList(), queue,
@@ -100,8 +112,10 @@ public final class GameObjectPreviewCapture implements Disposable {
             int pixelWidth = Math.min(MAX_CAPTURE_SIZE, Math.max(1, (int) Math.ceil(result.width * scale)));
             int pixelHeight = Math.min(MAX_CAPTURE_SIZE, Math.max(1, (int) Math.ceil(result.height * scale)));
             // Keep capture pixels square, including rounding at the framebuffer boundary.
-            result.width = pixelWidth / scale; result.height = pixelHeight / scale;
-            camera.viewportWidth = result.width; camera.viewportHeight = result.height;
+            result.width = pixelWidth / scale;
+            result.height = pixelHeight / scale;
+            camera.viewportWidth = result.width;
+            camera.viewportHeight = result.height;
             camera.position.set(minX + (maxX - minX) / 2, minY + (maxY - minY) / 2, 0);
             camera.update();
             result.framebuffer = new FrameBuffer(Pixmap.Format.RGBA8888, pixelWidth, pixelHeight, false);
@@ -110,7 +124,11 @@ public final class GameObjectPreviewCapture implements Disposable {
             Gdx.gl.glClearColor(.12f, .13f, .15f, 1);
             Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
             submit.beginFrameSubmission();
-            try { world.process(); } finally { submit.endFrameSubmission(); }
+            try {
+                world.process();
+            } finally {
+                submit.endFrameSubmission();
+            }
             result.framebuffer.getColorBufferTexture().setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
             result.region = new TextureRegion(result.framebuffer.getColorBufferTexture());
             result.region.flip(false, true);
@@ -123,16 +141,20 @@ public final class GameObjectPreviewCapture implements Disposable {
                 try {
                     identities.bind(null, null);
                     if (world != null) world.dispose();
-                } finally { if (batch != null) batch.close(); }
+                } finally {
+                    if (batch != null) batch.close();
+                }
             } catch (RuntimeException | Error failure) {
                 result.dispose();
                 throw failure;
-            } finally { state.restore(); }
+            } finally {
+                state.restore();
+            }
         }
     }
 
     private static int materialize(GameObjectAsset asset, FileHandle project, AssetMetaDatabase database,
-            StudioAssetVisualResolver visuals, World world, IdentityRegistry identities) {
+                                   StudioAssetVisualResolver visuals, World world, IdentityRegistry identities) {
         IntIntMap stableIds = new IntIntMap();
         for (var data : asset.entities) stableIds.put(data.sourceEntityId, identities.allocateStableId());
         var mapper = new GameObjectEntityDataMapper();
@@ -173,7 +195,8 @@ public final class GameObjectPreviewCapture implements Disposable {
             var region = world.getMapper(TextureRegionComponent.class).create(entity);
             RenderRebindHelper.applyVisual(region, world.getMapper(RenderMaterialComponent.class).create(entity),
                     visual, data.assetRef.atlasTag);
-            if (clip != null) StudioAnimationPreviewRefresher.applyFrame(world, entity, clip, visual, null, data.assetRef.atlasTag);
+            if (clip != null)
+                StudioAnimationPreviewRefresher.applyFrame(world, entity, clip, visual, null, data.assetRef.atlasTag);
         }
         return root;
     }
@@ -184,13 +207,16 @@ public final class GameObjectPreviewCapture implements Disposable {
         pixels.dispose();
     }
 
-    @Override public void dispose() {
+    @Override
+    public void dispose() {
         region = null;
         if (framebuffer != null) framebuffer.dispose();
         framebuffer = null;
     }
 
-    /** Captures run outside Scene2D drawing, but may be nested in the canvas refresh boundary. */
+    /**
+     * Captures run outside Scene2D drawing, but may be nested in the canvas refresh boundary.
+     */
     private static final class CaptureState {
         private final java.nio.IntBuffer integers = BufferUtils.newIntBuffer(4);
         private final java.nio.FloatBuffer clear = BufferUtils.newFloatBuffer(4);
@@ -209,31 +235,44 @@ public final class GameObjectPreviewCapture implements Disposable {
 
         CaptureState() {
             Gdx.gl.glGetFloatv(GL20.GL_COLOR_CLEAR_VALUE, clear);
-            Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0); texture0 = read(GL20.GL_TEXTURE_BINDING_2D);
+            Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
+            texture0 = read(GL20.GL_TEXTURE_BINDING_2D);
             Gdx.gl.glActiveTexture(activeTexture);
             pass.begin();
             Gdx.gl.glColorMask(true, true, true, true);
         }
-        int read(int name) { integers.clear(); Gdx.gl.glGetIntegerv(name, integers); return integers.get(0); }
+
+        int read(int name) {
+            integers.clear();
+            Gdx.gl.glGetIntegerv(name, integers);
+            return integers.get(0);
+        }
+
         int[] viewport() {
             return readFour(GL20.GL_VIEWPORT);
         }
+
         int[] readFour(int name) {
-            integers.clear(); Gdx.gl.glGetIntegerv(name, integers);
+            integers.clear();
+            Gdx.gl.glGetIntegerv(name, integers);
             return new int[]{integers.get(0), integers.get(1), integers.get(2), integers.get(3)};
         }
+
         void restore() {
             Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER, framebuffer);
             Gdx.gl.glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
-            if (scissor) Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST); else Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
+            if (scissor) Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST);
+            else Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
             Gdx.gl.glClearColor(clear.get(0), clear.get(1), clear.get(2), clear.get(3));
             Gdx.gl.glColorMask(colorMask[0] != 0, colorMask[1] != 0, colorMask[2] != 0, colorMask[3] != 0);
             Gdx.gl.glUseProgram(program);
             Gdx.gl30.glBindVertexArray(vertexArray);
             Gdx.gl.glBindBuffer(GL20.GL_ARRAY_BUFFER, arrayBuffer);
             Gdx.gl.glBindBuffer(GL20.GL_ELEMENT_ARRAY_BUFFER, elementBuffer);
-            Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0); Gdx.gl.glBindTexture(GL20.GL_TEXTURE_2D, texture0);
-            Gdx.gl.glActiveTexture(activeTexture); Gdx.gl.glBindTexture(GL20.GL_TEXTURE_2D, texture);
+            Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
+            Gdx.gl.glBindTexture(GL20.GL_TEXTURE_2D, texture0);
+            Gdx.gl.glActiveTexture(activeTexture);
+            Gdx.gl.glBindTexture(GL20.GL_TEXTURE_2D, texture);
             pass.end();
         }
     }

@@ -11,7 +11,9 @@ import games.pixscape.studio.service.LayerService;
 
 import java.util.function.IntConsumer;
 
-/** Creates one independently authored Tiled Map inside an ordinary Pixscape layer. */
+/**
+ * Creates one independently authored Tiled Map inside an ordinary Pixscape layer.
+ */
 public final class AddTiledMapCommand implements Command {
     private final LayerService layerService;
     private final HistoryIdRegistry historyIds;
@@ -44,7 +46,10 @@ public final class AddTiledMapCommand implements Command {
                         tileWidth, tileHeight, chunkSize);
     }
 
-    @Override public String label() { return "Add Tiled Map"; }
+    @Override
+    public String label() {
+        return "Add Tiled Map";
+    }
 
     @Override
     public void redo() {

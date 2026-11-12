@@ -16,17 +16,21 @@ import games.pixscape.studio.io.StudioFs;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+
 import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+
 import static org.junit.Assert.*;
 
 public class TilePropertiesPipelineTest {
-    @Rule public TemporaryFolder temp = new TemporaryFolder();
+    @Rule
+    public TemporaryFolder temp = new TemporaryFolder();
 
-    @Test public void importEditUndoSaveReopenExportAndRuntimePreserveTypesAndSparseIds() throws Exception {
+    @Test
+    public void importEditUndoSaveReopenExportAndRuntimePreserveTypesAndSparseIds() throws Exception {
         com.badlogic.gdx.utils.GdxNativesLoader.load();
         FileHandle source = new FileHandle(temp.newFolder("source"));
         FileHandle studio = new FileHandle(temp.newFolder("studio"));
@@ -97,14 +101,20 @@ public class TilePropertiesPipelineTest {
         history.execute(new EditTilePropertiesCommand(db, tileId, added, () -> assets, ignored -> publications.incrementAndGet()));
         PropertySet modified = added.copy().putInt("cost", 9);
         history.execute(new EditTilePropertiesCommand(db, tileId, modified, () -> assets, ignored -> publications.incrementAndGet()));
-        PropertySet removed = modified.copy(); removed.remove("label");
+        PropertySet removed = modified.copy();
+        removed.remove("label");
         history.execute(new EditTilePropertiesCommand(db, tileId, removed, () -> assets, ignored -> publications.incrementAndGet()));
         assertFalse(tile.properties.contains("label"));
-        history.undo(); assertEquals("Water", tile.properties.getString("label", ""));
-        history.undo(); assertEquals(3, tile.properties.getInt("cost", 0));
-        history.undo(); assertFalse(tile.properties.contains("added"));
+        history.undo();
+        assertEquals("Water", tile.properties.getString("label", ""));
+        history.undo();
+        assertEquals(3, tile.properties.getInt("cost", 0));
+        history.undo();
+        assertFalse(tile.properties.contains("added"));
         assertImported(tile.properties);
-        history.redo(); history.redo(); history.redo();
+        history.redo();
+        history.redo();
+        history.redo();
         assertEquals(9, publications.get());
         AssetMetaDatabase reopened = AssetMetaDatabase.load(assets);
         TileAssetMeta saved = (TileAssetMeta) reopened.findById(tileId);
@@ -116,8 +126,10 @@ public class TilePropertiesPipelineTest {
         assertEquals("Other", ((TileAssetMeta) reopened.findById(second.localTileAssetIds().get(7))).properties.getString("label", ""));
 
         ProjectConfig config = new ProjectConfig();
-        config.projectTitle = "Tile properties"; config.projectFileName = "properties";
-        config.exportRootPathDir = destination.path(); config.createSceneMeta("Main");
+        config.projectTitle = "Tile properties";
+        config.projectFileName = "properties";
+        config.exportRootPathDir = destination.path();
+        config.createSceneMeta("Main");
         studio.child(StudioFs.DIR_SCENES).child(config.getCurrentSceneMeta().getFile()).writeString("{}", false);
         // Only the animation is explicitly reachable: its base definition must travel with it.
         config.getCurrentSceneMeta().runtimeAvailability.tiledAnimationIds.add(animationId);

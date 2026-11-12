@@ -14,7 +14,7 @@ public final class StudioSpriteBatch extends SpriteBatch {
             uniform mat4 u_projTrans;
             out vec4 v_color;
             out vec2 v_texCoords;
-
+            
             void main() {
                 v_color = a_color;
                 v_color.a = v_color.a * (255.0 / 254.0);
@@ -29,7 +29,7 @@ public final class StudioSpriteBatch extends SpriteBatch {
             in vec2 v_texCoords;
             uniform sampler2D u_texture;
             out vec4 fragColor;
-
+            
             void main() {
                 fragColor = v_color * texture(u_texture, v_texCoords);
             }

@@ -83,7 +83,8 @@ public final class LayerService {
         return world;
     }
 
-    /** Current authored ownership for UI actions/commands, O(ancestry depth), never a scene scan.
+    /**
+     * Current authored ownership for UI actions/commands, O(ancestry depth), never a scene scan.
      * -1 explicitly means unavailable (including a broken hierarchy), not the child's stored index.
      */
     public int getEffectiveLayerIndex(int entityId) {
@@ -98,7 +99,9 @@ public final class LayerService {
         return getLayerEntity(getEffectiveLayerIndex(entityId));
     }
 
-    /** O(1) ownership for picking/render readers of the last ECS publication. No topology refresh. */
+    /**
+     * O(1) ownership for picking/render readers of the last ECS publication. No topology refresh.
+     */
     public int getPublishedEffectiveLayerIndex(int entityId) {
         return CurrentGameObjectRelations.publishedLayerIndex(world, entityId);
     }
@@ -153,7 +156,9 @@ public final class LayerService {
         return tiledAllocatorService;
     }
 
-    /** Materializes one map as normal content of an existing Pixscape layer. */
+    /**
+     * Materializes one map as normal content of an existing Pixscape layer.
+     */
     public int insertTiledMap(TiledMapInitializer initializer, long historyId) {
         Objects.requireNonNull(initializer, "initializer");
         int mapEntityId = world.create();
@@ -211,12 +216,16 @@ public final class LayerService {
         return li != null ? li.layerIndex : 0;
     }
 
-    /** Returns whether the entity is a real Pixscape Layer. */
+    /**
+     * Returns whether the entity is a real Pixscape Layer.
+     */
     public boolean isLayerEntity(int layerEntityId) {
         return mL.getSafe(layerEntityId, null) != null;
     }
 
-    /** Returns whether another ordinary layer already owns the Spatial actor slot. */
+    /**
+     * Returns whether another ordinary layer already owns the Spatial actor slot.
+     */
     public boolean hasOtherSpatialActorLayer(int currentLayerEntityId) {
         rebuildIfDirty();
         for (int i = 0; i < layerEntities.size; i++) {
@@ -323,7 +332,9 @@ public final class LayerService {
         return snapshotLayer(index, null);
     }
 
-    /** Cold command preparation; current identities include creations before ECS publication. */
+    /**
+     * Cold command preparation; current identities include creations before ECS publication.
+     */
     public LayerSnapshot snapshotLayer(int index, IntConsumer onRestoredEntity) {
         int layerEntity = getLayerEntity(index);
         if (layerEntity < 0) throw new IllegalArgumentException("Layer deletion requires an existing scene layer.");
@@ -352,7 +363,9 @@ public final class LayerService {
         removeLayerSnapshot(snapshotLayer(index));
     }
 
-    /** Applies exactly the prepared set, including dependent joints, without recapturing on redo. */
+    /**
+     * Applies exactly the prepared set, including dependent joints, without recapturing on redo.
+     */
     public void removeLayerSnapshot(LayerSnapshot snapshot) {
         int entity = historyIds.entityOfHistoryId(snapshot.layerHistoryId);
         int index = indexOfLayerEntity(entity);
@@ -650,5 +663,6 @@ public final class LayerService {
     }
 
     public record LayerSnapshot(int index, long layerHistoryId, LayerInitializer layerInitializer,
-                                DeleteGameObjectHierarchyCommand contents) {}
+                                DeleteGameObjectHierarchyCommand contents) {
+    }
 }

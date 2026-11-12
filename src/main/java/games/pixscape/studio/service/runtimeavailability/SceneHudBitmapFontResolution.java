@@ -3,7 +3,9 @@ package games.pixscape.studio.service.runtimeavailability;
 import java.util.List;
 import java.util.Map;
 
-/** Shared GL-free mirror of LibGDX Skin's BitmapFont atlas-region selection. */
+/**
+ * Shared GL-free mirror of LibGDX Skin's BitmapFont atlas-region selection.
+ */
 final class SceneHudBitmapFontResolution {
     enum Result {
         COMPLETE_UNINDEXED,

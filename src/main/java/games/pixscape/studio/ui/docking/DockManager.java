@@ -372,7 +372,9 @@ public final class DockManager {
         }
     }
 
-    /** Ends separator gestures on Escape or native-window focus loss. */
+    /**
+     * Ends separator gestures on Escape or native-window focus loss.
+     */
     public boolean cancelResize() {
         // Non-short-circuit OR cancels every split, including nested simultaneous gestures.
         return rootSplit.cancelResize() | topSplit.cancelResize()

@@ -162,7 +162,7 @@ public class EditAnimationAssetFpsCommandTest {
                 Files.createTempDirectory("animation-fps-command").resolve("assets.json").toFile());
         return new AnimationAssetAuthoringService(
                 () -> database, () -> file, ignored -> {
-                });
+        });
     }
 
     private static int createAnimationEntity(World world,

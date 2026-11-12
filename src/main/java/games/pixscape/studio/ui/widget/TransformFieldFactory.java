@@ -217,7 +217,7 @@ public final class TransformFieldFactory {
 
         if (op == TransformOp.SCALE
                 && !GameObjectHierarchyCommandSupport.canApplyScale(
-                        world, entityId, after.scaleX(), after.scaleY())) {
+                world, entityId, after.scaleX(), after.scaleY())) {
             return;
         }
 

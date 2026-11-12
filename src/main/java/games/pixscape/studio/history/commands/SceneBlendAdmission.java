@@ -12,9 +12,12 @@ import games.pixscape.runtime.render.LightCompositionPass;
 import games.pixscape.runtime.render.lighting.ActiveLights;
 import games.pixscape.runtime.render.lighting.ForwardAdmission;
 
-/** Command-time checks on authored entity materials, including off-camera sprites. */
+/**
+ * Command-time checks on authored entity materials, including off-camera sprites.
+ */
 final class SceneBlendAdmission {
-    private SceneBlendAdmission() {}
+    private SceneBlendAdmission() {
+    }
 
     static boolean usesForward(World world, boolean requested) {
         if (!requested) return false;

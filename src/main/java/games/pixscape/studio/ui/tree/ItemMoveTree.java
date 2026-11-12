@@ -2,27 +2,44 @@ package games.pixscape.studio.ui.tree;
 
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.math.Rectangle;
+
 import java.util.List;
 
-/** Drawing-only insertion projection. Node actors and their touch focus never move. */
+/**
+ * Drawing-only insertion projection. Node actors and their touch focus never move.
+ */
 final class ItemMoveTree extends IdVisTree {
-    record Row(EntityNode node, int depth, boolean ghost, float top, float height) {}
+    record Row(EntityNode node, int depth, boolean ghost, float top, float height) {
+    }
+
     private List<Row> preview;
     private Rectangle culling;
 
-    void preview(List<Row> rows) { preview = rows; }
-    List<Row> preview() { return preview; }
-    @Override public void setCullingArea(Rectangle area) { super.setCullingArea(area); culling = area; }
+    void preview(List<Row> rows) {
+        preview = rows;
+    }
+
+    List<Row> preview() {
+        return preview;
+    }
+
+    @Override
+    public void setCullingArea(Rectangle area) {
+        super.setCullingArea(area);
+        culling = area;
+    }
 
     private int firstAt(float y) {
         int low = 0, high = preview.size();
         while (low < high) {
             int mid = (low + high) >>> 1;
             Row row = preview.get(mid);
-            if (row.top() - row.height() > y) low = mid + 1; else high = mid;
+            if (row.top() - row.height() > y) low = mid + 1;
+            else high = mid;
         }
         return low;
     }
+
     Row previewRowAt(float y) {
         int index = firstAt(y);
         if (index == preview.size()) return null;
@@ -30,8 +47,12 @@ final class ItemMoveTree extends IdVisTree {
         return y <= row.top() ? row : null;
     }
 
-    @Override public void draw(Batch batch, float parentAlpha) {
-        if (preview == null) { super.draw(batch, parentAlpha); return; }
+    @Override
+    public void draw(Batch batch, float parentAlpha) {
+        if (preview == null) {
+            super.draw(batch, parentAlpha);
+            return;
+        }
         validate();
         float packed = batch.getPackedColor();
         // Like the normal tree, clip to the ScrollPane; visit only visible rows after a binary lookup.

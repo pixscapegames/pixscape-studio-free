@@ -22,8 +22,15 @@ import java.util.Set;
 import static org.junit.Assert.*;
 
 public class HudWidgetsPanelTest {
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
+
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
 
     @Test
     public void selectedParentCreatesAndSelectsChildWithoutChangingPanel() throws Exception {
@@ -127,11 +134,12 @@ public class HudWidgetsPanelTest {
         assertEquals(HudNodeKind.TABLE, created.kind);
         assertEquals(3, created.table.columns);
         assertEquals(2, created.table.rows.size());
-        for (var row : created.table.rows) for (var createdCell : row.cells) {
-            assertEquals(Float.valueOf(64f), createdCell.constraints.minWidth);
-            assertEquals(Float.valueOf(32f), createdCell.constraints.minHeight);
-            assertNull(createdCell.content);
-        }
+        for (var row : created.table.rows)
+            for (var createdCell : row.cells) {
+                assertEquals(Float.valueOf(64f), createdCell.constraints.minWidth);
+                assertEquals(Float.valueOf(32f), createdCell.constraints.minHeight);
+                assertNull(createdCell.content);
+            }
         assertFalse(session.createTableAt(1, 1, captured, hud));
         assertEquals(1, hud.editSession().historySize());
         assertTrue(hud.editSession().undo());
@@ -690,10 +698,11 @@ public class HudWidgetsPanelTest {
         };
     }
 
-    @Test public void toolboxContainsConstructsButNoImageResourceAction() {
+    @Test
+    public void toolboxContainsConstructsButNoImageResourceAction() {
         assertEquals(java.util.List.of(HudNodeKind.GROUP, HudNodeKind.TABLE,
-                HudNodeKind.STACK, HudNodeKind.CONTAINER, HudNodeKind.SCROLL_PANE,
-                HudNodeKind.WINDOW, HudNodeKind.DIALOG),
+                        HudNodeKind.STACK, HudNodeKind.CONTAINER, HudNodeKind.SCROLL_PANE,
+                        HudNodeKind.WINDOW, HudNodeKind.DIALOG),
                 HudWidgetsPanel.layoutKinds());
         assertEquals(java.util.List.of(HudNodeKind.LABEL, HudNodeKind.TEXTRA_LABEL,
                         HudNodeKind.TEXT_FIELD, HudNodeKind.TEXT_BUTTON, HudNodeKind.IMAGE_BUTTON,
@@ -702,7 +711,8 @@ public class HudWidgetsPanelTest {
                 HudWidgetsPanel.contentKinds());
     }
 
-    @Test public void layoutDebugRemainsAnEditModeInvariantWithoutAToolboxToggle() throws Exception {
+    @Test
+    public void layoutDebugRemainsAnEditModeInvariantWithoutAToolboxToggle() throws Exception {
         EditorDocumentManager manager = new EditorDocumentManager();
         HudScreenEditorDocument hud = manager.openHudScreen(new HudScreenEditorDocument(
                 "hud/main", "HUD", asset(),

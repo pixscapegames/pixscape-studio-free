@@ -4,29 +4,46 @@ import games.pixscape.studio.scene.SceneEditorContext;
 
 import java.util.*;
 
-/** Sole Studio authority for ordered open documents and the active editor document. */
+/**
+ * Sole Studio authority for ordered open documents and the active editor document.
+ */
 public final class EditorDocumentManager {
     @FunctionalInterface
     public interface DirtySceneCloseHandler {
         void requestClose(SceneEditorDocument document);
     }
+
     @FunctionalInterface
     public interface DirtyHudCloseHandler {
         void requestClose(HudScreenEditorDocument document);
     }
+
     @FunctionalInterface
     public interface DirtyGameObjectCloseHandler {
         void requestClose(GameObjectEditorDocument document);
     }
 
     public interface Listener {
-        default void documentOpened(OpenEditorDocument document) {}
-        default void validateActivation(OpenEditorDocument current) {}
-        default void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {}
-        /** Explicit compensation, including partial work by the failing listener. */
-        default void activationFailed(OpenEditorDocument previous, OpenEditorDocument attempted) {}
-        default void documentClosed(OpenEditorDocument document) {}
-        default void documentTitleChanged(OpenEditorDocument document) {}
+        default void documentOpened(OpenEditorDocument document) {
+        }
+
+        default void validateActivation(OpenEditorDocument current) {
+        }
+
+        default void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+        }
+
+        /**
+         * Explicit compensation, including partial work by the failing listener.
+         */
+        default void activationFailed(OpenEditorDocument previous, OpenEditorDocument attempted) {
+        }
+
+        default void documentClosed(OpenEditorDocument document) {
+        }
+
+        default void documentTitleChanged(OpenEditorDocument document) {
+        }
     }
 
     private final Map<EditorDocumentKey, OpenEditorDocument> documents = new LinkedHashMap<>();
@@ -61,15 +78,25 @@ public final class EditorDocumentManager {
         return Collections.unmodifiableList(new ArrayList<>(documents.values()));
     }
 
-    public OpenEditorDocument activeDocument() { return activeDocument; }
-    public EditorDocumentKey activeKey() { return activeDocument != null ? activeDocument.key() : null; }
+    public OpenEditorDocument activeDocument() {
+        return activeDocument;
+    }
+
+    public EditorDocumentKey activeKey() {
+        return activeDocument != null ? activeDocument.key() : null;
+    }
+
     public boolean isActive(EditorDocumentType type) {
         return activeDocument != null && activeDocument.type() == type;
     }
 
-    public OpenEditorDocument find(EditorDocumentKey key) { return documents.get(key); }
+    public OpenEditorDocument find(EditorDocumentKey key) {
+        return documents.get(key);
+    }
 
-    /** Cold load/close boundary: every context-owning document participates in ownership. */
+    /**
+     * Cold load/close boundary: every context-owning document participates in ownership.
+     */
     public boolean ownsContext(SceneEditorContext context) {
         if (context == null) return false;
         return documents.values().stream().anyMatch(document ->
@@ -91,7 +118,9 @@ public final class EditorDocumentManager {
         return requested;
     }
 
-    /** Opens one independently materialized Scene context or activates the existing document. */
+    /**
+     * Opens one independently materialized Scene context or activates the existing document.
+     */
     public SceneEditorDocument openScene(String canonicalSceneId,
                                          String title,
                                          SceneEditorContext context) {
@@ -113,7 +142,9 @@ public final class EditorDocumentManager {
         return requested;
     }
 
-    /** Compatibility name retained for callers compiled against STEP 5.6A. */
+    /**
+     * Compatibility name retained for callers compiled against STEP 5.6A.
+     */
     public SceneEditorDocument registerMaterializedScene(String canonicalSceneId,
                                                          String title,
                                                          SceneEditorContext context) {
@@ -163,8 +194,11 @@ public final class EditorDocumentManager {
             activationHistory.clear();
             activationHistory.addAll(previousHistory);
             for (int i = attempted - 1; i >= 0; i--) {
-                try { observers.get(i).activationFailed(previous, next); }
-                catch (RuntimeException rollback) { failure.addSuppressed(rollback); }
+                try {
+                    observers.get(i).activationFailed(previous, next);
+                } catch (RuntimeException rollback) {
+                    failure.addSuppressed(rollback);
+                }
             }
             throw failure;
         }
@@ -177,7 +211,9 @@ public final class EditorDocumentManager {
         }
     }
 
-    /** Registration transfers ownership; unsuccessful publication releases the new document. */
+    /**
+     * Registration transfers ownership; unsuccessful publication releases the new document.
+     */
     private void publishOpened(OpenEditorDocument requested) {
         try {
             validateContext(requested);
@@ -195,11 +231,17 @@ public final class EditorDocumentManager {
             documents.remove(requested.key());
             activationHistory.remove(requested.key());
             for (Listener listener : List.copyOf(listeners)) {
-                try { listener.documentClosed(requested); }
-                catch (RuntimeException cleanup) { failure.addSuppressed(cleanup); }
+                try {
+                    listener.documentClosed(requested);
+                } catch (RuntimeException cleanup) {
+                    failure.addSuppressed(cleanup);
+                }
             }
-            try { disposeDocument(requested); }
-            catch (RuntimeException cleanup) { failure.addSuppressed(cleanup); }
+            try {
+                disposeDocument(requested);
+            } catch (RuntimeException cleanup) {
+                failure.addSuppressed(cleanup);
+            }
             throw failure;
         }
     }
@@ -237,7 +279,9 @@ public final class EditorDocumentManager {
         return closeNow(key);
     }
 
-    /** Completes an already-authorized close (clean, saved, or explicitly discarded). */
+    /**
+     * Completes an already-authorized close (clean, saved, or explicitly discarded).
+     */
     public boolean closeNow(EditorDocumentKey key) {
         OpenEditorDocument document = documents.get(key);
         if (document == null || !document.closeable()) return false;
@@ -245,8 +289,11 @@ public final class EditorDocumentManager {
         if (wasActive) activateFallback(document);
         documents.remove(key);
         activationHistory.remove(key);
-        try { notifyClosed(document); }
-        finally { disposeDocument(document); }
+        try {
+            notifyClosed(document);
+        } finally {
+            disposeDocument(document);
+        }
         return true;
     }
 
@@ -258,16 +305,21 @@ public final class EditorDocumentManager {
         activationHistory.clear();
         RuntimeException failure = null;
         for (OpenEditorDocument document : closing) {
-            try { notifyClosed(document); }
-            catch (RuntimeException cleanup) {
+            try {
+                notifyClosed(document);
+            } catch (RuntimeException cleanup) {
                 if (failure == null) failure = cleanup;
                 else failure.addSuppressed(cleanup);
-            } finally { disposeDocument(document); }
+            } finally {
+                disposeDocument(document);
+            }
         }
         if (failure != null) throw failure;
     }
 
-    /** Final teardown path: no fallback/UI callbacks may run while services are being disposed. */
+    /**
+     * Final teardown path: no fallback/UI callbacks may run while services are being disposed.
+     */
     public void clearForTeardown() {
         List<OpenEditorDocument> closing = new ArrayList<>(documents.values());
         documents.clear();
@@ -299,17 +351,20 @@ public final class EditorDocumentManager {
     private void notifyOpened(OpenEditorDocument document) {
         for (Listener listener : List.copyOf(listeners)) listener.documentOpened(document);
     }
+
     private void notifyClosed(OpenEditorDocument document) {
         RuntimeException failure = null;
         for (Listener listener : List.copyOf(listeners)) {
-            try { listener.documentClosed(document); }
-            catch (RuntimeException cleanup) {
+            try {
+                listener.documentClosed(document);
+            } catch (RuntimeException cleanup) {
                 if (failure == null) failure = cleanup;
                 else failure.addSuppressed(cleanup);
             }
         }
         if (failure != null) throw failure;
     }
+
     private void notifyTitleChanged(OpenEditorDocument document) {
         for (Listener listener : List.copyOf(listeners)) listener.documentTitleChanged(document);
     }

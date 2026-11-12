@@ -5,12 +5,14 @@ import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialWallGeometry;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
-/** Strict Spatial V3 authored-wall and layer topology validation. */
+/**
+ * Strict Spatial V3 authored-wall and layer topology validation.
+ */
 public final class SpatialWallAuthoringValidator {
     private SpatialWallAuthoringValidator() {
     }
 
-    public enum Status { VALID, INVALID_WALL, INVALID_TOPOLOGY, LINKED_ASSET_ID_MISMATCH }
+    public enum Status {VALID, INVALID_WALL, INVALID_TOPOLOGY, LINKED_ASSET_ID_MISMATCH}
 
     public static Result validateWall(SpatialBlockData wall, TiledMapLayerData map) {
         SpatialWallGeometry.CoverageValidation validation = SpatialWallGeometry.validateAuthoredWall(
@@ -56,8 +58,13 @@ public final class SpatialWallAuthoringValidator {
             this.detail = detail;
         }
 
-        public static Result valid() { return new Result(Status.VALID, -1, -1, -1, "valid"); }
-        public boolean isValid() { return status == Status.VALID; }
+        public static Result valid() {
+            return new Result(Status.VALID, -1, -1, -1, "valid");
+        }
+
+        public boolean isValid() {
+            return status == Status.VALID;
+        }
 
         public String message(String layerName, int layerEntityId) {
             StringBuilder message = new StringBuilder("invalid Spatial V3 authored wall topology");

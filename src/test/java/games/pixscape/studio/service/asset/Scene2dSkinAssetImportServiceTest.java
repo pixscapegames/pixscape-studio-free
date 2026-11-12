@@ -19,15 +19,21 @@ import org.junit.rules.TemporaryFolder;
 import static org.junit.Assert.*;
 
 public class Scene2dSkinAssetImportServiceTest {
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
 
-    @BeforeClass public static void bootGdx() {
+    @BeforeClass
+    public static void bootGdx() {
         VisUiTestBootstrap.loadSkin();
     }
 
-    @AfterClass public static void stopGdx() { VisUiTestBootstrap.unloadSkin(); }
+    @AfterClass
+    public static void stopGdx() {
+        VisUiTestBootstrap.unloadSkin();
+    }
 
-    @Test public void importsPartialNativeSkinAndPersistsStableIdentity() throws Exception {
+    @Test
+    public void importsPartialNativeSkinAndPersistsStableIdentity() throws Exception {
         FileHandle external = folder("partial-source");
         FileHandle descriptor = external.child("minimal.json");
         descriptor.writeString("""
@@ -51,7 +57,8 @@ public class Scene2dSkinAssetImportServiceTest {
         assertTrue(project.child(restored.sourceRelPath()).exists());
     }
 
-    @Test public void missingFontDependencyPublishesNeitherAssetNorBundle() throws Exception {
+    @Test
+    public void missingFontDependencyPublishesNeitherAssetNorBundle() throws Exception {
         FileHandle external = folder("missing-source");
         FileHandle descriptor = external.child("broken.json");
         descriptor.writeString("""
@@ -71,7 +78,8 @@ public class Scene2dSkinAssetImportServiceTest {
         assertTrue(!root.exists() || root.list().length == 0);
     }
 
-    @Test public void copiesSkinFontDescriptorAndDirectPagesWithRelativePaths() throws Exception {
+    @Test
+    public void copiesSkinFontDescriptorAndDirectPagesWithRelativePaths() throws Exception {
         FileHandle external = folder("font-source");
         writePng(external.child("fonts/pages/font.png"));
         external.child("fonts/font.fnt").writeString(fontDescriptor("pages/font.png"),
@@ -101,7 +109,8 @@ public class Scene2dSkinAssetImportServiceTest {
         assertTrue(bundle.child("fonts/pages/font.png").exists());
     }
 
-    @Test public void customClassIsRejectedBeforeNativeLoading() throws Exception {
+    @Test
+    public void customClassIsRejectedBeforeNativeLoading() throws Exception {
         FileHandle external = folder("custom-source");
         FileHandle descriptor = external.child("custom.json");
         descriptor.writeString("{ \"example.CustomStyle\": { \"default\": {} } }",
@@ -114,7 +123,8 @@ public class Scene2dSkinAssetImportServiceTest {
         assertTrue(failure.getMessage().contains("example.CustomStyle"));
     }
 
-    @Test public void nativeButUnsupportedWidgetStyleRemainsRejected() throws Exception {
+    @Test
+    public void nativeButUnsupportedWidgetStyleRemainsRejected() throws Exception {
         FileHandle external = folder("unsupported-native-source");
         FileHandle descriptor = external.child("unsupported.json");
         descriptor.writeString("{ \"com.badlogic.gdx.scenes.scene2d.ui.Touchpad$TouchpadStyle\":"
@@ -128,7 +138,8 @@ public class Scene2dSkinAssetImportServiceTest {
         assertTrue(failure.getMessage().contains("Touchpad$TouchpadStyle"));
     }
 
-    @Test public void importsSiblingAtlasAndPagesAndRejectsPma() throws Exception {
+    @Test
+    public void importsSiblingAtlasAndPagesAndRejectsPma() throws Exception {
         FileHandle external = folder("atlas-source");
         writePng(external.child("page.png"));
         external.child("game.json").writeString("{}", false, "UTF-8");
@@ -152,7 +163,8 @@ public class Scene2dSkinAssetImportServiceTest {
         assertTrue(failure.getMessage().contains("pma: false"));
     }
 
-    @Test public void acceptsAtlasBackedFontSelectBoxAndAuxiliaryStyles() throws Exception {
+    @Test
+    public void acceptsAtlasBackedFontSelectBoxAndAuxiliaryStyles() throws Exception {
         FileHandle external = folder("select-source");
         writePng(external.child("page.png"), 4, 2);
         external.child("game.atlas").writeString("""
@@ -204,7 +216,8 @@ public class Scene2dSkinAssetImportServiceTest {
         assertFalse(bundle.child("fonts/missing-direct-page.png").exists());
     }
 
-    @Test public void nativeAliasesAndFullClassNamesProduceEquivalentResources() throws Exception {
+    @Test
+    public void nativeAliasesAndFullClassNamesProduceEquivalentResources() throws Exception {
         FileHandle aliasesSource = folder("aliases-source");
         FileHandle fullNamesSource = folder("full-names-source");
         writeSelectBoxBundle(aliasesSource, true);
@@ -251,7 +264,8 @@ public class Scene2dSkinAssetImportServiceTest {
         }
     }
 
-    @Test public void homonymsRemainDistinctAndReimportPreservesIdPathAndLogicalName() throws Exception {
+    @Test
+    public void homonymsRemainDistinctAndReimportPreservesIdPathAndLogicalName() throws Exception {
         FileHandle first = folder("homonym-first");
         FileHandle second = folder("homonym-second");
         first.child("game.json").writeString("{}", false, "UTF-8");
@@ -374,7 +388,7 @@ public class Scene2dSkinAssetImportServiceTest {
                   "%s": { "dialog": { "titleFont": "default", "background": "panel" } }
                 }
                 """.formatted(color, font, drawable, list, scroll, select, slider, progressBar,
-                        tooltip, window), false, "UTF-8");
+                tooltip, window), false, "UTF-8");
     }
 
     private static Skin loadSkin(FileHandle descriptor) {

@@ -3,12 +3,15 @@ package games.pixscape.studio.service.runtimeavailability;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.studio.io.StudioFs;
 
-/** Scene output shares only its scene-specific HUD directory. */
+/**
+ * Scene output shares only its scene-specific HUD directory.
+ */
 public final class SceneHudEnvironmentPaths {
     public static final String HUD_DIRECTORY = "hud";
     public static final String ATLAS_FILE = "hud.atlas";
 
-    private SceneHudEnvironmentPaths() {}
+    private SceneHudEnvironmentPaths() {
+    }
 
     public static String sceneTag(String tag) {
         if (tag == null || !tag.matches("[A-Za-z0-9][A-Za-z0-9_-]*")

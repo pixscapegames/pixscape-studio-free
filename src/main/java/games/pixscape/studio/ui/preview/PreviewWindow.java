@@ -63,7 +63,6 @@ public final class PreviewWindow extends ApplicationAdapter {
     private static final float CAMERA_ZOOM_MAX = 10f;
 
 
-
     private Box2dWorldService box2d;
 
 
@@ -108,12 +107,12 @@ public final class PreviewWindow extends ApplicationAdapter {
                 .setWorldCamera(worldCamera)
                 .setSystemProfiler(systemProfiler)
                 .setConfigurationCustomizer(builder -> builder.with(dragSystem));
-        if(forwardLighting!=null)engine.setForwardLighting(forwardLighting);
+        if (forwardLighting != null) engine.setForwardLighting(forwardLighting);
         StudioLogLevel.configure(engine);
         StudioLogLevel.setActivePreviewEngine(engine);
         engine.setPlatformTarget(PlatformTarget.DESKTOP_GL30);
-        Gdx.app.log("PreviewWindow", "renderer="+(forwardLighting==null?"scene selection":forwardLighting?"ForwardLightingRenderer":"LightingRenderer")
-                +" runtime="+games.pixscape.runtime.render.lighting.LightingRenderer.class.getProtectionDomain().getCodeSource().getLocation());
+        Gdx.app.log("PreviewWindow", "renderer=" + (forwardLighting == null ? "scene selection" : forwardLighting ? "ForwardLightingRenderer" : "LightingRenderer")
+                + " runtime=" + games.pixscape.runtime.render.lighting.LightingRenderer.class.getProtectionDomain().getCodeSource().getLocation());
         engine.loadProject(userRootDir);
         engine.resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         loadingProgress = PROJECT_PROGRESS;
@@ -190,13 +189,15 @@ public final class PreviewWindow extends ApplicationAdapter {
 
         handleCameraControls(dt);
 
-        Gdx.gl.glClearColor(0f, 0f, 0f, 1f);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+        Gdx.gl.glClearColor(0f, 0f, 0f, 1f);
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
         HdpiUtils.glViewport(0, 0, displayMetrics.logicalWidth(), displayMetrics.logicalHeight());
-        try{
+        try {
             engine.update(dt);
             engine.render();
-        }catch(games.pixscape.runtime.render.lighting.LightingAdmissionException refusal){
-            pauseForAdmission(refusal);return;
+        } catch (games.pixscape.runtime.render.lighting.LightingAdmissionException refusal) {
+            pauseForAdmission(refusal);
+            return;
         }
 
         Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
@@ -225,10 +226,13 @@ public final class PreviewWindow extends ApplicationAdapter {
                     sceneLoad.update();
                     loadingProgress = sceneProgress(sceneLoad.progress());
                     if (sceneLoad.isFailed()) {
-                        Throwable cause=sceneLoad.failure();
-                        while(cause!=null){
-                            if(cause instanceof games.pixscape.runtime.render.lighting.LightingAdmissionException refusal){pauseForAdmission(refusal);return;}
-                            cause=cause.getCause();
+                        Throwable cause = sceneLoad.failure();
+                        while (cause != null) {
+                            if (cause instanceof games.pixscape.runtime.render.lighting.LightingAdmissionException refusal) {
+                                pauseForAdmission(refusal);
+                                return;
+                            }
+                            cause = cause.getCause();
                         }
                         startupState = StartupState.FAILED;
                         throw new GdxRuntimeException("Desktop preview scene loading failed.",
@@ -249,12 +253,12 @@ public final class PreviewWindow extends ApplicationAdapter {
                     PreviewProcessProtocol.ready();
                     return;
                 case FAILED:
-                    if(loadingUi!=null)loadingUi.render(dt,loadingProgress);
+                    if (loadingUi != null) loadingUi.render(dt, loadingProgress);
                     return;
                 default:
                     throw new IllegalStateException("Unknown preview startup state: " + startupState);
             }
-        } catch (games.pixscape.runtime.render.lighting.LightingAdmissionException refusal){
+        } catch (games.pixscape.runtime.render.lighting.LightingAdmissionException refusal) {
             pauseForAdmission(refusal);
         } catch (RuntimeException failure) {
             startupState = StartupState.FAILED;
@@ -265,11 +269,11 @@ public final class PreviewWindow extends ApplicationAdapter {
         }
     }
 
-    private void pauseForAdmission(LightingAdmissionException refusal){
-        startupState=StartupState.FAILED;
+    private void pauseForAdmission(LightingAdmissionException refusal) {
+        startupState = StartupState.FAILED;
         PreviewProcessProtocol.failed(refusal);
-        Gdx.app.error("PreviewWindow",refusal.getMessage(),refusal);
-        if(loadingUi==null)loadingUi=new PreviewLoadingUi();
+        Gdx.app.error("PreviewWindow", refusal.getMessage(), refusal);
+        if (loadingUi == null) loadingUi = new PreviewLoadingUi();
         loadingUi.showFailure(refusal.getMessage());
         Gdx.app.exit();
     }
@@ -436,16 +440,17 @@ public final class PreviewWindow extends ApplicationAdapter {
         private final com.badlogic.gdx.utils.IntArray commands = new com.badlogic.gdx.utils.IntArray(4);
         private int nextCommand;
 
-        @Override public boolean keyDown(int keycode) {
+        @Override
+        public boolean keyDown(int keycode) {
             if (!isPreviewKey(keycode)) return false;
             if (isCommand(keycode)) {
                 if (heldCommands.add(keycode)) commands.add(keycode);
-            }
-            else pressed.add(keycode);
+            } else pressed.add(keycode);
             return true;
         }
 
-        @Override public boolean keyUp(int keycode) {
+        @Override
+        public boolean keyUp(int keycode) {
             if (!isPreviewKey(keycode)) return false;
             pressed.remove(keycode);
             heldCommands.remove(keycode);
@@ -463,12 +468,16 @@ public final class PreviewWindow extends ApplicationAdapter {
 
         int consumeCommand() {
             if (nextCommand < commands.size) return commands.get(nextCommand++);
-            commands.clear(); nextCommand = 0;
+            commands.clear();
+            nextCommand = 0;
             return -1;
         }
 
         void cancelInput() {
-            pressed.clear(); heldCommands.clear(); commands.clear(); nextCommand = 0;
+            pressed.clear();
+            heldCommands.clear();
+            commands.clear();
+            nextCommand = 0;
         }
 
         private static boolean isCommand(int keycode) {

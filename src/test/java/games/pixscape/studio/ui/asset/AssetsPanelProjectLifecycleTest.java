@@ -19,25 +19,29 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.*;
 
 public class AssetsPanelProjectLifecycleTest {
-    @Rule public TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public TemporaryFolder temporary = new TemporaryFolder();
     private ProjectConfig previous;
     private StudioGlTestScope globals;
 
-    @Before public void setUp() throws Exception {
+    @Before
+    public void setUp() throws Exception {
         globals = new StudioGlTestScope();
         previous = ProjectConfig.getInstance();
         ProjectConfig.setInstance(new ProjectConfig());
         VisUiTestBootstrap.loadSkin();
     }
 
-    @After public void tearDown() throws Exception {
+    @After
+    public void tearDown() throws Exception {
         AssetPreviewCache.clear();
         VisUiTestBootstrap.unloadSkin();
         ProjectConfig.setInstance(previous);
         globals.close();
     }
 
-    @Test public void gameObjectsCanCrossEmptyStateAndRefreshOnlyTheNextProject() throws Exception {
+    @Test
+    public void gameObjectsCanCrossEmptyStateAndRefreshOnlyTheNextProject() throws Exception {
         AssetsPanel panel = new AssetsPanel(null);
         ProjectConfig first = project("first");
         gameObject(first, "First");
@@ -47,10 +51,13 @@ public class AssetsPanelProjectLifecycleTest {
         AssetsThumbsView thumbs = (AssetsThumbsView) field(panel, "thumbsView");
         tree.selectFolder(folder(AssetNode.Root.GAME_OBJECTS));
         assertEquals("First", assets(thumbs).first().name);
-        thumbs.setTileSelectionListener(node -> {});
+        thumbs.setTileSelectionListener(node -> {
+        });
         thumbs.setSelectedNode(assets(thumbs).first());
         AtomicInteger cleared = new AtomicInteger();
-        panel.addAssetSelectionListener(node -> { if (node == null) cleared.incrementAndGet(); });
+        panel.addAssetSelectionListener(node -> {
+            if (node == null) cleared.incrementAndGet();
+        });
 
         ProjectConfig.setInstance(new ProjectConfig());
         panel.reloadFromProject(ProjectConfig.getInstance());
@@ -77,7 +84,8 @@ public class AssetsPanelProjectLifecycleTest {
         assertEquals(2, assets(thumbs).size);
     }
 
-    @Test public void everyCategoryCanBeClearedWithoutAProjectDirectory() throws Exception {
+    @Test
+    public void everyCategoryCanBeClearedWithoutAProjectDirectory() throws Exception {
         AssetsPanel panel = new AssetsPanel(null);
         FolderTreeView tree = (FolderTreeView) field(panel, "treeView");
         AssetsThumbsView thumbs = (AssetsThumbsView) field(panel, "thumbsView");
@@ -105,7 +113,8 @@ public class AssetsPanelProjectLifecycleTest {
     private ProjectConfig project(String name) throws Exception {
         FileHandle dir = new FileHandle(temporary.newFolder(name));
         for (String path : new String[]{StudioFs.DIR_ORIG_IMAGES, StudioFs.DIR_ORIG_ANIMATIONS,
-                StudioFs.DIR_ORIG_TILES, StudioFs.DIR_ORIG_EFFECTS}) dir.child(path).mkdirs();
+                StudioFs.DIR_ORIG_TILES, StudioFs.DIR_ORIG_EFFECTS})
+            dir.child(path).mkdirs();
         new AssetMetaDatabase().save(dir.child(StudioFs.FILE_ASSETS_JSON));
         ProjectConfig cfg = new ProjectConfig();
         cfg.projectFileName = name;

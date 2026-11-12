@@ -3,7 +3,9 @@ package games.pixscape.studio.service;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 
-/** Shared authored-shape rule for disabling Spatial Actor state. */
+/**
+ * Shared authored-shape rule for disabling Spatial Actor state.
+ */
 public final class SpatialActorShapeSupport {
     private SpatialActorShapeSupport() {
     }

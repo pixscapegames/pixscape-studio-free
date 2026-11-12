@@ -8,7 +8,9 @@ import com.badlogic.gdx.utils.viewport.Viewport;
 import games.pixscape.studio.helper.ShapeHelper;
 import games.pixscape.studio.ui.config.EditorOverlayPalette;
 
-/** Editor-only visual and hit geometry for the selected FREE-node transform. */
+/**
+ * Editor-only visual and hit geometry for the selected FREE-node transform.
+ */
 final class HudTransformGizmo extends Actor {
     // Match the established World gizmo handle white.
     private static final Color OUTLINE = EditorOverlayPalette.HANDLE_COLOR;
@@ -33,15 +35,20 @@ final class HudTransformGizmo extends Actor {
         setVisible(false);
     }
 
-    HudTransformGeometry.Bounds bounds() { return bounds; }
+    HudTransformGeometry.Bounds bounds() {
+        return bounds;
+    }
 
     HudTransformHandle handleAt(float x, float y) {
         return bounds == null ? null : HudTransformGeometry.handleAt(bounds, x, y, handleSize());
     }
 
-    boolean contains(float x, float y) { return bounds != null && bounds.contains(x, y); }
+    boolean contains(float x, float y) {
+        return bounds != null && bounds.contains(x, y);
+    }
 
-    @Override public void draw(Batch batch, float parentAlpha) {
+    @Override
+    public void draw(Batch batch, float parentAlpha) {
         if (bounds == null) return;
         float scale = worldPerLogicalPixel();
         float line = scale;
@@ -61,7 +68,9 @@ final class HudTransformGizmo extends Actor {
         batch.setPackedColor(previous);
     }
 
-    private float handleSize() { return HANDLE_LOGICAL_PIXELS * worldPerLogicalPixel(); }
+    private float handleSize() {
+        return HANDLE_LOGICAL_PIXELS * worldPerLogicalPixel();
+    }
 
     private float worldPerLogicalPixel() {
         if (getStage() == null) return 1f;

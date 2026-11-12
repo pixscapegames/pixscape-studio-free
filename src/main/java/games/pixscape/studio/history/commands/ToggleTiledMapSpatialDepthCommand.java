@@ -7,7 +7,9 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 
-/** Toggles Spatial Depth on one Tiled Map without changing an ordinary host Layer. */
+/**
+ * Toggles Spatial Depth on one Tiled Map without changing an ordinary host Layer.
+ */
 public final class ToggleTiledMapSpatialDepthCommand
         implements Command, HistoryManager.SupportsNoop {
     private final World world;
@@ -33,15 +35,15 @@ public final class ToggleTiledMapSpatialDepthCommand
 
         this.before = tiled != null
                 ? new Snapshot(
-                        tiled.spatialEnabled,
-                        tiled.defaultTileAltitude,
-                        tiled.defaultTileHeight)
+                tiled.spatialEnabled,
+                tiled.defaultTileAltitude,
+                tiled.defaultTileHeight)
                 : null;
         this.after = before != null
                 ? before.withSpatialEnabled(
-                        enabled,
-                        defaultAltitude,
-                        Math.max(0f, defaultHeight))
+                enabled,
+                defaultAltitude,
+                Math.max(0f, defaultHeight))
                 : null;
         this.noop = world == null
                 || historyIds == null
@@ -120,8 +122,8 @@ public final class ToggleTiledMapSpatialDepthCommand
                             float defaultAltitude,
                             float defaultHeight) {
         Snapshot withSpatialEnabled(boolean enabled,
-                                   float defaultAltitude,
-                                   float defaultHeight) {
+                                    float defaultAltitude,
+                                    float defaultHeight) {
             return new Snapshot(
                     enabled,
                     defaultAltitude,

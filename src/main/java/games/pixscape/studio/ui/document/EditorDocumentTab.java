@@ -5,7 +5,9 @@ import com.kotcrab.vis.ui.widget.VisTable;
 import com.kotcrab.vis.ui.widget.tabbedpane.Tab;
 import games.pixscape.studio.document.OpenEditorDocument;
 
-/** VisUI presentation of a document; the manager remains the lifecycle authority. */
+/**
+ * VisUI presentation of a document; the manager remains the lifecycle authority.
+ */
 final class EditorDocumentTab extends Tab {
     private final OpenEditorDocument document;
     private final VisTable unusedContent = new VisTable();
@@ -15,9 +17,12 @@ final class EditorDocumentTab extends Tab {
         this.document = document;
     }
 
-    OpenEditorDocument document() { return document; }
+    OpenEditorDocument document() {
+        return document;
+    }
 
-    @Override public String getTabTitle() {
+    @Override
+    public String getTabTitle() {
         String kind = switch (document.type()) {
             case SCENE -> "Scene";
             case HUD_SCREEN -> "HUD";
@@ -27,5 +32,8 @@ final class EditorDocumentTab extends Tab {
         return kind + ": " + document.title() + dirty;
     }
 
-    @Override public Table getContentTable() { return unusedContent; }
+    @Override
+    public Table getContentTable() {
+        return unusedContent;
+    }
 }

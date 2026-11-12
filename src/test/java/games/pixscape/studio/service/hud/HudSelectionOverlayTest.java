@@ -34,13 +34,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.Assert.*;
 
 public class HudSelectionOverlayTest {
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
     private HudEditorSession openSession;
     private static GL20 previousGl;
     private static GL20 previousGl20;
 
-    @BeforeClass public static void bootGdx() {
-        if (Gdx.app == null) new HeadlessApplication(new ApplicationAdapter() {},
+    @BeforeClass
+    public static void bootGdx() {
+        if (Gdx.app == null) new HeadlessApplication(new ApplicationAdapter() {
+        },
                 new HeadlessApplicationConfiguration());
         previousGl = Gdx.gl;
         previousGl20 = Gdx.gl20;
@@ -57,16 +60,19 @@ public class HudSelectionOverlayTest {
         }
     }
 
-    @AfterClass public static void restoreGl() {
+    @AfterClass
+    public static void restoreGl() {
         Gdx.gl = previousGl;
         Gdx.gl20 = previousGl20;
     }
 
-    @After public void disposeSession() {
+    @After
+    public void disposeSession() {
         if (openSession != null) openSession.dispose();
     }
 
-    @Test public void selectedRootExposesOnlyItsDirectChildrenAsCanvasTargets() throws Exception {
+    @Test
+    public void selectedRootExposesOnlyItsDirectChildrenAsCanvasTargets() throws Exception {
         Fixture f = open(nestedDocument(), "hud/main");
         f.session.selectNode("root");
 
@@ -75,7 +81,8 @@ public class HudSelectionOverlayTest {
         assertNull(target(f.session.selectionTargets(), "grandchild"));
     }
 
-    @Test public void unselectedDocumentOffersRootChildrenButNeverTheRootAsCanvasTargets() throws Exception {
+    @Test
+    public void unselectedDocumentOffersRootChildrenButNeverTheRootAsCanvasTargets() throws Exception {
         Fixture f = open(nestedDocument(), "hud/main");
 
         assertEquals(1, f.session.selectionTargets().size());
@@ -85,7 +92,8 @@ public class HudSelectionOverlayTest {
         assertEquals("child", f.session.selectedNodeId());
     }
 
-    @Test public void emptyCellUsesAllocatedCellRegionInsteadOfInnerActor() throws Exception {
+    @Test
+    public void emptyCellUsesAllocatedCellRegionInsteadOfInnerActor() throws Exception {
         HudDocumentV1 document = tableDocument();
         document.root.table.rows.get(0).cells.get(0).content = null;
         Fixture f = open(document, "hud/table");
@@ -98,7 +106,8 @@ public class HudSelectionOverlayTest {
         assertEquals(20f, target.height(), 0.001f);
     }
 
-    @Test public void newlyCreatedAndReopenedRootCellIsPickable() throws Exception {
+    @Test
+    public void newlyCreatedAndReopenedRootCellIsPickable() throws Exception {
         var project = Gdx.files.absolute(temporary.getRoot().getAbsolutePath());
         String id = new HudScreenAssetAuthoringService().create(project, "pickable");
         var loaded = new HudDocumentPersistenceService().load(project, id);
@@ -114,7 +123,8 @@ public class HudSelectionOverlayTest {
         assertEquals(cellId, f.session.selectedCellId());
     }
 
-    @Test public void childClickSelectsStableIdWithoutHistoryOrDirtyState() throws Exception {
+    @Test
+    public void childClickSelectsStableIdWithoutHistoryOrDirtyState() throws Exception {
         Fixture f = open(nestedDocument(), "hud/main");
         f.session.selectNode("root");
         int history = f.document.editSession().historySize();
@@ -126,7 +136,8 @@ public class HudSelectionOverlayTest {
         assertFalse(f.document.isDirty());
     }
 
-    @Test public void rootIsNotEmittedAsAParentFallbackForItsDirectChild() throws Exception {
+    @Test
+    public void rootIsNotEmittedAsAParentFallbackForItsDirectChild() throws Exception {
         Fixture f = open(nestedDocument(), "hud/main");
         f.session.selectNode("child");
 
@@ -135,7 +146,8 @@ public class HudSelectionOverlayTest {
         assertEquals("child", f.session.selectedNodeId());
     }
 
-    @Test public void nonRootParentFallbackStillNavigatesOneLevelUp() throws Exception {
+    @Test
+    public void nonRootParentFallbackStillNavigatesOneLevelUp() throws Exception {
         Fixture f = open(nestedDocument(), "hud/main");
         f.session.selectNode("grandchild");
 
@@ -149,7 +161,8 @@ public class HudSelectionOverlayTest {
         assertEquals("child", f.session.selectedNodeId());
     }
 
-    @Test public void childActorTargetBeatsTheOverlappingParentBackTarget() throws Exception {
+    @Test
+    public void childActorTargetBeatsTheOverlappingParentBackTarget() throws Exception {
         Fixture f = open(nestedDocument(), "hud/main");
         f.session.selectNode("child");
 
@@ -157,7 +170,8 @@ public class HudSelectionOverlayTest {
         assertEquals("grandchild", f.session.selectedNodeId());
     }
 
-    @Test public void cellTargetBeatsTheOverlappingParentBackTarget() throws Exception {
+    @Test
+    public void cellTargetBeatsTheOverlappingParentBackTarget() throws Exception {
         Fixture f = open(nestedTableDocument(), "hud/nested-table");
         f.session.selectNode("table");
         HudSelectionTarget cell = target(f.session.selectionTargets(), "cell-child");
@@ -167,7 +181,8 @@ public class HudSelectionOverlayTest {
         assertEquals("cell-child", f.session.selectedNodeId());
     }
 
-    @Test public void canvasRightClickTargetsTheHitNodeBeforeItsContextAction() throws Exception {
+    @Test
+    public void canvasRightClickTargetsTheHitNodeBeforeItsContextAction() throws Exception {
         Fixture f = open(nestedDocument(), "hud/main");
         f.session.selectNode("root");
         HudCanvasSelectionInputListener listener = new HudCanvasSelectionInputListener(f.session);
@@ -182,7 +197,8 @@ public class HudSelectionOverlayTest {
         assertEquals("root", f.session.selectedNodeId());
     }
 
-    @Test public void canvasCaptureListenerDoesNotConsumeWhenNoHudPreviewIsActive() {
+    @Test
+    public void canvasCaptureListenerDoesNotConsumeWhenNoHudPreviewIsActive() {
         HudCanvasSelectionInputListener listener = new HudCanvasSelectionInputListener(
                 new HudEditorSession());
         InputEvent click = eventAt(15f, 15f);
@@ -191,7 +207,8 @@ public class HudSelectionOverlayTest {
         assertFalse(click.isStopped());
     }
 
-    @Test public void mouseMoveUsesTheClickTargetAndDoesNotChangeSelectionOrDocument() throws Exception {
+    @Test
+    public void mouseMoveUsesTheClickTargetAndDoesNotChangeSelectionOrDocument() throws Exception {
         Fixture f = open(nestedDocument(), "hud/main");
         f.session.selectNode("root");
         int history = f.document.editSession().historySize();
@@ -206,7 +223,8 @@ public class HudSelectionOverlayTest {
         assertEquals(history, f.document.editSession().historySize());
     }
 
-    @Test public void hoverUsesTheFullCellTargetBeforeTheOverlappingParentTarget() throws Exception {
+    @Test
+    public void hoverUsesTheFullCellTargetBeforeTheOverlappingParentTarget() throws Exception {
         Fixture f = open(nestedTableDocument(), "hud/nested-table");
         f.session.selectNode("table");
         HudSelectionTarget cell = target(f.session.selectionTargets(), "cell-child");
@@ -217,7 +235,8 @@ public class HudSelectionOverlayTest {
         assertVisual(f.session, cell, HudSelectionOverlay.VisualState.HOVERED);
     }
 
-    @Test public void hoverChangesOnlyWhenItsCanonicalTargetChangesAndClearsOutsideCanvas() throws Exception {
+    @Test
+    public void hoverChangesOnlyWhenItsCanonicalTargetChangesAndClearsOutsideCanvas() throws Exception {
         Fixture f = open(twoChildrenDocument(), "hud/two-children");
         f.session.selectNode("root");
         HudSelectionTarget left = target(f.session.selectionTargets(), "left");
@@ -232,7 +251,8 @@ public class HudSelectionOverlayTest {
         assertNull(f.session.hoveredSelectionTarget());
     }
 
-    @Test public void canvasInputSelectsASiblingDirectlyAfterSelectingAnotherSibling() throws Exception {
+    @Test
+    public void canvasInputSelectsASiblingDirectlyAfterSelectingAnotherSibling() throws Exception {
         Graphics previousGraphics = Gdx.graphics;
         Gdx.graphics = logicalGraphics(1920, 1080);
         Fixture f = open(twoChildrenDocument(), "hud/direct-sibling");
@@ -263,7 +283,8 @@ public class HudSelectionOverlayTest {
         }
     }
 
-    @Test public void canvasInputSelectsAuthoredWindowFromItsTitle() throws Exception {
+    @Test
+    public void canvasInputSelectsAuthoredWindowFromItsTitle() throws Exception {
         Graphics previousGraphics = Gdx.graphics;
         Gdx.graphics = logicalGraphics(1920, 1080);
         HudNode root = sized(new HudNode("root", HudNodeKind.GROUP), 100f, 100f);
@@ -297,7 +318,8 @@ public class HudSelectionOverlayTest {
         }
     }
 
-    @Test public void invisibleBranchesRemainInItemsButNotCanvasPickingOrDrop() throws Exception {
+    @Test
+    public void invisibleBranchesRemainInItemsButNotCanvasPickingOrDrop() throws Exception {
         Graphics previousGraphics = Gdx.graphics;
         Gdx.graphics = logicalGraphics(1920, 1080);
         HudDocumentV1 authored = nestedDocument();
@@ -333,7 +355,8 @@ public class HudSelectionOverlayTest {
         }
     }
 
-    @Test public void invisibleRootExcludesEveryCanvasAndDropTarget() throws Exception {
+    @Test
+    public void invisibleRootExcludesEveryCanvasAndDropTarget() throws Exception {
         HudDocumentV1 authored = nestedDocument();
         authored.root.visible = false;
         Fixture f = open(authored, "hud/hidden-root");
@@ -345,7 +368,8 @@ public class HudSelectionOverlayTest {
         assertNull(f.session.imageDropTargetAt(15, 85, 100));
     }
 
-    @Test public void visibilityEditReprojectsAndUndoRedoRestoreTheAuthoredActor() throws Exception {
+    @Test
+    public void visibilityEditReprojectsAndUndoRedoRestoreTheAuthoredActor() throws Exception {
         Fixture f = open(nestedDocument(), "hud/visibility-history");
         f.session.selectNode("child");
         assertTrue(f.session.editNodeVisibility(f.session.screenId(), "child", false));
@@ -363,7 +387,8 @@ public class HudSelectionOverlayTest {
         assertFalse(f.document.document().root.children.get(0).node.visible);
     }
 
-    @Test public void transientPreviewVisibilityDoesNotChangeAuthoredState() throws Exception {
+    @Test
+    public void transientPreviewVisibilityDoesNotChangeAuthoredState() throws Exception {
         Fixture f = open(nestedDocument(), "hud/transient-visibility");
         f.session.materializedHud().actor("child").setVisible(false);
         assertTrue(f.document.document().root.children.get(0).node.visible);
@@ -377,7 +402,8 @@ public class HudSelectionOverlayTest {
         assertTrue(f.document.document().root.children.get(0).node.visible);
     }
 
-    @Test public void inputHostExitAndInactiveHudClearOrRefuseHover() throws Exception {
+    @Test
+    public void inputHostExitAndInactiveHudClearOrRefuseHover() throws Exception {
         Fixture f = open(nestedDocument(), "hud/main");
         f.session.selectNode("root");
         HudCanvasSelectionInputListener listener = new HudCanvasSelectionInputListener(f.session);
@@ -392,7 +418,8 @@ public class HudSelectionOverlayTest {
         assertNull(inactive.hoveredSelectionTarget());
     }
 
-    @Test public void rematerializationClearsEphemeralHoverAndLayoutBoundsDoesNotChangeVisualState()
+    @Test
+    public void rematerializationClearsEphemeralHoverAndLayoutBoundsDoesNotChangeVisualState()
             throws Exception {
         Fixture f = open(nestedDocument(), "hud/main");
         f.session.selectNode("root");
@@ -410,7 +437,8 @@ public class HudSelectionOverlayTest {
         assertNull(f.session.hoveredSelectionTarget());
     }
 
-    @Test public void selectedAndHoveredTargetUsesOneSelectedVisualState() {
+    @Test
+    public void selectedAndHoveredTargetUsesOneSelectedVisualState() {
         HudSelectionTarget selected = new HudSelectionTarget("root", HudSelectionTarget.Type.ACTOR,
                 0f, 0f, 10f, 10f, true);
         HudSelectionOverlay overlay = new HudSelectionOverlay();
@@ -420,7 +448,8 @@ public class HudSelectionOverlayTest {
         assertEquals(HudSelectionOverlay.VisualState.SELECTED, overlay.visualState(selected));
     }
 
-    @Test public void selectedFreeChildShowsTransformGizmoButRootAndCellDoNot() throws Exception {
+    @Test
+    public void selectedFreeChildShowsTransformGizmoButRootAndCellDoNot() throws Exception {
         Fixture free = open(nestedDocument(), "hud/free");
         free.session.selectNode("child");
         assertTrue(free.session.isShowingTransformGizmo());
@@ -440,7 +469,8 @@ public class HudSelectionOverlayTest {
         assertFalse(direct.session.isShowingTransformGizmo());
     }
 
-    @Test public void moveGesturePreviewsThenPublishesOneHistoryEditWithUndoAndRedo() throws Exception {
+    @Test
+    public void moveGesturePreviewsThenPublishesOneHistoryEditWithUndoAndRedo() throws Exception {
         Fixture f = open(nestedDocument(), "hud/move");
         f.session.selectNode("child");
         int history = f.document.editSession().historySize();
@@ -463,7 +493,8 @@ public class HudSelectionOverlayTest {
         assertEquals(20f, f.document.document().root.children.get(0).free.offsetX, 0.001f);
     }
 
-    @Test public void eastResizeWritesOnlyWidthAndKeepsTheLeftEdgeAndOffsetFixed() throws Exception {
+    @Test
+    public void eastResizeWritesOnlyWidthAndKeepsTheLeftEdgeAndOffsetFixed() throws Exception {
         Fixture f = open(nestedDocument(), "hud/resize");
         f.session.selectNode("child");
         int history = f.document.editSession().historySize();
@@ -480,7 +511,8 @@ public class HudSelectionOverlayTest {
         assertEquals(10f, child.free.offsetY, 0.001f);
     }
 
-    @Test public void clickOrSubThresholdNoiseDoesNotCreateHistory() throws Exception {
+    @Test
+    public void clickOrSubThresholdNoiseDoesNotCreateHistory() throws Exception {
         Fixture f = open(nestedDocument(), "hud/noise");
         f.session.selectNode("child");
         int history = f.document.editSession().historySize();
@@ -493,7 +525,8 @@ public class HudSelectionOverlayTest {
         assertEquals(10f, f.document.document().root.children.get(0).free.offsetX, 0.001f);
     }
 
-    @Test public void manyDragUpdatesPublishOnlyOneHistoryEntryAndSuppressHover() throws Exception {
+    @Test
+    public void manyDragUpdatesPublishOnlyOneHistoryEntryAndSuppressHover() throws Exception {
         Fixture f = open(twoChildrenDocument(), "hud/many-events");
         f.session.selectNode("left");
         int history = f.document.editSession().historySize();
@@ -511,7 +544,8 @@ public class HudSelectionOverlayTest {
         assertFalse(f.session.hasActiveTransformGesture());
     }
 
-    @Test public void cancelledGestureRestoresPreviewWithoutHistory() throws Exception {
+    @Test
+    public void cancelledGestureRestoresPreviewWithoutHistory() throws Exception {
         Fixture f = open(nestedDocument(), "hud/cancel");
         f.session.selectNode("child");
         int history = f.document.editSession().historySize();
@@ -528,7 +562,8 @@ public class HudSelectionOverlayTest {
         assertFalse(f.session.hasActiveTransformGesture());
     }
 
-    @Test public void canvasListenerCapturesAndEndsAFreeTransformOnMouseRelease() throws Exception {
+    @Test
+    public void canvasListenerCapturesAndEndsAFreeTransformOnMouseRelease() throws Exception {
         Fixture f = open(nestedDocument(), "hud/listener-transform");
         f.session.selectNode("child");
         HudCanvasSelectionInputListener listener = new HudCanvasSelectionInputListener(f.session);
@@ -548,7 +583,8 @@ public class HudSelectionOverlayTest {
         assertEquals(20f, f.document.document().root.children.get(0).free.offsetX, 0.001f);
     }
 
-    @Test public void closedAtStartDialogCanBeSelectedMovedAndResizedInEdit() throws Exception {
+    @Test
+    public void closedAtStartDialogCanBeSelectedMovedAndResizedInEdit() throws Exception {
         HudNode root = sized(new HudNode("root", HudNodeKind.GROUP), 100f, 100f);
         HudNode dialog = sized(new HudNode("dialog", HudNodeKind.DIALOG), 50f, 40f);
         dialog.dialog = new HudDialogData();
@@ -578,7 +614,8 @@ public class HudSelectionOverlayTest {
         assertFalse(f.document.document().root.children.get(0).node.visible);
     }
 
-    @Test public void occupiedFreeTableAndContainerDragThroughStageWithoutMovingTheirImages()
+    @Test
+    public void occupiedFreeTableAndContainerDragThroughStageWithoutMovingTheirImages()
             throws Exception {
         Graphics previousGraphics = Gdx.graphics;
         Gdx.graphics = logicalGraphics(100, 100);
@@ -600,7 +637,8 @@ public class HudSelectionOverlayTest {
         }
     }
 
-    @Test public void occupiedParentClickSelectsChildWhileHandleAndCancellationKeepPriority()
+    @Test
+    public void occupiedParentClickSelectsChildWhileHandleAndCancellationKeepPriority()
             throws Exception {
         Graphics previousGraphics = Gdx.graphics;
         Gdx.graphics = logicalGraphics(100, 100);
@@ -651,7 +689,8 @@ public class HudSelectionOverlayTest {
         }
     }
 
-    @Test public void middleButtonDoesNotPanHudCanvas() throws Exception {
+    @Test
+    public void middleButtonDoesNotPanHudCanvas() throws Exception {
         Fixture f = open(nestedDocument(), "hud/no-pan");
         assertTrue(f.session.configurePreview(new Rectangle(20f, 30f, 100f, 100f)));
         HudCanvasSelectionInputListener listener = new HudCanvasSelectionInputListener(f.session);
@@ -660,7 +699,8 @@ public class HudSelectionOverlayTest {
         assertEquals(50f, f.session.hudCamera().position.x, 0.001f);
     }
 
-    @Test public void centeredDialogPreviewFollowsAvailableCanvasSurface() throws Exception {
+    @Test
+    public void centeredDialogPreviewFollowsAvailableCanvasSurface() throws Exception {
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
         HudNode dialog = sized(new HudNode("dialog", HudNodeKind.DIALOG), 80f, 40f);
         dialog.dialog = new HudDialogData();
@@ -684,7 +724,8 @@ public class HudSelectionOverlayTest {
         assertEquals(30f, smaller.y(), .001f);
     }
 
-    @Test public void transformCursorUsesTheGestureHandleAndNeverEditsTheDocumentOnHover()
+    @Test
+    public void transformCursorUsesTheGestureHandleAndNeverEditsTheDocumentOnHover()
             throws Exception {
         Fixture f = open(nestedDocument(), "hud/cursor");
         f.session.selectNode("child");
@@ -706,7 +747,8 @@ public class HudSelectionOverlayTest {
         assertFalse(f.document.isDirty());
     }
 
-    @Test public void studioStageCaptureRoutesAnOtherwiseEmptyCanvasClickToTheHudSelection() throws Exception {
+    @Test
+    public void studioStageCaptureRoutesAnOtherwiseEmptyCanvasClickToTheHudSelection() throws Exception {
         Fixture f = open(nestedDocument(), "hud/main");
         f.session.selectNode("root");
         int history = f.document.editSession().historySize();
@@ -736,7 +778,8 @@ public class HudSelectionOverlayTest {
         }
     }
 
-    @Test public void hudCanvasInputHostStartsOutsideHitTestingBeforeAnyHudIsOpened() {
+    @Test
+    public void hudCanvasInputHostStartsOutsideHitTestingBeforeAnyHudIsOpened() {
         HudEditorSession unopenedSession = new HudEditorSession();
         Stage studioStage = new Stage(new ScreenViewport(), inertBatch());
         try {
@@ -758,7 +801,8 @@ public class HudSelectionOverlayTest {
         }
     }
 
-    @Test public void hudCanvasInputHostParticipatesInHitsOnlyWhileHudIsActive() throws Exception {
+    @Test
+    public void hudCanvasInputHostParticipatesInHitsOnlyWhileHudIsActive() throws Exception {
         Fixture f = open(nestedDocument(), "hud/main");
         Stage studioStage = new Stage(new ScreenViewport(), inertBatch());
         try {
@@ -777,8 +821,9 @@ public class HudSelectionOverlayTest {
             AtomicBoolean touchFocusCancelled = new AtomicBoolean();
             com.badlogic.gdx.scenes.scene2d.InputListener focusListener =
                     new com.badlogic.gdx.scenes.scene2d.InputListener() {
-                        @Override public void touchUp(InputEvent event, float x, float y,
-                                                      int pointer, int button) {
+                        @Override
+                        public void touchUp(InputEvent event, float x, float y,
+                                            int pointer, int button) {
                             touchFocusCancelled.set(event.isTouchFocusCancel());
                         }
                     };
@@ -796,7 +841,8 @@ public class HudSelectionOverlayTest {
         }
     }
 
-    @Test public void modelSelectionImmediatelyRebuildsCanvasOverlay() throws Exception {
+    @Test
+    public void modelSelectionImmediatelyRebuildsCanvasOverlay() throws Exception {
         Fixture f = open(nestedDocument(), "hud/main");
         f.session.selectNode("grandchild");
 
@@ -805,7 +851,8 @@ public class HudSelectionOverlayTest {
         assertNull(target(f.session.selectionTargets(), "root"));
     }
 
-    @Test public void rematerializationUsesNewActorsAndPreservesStableSelection() throws Exception {
+    @Test
+    public void rematerializationUsesNewActorsAndPreservesStableSelection() throws Exception {
         Fixture f = open(nestedDocument(), "hud/main");
         f.session.selectNode("child");
         Actor previous = f.session.materializedHud().actor("child");
@@ -820,7 +867,8 @@ public class HudSelectionOverlayTest {
         assertEquals(30f, target(f.session.selectionTargets(), "child").width(), 0.001f);
     }
 
-    @Test public void undoAndRedoRebuildTargetsAroundEachNewMaterialization() throws Exception {
+    @Test
+    public void undoAndRedoRebuildTargetsAroundEachNewMaterialization() throws Exception {
         Fixture f = open(nestedDocument(), "hud/main");
         f.session.selectNode("child");
         f.document.editSession().edit("Resize child", candidate -> {
@@ -839,7 +887,8 @@ public class HudSelectionOverlayTest {
         assertEquals(30f, target(f.session.selectionTargets(), "child").width(), 0.001f);
     }
 
-    @Test public void switchingDocumentsClearsOldTargetsWithoutCreatingARootCanvasTarget() throws Exception {
+    @Test
+    public void switchingDocumentsClearsOldTargetsWithoutCreatingARootCanvasTarget() throws Exception {
         Fixture first = open(nestedDocument(), "hud/first");
         first.session.selectNode("child");
         HudNode otherRoot = sized(new HudNode("other-root", HudNodeKind.GROUP), 100f, 100f);
@@ -853,7 +902,8 @@ public class HudSelectionOverlayTest {
         assertTrue(first.session.selectionTargets().isEmpty());
     }
 
-    @Test public void layoutBoundsToggleDoesNotChangeTargetsOrClickBehavior() throws Exception {
+    @Test
+    public void layoutBoundsToggleDoesNotChangeTargetsOrClickBehavior() throws Exception {
         Fixture f = open(nestedDocument(), "hud/main");
         f.session.selectNode("root");
         List<HudSelectionTarget> before = f.session.selectionTargets();
@@ -868,7 +918,8 @@ public class HudSelectionOverlayTest {
         assertEquals("child", f.session.selectedNodeId());
     }
 
-    @Test public void viewportMovesAndResizesWithoutAccumulatingOverlayOffset() throws Exception {
+    @Test
+    public void viewportMovesAndResizesWithoutAccumulatingOverlayOffset() throws Exception {
         Fixture f = open(nestedDocument(), "hud/main");
         f.session.selectNode("root");
         HudSelectionTarget before = target(f.session.selectionTargets(), "child");
@@ -887,7 +938,8 @@ public class HudSelectionOverlayTest {
         assertTrue(f.session.cancelTransformGesture());
     }
 
-    @Test public void rootTableFillUpdatesSelectionBeforeNextDraw() throws Exception {
+    @Test
+    public void rootTableFillUpdatesSelectionBeforeNextDraw() throws Exception {
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
         HudNode table = new HudNode("table", HudNodeKind.TABLE);
         table.fillParent = true;
@@ -904,7 +956,8 @@ public class HudSelectionOverlayTest {
         assertEquals("table", f.session.selectedNodeId());
     }
 
-    @Test public void translatedViewportPicksBothRenderedHalvesAndDisplayedSideHandles() throws Exception {
+    @Test
+    public void translatedViewportPicksBothRenderedHalvesAndDisplayedSideHandles() throws Exception {
         HudScreenAsset asset = new HudScreenAsset();
         asset.documentId = "hud/projected-pick.json";
         HudNode root = sized(new HudNode("root", HudNodeKind.GROUP), 1920f, 1080f);
@@ -965,7 +1018,8 @@ public class HudSelectionOverlayTest {
         }
     }
 
-    @Test public void authoringSessionOwnsOneOverlaySiblingAboveAuthoredHost() {
+    @Test
+    public void authoringSessionOwnsOneOverlaySiblingAboveAuthoredHost() {
         HudAuthoringSession authoring = new HudAuthoringSession(inertBatch());
         try {
             assertSame(authoring.authoredHost(), authoring.stage().getRoot().getChildren().get(0));
@@ -976,7 +1030,8 @@ public class HudSelectionOverlayTest {
         }
     }
 
-    @Test public void clearingPreviewKeepsOverlayLayerButRemovesItsTargets() throws Exception {
+    @Test
+    public void clearingPreviewKeepsOverlayLayerButRemovesItsTargets() throws Exception {
         Fixture f = open(nestedDocument(), "hud/main");
         f.session.selectNode("root");
         f.session.suspend();
@@ -985,7 +1040,8 @@ public class HudSelectionOverlayTest {
         assertEquals(HudEditorSession.Status.CLOSED, f.session.status());
     }
 
-    @Test public void imageDropPrefersDeepestEligibleGroupAndClampsItsSourceSize() throws Exception {
+    @Test
+    public void imageDropPrefersDeepestEligibleGroupAndClampsItsSourceSize() throws Exception {
         Fixture f = open(nestedDocument(), "hud/image-drop");
 
         HudEditorSession.ImageDropTarget target =
@@ -1000,14 +1056,16 @@ public class HudSelectionOverlayTest {
         assertEquals(10f, target.imageHeight(), 0.001f);
     }
 
-    @Test public void occupiedSingleChildContainerDoesNotFallThroughToRootDrop() throws Exception {
+    @Test
+    public void occupiedSingleChildContainerDoesNotFallThroughToRootDrop() throws Exception {
         Fixture f = open(directDocument(), "hud/occupied-drop");
 
         assertNull(f.session.imageDropTargetAt(80, 20, 100, 10f, 10f));
         assertNull(f.session.imageDropTargetAt(101, 50, 100, 10f, 10f));
     }
 
-    @Test public void scrolledContentUsesNativeViewportForStagePickingOverlaysAndWheelInput()
+    @Test
+    public void scrolledContentUsesNativeViewportForStagePickingOverlaysAndWheelInput()
             throws Exception {
         Graphics previousGraphics = Gdx.graphics;
         Application previousApp = Gdx.app;
@@ -1139,7 +1197,8 @@ public class HudSelectionOverlayTest {
         }
     }
 
-    @Test public void scrollPaneDropCapacityBlocksReplacementButKeepsVisibleLayoutReachable()
+    @Test
+    public void scrollPaneDropCapacityBlocksReplacementButKeepsVisibleLayoutReachable()
             throws Exception {
         Fixture empty = open(emptyPaneDocument(), "hud/empty-pane");
         ScrollPane emptyPane = (ScrollPane) empty.session.materializedHud().actor("pane");
@@ -1171,7 +1230,8 @@ public class HudSelectionOverlayTest {
         assertEquals("content", image.parentId());
     }
 
-    @Test public void deletingHudSubtreeRestoresItsRelationAndSelectionThroughUndoRedo() throws Exception {
+    @Test
+    public void deletingHudSubtreeRestoresItsRelationAndSelectionThroughUndoRedo() throws Exception {
         Fixture f = open(deletableDocument(), "hud/delete");
         f.session.selectNode("victim");
 
@@ -1208,7 +1268,8 @@ public class HudSelectionOverlayTest {
         return open(editor, null);
     }
 
-    @Test public void stageDragMovesAndSwapsDirectCellWidgetsWithOneHistoryStep() throws Exception {
+    @Test
+    public void stageDragMovesAndSwapsDirectCellWidgetsWithOneHistoryStep() throws Exception {
         if (!com.kotcrab.vis.ui.VisUI.isLoaded()) com.kotcrab.vis.ui.VisUI.load();
         Graphics previousGraphics = Gdx.graphics;
         Gdx.graphics = logicalGraphics(100, 100);
@@ -1317,13 +1378,17 @@ public class HudSelectionOverlayTest {
         }
     }
 
-    @Test public void stageDragUsesNativeContentCellsOfWindowAndDialog() throws Exception {
+    @Test
+    public void stageDragUsesNativeContentCellsOfWindowAndDialog() throws Exception {
         if (!com.kotcrab.vis.ui.VisUI.isLoaded()) com.kotcrab.vis.ui.VisUI.load();
         Graphics previousGraphics = Gdx.graphics;
         Gdx.graphics = logicalGraphics(200, 200);
         try {
             for (HudNodeKind kind : List.of(HudNodeKind.WINDOW, HudNodeKind.DIALOG)) {
-                if (openSession != null) { openSession.dispose(); openSession = null; }
+                if (openSession != null) {
+                    openSession.dispose();
+                    openSession = null;
+                }
                 HudNode root = sized(new HudNode("root", HudNodeKind.GROUP), 200f, 200f);
                 HudNode owner = sized(new HudNode("owner", kind), 150f, 150f);
                 if (kind == HudNodeKind.WINDOW) owner.window = new HudWindowData();
@@ -1379,7 +1444,8 @@ public class HudSelectionOverlayTest {
         }
     }
 
-    @Test public void stageDragRejectsAnotherTableWithoutChangingHistory() throws Exception {
+    @Test
+    public void stageDragRejectsAnotherTableWithoutChangingHistory() throws Exception {
         if (!com.kotcrab.vis.ui.VisUI.isLoaded()) com.kotcrab.vis.ui.VisUI.load();
         Graphics previousGraphics = Gdx.graphics;
         Gdx.graphics = logicalGraphics(100, 100);
@@ -1426,7 +1492,8 @@ public class HudSelectionOverlayTest {
         }
     }
 
-    @Test public void stageDragMovesLayoutSubtreeOnlyFromItsOwnSurface() throws Exception {
+    @Test
+    public void stageDragMovesLayoutSubtreeOnlyFromItsOwnSurface() throws Exception {
         if (!com.kotcrab.vis.ui.VisUI.isLoaded()) com.kotcrab.vis.ui.VisUI.load();
         Graphics previousGraphics = Gdx.graphics;
         Gdx.graphics = logicalGraphics(100, 100);
@@ -1482,16 +1549,18 @@ public class HudSelectionOverlayTest {
         }
     }
 
-    @Test public void shiftClickSelectsNativeCellRangeWithoutStartingWidgetDrag() throws Exception {
+    @Test
+    public void shiftClickSelectsNativeCellRangeWithoutStartingWidgetDrag() throws Exception {
         Graphics previousGraphics = Gdx.graphics;
         Input previousInput = Gdx.input;
         Gdx.graphics = logicalGraphics(100, 100);
         HudNode table = sized(new HudNode("table", HudNodeKind.TABLE), 100f, 100f);
         table.table = HudLayoutAuthoring.newTableLayout(table, 2, 3, false);
-        for (var row : table.table.rows) for (var cell : row.cells) {
-            cell.constraints.minWidth = 30f;
-            cell.constraints.minHeight = 40f;
-        }
+        for (var row : table.table.rows)
+            for (var cell : row.cells) {
+                cell.constraints.minWidth = 30f;
+                cell.constraints.minHeight = 40f;
+            }
         String first = table.table.rows.get(0).cells.get(0).id;
         String middle = table.table.rows.get(0).cells.get(1).id;
         String last = table.table.rows.get(0).cells.get(2).id;
@@ -1934,8 +2003,8 @@ public class HudSelectionOverlayTest {
     }
 
     private static void assertStageEmptySpaceDoesNotSelect(Stage studioStage,
-                                                            HudEditorSession session,
-                                                            float hudX, float hudY) {
+                                                           HudEditorSession session,
+                                                           float hudX, float hudY) {
         Vector2 stagePoint = session.hudViewport().project(new Vector2(hudX, hudY));
         int rawX = Math.round(stagePoint.x);
         int rawY = Math.round(1080f - stagePoint.y);
@@ -1992,5 +2061,6 @@ public class HudSelectionOverlayTest {
         return null;
     }
 
-    private record Fixture(HudEditorSession session, HudScreenEditorDocument document) {}
+    private record Fixture(HudEditorSession session, HudScreenEditorDocument document) {
+    }
 }

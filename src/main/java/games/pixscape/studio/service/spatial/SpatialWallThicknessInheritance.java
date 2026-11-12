@@ -5,7 +5,9 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialWallGeometry;
 
-/** Deterministic precise-thickness inheritance for a newly connected authored wall. */
+/**
+ * Deterministic precise-thickness inheritance for a newly connected authored wall.
+ */
 public final class SpatialWallThicknessInheritance {
     public static final class Result {
         public final boolean valid;
@@ -41,7 +43,8 @@ public final class SpatialWallThicknessInheritance {
 
         SpatialWallAttachments.Axis sourceAxis = gestureAxis != null ? gestureAxis : SpatialWallAttachments.determineAxis(candidate);
         Array<SpatialBlockData> parallel = new Array<>(SpatialBlockData.class);
-        for (SpatialBlockData wall : touched) if (SpatialWallAttachments.determineAxis(wall) == sourceAxis) parallel.add(wall);
+        for (SpatialBlockData wall : touched)
+            if (SpatialWallAttachments.determineAxis(wall) == sourceAxis) parallel.add(wall);
         if (parallel.size == 0) return new Result(true, null, candidate);
         float inherited = thickness(parallel.first());
         for (int i = 1; i < parallel.size; i++) {
@@ -84,7 +87,7 @@ public final class SpatialWallThicknessInheritance {
     }
 
     private static Array<SpatialBlockData> touchingNeighbors(SpatialBlockData candidate,
-                                                              SpatialBlocksComponent existing) {
+                                                             SpatialBlocksComponent existing) {
         Array<SpatialBlockData> result = new Array<>(SpatialBlockData[]::new);
         SpatialWallGeometry.Bounds a = new SpatialWallGeometry.Bounds();
         SpatialWallGeometry.Bounds b = new SpatialWallGeometry.Bounds();

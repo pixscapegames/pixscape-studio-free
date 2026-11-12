@@ -5,9 +5,11 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialWallGeometry;
 
-/** Derived, non-serialized junction constraints for one committed authored wall. */
+/**
+ * Derived, non-serialized junction constraints for one committed authored wall.
+ */
 public final class SpatialWallAttachments {
-    public enum Axis { HORIZONTAL, VERTICAL }
+    public enum Axis {HORIZONTAL, VERTICAL}
 
     public static final int MIN_X = 1;
     public static final int MAX_X = 2;
@@ -90,27 +92,64 @@ public final class SpatialWallAttachments {
         return result;
     }
 
-    public int wallId() { return wallId; }
-    public Axis axis() { return axis; }
-    public boolean isHorizontal() { return axis == Axis.HORIZONTAL; }
-    public boolean isAttached() { return attachments.size > 0; }
-    public boolean minLongitudinalLocked() { return minLongitudinalLocked; }
-    public boolean maxLongitudinalLocked() { return maxLongitudinalLocked; }
-    public int size() { return attachments.size; }
-    public Attachment get(int index) { return attachments.get(index); }
+    public int wallId() {
+        return wallId;
+    }
+
+    public Axis axis() {
+        return axis;
+    }
+
+    public boolean isHorizontal() {
+        return axis == Axis.HORIZONTAL;
+    }
+
+    public boolean isAttached() {
+        return attachments.size > 0;
+    }
+
+    public boolean minLongitudinalLocked() {
+        return minLongitudinalLocked;
+    }
+
+    public boolean maxLongitudinalLocked() {
+        return maxLongitudinalLocked;
+    }
+
+    public int size() {
+        return attachments.size;
+    }
+
+    public Attachment get(int index) {
+        return attachments.get(index);
+    }
+
     public boolean isSideJoined(int side) {
         for (int i = 0; i < attachments.size; i++) {
             if ((attachments.get(i).selectedSides & side) != 0) return true;
         }
         return false;
     }
-    public boolean canSlide() { return slideAvailable; }
-    public Axis slideAxis() { return slideAxis; }
+
+    public boolean canSlide() {
+        return slideAvailable;
+    }
+
+    public Axis slideAxis() {
+        return slideAxis;
+    }
+
     public float clampSlideDelta(float delta) {
         return Math.max(minimumSlideDelta, Math.min(maximumSlideDelta, delta));
     }
-    public float minimumSlideDelta() { return minimumSlideDelta; }
-    public float maximumSlideDelta() { return maximumSlideDelta; }
+
+    public float minimumSlideDelta() {
+        return minimumSlideDelta;
+    }
+
+    public float maximumSlideDelta() {
+        return maximumSlideDelta;
+    }
 
     public boolean preservesAll(SpatialBlockData candidate, SpatialBlocksComponent committed) {
         if (candidate == null || committed == null) return false;

@@ -5,7 +5,9 @@ import com.kotcrab.vis.ui.widget.color.ColorPicker;
 
 import java.util.function.Supplier;
 
-/** Creates VisUI color pickers without leaving GL3 shader prefixes configured globally. */
+/**
+ * Creates VisUI color pickers without leaving GL3 shader prefixes configured globally.
+ */
 public final class StudioColorPickerFactory {
     private static final String VERTEX_PREFIX = """
             #version 140

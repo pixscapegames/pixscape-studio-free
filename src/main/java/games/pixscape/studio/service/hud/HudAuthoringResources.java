@@ -22,7 +22,9 @@ import java.util.*;
 import java.util.List;
 import java.util.function.Predicate;
 
-/** Studio-owned native resources for one detached HUD authoring preview. */
+/**
+ * Studio-owned native resources for one detached HUD authoring preview.
+ */
 public final class HudAuthoringResources implements HudVisualResources, HudResourceCatalog, Disposable {
     private final Map<String, Texture> texturesBySource = new HashMap<>();
     private final Map<String, TextureRegion> regionsByName = new HashMap<>();
@@ -166,36 +168,78 @@ public final class HudAuthoringResources implements HudVisualResources, HudResou
         return new Skin(file);
     }
 
-    @Override public TextureRegion region(String name) { requireOpen(); return regionsByName.get(name); }
-    @Override public Drawable drawable(String name) {
-        requireOpen(); return skin == null ? null : skin.optional(name, Drawable.class);
+    @Override
+    public TextureRegion region(String name) {
+        requireOpen();
+        return regionsByName.get(name);
     }
-    @Override public Label.LabelStyle labelStyle(String name) {
-        requireOpen(); return skin == null ? null : skin.optional(name, Label.LabelStyle.class);
+
+    @Override
+    public Drawable drawable(String name) {
+        requireOpen();
+        return skin == null ? null : skin.optional(name, Drawable.class);
     }
-    @Override public BitmapFont bitmapFont(int assetId) {
-        requireOpen(); return bitmapFonts.get(assetId);
+
+    @Override
+    public Label.LabelStyle labelStyle(String name) {
+        requireOpen();
+        return skin == null ? null : skin.optional(name, Label.LabelStyle.class);
     }
-    @Override public Font textraFont(BitmapFont bitmapFont) {
+
+    @Override
+    public BitmapFont bitmapFont(int assetId) {
+        requireOpen();
+        return bitmapFonts.get(assetId);
+    }
+
+    @Override
+    public Font textraFont(BitmapFont bitmapFont) {
         requireOpen();
         if (bitmapFont == null) return null;
         return textraFonts.computeIfAbsent(bitmapFont, font -> HudTextraFontFactory.prepare(
                 font, new TextureRegion(builtInTextButtonTexture)));
     }
-    @Override public boolean hasRegion(String name) { return region(name) != null; }
-    @Override public boolean hasDrawable(String name) { return drawable(name) != null; }
-    @Override public boolean hasLabelStyle(String name) { return labelStyle(name) != null; }
-    @Override public boolean hasLabelStyleFont(String name) {
+
+    @Override
+    public boolean hasRegion(String name) {
+        return region(name) != null;
+    }
+
+    @Override
+    public boolean hasDrawable(String name) {
+        return drawable(name) != null;
+    }
+
+    @Override
+    public boolean hasLabelStyle(String name) {
+        return labelStyle(name) != null;
+    }
+
+    @Override
+    public boolean hasLabelStyleFont(String name) {
         return HudStyleUsability.isUsableLabelStyle(labelStyle(name), false);
     }
-    @Override public boolean hasBitmapFont(int assetId) { return bitmapFont(assetId) != null; }
-    @Override public boolean hasBuiltInLabelStyle() { return builtInLabelStyle() != null; }
-    @Override public Label.LabelStyle builtInLabelStyle() {
-        requireOpen(); return builtInLabelStyle;
+
+    @Override
+    public boolean hasBitmapFont(int assetId) {
+        return bitmapFont(assetId) != null;
     }
+
+    @Override
+    public boolean hasBuiltInLabelStyle() {
+        return builtInLabelStyle() != null;
+    }
+
+    @Override
+    public Label.LabelStyle builtInLabelStyle() {
+        requireOpen();
+        return builtInLabelStyle;
+    }
+
     public List<String> labelStyleNames() {
         return labelStyleNames(false);
     }
+
     public List<String> labelStyleNames(boolean hasFontOverride) {
         requireOpen();
         if (skin == null) return List.of();
@@ -203,166 +247,300 @@ public final class HudAuthoringResources implements HudVisualResources, HudResou
         return styleNames(styles, style -> HudStyleUsability.isUsableLabelStyle(
                 style, hasFontOverride));
     }
+
     public LabelDefaults defaultLabel() {
         requireOpen();
         return new LabelDefaults(null);
     }
-    @Override public TextButton.TextButtonStyle textButtonStyle(String name) {
-        requireOpen(); return skin == null ? null : skin.optional(name, TextButton.TextButtonStyle.class);
+
+    @Override
+    public TextButton.TextButtonStyle textButtonStyle(String name) {
+        requireOpen();
+        return skin == null ? null : skin.optional(name, TextButton.TextButtonStyle.class);
     }
-    @Override public TextButton.TextButtonStyle builtInTextButtonStyle() {
-        requireOpen(); return builtInTextButtonStyle;
+
+    @Override
+    public TextButton.TextButtonStyle builtInTextButtonStyle() {
+        requireOpen();
+        return builtInTextButtonStyle;
     }
-    @Override public boolean hasTextButtonStyle(String name) {
+
+    @Override
+    public boolean hasTextButtonStyle(String name) {
         return hasTextButtonStyle(name, false);
     }
-    @Override public boolean hasTextButtonStyle(String name, boolean hasFontOverride) {
+
+    @Override
+    public boolean hasTextButtonStyle(String name, boolean hasFontOverride) {
         return HudStyleUsability.isUsableTextButtonStyle(textButtonStyle(name), hasFontOverride);
     }
-    @Override public boolean hasBuiltInTextButtonStyle() {
+
+    @Override
+    public boolean hasBuiltInTextButtonStyle() {
         return HudStyleUsability.isUsableTextButtonStyle(builtInTextButtonStyle(), false);
     }
-    @Override public ImageButton.ImageButtonStyle imageButtonStyle(String name) {
-        requireOpen(); return skin == null ? null : skin.optional(name, ImageButton.ImageButtonStyle.class);
+
+    @Override
+    public ImageButton.ImageButtonStyle imageButtonStyle(String name) {
+        requireOpen();
+        return skin == null ? null : skin.optional(name, ImageButton.ImageButtonStyle.class);
     }
-    @Override public ImageButton.ImageButtonStyle builtInImageButtonStyle() {
-        requireOpen(); return builtInImageButtonStyle;
+
+    @Override
+    public ImageButton.ImageButtonStyle builtInImageButtonStyle() {
+        requireOpen();
+        return builtInImageButtonStyle;
     }
-    @Override public ImageTextButton.ImageTextButtonStyle imageTextButtonStyle(String name) {
-        requireOpen(); return skin == null ? null : skin.optional(name, ImageTextButton.ImageTextButtonStyle.class);
+
+    @Override
+    public ImageTextButton.ImageTextButtonStyle imageTextButtonStyle(String name) {
+        requireOpen();
+        return skin == null ? null : skin.optional(name, ImageTextButton.ImageTextButtonStyle.class);
     }
-    @Override public ImageTextButton.ImageTextButtonStyle builtInImageTextButtonStyle() {
-        requireOpen(); return builtInImageTextButtonStyle;
+
+    @Override
+    public ImageTextButton.ImageTextButtonStyle builtInImageTextButtonStyle() {
+        requireOpen();
+        return builtInImageTextButtonStyle;
     }
-    @Override public boolean hasImageTextButtonStyle(String name, boolean hasFontOverride) {
+
+    @Override
+    public boolean hasImageTextButtonStyle(String name, boolean hasFontOverride) {
         return HudStyleUsability.isUsableImageTextButtonStyle(imageTextButtonStyle(name), hasFontOverride);
     }
-    @Override public boolean hasBuiltInImageTextButtonStyle() {
+
+    @Override
+    public boolean hasBuiltInImageTextButtonStyle() {
         return HudStyleUsability.isUsableImageTextButtonStyle(builtInImageTextButtonStyle, false);
     }
-    @Override public boolean hasImageButtonStyle(String name) { return usable(imageButtonStyle(name)); }
-    @Override public boolean hasBuiltInImageButtonStyle() { return usable(builtInImageButtonStyle()); }
-    @Override public TextField.TextFieldStyle textFieldStyle(String name) {
-        requireOpen(); return skin == null ? null : skin.optional(name, TextField.TextFieldStyle.class);
+
+    @Override
+    public boolean hasImageButtonStyle(String name) {
+        return usable(imageButtonStyle(name));
     }
-    @Override public TextField.TextFieldStyle builtInTextFieldStyle() {
-        requireOpen(); return builtInTextFieldStyle;
+
+    @Override
+    public boolean hasBuiltInImageButtonStyle() {
+        return usable(builtInImageButtonStyle());
     }
-    @Override public boolean hasTextFieldStyle(String name) {
+
+    @Override
+    public TextField.TextFieldStyle textFieldStyle(String name) {
+        requireOpen();
+        return skin == null ? null : skin.optional(name, TextField.TextFieldStyle.class);
+    }
+
+    @Override
+    public TextField.TextFieldStyle builtInTextFieldStyle() {
+        requireOpen();
+        return builtInTextFieldStyle;
+    }
+
+    @Override
+    public boolean hasTextFieldStyle(String name) {
         return hasTextFieldStyle(name, false);
     }
-    @Override public boolean hasTextFieldStyle(String name, boolean hasFontOverride) {
+
+    @Override
+    public boolean hasTextFieldStyle(String name, boolean hasFontOverride) {
         return HudStyleUsability.isUsableTextFieldStyle(textFieldStyle(name), hasFontOverride);
     }
-    @Override public boolean hasBuiltInTextFieldStyle() {
+
+    @Override
+    public boolean hasBuiltInTextFieldStyle() {
         return HudStyleUsability.isUsableTextFieldStyle(builtInTextFieldStyle(), false);
     }
-    @Override public SelectBox.SelectBoxStyle selectBoxStyle(String name) {
-        requireOpen(); return skin == null ? null : skin.optional(name, SelectBox.SelectBoxStyle.class);
+
+    @Override
+    public SelectBox.SelectBoxStyle selectBoxStyle(String name) {
+        requireOpen();
+        return skin == null ? null : skin.optional(name, SelectBox.SelectBoxStyle.class);
     }
-    @Override public SelectBox.SelectBoxStyle builtInSelectBoxStyle() {
-        requireOpen(); return builtInSelectBoxStyle;
+
+    @Override
+    public SelectBox.SelectBoxStyle builtInSelectBoxStyle() {
+        requireOpen();
+        return builtInSelectBoxStyle;
     }
-    @Override public boolean hasSelectBoxStyle(String name) {
+
+    @Override
+    public boolean hasSelectBoxStyle(String name) {
         return hasSelectBoxStyle(name, false);
     }
-    @Override public boolean hasSelectBoxStyle(String name, boolean hasFontOverride) {
+
+    @Override
+    public boolean hasSelectBoxStyle(String name, boolean hasFontOverride) {
         return HudStyleUsability.isUsableSelectBoxStyle(selectBoxStyle(name), hasFontOverride);
     }
-    @Override public boolean hasBuiltInSelectBoxStyle() {
+
+    @Override
+    public boolean hasBuiltInSelectBoxStyle() {
         return HudStyleUsability.isUsableSelectBoxStyle(builtInSelectBoxStyle(), false);
     }
-    @Override public com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle listStyle(String name) {
+
+    @Override
+    public com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle listStyle(String name) {
         requireOpen();
         return skin == null ? null : skin.optional(name, com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle.class);
     }
-    @Override public com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle builtInListStyle() {
-        requireOpen(); return builtInSelectBoxStyle.listStyle;
+
+    @Override
+    public com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle builtInListStyle() {
+        requireOpen();
+        return builtInSelectBoxStyle.listStyle;
     }
-    @Override public boolean hasListStyle(String name, boolean hasFontOverride) {
+
+    @Override
+    public boolean hasListStyle(String name, boolean hasFontOverride) {
         return HudStyleUsability.isUsableListStyle(listStyle(name), hasFontOverride);
     }
-    @Override public boolean hasBuiltInListStyle() {
+
+    @Override
+    public boolean hasBuiltInListStyle() {
         return HudStyleUsability.isUsableListStyle(builtInListStyle(), false);
     }
-    @Override public CheckBox.CheckBoxStyle checkBoxStyle(String name) {
-        requireOpen(); return skin == null ? null : skin.optional(name, CheckBox.CheckBoxStyle.class);
+
+    @Override
+    public CheckBox.CheckBoxStyle checkBoxStyle(String name) {
+        requireOpen();
+        return skin == null ? null : skin.optional(name, CheckBox.CheckBoxStyle.class);
     }
-    @Override public CheckBox.CheckBoxStyle builtInCheckBoxStyle() {
-        requireOpen(); return builtInCheckBoxStyle;
+
+    @Override
+    public CheckBox.CheckBoxStyle builtInCheckBoxStyle() {
+        requireOpen();
+        return builtInCheckBoxStyle;
     }
-    @Override public boolean hasCheckBoxStyle(String name) {
+
+    @Override
+    public boolean hasCheckBoxStyle(String name) {
         return hasCheckBoxStyle(name, false);
     }
-    @Override public boolean hasCheckBoxStyle(String name, boolean hasFontOverride) {
+
+    @Override
+    public boolean hasCheckBoxStyle(String name, boolean hasFontOverride) {
         return HudStyleUsability.isUsableCheckBoxStyle(checkBoxStyle(name), hasFontOverride);
     }
-    @Override public boolean hasBuiltInCheckBoxStyle() {
+
+    @Override
+    public boolean hasBuiltInCheckBoxStyle() {
         return HudStyleUsability.isUsableCheckBoxStyle(builtInCheckBoxStyle(), false);
     }
-    @Override public Slider.SliderStyle sliderStyle(String name) {
-        requireOpen(); return skin == null ? null : skin.optional(name, Slider.SliderStyle.class);
+
+    @Override
+    public Slider.SliderStyle sliderStyle(String name) {
+        requireOpen();
+        return skin == null ? null : skin.optional(name, Slider.SliderStyle.class);
     }
-    @Override public Slider.SliderStyle builtInSliderStyle() {
-        requireOpen(); return builtInSliderStyle;
+
+    @Override
+    public Slider.SliderStyle builtInSliderStyle() {
+        requireOpen();
+        return builtInSliderStyle;
     }
-    @Override public boolean hasSliderStyle(String name) {
+
+    @Override
+    public boolean hasSliderStyle(String name) {
         return HudStyleUsability.isUsableSliderStyle(sliderStyle(name));
     }
-    @Override public boolean hasBuiltInSliderStyle() {
+
+    @Override
+    public boolean hasBuiltInSliderStyle() {
         return HudStyleUsability.isUsableSliderStyle(builtInSliderStyle());
     }
-    @Override public ProgressBar.ProgressBarStyle progressBarStyle(String name) {
-        requireOpen(); return skin == null ? null : skin.optional(name, ProgressBar.ProgressBarStyle.class);
+
+    @Override
+    public ProgressBar.ProgressBarStyle progressBarStyle(String name) {
+        requireOpen();
+        return skin == null ? null : skin.optional(name, ProgressBar.ProgressBarStyle.class);
     }
-    @Override public ProgressBar.ProgressBarStyle builtInProgressBarStyle() {
-        requireOpen(); return builtInProgressBarStyle;
+
+    @Override
+    public ProgressBar.ProgressBarStyle builtInProgressBarStyle() {
+        requireOpen();
+        return builtInProgressBarStyle;
     }
-    @Override public boolean hasProgressBarStyle(String name) {
+
+    @Override
+    public boolean hasProgressBarStyle(String name) {
         return HudStyleUsability.isUsableProgressBarStyle(progressBarStyle(name));
     }
-    @Override public boolean hasBuiltInProgressBarStyle() {
+
+    @Override
+    public boolean hasBuiltInProgressBarStyle() {
         return HudStyleUsability.isUsableProgressBarStyle(builtInProgressBarStyle());
     }
-    @Override public ScrollPane.ScrollPaneStyle scrollPaneStyle(String name) {
-        requireOpen(); return skin == null ? null : skin.optional(name, ScrollPane.ScrollPaneStyle.class);
+
+    @Override
+    public ScrollPane.ScrollPaneStyle scrollPaneStyle(String name) {
+        requireOpen();
+        return skin == null ? null : skin.optional(name, ScrollPane.ScrollPaneStyle.class);
     }
-    @Override public ScrollPane.ScrollPaneStyle builtInScrollPaneStyle() {
-        requireOpen(); return builtInScrollPaneStyle;
+
+    @Override
+    public ScrollPane.ScrollPaneStyle builtInScrollPaneStyle() {
+        requireOpen();
+        return builtInScrollPaneStyle;
     }
-    @Override public boolean hasScrollPaneStyle(String name) {
+
+    @Override
+    public boolean hasScrollPaneStyle(String name) {
         return HudStyleUsability.isUsableScrollPaneStyle(scrollPaneStyle(name));
     }
-    @Override public boolean hasBuiltInScrollPaneStyle() {
+
+    @Override
+    public boolean hasBuiltInScrollPaneStyle() {
         return HudStyleUsability.isUsableScrollPaneStyle(builtInScrollPaneStyle());
     }
-    @Override public TextTooltip.TextTooltipStyle textTooltipStyle(String name) {
-        requireOpen(); return skin == null ? null : skin.optional(name, TextTooltip.TextTooltipStyle.class);
+
+    @Override
+    public TextTooltip.TextTooltipStyle textTooltipStyle(String name) {
+        requireOpen();
+        return skin == null ? null : skin.optional(name, TextTooltip.TextTooltipStyle.class);
     }
-    @Override public TextTooltip.TextTooltipStyle builtInTextTooltipStyle() {
-        requireOpen(); return builtInTextTooltipStyle;
+
+    @Override
+    public TextTooltip.TextTooltipStyle builtInTextTooltipStyle() {
+        requireOpen();
+        return builtInTextTooltipStyle;
     }
-    @Override public boolean hasTextTooltipStyle(String name, boolean hasFontOverride) {
+
+    @Override
+    public boolean hasTextTooltipStyle(String name, boolean hasFontOverride) {
         return HudStyleUsability.isUsableTextTooltipStyle(textTooltipStyle(name), hasFontOverride);
     }
-    @Override public boolean hasBuiltInTextTooltipStyle() {
+
+    @Override
+    public boolean hasBuiltInTextTooltipStyle() {
         return HudStyleUsability.isUsableTextTooltipStyle(builtInTextTooltipStyle(), false);
     }
-    @Override public Window.WindowStyle windowStyle(String name) {
-        requireOpen(); return skin == null ? null : skin.optional(name, Window.WindowStyle.class);
+
+    @Override
+    public Window.WindowStyle windowStyle(String name) {
+        requireOpen();
+        return skin == null ? null : skin.optional(name, Window.WindowStyle.class);
     }
-    @Override public Window.WindowStyle builtInWindowStyle() {
-        requireOpen(); return builtInWindowStyle;
+
+    @Override
+    public Window.WindowStyle builtInWindowStyle() {
+        requireOpen();
+        return builtInWindowStyle;
     }
-    @Override public boolean hasWindowStyle(String name, boolean hasFontOverride) {
+
+    @Override
+    public boolean hasWindowStyle(String name, boolean hasFontOverride) {
         return HudStyleUsability.isUsableWindowStyle(windowStyle(name), hasFontOverride);
     }
-    @Override public boolean hasBuiltInWindowStyle() {
+
+    @Override
+    public boolean hasBuiltInWindowStyle() {
         return HudStyleUsability.isUsableWindowStyle(builtInWindowStyle(), false);
     }
+
     public List<String> textButtonStyleNames() {
         return textButtonStyleNames(false);
     }
+
     public List<String> textButtonStyleNames(boolean hasFontOverride) {
         requireOpen();
         if (skin == null) return List.of();
@@ -371,6 +549,7 @@ public final class HudAuthoringResources implements HudVisualResources, HudResou
         return styleNames(styles, style -> HudStyleUsability.isUsableTextButtonStyle(
                 style, hasFontOverride));
     }
+
     public TextButtonDefaults defaultTextButton() {
         requireOpen();
         List<String> customStyles = textButtonStyleNames();
@@ -412,6 +591,7 @@ public final class HudAuthoringResources implements HudVisualResources, HudResou
     public List<String> textFieldStyleNames() {
         return textFieldStyleNames(false);
     }
+
     public List<String> textFieldStyleNames(boolean hasFontOverride) {
         requireOpen();
         if (skin == null) return List.of();
@@ -430,6 +610,7 @@ public final class HudAuthoringResources implements HudVisualResources, HudResou
     public List<String> selectBoxStyleNames() {
         return selectBoxStyleNames(false);
     }
+
     public List<String> selectBoxStyleNames(boolean hasFontOverride) {
         requireOpen();
         if (skin == null) return List.of();
@@ -466,6 +647,7 @@ public final class HudAuthoringResources implements HudVisualResources, HudResou
     public List<String> checkBoxStyleNames() {
         return checkBoxStyleNames(false);
     }
+
     public List<String> checkBoxStyleNames(boolean hasFontOverride) {
         requireOpen();
         if (skin == null) return List.of();
@@ -547,64 +729,76 @@ public final class HudAuthoringResources implements HudVisualResources, HudResou
                 HudBuiltInTextButtonStyle.isSelected(styleName)
                         ? builtInTextButtonStyle : textButtonStyle(styleName), hasFontOverride);
     }
+
     boolean hasUsableImageButtonStyle(String styleName) {
         requireOpen();
         return usable(HudBuiltInImageButtonStyle.isSelected(styleName)
                 ? builtInImageButtonStyle : imageButtonStyle(styleName));
     }
+
     boolean hasUsableImageTextButtonStyle(String styleName, boolean hasFontOverride) {
         requireOpen();
         return HudStyleUsability.isUsableImageTextButtonStyle(
                 HudBuiltInImageTextButtonStyle.isSelected(styleName)
                         ? builtInImageTextButtonStyle : imageTextButtonStyle(styleName), hasFontOverride);
     }
+
     boolean hasUsableTextFieldStyle(String styleName, boolean hasFontOverride) {
         requireOpen();
         return HudStyleUsability.isUsableTextFieldStyle(HudBuiltInTextFieldStyle.isSelected(styleName)
                 ? builtInTextFieldStyle : textFieldStyle(styleName), hasFontOverride);
     }
+
     boolean hasUsableSelectBoxStyle(String styleName, boolean hasFontOverride) {
         requireOpen();
         return HudStyleUsability.isUsableSelectBoxStyle(HudBuiltInSelectBoxStyle.isSelected(styleName)
                 ? builtInSelectBoxStyle : selectBoxStyle(styleName), hasFontOverride);
     }
+
     boolean hasUsableCheckBoxStyle(String styleName, boolean hasFontOverride) {
         requireOpen();
         return HudStyleUsability.isUsableCheckBoxStyle(HudBuiltInCheckBoxStyle.isSelected(styleName)
                 ? builtInCheckBoxStyle : checkBoxStyle(styleName), hasFontOverride);
     }
+
     boolean hasUsableSliderStyle(String styleName) {
         requireOpen();
         return HudStyleUsability.isUsableSliderStyle(HudBuiltInSliderStyle.isSelected(styleName)
                 ? builtInSliderStyle : sliderStyle(styleName));
     }
+
     boolean hasUsableProgressBarStyle(String styleName) {
         requireOpen();
         return HudStyleUsability.isUsableProgressBarStyle(HudBuiltInProgressBarStyle.isSelected(styleName)
                 ? builtInProgressBarStyle : progressBarStyle(styleName));
     }
+
     boolean hasUsableScrollPaneStyle(String styleName) {
         requireOpen();
         return HudStyleUsability.isUsableScrollPaneStyle(HudBuiltInScrollPaneStyle.isSelected(styleName)
                 ? builtInScrollPaneStyle : scrollPaneStyle(styleName));
     }
+
     boolean hasUsableTextTooltipStyle(String styleName, boolean hasFontOverride) {
         requireOpen();
         return HudStyleUsability.isUsableTextTooltipStyle(
                 HudBuiltInTextTooltipStyle.isSelected(styleName)
                         ? builtInTextTooltipStyle : textTooltipStyle(styleName), hasFontOverride);
     }
+
     boolean hasUsableWindowStyle(String styleName, boolean hasFontOverride) {
         requireOpen();
         return HudStyleUsability.isUsableWindowStyle(
                 HudBuiltInWindowStyle.isSelected(styleName)
                         ? builtInWindowStyle : windowStyle(styleName), hasFontOverride);
     }
+
     private static boolean usable(ImageButton.ImageButtonStyle style) {
         return style != null;
     }
+
     private static <T> List<String> styleNames(ObjectMap<String, T> styles,
-                                                Predicate<T> isUsable) {
+                                               Predicate<T> isUsable) {
         if (styles == null || styles.isEmpty()) return List.of();
         List<String> names = new ArrayList<>();
         for (ObjectMap.Entry<String, T> entry : styles) {
@@ -615,8 +809,13 @@ public final class HudAuthoringResources implements HudVisualResources, HudResou
         names.sort(String::compareTo);
         return List.copyOf(names);
     }
-    private void requireOpen() { if (disposed) throw new IllegalStateException("HUD authoring resources are disposed."); }
-    @Override public void dispose() {
+
+    private void requireOpen() {
+        if (disposed) throw new IllegalStateException("HUD authoring resources are disposed.");
+    }
+
+    @Override
+    public void dispose() {
         if (disposed) return;
         disposed = true;
         for (Font font : textraFonts.values()) font.dispose();
@@ -631,14 +830,33 @@ public final class HudAuthoringResources implements HudVisualResources, HudResou
         regionsByName.clear();
     }
 
-    public record LabelDefaults(String styleName) { }
-    public record TextButtonDefaults(String styleName) { }
-    public record ImageButtonDefaults(String styleName) { }
-    public record ImageTextButtonDefaults(String styleName) { }
-    public record TextFieldDefaults(String styleName) { }
-    public record SelectBoxDefaults(String styleName) { }
-    public record CheckBoxDefaults(String styleName) { }
-    public record SliderDefaults(String styleName) { }
-    public record ProgressBarDefaults(String styleName) { }
-    public record ScrollPaneDefaults(String styleName) { }
+    public record LabelDefaults(String styleName) {
+    }
+
+    public record TextButtonDefaults(String styleName) {
+    }
+
+    public record ImageButtonDefaults(String styleName) {
+    }
+
+    public record ImageTextButtonDefaults(String styleName) {
+    }
+
+    public record TextFieldDefaults(String styleName) {
+    }
+
+    public record SelectBoxDefaults(String styleName) {
+    }
+
+    public record CheckBoxDefaults(String styleName) {
+    }
+
+    public record SliderDefaults(String styleName) {
+    }
+
+    public record ProgressBarDefaults(String styleName) {
+    }
+
+    public record ScrollPaneDefaults(String styleName) {
+    }
 }

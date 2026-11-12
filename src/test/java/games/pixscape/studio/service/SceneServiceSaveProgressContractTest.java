@@ -38,10 +38,10 @@ public class SceneServiceSaveProgressContractTest {
 
     @Test
     public void tabCloseAndExitShareDocumentSaveProgressAndKeepDocumentPersistence() throws Exception {
-        String source=readSceneServiceSource();
-        assertTrue(methodBody(source,"public void saveSceneDocumentWithProgress(").contains("saveSceneDocumentsWithProgress(app.getUiStage(), List.of(document), onSuccess, onError)"));
-        assertTrue(methodBody(source,"public void saveAllDirtyScenesWithProgress(").contains("saveSceneDocumentsWithProgress(uiStage, dirty, onSuccess, onError)"));
-        String batch=methodBody(source,"private void saveSceneDocumentsWithProgress(");
+        String source = readSceneServiceSource();
+        assertTrue(methodBody(source, "public void saveSceneDocumentWithProgress(").contains("saveSceneDocumentsWithProgress(app.getUiStage(), List.of(document), onSuccess, onError)"));
+        assertTrue(methodBody(source, "public void saveAllDirtyScenesWithProgress(").contains("saveSceneDocumentsWithProgress(uiStage, dirty, onSuccess, onError)"));
+        String batch = methodBody(source, "private void saveSceneDocumentsWithProgress(");
         assertTrue(batch.contains("() -> saveSceneDocument(document)"));
         assertTrue(batch.contains("runSaveSteps(uiStage, steps,"));
         assertTrue(batch.contains("\"Finalizing...\""));

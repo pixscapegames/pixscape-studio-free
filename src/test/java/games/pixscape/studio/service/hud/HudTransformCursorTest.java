@@ -10,7 +10,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
 public class HudTransformCursorTest {
-    @Test public void mapsEveryResizeHandleToTheMatchingSystemCursor() {
+    @Test
+    public void mapsEveryResizeHandleToTheMatchingSystemCursor() {
         assertEquals(Cursor.SystemCursor.VerticalResize, HudTransformCursor.cursorFor(HudTransformHandle.N));
         assertEquals(Cursor.SystemCursor.VerticalResize, HudTransformCursor.cursorFor(HudTransformHandle.S));
         assertEquals(Cursor.SystemCursor.HorizontalResize, HudTransformCursor.cursorFor(HudTransformHandle.E));
@@ -22,7 +23,8 @@ public class HudTransformCursorTest {
         assertNull(HudTransformCursor.cursorFor(null));
     }
 
-    @Test public void releasesOnlyItsOwnCursorAndAvoidsRepeatedNativeRequests() {
+    @Test
+    public void releasesOnlyItsOwnCursorAndAvoidsRepeatedNativeRequests() {
         List<Cursor.SystemCursor> applied = new ArrayList<>();
         HudTransformCursor cursor = new HudTransformCursor(applied::add);
 

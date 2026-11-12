@@ -114,7 +114,7 @@ public class HtmlPreviewPipelineTest {
             assertNotNull(sources.get("shaders/includes/pixscape_common.glsl"));
             assertNotNull(sources.get("shaders/includes/pixscape_entity_params.glsl"));
             HttpResponse<String> projectCatalog = client.send(HttpRequest.newBuilder(
-                    URI.create(base + "pixscape-project/shaders/examples/catalog.json")).build(),
+                            URI.create(base + "pixscape-project/shaders/examples/catalog.json")).build(),
                     HttpResponse.BodyHandlers.ofString());
             assertEquals("[]", projectCatalog.body());
         } finally {
@@ -141,15 +141,16 @@ public class HtmlPreviewPipelineTest {
 
     @Test
     public void packagedPlayerMatchesExplicitTemplate() throws Exception {
-        Path generated=Path.of("src/main/resources/html-preview-template/htmlplayer");
-        Path packaged=Path.of("build/resources/main/html-preview-template/htmlplayer");
-        String bootstrap=Files.readString(generated.resolve("htmlplayer.nocache.js"));
-        assertEquals(bootstrap,Files.readString(packaged.resolve("htmlplayer.nocache.js")));
-        java.util.regex.Matcher hashes=java.util.regex.Pattern.compile("[A-F0-9]{32}").matcher(bootstrap);
-        java.util.Set<String> names=new java.util.HashSet<>();
-        while(hashes.find())names.add(hashes.group()+".cache.js");
+        Path generated = Path.of("src/main/resources/html-preview-template/htmlplayer");
+        Path packaged = Path.of("build/resources/main/html-preview-template/htmlplayer");
+        String bootstrap = Files.readString(generated.resolve("htmlplayer.nocache.js"));
+        assertEquals(bootstrap, Files.readString(packaged.resolve("htmlplayer.nocache.js")));
+        java.util.regex.Matcher hashes = java.util.regex.Pattern.compile("[A-F0-9]{32}").matcher(bootstrap);
+        java.util.Set<String> names = new java.util.HashSet<>();
+        while (hashes.find()) names.add(hashes.group() + ".cache.js");
         assertFalse(names.isEmpty());
-        for(String name:names)assertArrayEquals(Files.readAllBytes(generated.resolve(name)),Files.readAllBytes(packaged.resolve(name)));
+        for (String name : names)
+            assertArrayEquals(Files.readAllBytes(generated.resolve(name)), Files.readAllBytes(packaged.resolve(name)));
     }
 
     private static void write(Path root, String relative) throws Exception {

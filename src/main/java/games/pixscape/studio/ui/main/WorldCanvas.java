@@ -101,7 +101,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             java.util.Collections.newSetFromMap(new IdentityHashMap<>());
     private boolean resourceImportBusy;
 
-    public void setResourceImportBusy(boolean busy) { resourceImportBusy = busy; }
+    public void setResourceImportBusy(boolean busy) {
+        resourceImportBusy = busy;
+    }
+
     private final Stage gridStage;
     private final games.pixscape.studio.ui.widget.ActorSpatialRectangleCanvasEditor actorShadowRectangleEditor;
     private final OrthographicCamera camera;
@@ -233,7 +236,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         gridStage.addActor(gridActor);
 
         inputState = new InputState();
-        actorShadowRectangleEditor=new games.pixscape.studio.ui.widget.ActorSpatialRectangleCanvasEditor(this,()->worldInputAllowed() && !resourceImportBusy);
+        actorShadowRectangleEditor = new games.pixscape.studio.ui.widget.ActorSpatialRectangleCanvasEditor(this, () -> worldInputAllowed() && !resourceImportBusy);
         app.getUiStage().addActor(actorShadowRectangleEditor);
         frameProfiler = StudioFrameProfiler.fromSystemProperties();
         systemProfiler = frameProfiler.createSystemProfiler();
@@ -264,20 +267,38 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         centerCamera();
     }
 
-    private World world() { return requireBoundContext().world(); }
-    private HistoryManager historyManager() { return sceneEditorContext.historyManager(); }
-    private SelectionService selectionService() { return sceneEditorContext.selectionService(); }
-    private LayerService layerService() { return sceneEditorContext.layerService(); }
-    private IdentityRegistry identityRegistry() { return sceneEditorContext.identityRegistry(); }
+    private World world() {
+        return requireBoundContext().world();
+    }
+
+    private HistoryManager historyManager() {
+        return sceneEditorContext.historyManager();
+    }
+
+    private SelectionService selectionService() {
+        return sceneEditorContext.selectionService();
+    }
+
+    private LayerService layerService() {
+        return sceneEditorContext.layerService();
+    }
+
+    private IdentityRegistry identityRegistry() {
+        return sceneEditorContext.identityRegistry();
+    }
+
     private PhysicsSelectionService physicsSelectionService() {
         return sceneEditorContext.physicsSelectionService();
     }
+
     private PhysicsSelectionReconciler physicsSelectionReconciler() {
         return sceneEditorContext.physicsSelectionReconciler();
     }
+
     private SpatialBlockSelectionService spatialBlockSelectionService() {
         return sceneEditorContext.spatialBlockSelectionService();
     }
+
     private SpatialTileSelectionService spatialTileSelectionService() {
         return sceneEditorContext.spatialTileSelectionService();
     }
@@ -296,7 +317,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         return sceneEditorContext;
     }
 
-    /** Creates a fully live but suspended Scene context without publishing a document tab. */
+    /**
+     * Creates a fully live but suspended Scene context without publishing a document tab.
+     */
     public SceneEditorContext createSceneContext(String canonicalSceneIdentity, SceneMeta sceneMeta) {
         SceneEditorContext previous = sceneEditorContext;
         SceneBinding previousBinding = previous != null ? SceneBinding.capture(this) : null;
@@ -328,7 +351,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
     }
 
-    /** Attaches the one Scene allowed to render, process, and receive world input. */
+    /**
+     * Attaches the one Scene allowed to render, process, and receive world input.
+     */
     public void attach(SceneEditorContext context) {
         validateAttachment(context);
         if (sceneEditorContext == context && context.isActive()) return;
@@ -347,7 +372,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         configureViewForAttachedSelection();
     }
 
-    /** Validates an activation before the document manager or canvas changes state. */
+    /**
+     * Validates an activation before the document manager or canvas changes state.
+     */
     public void validateAttachment(SceneEditorContext context) {
         Objects.requireNonNull(context, "context");
         if (context.isDisposed() || !context.isInitialized()) {
@@ -358,7 +385,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
     }
 
-    /** Suspends the active Scene without clearing, serializing, or disposing it. */
+    /**
+     * Suspends the active Scene without clearing, serializing, or disposing it.
+     */
     public SceneEditorContext detach() {
         SceneEditorContext detached = sceneEditorContext;
         if (detached == null) return null;
@@ -372,7 +401,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         return detached;
     }
 
-    /** Releases canvas-side resources before the document disposes its World. */
+    /**
+     * Releases canvas-side resources before the document disposes its World.
+     */
     public void releaseSceneContext(SceneEditorContext context) {
         if (context == null) return;
         if (sceneEditorContext == context) detach();
@@ -549,7 +580,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                                 stats,
                                 statsSink,
                                 sceneMeta != null && sceneMeta.forwardLighting
-                        ).setSceneSettings(sceneMeta).setRenderDomains(dynamicEntityState,tiledState),
+                        ).setSceneSettings(sceneMeta).setRenderDomains(dynamicEntityState, tiledState),
                         sceneMeta,
                         0,
                         tileAnimationRegistry,
@@ -604,12 +635,17 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         World assembledWorld = bootstrap.getWorld();
         targetContext.initializeWorld(
                 assembledWorld, tiledAllocatorService, sceneMeta);
-        targetContext.historyManager().configureSceneLighting(assembledWorld,sceneMeta,accept->{
-            games.pixscape.studio.ui.modal.StudioDialog dialog=new games.pixscape.studio.ui.modal.StudioDialog("Forward rendering"){
-                @Override protected void result(Object result){if(Boolean.TRUE.equals(result) && !targetContext.isDisposed())accept.run();}
+        targetContext.historyManager().configureSceneLighting(assembledWorld, sceneMeta, accept -> {
+            games.pixscape.studio.ui.modal.StudioDialog dialog = new games.pixscape.studio.ui.modal.StudioDialog("Forward rendering") {
+                @Override
+                protected void result(Object result) {
+                    if (Boolean.TRUE.equals(result) && !targetContext.isDisposed()) accept.run();
+                }
             };
             dialog.text("Forward rendering supports at most one active light. Switch to Legacy to activate another light.");
-            dialog.button("Switch to Legacy",true);dialog.button("Cancel",false);dialog.show(app.getUiStage());
+            dialog.button("Switch to Legacy", true);
+            dialog.button("Cancel", false);
+            dialog.show(app.getUiStage());
         });
         displayOffsetResolver = new StudioDisplayOffsetResolver(
                 world(), dynamicEntityState, layerState, camera);
@@ -721,7 +757,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
     }
 
-    /** Rebuilds authored and declared particle resources at an authoring publication boundary. */
+    /**
+     * Rebuilds authored and declared particle resources at an authoring publication boundary.
+     */
     public void refreshParticleRuntimeAvailability() {
         RenderParticleSyncSystem runtimeParticleSystem =
                 world().getSystem(RenderParticleSyncSystem.class);
@@ -747,12 +785,16 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 sceneTag, declaredEffectPaths);
     }
 
-    /** Queues an authoring-only Runtime particle availability rebuild after the next ECS step. */
+    /**
+     * Queues an authoring-only Runtime particle availability rebuild after the next ECS step.
+     */
     public void requestParticleRuntimeAvailabilityRefresh() {
         particleAvailabilityRefresh.request();
     }
 
-    /** Queues a rebuild when a generic create/restore operation produced a particle entity. */
+    /**
+     * Queues a rebuild when a generic create/restore operation produced a particle entity.
+     */
     public void requestParticleRuntimeAvailabilityRefreshIfParticleEntity(int entityId) {
         requestParticleRuntimeAvailabilityRefreshIfParticleEntity(getAttachedSceneContext(), entityId);
     }
@@ -800,7 +842,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
     }
 
-    /** Publishes one authoritative metadata database to every Studio consumer. */
+    /**
+     * Publishes one authoritative metadata database to every Studio consumer.
+     */
     public void publishAssetMetaDatabase(AssetMetaDatabase assetMetaDatabase) {
         AssetMetaDatabase published = Objects.requireNonNull(
                 assetMetaDatabase, "assetMetaDatabase");
@@ -812,9 +856,12 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 binding.tiledFallbackSystem.setAssetMetaLookup(published::findById);
                 binding.tiledFallbackSystem.requestValidation();
             }
-            if (binding.animationFallbackSystem != null) binding.animationFallbackSystem.setAssetMetaLookup(published::findById);
-            if (binding.animationPreviewRefresher != null) binding.animationPreviewRefresher.setAssetMetaLookup(published::findById);
-            if (binding.tiledGhostPreviewSystem != null) binding.tiledGhostPreviewSystem.setAssetMetaLookup(published::findById);
+            if (binding.animationFallbackSystem != null)
+                binding.animationFallbackSystem.setAssetMetaLookup(published::findById);
+            if (binding.animationPreviewRefresher != null)
+                binding.animationPreviewRefresher.setAssetMetaLookup(published::findById);
+            if (binding.tiledGhostPreviewSystem != null)
+                binding.tiledGhostPreviewSystem.setAssetMetaLookup(published::findById);
         }
     }
 
@@ -1035,7 +1082,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         boolean acceptHere = switch (peek.type) {
             case "particle", "anim-sheet", "atlas-region", "image-file", "gameObject", "tile-asset",
-                    "tiled-animation", "hud-screen" -> true;
+                 "tiled-animation", "hud-screen" -> true;
             default -> false;
         };
 
@@ -1166,7 +1213,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
     }
 
-    /** Layer capability and explicit Map editing target are independent axes. */
+    /**
+     * Layer capability and explicit Map editing target are independent axes.
+     */
     static boolean isAssetPayloadAllowedForEditingContext(
             boolean layerTarget, boolean tiledMapTargetActive, String payloadType) {
         boolean tilePayload = "tile-asset".equals(payloadType)
@@ -1266,11 +1315,14 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 // Studio dialogs/fields still have priority because uiStage dispatches them first.
                 if (app.hudTestModeActive()) return false;
 
-                if(actorShadowRectangleEditor.isDragging() && keycode==Input.Keys.ESCAPE){
-                    actorShadowRectangleEditor.cancel();event.stop();return true;
+                if (actorShadowRectangleEditor.isDragging() && keycode == Input.Keys.ESCAPE) {
+                    actorShadowRectangleEditor.cancel();
+                    event.stop();
+                    return true;
                 }
-                if(actorShadowRectangleEditor.isDragging() && ctrl
-                        && (keycode==Input.Keys.Z || keycode==Input.Keys.W || keycode==Input.Keys.Y))actorShadowRectangleEditor.cancel();
+                if (actorShadowRectangleEditor.isDragging() && ctrl
+                        && (keycode == Input.Keys.Z || keycode == Input.Keys.W || keycode == Input.Keys.Y))
+                    actorShadowRectangleEditor.cancel();
 
                 if (hudDeleteKeyGate.keyDown(keycode,
                         () -> !typing && !ctrl && app.deleteFocusedHudNode(focus))) {
@@ -1330,8 +1382,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 }
 
                 // --- Delete : only when not editing a text field ---
-                if(!typing&&spatialBlockSelectionService().cornerProfile().active()
-                        && (keycode==Input.Keys.FORWARD_DEL||keycode==Input.Keys.BACKSPACE))return true;
+                if (!typing && spatialBlockSelectionService().cornerProfile().active()
+                        && (keycode == Input.Keys.FORWARD_DEL || keycode == Input.Keys.BACKSPACE)) return true;
                 if (!typing) {
                     if (keycode == Input.Keys.FORWARD_DEL || keycode == Input.Keys.BACKSPACE) {
 
@@ -1438,10 +1490,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 int rawY = Gdx.input.getY(pointer);
                 if (button == Input.Buttons.LEFT) {
                     inputState.touchDown(rawX, rawY, pointer, button);
-                    PickingSystem picking=world().getSystem(PickingSystem.class);
+                    PickingSystem picking = world().getSystem(PickingSystem.class);
                     // This stage shares the render camera. Use the queued event's world point:
                     // Gdx.input may already expose the final motion in this input batch.
-                    if(pointer==0&&picking!=null&&picking.cornerProfilePointerDown(event.getStageX(),event.getStageY())) {
+                    if (pointer == 0 && picking != null && picking.cornerProfilePointerDown(event.getStageX(), event.getStageY())) {
                         return true;
                     }
                 }
@@ -2114,7 +2166,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         focusCameraAt(0f, 0f);
     }
 
-    /** Focuses the active canvas without changing any authored entity transform. */
+    /**
+     * Focuses the active canvas without changing any authored entity transform.
+     */
     public void focusCameraAt(float worldX, float worldY) {
         camera.position.set(worldX, worldY, 0);
         camera.update();
@@ -2368,15 +2422,15 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         if (resourceImportBusy) return;
         if (getAttachedSceneContext() == null) return;
         // Deliver applied preview/restoration notifications even while drawing is paused.
-        long eventStart=frameProfiler.begin(StudioFrameProfiler.EVENT_FLOW_FLUSH);
+        long eventStart = frameProfiler.begin(StudioFrameProfiler.EVENT_FLOW_FLUSH);
         EventFlow.i().flush();
-        frameProfiler.end(StudioFrameProfiler.EVENT_FLOW_FLUSH,eventStart);
-        spatialInvariantBoundary.prepare(currentSceneTag(),historyManager().getMutationRevision(),
+        frameProfiler.end(StudioFrameProfiler.EVENT_FLOW_FLUSH, eventStart);
+        spatialInvariantBoundary.prepare(currentSceneTag(), historyManager().getMutationRevision(),
                 atlasStudioService.publicationRevision(currentSceneTag()));
-        spatialInvariantBoundary.process(currentSceneTag(),this::drawPreparedFrame,this);
+        spatialInvariantBoundary.process(currentSceneTag(), this::drawPreparedFrame, this);
     }
 
-    private void drawPreparedFrame(){
+    private void drawPreparedFrame() {
         if (frameProfiler.isEnabled()) {
             drawProfiled();
             return;
@@ -2594,7 +2648,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         return historyManager();
     }
 
-    /** Compatibility view seam; SceneEditorContext is the authoritative owner. */
+    /**
+     * Compatibility view seam; SceneEditorContext is the authoritative owner.
+     */
     public SceneEditorContext getSceneEditorContext() {
         return requireBoundContext();
     }
@@ -2615,8 +2671,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     private void clearHistorySubSelections() {
         physicsSelectionService().clearSelectionOnly();
-        if(spatialBlockSelectionService().cornerProfile().active()) {
-            spatialBlockSelectionService().cornerProfile().cancelGesture();inputState.clearAll();
+        if (spatialBlockSelectionService().cornerProfile().active()) {
+            spatialBlockSelectionService().cornerProfile().cancelGesture();
+            inputState.clearAll();
         } else spatialBlockSelectionService().clearSelectionOnly();
         spatialTileSelectionService().clear();
     }
@@ -2657,7 +2714,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         return physicsService;
     }
 
-    /** Returns the Physics service bound to an initialized context without attaching it to the canvas. */
+    /**
+     * Returns the Physics service bound to an initialized context without attaching it to the canvas.
+     */
     PhysicsService physicsServiceFor(SceneEditorContext context) {
         Objects.requireNonNull(context, "context");
         SceneBinding binding = sceneBindings.get(context);
@@ -2772,7 +2831,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         return !atlasStudioService.hasAsyncPackQueuedOrRunningFor(sceneTag);
     }
 
-    /** All mutable World/view bindings that must follow one live Scene context. */
+    /**
+     * All mutable World/view bindings that must follow one live Scene context.
+     */
     private static final class SceneBinding {
         DynamicEntityRenderState dynamicEntityState;
         LayerStateSOA layerState;
@@ -2935,7 +2996,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     @Override
     public void onSpatialInvariantFailure(RuntimeException failure) {
-        Gdx.app.error("ScenePreview",failure.getMessage(),failure);
+        Gdx.app.error("ScenePreview", failure.getMessage(), failure);
         VisDialog dialog = new StudioDialog("Scene preview paused");
         dialog.setModal(true);
         dialog.setMovable(false);
@@ -2991,7 +3052,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     public void dispose() {
-        actorShadowRectangleEditor.cancel();actorShadowRectangleEditor.remove();
+        actorShadowRectangleEditor.cancel();
+        actorShadowRectangleEditor.remove();
         cancelTiledGesture();
         studioEditingModeService.setActiveSceneSubmodeSink(null);
         gridStage.dispose();

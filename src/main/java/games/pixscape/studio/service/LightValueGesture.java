@@ -7,7 +7,9 @@ import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.EditLightingCommand;
 import games.pixscape.studio.history.commands.EditLightingCommand.Property;
 
-/** One transient light-value preview followed by the existing history command. */
+/**
+ * One transient light-value preview followed by the existing history command.
+ */
 public final class LightValueGesture {
     private final World world;
     private final HistoryManager history;
@@ -38,14 +40,31 @@ public final class LightValueGesture {
         this.fine = fine;
     }
 
-    public boolean active() { return entity >= 0; }
-    public int entity() { return entity; }
-    public Property property() { return property; }
-    public float pressX() { return pressX; }
-    public float pressY() { return pressY; }
+    public boolean active() {
+        return entity >= 0;
+    }
+
+    public int entity() {
+        return entity;
+    }
+
+    public Property property() {
+        return property;
+    }
+
+    public float pressX() {
+        return pressX;
+    }
+
+    public float pressY() {
+        return pressY;
+    }
 
     public void preview(float displacement) {
-        if (!valid()) { cancel(); return; }
+        if (!valid()) {
+            cancel();
+            return;
+        }
         float value = before + displacement * (fine ? .1f : 1f);
         if (property == Property.INTENSITY) value = Math.max(0f, value);
         if (property == Property.INCLINATION) value = MathUtils.clamp(value,
@@ -54,7 +73,10 @@ public final class LightValueGesture {
     }
 
     public void commit() {
-        if (!valid()) { cancel(); return; }
+        if (!valid()) {
+            cancel();
+            return;
+        }
         int e = entity;
         float after = EditLightingCommand.read(world, e, property);
         EditLightingCommand.previewLightValue(world, e, property, before);

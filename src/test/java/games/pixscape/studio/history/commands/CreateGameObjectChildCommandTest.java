@@ -16,11 +16,30 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class CreateGameObjectChildCommandTest {
-    @Test public void createsSpriteChild() { assertCreates(EntityKind.SPRITE); }
-    @Test public void createsAnimationChild() { assertCreates(EntityKind.ANIMATION); }
-    @Test public void createsPointLightChild() { assertCreates(EntityKind.POINT_LIGHT); }
-    @Test public void createsConeLightChild() { assertCreates(EntityKind.CONE_LIGHT); }
-    @Test public void createsNestedGameObjectChild() { assertCreates(EntityKind.GAME_OBJECT); }
+    @Test
+    public void createsSpriteChild() {
+        assertCreates(EntityKind.SPRITE);
+    }
+
+    @Test
+    public void createsAnimationChild() {
+        assertCreates(EntityKind.ANIMATION);
+    }
+
+    @Test
+    public void createsPointLightChild() {
+        assertCreates(EntityKind.POINT_LIGHT);
+    }
+
+    @Test
+    public void createsConeLightChild() {
+        assertCreates(EntityKind.CONE_LIGHT);
+    }
+
+    @Test
+    public void createsNestedGameObjectChild() {
+        assertCreates(EntityKind.GAME_OBJECT);
+    }
 
     @Test
     public void firstVisualChildEstablishesStablePivotWithoutChangingItsWorldPose() {
@@ -436,7 +455,8 @@ public class CreateGameObjectChildCommandTest {
                 case POINT_LIGHT -> world.getMapper(PointLightComponent.class).create(entityId);
                 case CONE_LIGHT -> world.getMapper(ConeLightComponent.class).create(entityId);
                 case GAME_OBJECT -> world.getMapper(GameObjectComponent.class).create(entityId);
-                default -> { }
+                default -> {
+                }
             }
         }
 

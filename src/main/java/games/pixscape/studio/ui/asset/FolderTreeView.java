@@ -153,7 +153,8 @@ public final class FolderTreeView extends VisTable {
                 AssetNode.Kind.FOLDER, AssetNode.Root.HUD, "", "HUD Screens", null);
         VisLabel label = new VisLabel(data.name);
         label.setUserObject(data);
-        tree.add(new VisTree.Node(label) { });
+        tree.add(new VisTree.Node(label) {
+        });
     }
 
     private void addTiledAnimationsLogicalNode() {

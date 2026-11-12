@@ -6,7 +6,9 @@ import games.pixscape.runtime.tiled.PackedTileValue;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
-/** Transaction-local tiled brush state. The live map is untouched until history execution. */
+/**
+ * Transaction-local tiled brush state. The live map is untouched until history execution.
+ */
 public final class TiledBrushSession {
     private final int mapEntityId;
     private final IntIntMap indexByCell = new IntIntMap();
@@ -49,7 +51,9 @@ public final class TiledBrushSession {
         afterTransformFlags[index] = TileTransformFlags.sanitize(flags);
     }
 
-    /** Canonicalizes the final gesture by removing cells whose final value equals the original. */
+    /**
+     * Canonicalizes the final gesture by removing cells whose final value equals the original.
+     */
     public void commit() {
         int write = 0;
         for (int read = 0; read < mutationCount; read++) {
@@ -84,15 +88,41 @@ public final class TiledBrushSession {
         return index >= 0 ? afterTransformFlags[index] : fallback;
     }
 
-    public boolean isEmpty() { return mutationCount == 0; }
-    public int mutationCount() { return mutationCount; }
-    public int getMapEntityId() { return mapEntityId; }
-    public int gx(int index) { return gx[index]; }
-    public int gy(int index) { return gy[index]; }
-    public int beforePacked(int index) { return PackedTileValue.pack(beforeAssetId[index], beforeTransformFlags[index]); }
-    public int afterPacked(int index) { return PackedTileValue.pack(afterAssetId[index], afterTransformFlags[index]); }
-    public int afterAssetId(int index) { return afterAssetId[index]; }
-    public byte afterTransformFlags(int index) { return afterTransformFlags[index]; }
+    public boolean isEmpty() {
+        return mutationCount == 0;
+    }
+
+    public int mutationCount() {
+        return mutationCount;
+    }
+
+    public int getMapEntityId() {
+        return mapEntityId;
+    }
+
+    public int gx(int index) {
+        return gx[index];
+    }
+
+    public int gy(int index) {
+        return gy[index];
+    }
+
+    public int beforePacked(int index) {
+        return PackedTileValue.pack(beforeAssetId[index], beforeTransformFlags[index]);
+    }
+
+    public int afterPacked(int index) {
+        return PackedTileValue.pack(afterAssetId[index], afterTransformFlags[index]);
+    }
+
+    public int afterAssetId(int index) {
+        return afterAssetId[index];
+    }
+
+    public byte afterTransformFlags(int index) {
+        return afterTransformFlags[index];
+    }
 
     private void copy(int source, int target) {
         gx[target] = gx[source];

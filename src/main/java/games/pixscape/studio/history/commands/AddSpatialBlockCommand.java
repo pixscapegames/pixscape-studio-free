@@ -10,7 +10,9 @@ import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialStructureTopology;
 
-/** Atomic full-layer authored-wall snapshot command for creation and structure merges. */
+/**
+ * Atomic full-layer authored-wall snapshot command for creation and structure merges.
+ */
 public final class AddSpatialBlockCommand implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
     private final World world;
     private final HistoryIdRegistry historyIds;
@@ -46,8 +48,15 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
                 ? CommandOutcome.NO_CHANGE : CommandOutcome.APPLIED;
     }
 
-    @Override public String label() { return "Add Spatial Wall"; }
-    @Override public boolean isNoop() { return initialOutcome != CommandOutcome.APPLIED; }
+    @Override
+    public String label() {
+        return "Add Spatial Wall";
+    }
+
+    @Override
+    public boolean isNoop() {
+        return initialOutcome != CommandOutcome.APPLIED;
+    }
 
     @Override
     public void redo() {
@@ -112,7 +121,9 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
         return CommandOutcome.APPLIED;
     }
 
-    public int getBlockId() { return blockId; }
+    public int getBlockId() {
+        return blockId;
+    }
 
     private int resolveLayer() {
         int entity = historyIds.entityOfHistoryId(layerHistoryId);
@@ -123,7 +134,11 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
         for (int i = 0; i < after.size; i++) {
             int id = after.get(i).id;
             boolean found = false;
-            for (int j = 0; j < before.size; j++) if (before.get(j).id == id) { found = true; break; }
+            for (int j = 0; j < before.size; j++)
+                if (before.get(j).id == id) {
+                    found = true;
+                    break;
+                }
             if (!found) return id;
         }
         return -1;

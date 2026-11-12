@@ -13,9 +13,11 @@ import java.awt.image.BufferedImage;
 import static org.junit.Assert.*;
 
 public class AtlasPackingServiceTest {
-    @Rule public TemporaryFolder temporaryFolder = new TemporaryFolder();
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
-    @Test public void newlyAddedCarMustBePackedBeforeAtlasCanBeReused() throws Exception {
+    @Test
+    public void newlyAddedCarMustBePackedBeforeAtlasCanBeReused() throws Exception {
         FileHandle input = new FileHandle(temporaryFolder.newFolder("input"));
         FileHandle stale = new FileHandle(temporaryFolder.newFolder("stale"));
         FileHandle fresh = new FileHandle(temporaryFolder.newFolder("fresh"));
@@ -44,7 +46,8 @@ public class AtlasPackingServiceTest {
         assertEquals(0xff267bd9, page.getRGB(car.left + 4, car.top + 4));
     }
 
-    @Test public void mutationInsidePackBoundaryRejectsObsoleteOutput() throws Exception {
+    @Test
+    public void mutationInsidePackBoundaryRejectsObsoleteOutput() throws Exception {
         FileHandle input = new FileHandle(temporaryFolder.newFolder("changing"));
         FileHandle obsolete = new FileHandle(temporaryFolder.newFolder("obsolete"));
         FileHandle current = new FileHandle(temporaryFolder.newFolder("current"));
@@ -77,7 +80,9 @@ public class AtlasPackingServiceTest {
         }
         ImageIO.write(image, "png", output.file());
     }
-    @Test public void effectiveHudSettingsKeepExistingPackerDefaults() {
+
+    @Test
+    public void effectiveHudSettingsKeepExistingPackerDefaults() {
         var settings = AtlasPackingService.hudSettings(HudTextureProfile.forId(HudTextureProfile.DEFAULT_ID));
         assertEquals(2048, settings.maxWidth);
         assertEquals(2048, settings.maxHeight);

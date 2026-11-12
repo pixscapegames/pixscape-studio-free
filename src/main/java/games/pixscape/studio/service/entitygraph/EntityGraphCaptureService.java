@@ -50,7 +50,9 @@ public final class EntityGraphCaptureService {
         return captureNormalizedClipboard(normalized);
     }
 
-    /** Captures one complete real Game Object hierarchy for asset publication. */
+    /**
+     * Captures one complete real Game Object hierarchy for asset publication.
+     */
     public EntityGraph captureForGameObject(IntArray selection) {
         IntArray hierarchy = collectGameObjectHierarchy(selection);
         if (hierarchy.size == 0) return EntityGraph.empty();
@@ -64,13 +66,17 @@ public final class EntityGraphCaptureService {
         return new EntityGraph(entries);
     }
 
-    /** Captures a V1 clipboard selection with graph-local hierarchy ownership. */
+    /**
+     * Captures a V1 clipboard selection with graph-local hierarchy ownership.
+     */
     public EntityGraph captureGameObjectClipboard(IntArray selection) {
         IntArray roots = new ClipboardSelectionNormalizer(world).normalize(selection);
         return captureNormalizedClipboard(roots);
     }
 
-    /** Captures already-normalized V1 clipboard roots without changing Scene state. */
+    /**
+     * Captures already-normalized V1 clipboard roots without changing Scene state.
+     */
     public EntityGraph captureNormalizedClipboard(IntArray roots) {
         if (roots.size == 0) return EntityGraph.empty();
         if (!containsGameObjectRoot(roots)) {
@@ -97,7 +103,8 @@ public final class EntityGraphCaptureService {
             int entityId = entities.get(i);
             GenericEntityInitializer initializer = new GenericEntityInitializer(world);
             initializer.syncFrom(entityId);
-            if (parents.get(i) == -1 && mGameObjectMember.has(entityId)) normalizeNestedRootToWorldPose(entityId, initializer);
+            if (parents.get(i) == -1 && mGameObjectMember.has(entityId))
+                normalizeNestedRootToWorldPose(entityId, initializer);
             CustomPropertiesComponent properties = world.getMapper(CustomPropertiesComponent.class).getSafe(entityId, null);
             GameObjectComponent gameObject = mGameObject.getSafe(entityId, null);
             entries.add(new EntityGraphEntry(
@@ -181,7 +188,9 @@ public final class EntityGraphCaptureService {
         return false;
     }
 
-    /** P4 captures internal joints but rejects any Body dependency that escapes the hierarchy closure. */
+    /**
+     * P4 captures internal joints but rejects any Body dependency that escapes the hierarchy closure.
+     */
     private IntArray requireSupportedGameObjectHierarchyPhysics(IntArray capturedEntities) {
         IntSet hierarchyEntities = new IntSet(capturedEntities.size);
         for (int i = 0; i < capturedEntities.size; i++) {
@@ -305,7 +314,8 @@ public final class EntityGraphCaptureService {
     private void collectClipboardSubtree(int entityId, int parentSourceId,
                                          IntArray entities, IntArray parents, IntSet stableIds,
                                          IntMap<IntArray> childrenByParentStableId) {
-        if (!world.getEntityManager().isActive(entityId)) throw new IllegalArgumentException("Clipboard entity is inactive.");
+        if (!world.getEntityManager().isActive(entityId))
+            throw new IllegalArgumentException("Clipboard entity is inactive.");
         PixscapeIdentityComponent identity = mIdentity.getSafe(entityId, null);
         if (identity == null || identity.stableId <= 0) {
             throw new IllegalArgumentException("Clipboard entity requires a stable identity.");
@@ -328,10 +338,14 @@ public final class EntityGraphCaptureService {
     private void normalizeNestedRootToWorldPose(int entityId, GenericEntityInitializer initializer) {
         GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
         WorldTransformState state = hierarchy != null ? hierarchy.worldTransforms() : null;
-        if (state == null || !state.isResolved(entityId)) throw new IllegalStateException("Nested Game Object clipboard root has no resolved world transform.");
+        if (state == null || !state.isResolved(entityId))
+            throw new IllegalStateException("Nested Game Object clipboard root has no resolved world transform.");
         GenericEntitySnapshotData snapshot = initializer.toSnapshotData(0);
-        snapshot.x = state.x[entityId]; snapshot.y = state.y[entityId];
-        snapshot.rotationRad = state.rotationRad[entityId]; snapshot.scaleX = state.scaleX[entityId]; snapshot.scaleY = state.scaleY[entityId];
+        snapshot.x = state.x[entityId];
+        snapshot.y = state.y[entityId];
+        snapshot.rotationRad = state.rotationRad[entityId];
+        snapshot.scaleX = state.scaleX[entityId];
+        snapshot.scaleY = state.scaleY[entityId];
         initializer.applySnapshotData(snapshot);
     }
 

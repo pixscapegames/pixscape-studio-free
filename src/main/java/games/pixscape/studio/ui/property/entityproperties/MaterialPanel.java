@@ -110,7 +110,8 @@ public final class MaterialPanel extends CollapsibleWidget {
 
         blendBox.setItems(BlendMode.values());
         blendBox.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 if (entityId < 0 || !ctx.mMat.has(entityId)) return;
                 ctx.history.execute(new ChangeBlendModeCommand(ctx.world, ctx.sceneMeta,
                         ctx.history.historyIds(), entityId, blendBox.getSelected()));

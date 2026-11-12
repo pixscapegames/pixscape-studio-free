@@ -14,14 +14,29 @@ import org.junit.*;
 import static org.junit.Assert.*;
 
 public class AssetsDragCancellationTest {
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
 
-    @Test public void cancellingAssetDragClearsPayloadAndGhostWithoutReleasingADrop() throws Exception {
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
+
+    @Test
+    public void cancellingAssetDragClearsPayloadAndGhostWithoutReleasingADrop() throws Exception {
         Graphics previous = Gdx.graphics;
         Gdx.graphics = new MockGraphics() {
-            @Override public int getWidth() { return 1200; }
-            @Override public int getHeight() { return 800; }
+            @Override
+            public int getWidth() {
+                return 1200;
+            }
+
+            @Override
+            public int getHeight() {
+                return 800;
+            }
         };
         DragContext drag = DragContext.get();
         try (DockingTestFixture f = DockingTestFixture.create()) {

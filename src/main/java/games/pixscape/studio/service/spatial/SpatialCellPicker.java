@@ -3,7 +3,9 @@ package games.pixscape.studio.service.spatial;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
-/** Exact, deterministic, allocation-free pointer-to-cell resolution for spatial authoring. */
+/**
+ * Exact, deterministic, allocation-free pointer-to-cell resolution for spatial authoring.
+ */
 public final class SpatialCellPicker {
     private SpatialCellPicker() {
     }
@@ -66,10 +68,10 @@ public final class SpatialCellPicker {
     }
 
     public static boolean pickTopmostVisibleOccupiedSprite(TiledMapLayerData map,
-                                                             TiledMapRenderState tiledState,
-                                                             float worldX,
-                                                             float worldY,
-                                                             Result out) {
+                                                           TiledMapRenderState tiledState,
+                                                           float worldX,
+                                                           float worldY,
+                                                           Result out) {
         if (tiledState == null || map.mapWidth <= 0 || map.mapHeight <= 0) return false;
 
         int centerGx = map.worldToTileX(worldX, worldY);

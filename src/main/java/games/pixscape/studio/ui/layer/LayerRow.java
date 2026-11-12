@@ -11,7 +11,9 @@ import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
 
-/** One Layer row: [visible] [locked] name [spatial indicator]. */
+/**
+ * One Layer row: [visible] [locked] name [spatial indicator].
+ */
 public class LayerRow extends VisTable {
 
     public interface Listener {
@@ -21,7 +23,8 @@ public class LayerRow extends VisTable {
 
         void onRowClicked(LayerRow row);
 
-        default void onRowDoubleClicked(LayerRow row) {}
+        default void onRowDoubleClicked(LayerRow row) {
+        }
     }
 
     private final CheckBox cbVisible;
@@ -85,7 +88,9 @@ public class LayerRow extends VisTable {
         addListener(activation);
     }
 
-    /** Row buttons keep their own gestures; only the row body can initiate reordering. */
+    /**
+     * Row buttons keep their own gestures; only the row body can initiate reordering.
+     */
     boolean isDragHandle(Actor target) {
         for (Actor actor = target; actor != null && actor != this; actor = actor.getParent()) {
             if (actor instanceof com.badlogic.gdx.scenes.scene2d.ui.Button
@@ -94,7 +99,9 @@ public class LayerRow extends VisTable {
         return target == this || target.isDescendantOf(this);
     }
 
-    void cancelActivation() { activation.cancel(); }
+    void cancelActivation() {
+        activation.cancel();
+    }
 
     public void setListener(Listener listener) {
         this.listener = listener;

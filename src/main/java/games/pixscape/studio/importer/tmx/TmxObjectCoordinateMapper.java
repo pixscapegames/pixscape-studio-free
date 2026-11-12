@@ -1,6 +1,8 @@
 package games.pixscape.studio.importer.tmx;
 
-/** Pure conversion from Tiled Object coordinates to the imported Pixscape scene space. */
+/**
+ * Pure conversion from Tiled Object coordinates to the imported Pixscape scene space.
+ */
 public final class TmxObjectCoordinateMapper {
     private TmxObjectCoordinateMapper() {
     }
@@ -45,9 +47,9 @@ public final class TmxObjectCoordinateMapper {
      * Pixscape's post-projection rotation is not equivalent when tile width and height differ.
      */
     public static Coordinate localWithTiledRotation(TmxScenePlan scene,
-                                                     float sourceLocalX,
-                                                     float sourceLocalY,
-                                                     float tiledRotationDeg) {
+                                                    float sourceLocalX,
+                                                    float sourceLocalY,
+                                                    float tiledRotationDeg) {
         if (!isometric(scene)) return local(scene, sourceLocalX, sourceLocalY);
 
         float tileWidth = scene.tileWidth();

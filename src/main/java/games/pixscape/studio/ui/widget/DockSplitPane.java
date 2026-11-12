@@ -29,16 +29,21 @@ public final class DockSplitPane extends VisSplitPane {
         // Registered after VisUI's listener: observe only handle presses it accepted.
         // Scene2D owns this focus too, so normal release, removal and cancellation end it.
         addListener(new InputListener() {
-            @Override public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
                 return event.getTarget() == DockSplitPane.this && event.isHandled();
             }
-            @Override public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
+
+            @Override
+            public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
                 resizeCancelled = event.isTouchFocusCancel();
             }
         });
     }
 
-    /** Returns whether Scene2D actually cancelled an accepted separator gesture. */
+    /**
+     * Returns whether Scene2D actually cancelled an accepted separator gesture.
+     */
     public boolean cancelResize() {
         resizeCancelled = false;
         if (getStage() != null) getStage().cancelTouchFocus(this);
@@ -58,10 +63,11 @@ public final class DockSplitPane extends VisSplitPane {
     private boolean hasSpace() {
         return getWidth() > 0 && getHeight() > 0
                 && (vertical ? getHeight() > getStyle().handle.getMinHeight()
-                             : getWidth() > getStyle().handle.getMinWidth());
+                : getWidth() > getStyle().handle.getMinWidth());
     }
 
-    @Override public void layout() {
+    @Override
+    public void layout() {
         if (!hasSpace()) {
             handle.set(0, 0, 0, 0);
             for (Actor child : getChildren()) child.setBounds(0, 0, 0, 0);
@@ -80,7 +86,8 @@ public final class DockSplitPane extends VisSplitPane {
         }
     }
 
-    @Override public Actor hit(float x, float y, boolean touchable) {
+    @Override
+    public Actor hit(float x, float y, boolean touchable) {
         if (!isVisible() || touchable && getTouchable() == Touchable.disabled) return null;
         validate();
         if (!hasSpace() || x < 0 || x >= getWidth() || y < 0 || y >= getHeight()) return null;
@@ -99,18 +106,21 @@ public final class DockSplitPane extends VisSplitPane {
         return null;
     }
 
-    @Override public void draw(Batch batch, float parentAlpha) {
+    @Override
+    public void draw(Batch batch, float parentAlpha) {
         validate();
         if (hasSpace()) super.draw(batch, parentAlpha);
     }
 
-    @Override protected void sizeChanged() {
+    @Override
+    protected void sizeChanged() {
         super.sizeChanged();
         // Cancellation delivers native touchUp; removing focus alone would strand draggingPointer.
         if (getStage() != null) getStage().cancelTouchFocus(this);
     }
 
-    @Override public void setVertical(boolean vertical) {
+    @Override
+    public void setVertical(boolean vertical) {
         if (vertical != this.vertical) {
             throw new UnsupportedOperationException("Create a new DockSplitPane to change orientation.");
         }

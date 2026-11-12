@@ -438,35 +438,104 @@ public final class TmxImportPlanner {
 
     private interface PropertyReader {
         PropertyType typeOf(String name);
+
         String getString(String name, String fallback);
+
         boolean getBoolean(String name, boolean fallback);
+
         int getInt(String name, int fallback);
+
         float getFloat(String name, float fallback);
+
         int getColorRgba8888(String name, int fallback);
+
         int getObjectStableId(String name, int fallback);
+
         ClassProperty getClassValue(String name);
     }
 
     private record PropertySetReader(PropertySet properties) implements PropertyReader {
-        @Override public PropertyType typeOf(String name) { return properties.typeOf(name); }
-        @Override public String getString(String name, String fallback) { return properties.getString(name, fallback); }
-        @Override public boolean getBoolean(String name, boolean fallback) { return properties.getBoolean(name, fallback); }
-        @Override public int getInt(String name, int fallback) { return properties.getInt(name, fallback); }
-        @Override public float getFloat(String name, float fallback) { return properties.getFloat(name, fallback); }
-        @Override public int getColorRgba8888(String name, int fallback) { return properties.getColorRgba8888(name, fallback); }
-        @Override public int getObjectStableId(String name, int fallback) { return properties.getObjectStableId(name, fallback); }
-        @Override public ClassProperty getClassValue(String name) { return properties.getClassValue(name); }
+        @Override
+        public PropertyType typeOf(String name) {
+            return properties.typeOf(name);
+        }
+
+        @Override
+        public String getString(String name, String fallback) {
+            return properties.getString(name, fallback);
+        }
+
+        @Override
+        public boolean getBoolean(String name, boolean fallback) {
+            return properties.getBoolean(name, fallback);
+        }
+
+        @Override
+        public int getInt(String name, int fallback) {
+            return properties.getInt(name, fallback);
+        }
+
+        @Override
+        public float getFloat(String name, float fallback) {
+            return properties.getFloat(name, fallback);
+        }
+
+        @Override
+        public int getColorRgba8888(String name, int fallback) {
+            return properties.getColorRgba8888(name, fallback);
+        }
+
+        @Override
+        public int getObjectStableId(String name, int fallback) {
+            return properties.getObjectStableId(name, fallback);
+        }
+
+        @Override
+        public ClassProperty getClassValue(String name) {
+            return properties.getClassValue(name);
+        }
     }
 
     private record CustomPropertiesReader(CustomProperties properties) implements PropertyReader {
-        @Override public PropertyType typeOf(String name) { return properties.typeOf(name); }
-        @Override public String getString(String name, String fallback) { return properties.getString(name, fallback); }
-        @Override public boolean getBoolean(String name, boolean fallback) { return properties.getBoolean(name, fallback); }
-        @Override public int getInt(String name, int fallback) { return properties.getInt(name, fallback); }
-        @Override public float getFloat(String name, float fallback) { return properties.getFloat(name, fallback); }
-        @Override public int getColorRgba8888(String name, int fallback) { return properties.getColorRgba8888(name, fallback); }
-        @Override public int getObjectStableId(String name, int fallback) { return properties.getObjectStableId(name, fallback); }
-        @Override public ClassProperty getClassValue(String name) { return properties.getClassValue(name); }
+        @Override
+        public PropertyType typeOf(String name) {
+            return properties.typeOf(name);
+        }
+
+        @Override
+        public String getString(String name, String fallback) {
+            return properties.getString(name, fallback);
+        }
+
+        @Override
+        public boolean getBoolean(String name, boolean fallback) {
+            return properties.getBoolean(name, fallback);
+        }
+
+        @Override
+        public int getInt(String name, int fallback) {
+            return properties.getInt(name, fallback);
+        }
+
+        @Override
+        public float getFloat(String name, float fallback) {
+            return properties.getFloat(name, fallback);
+        }
+
+        @Override
+        public int getColorRgba8888(String name, int fallback) {
+            return properties.getColorRgba8888(name, fallback);
+        }
+
+        @Override
+        public int getObjectStableId(String name, int fallback) {
+            return properties.getObjectStableId(name, fallback);
+        }
+
+        @Override
+        public ClassProperty getClassValue(String name) {
+            return properties.getClassValue(name);
+        }
     }
 
     private TmxImageLayerPlan buildImageLayerPlan(int sourceLayerIndex,

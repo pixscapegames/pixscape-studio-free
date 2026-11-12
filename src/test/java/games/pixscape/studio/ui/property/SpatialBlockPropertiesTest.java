@@ -335,21 +335,31 @@ public class SpatialBlockPropertiesTest {
         Assert.assertFalse(fixture.history.canUndo());
     }
 
-    @Test public void faceShadingIsPerVolumeUndoableAndPersisted() {
-        Fixture fixture=fixture();int layer=tiledLayer(fixture.world);
+    @Test
+    public void faceShadingIsPerVolumeUndoableAndPersisted() {
+        Fixture fixture = fixture();
+        int layer = tiledLayer(fixture.world);
         fixture.history.historyIds().ensureForEntity(layer);
-        SpatialBlocksComponent walls=fixture.world.getMapper(SpatialBlocksComponent.class).create(layer);
-        walls.blocks.add(wall(1,4,0,0,2,1));walls.blocks.add(wall(2,4,1,0,1,2));
-        fixture.selection.selectBlock(layer,1);SpatialBlockProperties properties=fixture.properties();properties.setSpatialBlock(layer,1);
-        Assert.assertTrue(checkBox(properties,"spatialWallShadeUnlitFaces").isChecked());
-        setChecked(properties,"spatialWallShadeUnlitFaces",false);
-        Assert.assertFalse(walls.blocks.get(0).shadeUnlitFaces);Assert.assertTrue(walls.blocks.get(1).shadeUnlitFaces);
+        SpatialBlocksComponent walls = fixture.world.getMapper(SpatialBlocksComponent.class).create(layer);
+        walls.blocks.add(wall(1, 4, 0, 0, 2, 1));
+        walls.blocks.add(wall(2, 4, 1, 0, 1, 2));
+        fixture.selection.selectBlock(layer, 1);
+        SpatialBlockProperties properties = fixture.properties();
+        properties.setSpatialBlock(layer, 1);
+        Assert.assertTrue(checkBox(properties, "spatialWallShadeUnlitFaces").isChecked());
+        setChecked(properties, "spatialWallShadeUnlitFaces", false);
+        Assert.assertFalse(walls.blocks.get(0).shadeUnlitFaces);
+        Assert.assertTrue(walls.blocks.get(1).shadeUnlitFaces);
         Assert.assertFalse(walls.blocks.get(0).copy().shadeUnlitFaces);
-        com.badlogic.gdx.utils.Json json=new com.badlogic.gdx.utils.Json();
-        Assert.assertFalse(json.fromJson(SpatialBlockData.class,json.toJson(walls.blocks.get(0))).shadeUnlitFaces);
-        fixture.history.undo();Assert.assertTrue(walls.blocks.get(0).shadeUnlitFaces);
-        fixture.history.redo();Assert.assertFalse(walls.blocks.get(0).shadeUnlitFaces);Assert.assertTrue(walls.blocks.get(1).shadeUnlitFaces);
+        com.badlogic.gdx.utils.Json json = new com.badlogic.gdx.utils.Json();
+        Assert.assertFalse(json.fromJson(SpatialBlockData.class, json.toJson(walls.blocks.get(0))).shadeUnlitFaces);
+        fixture.history.undo();
+        Assert.assertTrue(walls.blocks.get(0).shadeUnlitFaces);
+        fixture.history.redo();
+        Assert.assertFalse(walls.blocks.get(0).shadeUnlitFaces);
+        Assert.assertTrue(walls.blocks.get(1).shadeUnlitFaces);
     }
+
     @Test
     public void inspectorReadsDetachedResizeAndHeightPreviewThenRestoresOnCancel() throws Exception {
         Fixture fixture = fixture();
@@ -357,8 +367,9 @@ public class SpatialBlockPropertiesTest {
         SpatialBlocksComponent walls = fixture.world.getMapper(SpatialBlocksComponent.class).create(map);
         walls.blocks.add(wall(1, 1, 1, 1, 1, 1));
         walls.blocks.first().beginAuthoredLinkedTileRefs();
-        for (int y = 0; y < 3; y++) for (int x = 0; x < 3; x++)
-            walls.blocks.first().addLinkedTileRef(x, y, 1);
+        for (int y = 0; y < 3; y++)
+            for (int x = 0; x < 3; x++)
+                walls.blocks.first().addLinkedTileRef(x, y, 1);
         fixture.selection.selectBlock(map, 1);
         SpatialBlockProperties properties = fixture.properties();
         properties.setSpatialBlock(map, 1);
@@ -392,8 +403,9 @@ public class SpatialBlockPropertiesTest {
         SpatialBlocksComponent walls = fixture.world.getMapper(SpatialBlocksComponent.class).create(map);
         walls.blocks.add(wall(1, 1, 1, 1, 1, 1));
         walls.blocks.first().beginAuthoredLinkedTileRefs();
-        for (int y = 0; y < 3; y++) for (int x = 0; x < 3; x++)
-            walls.blocks.first().addLinkedTileRef(x, y, 1);
+        for (int y = 0; y < 3; y++)
+            for (int x = 0; x < 3; x++)
+                walls.blocks.first().addLinkedTileRef(x, y, 1);
         walls.blocks.add(wall(2, 2, 3, 3, 1, 1));
         walls.nextSpatialBlockId = 3;
         fixture.selection.selectBlock(map, 1);

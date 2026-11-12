@@ -28,7 +28,8 @@ public class StudioViewportInputAgreementTest {
     private Graphics previousGraphics;
     private GL20 previousGl;
 
-    @Before public void installLogicalGraphics() {
+    @Before
+    public void installLogicalGraphics() {
         GdxNativesLoader.load();
         previousGraphics = Gdx.graphics;
         previousGl = Gdx.gl;
@@ -47,7 +48,8 @@ public class StudioViewportInputAgreementTest {
         Gdx.gl20 = Gdx.gl;
     }
 
-    @After public void restoreGraphics() {
+    @After
+    public void restoreGraphics() {
         Gdx.graphics = previousGraphics;
         Gdx.gl = previousGl;
         Gdx.gl20 = previousGl;
@@ -95,19 +97,22 @@ public class StudioViewportInputAgreementTest {
             AtomicInteger releases = new AtomicInteger();
             InputState inputState = new InputState();
             surface.addListener(new InputListener() {
-                @Override public boolean touchDown(
+                @Override
+                public boolean touchDown(
                         InputEvent event, float x, float y, int pointer, int button) {
                     inputState.touchDown(300, 500, pointer, button);
                     return true;
                 }
 
-                @Override public void touchDragged(
+                @Override
+                public void touchDragged(
                         InputEvent event, float x, float y, int pointer) {
                     inputState.touchDragged(1700, 50, pointer);
                     drags.incrementAndGet();
                 }
 
-                @Override public void touchUp(
+                @Override
+                public void touchUp(
                         InputEvent event, float x, float y, int pointer, int button) {
                     inputState.touchUp(1700, 50, pointer, button);
                     releases.incrementAndGet();

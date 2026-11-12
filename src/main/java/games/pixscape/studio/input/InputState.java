@@ -72,7 +72,9 @@ public final class InputState extends InputAdapter {
         return Gdx.input.isKeyJustPressed(Input.Keys.DEL);
     }
 
-    /** Drops transient pointer state when the shared canvas detaches from a Scene. */
+    /**
+     * Drops transient pointer state when the shared canvas detaches from a Scene.
+     */
     public void clearAll() {
         leftDown = false;
         dragging = false;

@@ -5,9 +5,12 @@ import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.property.PropertyValue;
 
-/** Recursively remaps OBJECT values while preserving every non-reference property value. */
+/**
+ * Recursively remaps OBJECT values while preserving every non-reference property value.
+ */
 public final class PropertyReferenceMapper {
-    private PropertyReferenceMapper() { }
+    private PropertyReferenceMapper() {
+    }
 
     public interface ObjectReferenceMapper {
         int map(int value);

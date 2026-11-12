@@ -5,13 +5,15 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class PreviewDesktopApplicationTest {
-    @Test public void absentRendererArgumentUsesPersistedSceneSelection(){
-        var arguments=PreviewDesktopApplication.Arguments.parse(new String[]{
-                "--user-root","C:\\fixture","--scene","scene","--width","64","--height","32",
-                "--gl-samples","0","--session","test"});
+    @Test
+    public void absentRendererArgumentUsesPersistedSceneSelection() {
+        var arguments = PreviewDesktopApplication.Arguments.parse(new String[]{
+                "--user-root", "C:\\fixture", "--scene", "scene", "--width", "64", "--height", "32",
+                "--gl-samples", "0", "--session", "test"});
         assertNull(arguments.forwardLighting());
         assertTrue(arguments.vsync());
     }
+
     @Test
     public void bothModesConfigureTheChildWindow() throws Exception {
         checkCadence(true);

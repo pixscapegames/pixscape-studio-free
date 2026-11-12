@@ -9,7 +9,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.*;
 
 public class AsyncAtlasRepackCoordinatorTest {
-    @Test public void requestDebouncesAndRunsOnlyThroughInjectedExecutor() throws Exception {
+    @Test
+    public void requestDebouncesAndRunsOnlyThroughInjectedExecutor() throws Exception {
         ControlledAtlasExecutor executor = new ControlledAtlasExecutor();
         long[] now = {0};
         AtomicInteger calls = new AtomicInteger();
@@ -32,7 +33,9 @@ public class AsyncAtlasRepackCoordinatorTest {
             prepared.discard();
         }
     }
-    @Test public void newerGenerationDiscardsReadyAndLateNonCooperativeResults() throws Exception {
+
+    @Test
+    public void newerGenerationDiscardsReadyAndLateNonCooperativeResults() throws Exception {
         ControlledAtlasExecutor executor = new ControlledAtlasExecutor();
         AtomicInteger discarded = new AtomicInteger();
         CountDownLatch started = new CountDownLatch(1), finish = new CountDownLatch(1);
@@ -41,8 +44,10 @@ public class AsyncAtlasRepackCoordinatorTest {
                 started.countDown();
                 boolean released = false;
                 while (!released) {
-                    try { finish.await(); released = true; }
-                    catch (InterruptedException ignored) { /* Simulate a non-cooperative packer. */ }
+                    try {
+                        finish.await();
+                        released = true;
+                    } catch (InterruptedException ignored) { /* Simulate a non-cooperative packer. */ }
                 }
                 Thread.interrupted();
             }
@@ -68,7 +73,9 @@ public class AsyncAtlasRepackCoordinatorTest {
         newest.discard();
         coordinator.dispose();
     }
-    @Test public void backgroundFailureIsDeliveredExactlyOnceAndStaleFailureIsIgnored() throws Exception {
+
+    @Test
+    public void backgroundFailureIsDeliveredExactlyOnceAndStaleFailureIsIgnored() throws Exception {
         ControlledAtlasExecutor executor = new ControlledAtlasExecutor();
         var coordinator = new AsyncAtlasRepackCoordinator<TestPayload>((key, gen, reason) -> {
             throw new IllegalStateException("pack failed");
@@ -86,7 +93,9 @@ public class AsyncAtlasRepackCoordinatorTest {
         assertNull(coordinator.pollFailure());
         coordinator.dispose();
     }
-    @Test public void disposeClosesUnclaimedPreparedPayload() throws Exception {
+
+    @Test
+    public void disposeClosesUnclaimedPreparedPayload() throws Exception {
         ControlledAtlasExecutor executor = new ControlledAtlasExecutor();
         AtomicInteger closed = new AtomicInteger();
         var coordinator = new AsyncAtlasRepackCoordinator<CountedPayload>(
@@ -97,7 +106,9 @@ public class AsyncAtlasRepackCoordinatorTest {
         coordinator.dispose();
         assertEquals(1, closed.get());
     }
-    @Test public void independentlyTypedCoordinatorsKeepPayloadTypesSeparate() throws Exception {
+
+    @Test
+    public void independentlyTypedCoordinatorsKeepPayloadTypesSeparate() throws Exception {
         ControlledAtlasExecutor sceneExecutor = new ControlledAtlasExecutor();
         ControlledAtlasExecutor hudExecutor = new ControlledAtlasExecutor();
         var scene = new AsyncAtlasRepackCoordinator<ScenePayload>(
@@ -119,20 +130,41 @@ public class AsyncAtlasRepackCoordinatorTest {
             hud.dispose();
         }
     }
+
     private static Closing<TestPayload> closeable(AsyncAtlasRepackCoordinator<TestPayload> coordinator) {
         return new Closing<>(coordinator);
     }
-    private record Closing<T extends AutoCloseable>(AsyncAtlasRepackCoordinator<T> coordinator) implements AutoCloseable {
-        @Override public void close() { coordinator.dispose(); }
+
+    private record Closing<T extends AutoCloseable>(
+            AsyncAtlasRepackCoordinator<T> coordinator) implements AutoCloseable {
+        @Override
+        public void close() {
+            coordinator.dispose();
+        }
     }
+
     private static class TestPayload implements AutoCloseable {
-        @Override public void close() {}
+        @Override
+        public void close() {
+        }
     }
+
     private static final class CountedPayload extends TestPayload {
         private final AtomicInteger closed;
-        private CountedPayload(AtomicInteger closed) { this.closed = closed; }
-        @Override public void close() { closed.incrementAndGet(); }
+
+        private CountedPayload(AtomicInteger closed) {
+            this.closed = closed;
+        }
+
+        @Override
+        public void close() {
+            closed.incrementAndGet();
+        }
     }
-    private static final class ScenePayload extends TestPayload {}
-    private static final class HudPayload extends TestPayload {}
+
+    private static final class ScenePayload extends TestPayload {
+    }
+
+    private static final class HudPayload extends TestPayload {
+    }
 }

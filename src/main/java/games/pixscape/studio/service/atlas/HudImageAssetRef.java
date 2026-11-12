@@ -7,7 +7,9 @@ import games.pixscape.studio.asset.AssetType;
 import games.pixscape.studio.helper.AssetHelper;
 import games.pixscape.studio.ui.asset.AssetNode;
 
-/** Stable bridge between a project Image identity and its generated-atlas region. */
+/**
+ * Stable bridge between a project Image identity and its generated-atlas region.
+ */
 public record HudImageAssetRef(int assetId, String resourceName, String sourceRelPath) {
     public static HudImageAssetRef fromSelected(AssetNode node, AssetMetaDatabase database,
                                                 FileHandle projectDir) {
@@ -16,7 +18,9 @@ public record HudImageAssetRef(int assetId, String resourceName, String sourceRe
         return fromAssetId(node.assetId, database, projectDir);
     }
 
-    /** Resolves the stable project Image identity carried by non-selection UI such as DnD. */
+    /**
+     * Resolves the stable project Image identity carried by non-selection UI such as DnD.
+     */
     public static HudImageAssetRef fromAssetId(int assetId, AssetMetaDatabase database,
                                                FileHandle projectDir) {
         if (assetId <= 0) return null;

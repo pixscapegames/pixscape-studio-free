@@ -49,18 +49,24 @@ public final class EventFlow {
     ) {
     }
 
-    /** Explicit Layers selection of a Scene HUD association, which has no ECS layer entity. */
+    /**
+     * Explicit Layers selection of a Scene HUD association, which has no ECS layer entity.
+     */
     public record SceneHudLayerSelected(String sceneTag, int sourceTag) {
     }
 
-    /** Transient Studio target used by Tiled and map-owned Spatial/Physics tools. */
+    /**
+     * Transient Studio target used by Tiled and map-owned Spatial/Physics tools.
+     */
     public record TiledMapEditingTargetChanged(
             int mapEntityId,
             int sourceTag
     ) {
     }
 
-    /** Published after one authored Tiled Map is inserted or removed. */
+    /**
+     * Published after one authored Tiled Map is inserted or removed.
+     */
     public record TiledMapContentChanged(
             int mapEntityId,
             int sourceTag
@@ -75,7 +81,9 @@ public final class EventFlow {
     ) {
     }
 
-    /** Entity z-order values changed within one authored layer. */
+    /**
+     * Entity z-order values changed within one authored layer.
+     */
     public record EntityZOrderChanged(
             int layerIndex,
             int sourceTag
@@ -148,7 +156,9 @@ public final class EventFlow {
     ) {
     }
 
-    /** The authored default HUD association changed for one canonical Scene. */
+    /**
+     * The authored default HUD association changed for one canonical Scene.
+     */
     public record SceneHudAssociationChanged(
             String sceneTag,
             String hudScreenId,
@@ -239,7 +249,9 @@ public final class EventFlow {
     ) {
     }
 
-    /** Transient geometry changed or ended; never changes the inspector's selection target. */
+    /**
+     * Transient geometry changed or ended; never changes the inspector's selection target.
+     */
     public record SpatialBlockPreviewChanged(int mapEntityId, int blockId, int sourceTag) {
     }
 
@@ -307,13 +319,17 @@ public final class EventFlow {
     ) {
     }
 
-    public record MaterialBlendResult(com.artemis.World world, int entity, String refusal) {}
+    public record MaterialBlendResult(com.artemis.World world, int entity, String refusal) {
+    }
 
-    public record SceneLightingRefused(games.pixscape.studio.configuration.SceneMeta scene, String reason) {}
+    public record SceneLightingRefused(games.pixscape.studio.configuration.SceneMeta scene, String reason) {
+    }
 
-    public record SceneLightingChanged(games.pixscape.studio.configuration.SceneMeta scene,int sourceTag) {}
+    public record SceneLightingChanged(games.pixscape.studio.configuration.SceneMeta scene, int sourceTag) {
+    }
 
-    public record SceneRendererChanged(games.pixscape.studio.configuration.SceneMeta scene,int sourceTag) {}
+    public record SceneRendererChanged(games.pixscape.studio.configuration.SceneMeta scene, int sourceTag) {
+    }
 
     public record SceneNormalMapsChanged(
             games.pixscape.studio.configuration.SceneMeta scene,
@@ -390,7 +406,8 @@ public final class EventFlow {
     ) {
     }
 
-    public record ParticleFlagsChanged(int entityId) {}
+    public record ParticleFlagsChanged(int entityId) {
+    }
 
     public enum ParticleControlType {PLAY, PAUSE, RESTART}
 
@@ -453,7 +470,9 @@ public final class EventFlow {
         list.add(registered);
     }
 
-    /** Creates a lifecycle-owned group of listeners delivered only while its Scene is active. */
+    /**
+     * Creates a lifecycle-owned group of listeners delivered only while its Scene is active.
+     */
     public SubscriptionScope newSubscriptionScope(BooleanSupplier active) {
         return new SubscriptionScope(active);
     }
@@ -479,7 +498,8 @@ public final class EventFlow {
             }
         }
 
-        @Override public void close() {
+        @Override
+        public void close() {
             if (closed) return;
             closed = true;
             for (Runnable removal : List.copyOf(removals)) removal.run();
@@ -508,7 +528,9 @@ public final class EventFlow {
         pendingEvents.add(event);
     }
 
-    /** Drops events produced by an unpublished transactional Scene candidate that failed to open. */
+    /**
+     * Drops events produced by an unpublished transactional Scene candidate that failed to open.
+     */
     public synchronized void discardPending() {
         pendingEvents.clear();
     }

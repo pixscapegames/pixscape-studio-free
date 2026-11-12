@@ -159,7 +159,9 @@ public final class EditTagsDialog extends StudioDialog {
         tooltip.setAppearDelayTime(0f);
     }
 
-    /** Canonicalisation preserved from the original tag dialog. */
+    /**
+     * Canonicalisation preserved from the original tag dialog.
+     */
     private static String normalize(String raw) {
         if (raw == null) return null;
 

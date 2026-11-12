@@ -26,7 +26,8 @@ import java.util.Set;
 import static org.junit.Assert.*;
 
 public class PreviewInputAdapterTest {
-    @Test public void shortcutsFireOncePerPressAndRetainEventOrder() {
+    @Test
+    public void shortcutsFireOncePerPressAndRetainEventOrder() {
         PreviewWindow.PreviewInputAdapter input = new PreviewWindow.PreviewInputAdapter();
         for (int key : new int[]{Input.Keys.F9, Input.Keys.F10}) {
             assertTrue(input.keyDown(key));
@@ -49,29 +50,43 @@ public class PreviewInputAdapterTest {
         assertEquals(-1, input.consumeCommand());
     }
 
-    @Test public void diagnosticCaptureKeyIsNotConsumedByPreview() {
+    @Test
+    public void diagnosticCaptureKeyIsNotConsumedByPreview() {
         PreviewWindow.PreviewInputAdapter input = new PreviewWindow.PreviewInputAdapter();
         assertFalse(input.keyDown(Input.Keys.F8));
         assertFalse(input.keyUp(Input.Keys.F8));
         assertEquals(-1, input.consumeCommand());
     }
 
-    @Test public void f11IsNotAPreviewCommand() {
+    @Test
+    public void f11IsNotAPreviewCommand() {
         PreviewWindow.PreviewInputAdapter input = new PreviewWindow.PreviewInputAdapter();
 
         assertFalse(input.keyDown(Input.Keys.F11));
         assertEquals(-1, input.consumeCommand());
     }
 
-    @Test public void previewConsumesShortcutsWithoutSendingThemToLowerHandlers() {
+    @Test
+    public void previewConsumesShortcutsWithoutSendingThemToLowerHandlers() {
         PreviewWindow.PreviewInputAdapter preview = new PreviewWindow.PreviewInputAdapter();
         final int[] otherCalls = {0};
         InputMultiplexer routing = new InputMultiplexer(preview, new InputAdapter() {
-            @Override public boolean keyDown(int key) { otherCalls[0]++; return true; }
-            @Override public boolean keyUp(int key) { otherCalls[0]++; return true; }
+            @Override
+            public boolean keyDown(int key) {
+                otherCalls[0]++;
+                return true;
+            }
+
+            @Override
+            public boolean keyUp(int key) {
+                otherCalls[0]++;
+                return true;
+            }
         });
-        routing.keyDown(Input.Keys.F9); routing.keyUp(Input.Keys.F9);
-        routing.keyDown(Input.Keys.F10); routing.keyUp(Input.Keys.F10);
+        routing.keyDown(Input.Keys.F9);
+        routing.keyUp(Input.Keys.F9);
+        routing.keyDown(Input.Keys.F10);
+        routing.keyUp(Input.Keys.F10);
         assertEquals(0, otherCalls[0]);
         preview.cancelInput();
         assertEquals(-1, preview.consumeCommand());
@@ -79,8 +94,15 @@ public class PreviewInputAdapterTest {
         assertEquals(Input.Keys.F9, preview.consumeCommand());
     }
 
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
+
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
 
     @Test
     public void nativeHudKeyboardFocusCancelsHeldCameraCommandsUntilANewKeyDown() {
@@ -147,20 +169,28 @@ public class PreviewInputAdapterTest {
             slider.setBounds(20f, 80f, 200f, 30f);
             final int[] changes = {0};
             slider.addListener(new ChangeListener() {
-                @Override public void changed(ChangeEvent event, Actor actor) { changes[0]++; }
+                @Override
+                public void changed(ChangeEvent event, Actor actor) {
+                    changes[0]++;
+                }
             });
             hudStage.addActor(slider);
             final int[] lowerPointerCalls = {0};
             InputAdapter lower = new InputAdapter() {
-                @Override public boolean touchDown(int x, int y, int pointer, int button) {
+                @Override
+                public boolean touchDown(int x, int y, int pointer, int button) {
                     lowerPointerCalls[0]++;
                     return true;
                 }
-                @Override public boolean touchDragged(int x, int y, int pointer) {
+
+                @Override
+                public boolean touchDragged(int x, int y, int pointer) {
                     lowerPointerCalls[0]++;
                     return true;
                 }
-                @Override public boolean touchUp(int x, int y, int pointer, int button) {
+
+                @Override
+                public boolean touchUp(int x, int y, int pointer, int button) {
                     lowerPointerCalls[0]++;
                     return true;
                 }

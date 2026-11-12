@@ -44,7 +44,9 @@ public final class AssetPreviewCache {
         cache.clear();
     }
 
-    /** Resolves source frames once at selection/reload time, in the browser's filename order. */
+    /**
+     * Resolves source frames once at selection/reload time, in the browser's filename order.
+     */
     public static Array<FileHandle> animationFrameFiles(FileHandle source) {
         Array<FileHandle> files = new Array<>();
         if (source == null || !source.exists()) return files;
@@ -59,7 +61,9 @@ public final class AssetPreviewCache {
         return files;
     }
 
-    /** Returned textures are borrowed, never disposed by an Inspector or thumbnail. */
+    /**
+     * Returned textures are borrowed, never disposed by an Inspector or thumbnail.
+     */
     public static Array<Texture> animationFrames(String sourceRelPath) {
         Array<Texture> frames = new Array<>();
         ProjectConfig cfg = ProjectConfig.getInstance();

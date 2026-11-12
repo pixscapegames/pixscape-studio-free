@@ -25,14 +25,17 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 public class LayersPanelHudAssociationTest {
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
     private ProjectConfig previous;
 
-    @After public void restoreConfiguration() {
+    @After
+    public void restoreConfiguration() {
         if (previous != null) ProjectConfig.setInstance(previous);
     }
 
-    @Test public void projectionKeepsHudAboveWorldWithoutChangingWorldIndices() {
+    @Test
+    public void projectionKeepsHudAboveWorldWithoutChangingWorldIndices() {
         Array<LayerService.LayerUI> layers = new Array<>();
         layers.add(new LayerService.LayerUI(10, "Bottom", "", 0,
                 false, true, false));
@@ -57,7 +60,8 @@ public class LayersPanelHudAssociationTest {
         }
     }
 
-    @Test public void selectedHudRemoveClearsOnlyAssociationAndUndoRestoresIt()
+    @Test
+    public void selectedHudRemoveClearsOnlyAssociationAndUndoRestoresIt()
             throws Exception {
         previous = ProjectConfig.getInstance();
         ProjectConfig configuration = new ProjectConfig();
@@ -72,7 +76,9 @@ public class LayersPanelHudAssociationTest {
                 "scene1", "Main", context);
         SceneHudAssociationService associations = new SceneHudAssociationService(
                 () -> root, () -> configuration, new HudDocumentPersistenceService(),
-                ignored -> {}, (sceneTag, screenId) -> {});
+                ignored -> {
+                }, (sceneTag, screenId) -> {
+        });
         assertTrue(associations.associate(document, "hud/status"));
 
         assertTrue(LayersPanel.removeSelectedHudIfCurrent(
@@ -89,7 +95,8 @@ public class LayersPanelHudAssociationTest {
         context.dispose();
     }
 
-    @Test public void hudActivationUsesOnlyTheCanonicalCurrentAssociation() {
+    @Test
+    public void hudActivationUsesOnlyTheCanonicalCurrentAssociation() {
         List<String> opened = new ArrayList<>();
 
         assertFalse(LayersPanel.openSelectedHudIfCurrent(
@@ -102,7 +109,8 @@ public class LayersPanelHudAssociationTest {
         assertEquals(List.of("hud/current"), opened);
     }
 
-    @Test public void worldReorderUsesStoredIndicesIndependentlyOfHudProjection() {
+    @Test
+    public void worldReorderUsesStoredIndicesIndependentlyOfHudProjection() {
         World world = new World(new WorldConfiguration());
         try {
             IdentityRegistry identities = new IdentityRegistry();

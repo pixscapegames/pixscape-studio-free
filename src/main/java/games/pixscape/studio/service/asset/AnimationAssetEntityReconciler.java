@@ -15,7 +15,9 @@ import java.util.Objects;
 import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
 
-/** Repairs loaded entities whose active authored animation definition changed. */
+/**
+ * Repairs loaded entities whose active authored animation definition changed.
+ */
 public final class AnimationAssetEntityReconciler {
     private AnimationAssetEntityReconciler() {
     }
@@ -49,7 +51,9 @@ public final class AnimationAssetEntityReconciler {
         return reconciled;
     }
 
-    /** Re-establishes active-definition clip and fps invariants after scene activation. */
+    /**
+     * Re-establishes active-definition clip and fps invariants after scene activation.
+     */
     public static int reconcileAll(World world,
                                    IntFunction<AssetMeta> assetMetaLookup,
                                    IntConsumer previewRefresh,

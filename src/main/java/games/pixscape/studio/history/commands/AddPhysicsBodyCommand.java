@@ -15,7 +15,9 @@ import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 
-/** Adds authored physics to an existing entity. */
+/**
+ * Adds authored physics to an existing entity.
+ */
 public final class AddPhysicsBodyCommand
         implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
     private final World world;

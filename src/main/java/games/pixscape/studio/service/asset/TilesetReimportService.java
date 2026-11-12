@@ -11,19 +11,30 @@ import java.util.*;
 
 import static games.pixscape.studio.service.asset.TilesetAssetImportService.*;
 
-/** Prepared tileset file import. No ECS mutation or inferred image identity. */
+/**
+ * Prepared tileset file import. No ECS mutation or inferred image identity.
+ */
 public final class TilesetReimportService {
     private final AssetMetaDatabase db;
-    public TilesetReimportService(AssetMetaDatabase db) { this.db = Objects.requireNonNull(db); }
 
-    @FunctionalInterface public interface UsageProof {
+    public TilesetReimportService(AssetMetaDatabase db) {
+        this.db = Objects.requireNonNull(db);
+    }
+
+    @FunctionalInterface
+    public interface UsageProof {
         Map<Integer, String> retentionReasons(Set<Integer> missingIds);
     }
-    @FunctionalInterface public interface PackingValidation {
+
+    @FunctionalInterface
+    public interface PackingValidation {
         void validate(FileHandle candidate, List<String> colorFiles);
     }
+
     public record Source(String key, FileHandle color, FileHandle normal, int index,
-                         int width, int height) {}
+                         int width, int height) {
+    }
+
     public record Plan(FileHandle tilesRoot, FileHandle source, String base, String kind,
                        TilesetProfileImportSettings settings, TilesetAtlasImportRequest grid,
                        int targetId, List<Source> sources, Map<String, Integer> matches,
@@ -39,7 +50,9 @@ public final class TilesetReimportService {
         }
     }
 
-    /** Provenance wins. A same-name collision is a suggestion requiring an explicit choice. */
+    /**
+     * Provenance wins. A same-name collision is a suggestion requiring an explicit choice.
+     */
     public List<TilesetAssetMeta> candidates(FileHandle source, String name) {
         List<TilesetAssetMeta> exact = new ArrayList<>(), named = new ArrayList<>();
         String uri = sourceUri(source);
@@ -70,7 +83,8 @@ public final class TilesetReimportService {
             sources.add(new Source(key, file, normal.exists() ? normal : null,
                     sources.size(), size[0], size[1]));
         }
-        if (sources.isEmpty() && targetId <= 0) throw new IllegalArgumentException("No color PNG files in this collection.");
+        if (sources.isEmpty() && targetId <= 0)
+            throw new IllegalArgumentException("No color PNG files in this collection.");
         collectOrphans(request.directory(), request.directory(), keys, notices);
         return prepare(request.tilesRoot(), request.directory(), StudioFs.baseName(request.directory().name()),
                 "collection", request.profileSettings() != null ? request.profileSettings()
@@ -108,7 +122,9 @@ public final class TilesetReimportService {
                 request, targetId, sources, usage, new ArrayList<>(), null);
     }
 
-    /** TSX identity is the local tile ID, including sparse collections and shared images. */
+    /**
+     * TSX identity is the local tile ID, including sparse collections and shared images.
+     */
     public Plan prepareTsx(FileHandle file, FileHandle tilesRoot, int targetId, UsageProof usage) {
         TsxTilesetDescriptor tsx = new TsxTilesetImportParser().parse(file);
         String name = tsx.name() == null || tsx.name().isBlank() ? StudioFs.baseName(file.name()) : tsx.name();
@@ -136,9 +152,9 @@ public final class TilesetReimportService {
     }
 
     private Plan prepare(FileHandle root, FileHandle source, String base, String kind,
-                          TilesetProfileImportSettings settings, TilesetAtlasImportRequest grid,
-                          int targetId, List<Source> sources, UsageProof usage,
-                          List<String> notices, TsxTilesetDescriptor tsx) {
+                         TilesetProfileImportSettings settings, TilesetAtlasImportRequest grid,
+                         int targetId, List<Source> sources, UsageProof usage,
+                         List<String> notices, TsxTilesetDescriptor tsx) {
         if (base == null || base.isBlank() || base.contains("/") || base.contains("\\")
                 || base.equals(".") || base.equals("..")) throw new IllegalArgumentException("Invalid tileset name.");
         TilesetAssetMeta target = targetId > 0 ? requireSet(targetId) : null;
@@ -148,7 +164,8 @@ public final class TilesetReimportService {
         } else {
             String desired = base;
             for (int suffix = 2; db.findByLogicalPath(StudioFs.PREFIX_TILES + base) != null
-                    || root.child(base).exists(); suffix++) base = desired + "-" + suffix;
+                    || root.child(base).exists(); suffix++)
+                base = desired + "-" + suffix;
         }
         if (base.contains("/") || base.contains("\\") || base.equals(".") || base.equals(".."))
             throw new IllegalArgumentException("Tileset destination is not a managed directory.");
@@ -180,15 +197,17 @@ public final class TilesetReimportService {
         Map<Integer, String> retained = missing.isEmpty() ? Map.of() : usage.retentionReasons(Set.copyOf(missing));
         Set<Integer> removed = new LinkedHashSet<>(missing);
         removed.removeAll(retained.keySet());
-        for (int id : missing) notices.add("Source file absent: " + ((TileAssetMeta) db.findById(id)).importSourceKey
-                + " (tile " + id + "). " + (retained.containsKey(id) ? "Retained: " + retained.get(id) : "Unused; will be deleted."));
+        for (int id : missing)
+            notices.add("Source file absent: " + ((TileAssetMeta) db.findById(id)).importSourceKey
+                    + " (tile " + id + "). " + (retained.containsKey(id) ? "Retained: " + retained.get(id) : "Unused; will be deleted."));
         return new Plan(root, source, base, kind, settings, grid, targetId, List.copyOf(sources),
                 Map.copyOf(matches), Set.copyOf(removed), Map.copyOf(retained),
                 List.copyOf(notices), db.toSnapshotJson(), tsx);
     }
 
     public TilesetImportResult apply(Plan plan, PackingValidation packing, Runnable saveCatalog) {
-        return apply(plan, packing, result -> {}, saveCatalog);
+        return apply(plan, packing, result -> {
+        }, saveCatalog);
     }
 
     public TilesetImportResult apply(Plan plan, PackingValidation packing,
@@ -209,12 +228,14 @@ public final class TilesetReimportService {
             set.importSourceUri = sourceUri(plan.source());
             set.importKind = plan.kind();
             int nextIndex = 0;
-            for (int i = 0; i < db.size(); i++) if (db.assetAt(i) instanceof TileAssetMeta tile && tile.tilesetId == set.id())
-                nextIndex = Math.max(nextIndex, tile.sheetIndex + 1);
+            for (int i = 0; i < db.size(); i++)
+                if (db.assetAt(i) instanceof TileAssetMeta tile && tile.tilesetId == set.id())
+                    nextIndex = Math.max(nextIndex, tile.sheetIndex + 1);
             if (plan.targetId() <= 0) {
                 set.tileWidth = plan.tsx() != null ? plan.tsx().tileWidth() : plan.sources().stream().mapToInt(Source::width).min().orElseThrow();
                 set.tileHeight = plan.tsx() != null ? plan.tsx().tileHeight() : plan.sources().stream().mapToInt(Source::height).min().orElseThrow();
-                set.columns = plan.sources().size(); set.rows = 1;
+                set.columns = plan.sources().size();
+                set.rows = 1;
                 new TilesetAssetImportService(db).applyProfileSettings(set, plan.settings());
             }
             FileHandle split = null;
@@ -228,17 +249,23 @@ public final class TilesetReimportService {
                         req.tileWidth(), req.tileHeight(), req.spacing(), req.margin(), null);
                 int[] imageSize = size(req.sourceFile());
                 var layout = TilesetSliceLayout.calculate(imageSize[0], imageSize[1], req.tileWidth(), req.tileHeight(), req.spacing(), req.margin());
-                set.imageWidth = imageSize[0]; set.imageHeight = imageSize[1];
-                set.tileWidth = req.tileWidth(); set.tileHeight = req.tileHeight();
-                set.columns = layout.columns(); set.rows = layout.rows(); set.spacing = req.spacing(); set.margin = req.margin();
+                set.imageWidth = imageSize[0];
+                set.imageHeight = imageSize[1];
+                set.tileWidth = req.tileWidth();
+                set.tileHeight = req.tileHeight();
+                set.columns = layout.columns();
+                set.rows = layout.rows();
+                set.spacing = req.spacing();
+                set.margin = req.margin();
                 String sheet = plan.base() + "__a" + set.id() + "." + req.sourceFile().extension();
                 req.sourceFile().copyTo(candidate.child(sheet));
                 db.updateSourceRelPath(set.id(), StudioFs.DIR_ORIG_TILES + "/" + plan.base() + "/" + sheet);
             }
             String prefix = StudioFs.DIR_ORIG_TILES + "/" + plan.base() + "/";
             Map<String, Integer> normalOwners = new HashMap<>();
-            for (int i = 0; i < db.size(); i++) if (db.assetAt(i) instanceof TileAssetMeta tile && tile.normalSourceRelPath != null)
-                normalOwners.merge(tile.normalSourceRelPath, 1, Integer::sum);
+            for (int i = 0; i < db.size(); i++)
+                if (db.assetAt(i) instanceof TileAssetMeta tile && tile.normalSourceRelPath != null)
+                    normalOwners.merge(tile.normalSourceRelPath, 1, Integer::sum);
             for (Source source : plan.sources()) {
                 Integer id = plan.matches().get(plan.tsx() != null && plan.grid() == null
                         ? Integer.toString(source.index()) : source.key());
@@ -248,7 +275,8 @@ public final class TilesetReimportService {
                     int index = plan.targetId() <= 0 || plan.grid() != null || plan.tsx() != null ? source.index() : nextIndex++;
                     tile = (TileAssetMeta) db.registerIfAbsent(AssetType.TILE, set.logicalPath() + "/" + index,
                             null, AssetMeta.AssetScope.USER);
-                    tile.tilesetId = set.id(); tile.sheetIndex = index;
+                    tile.tilesetId = set.id();
+                    tile.sheetIndex = index;
                     tile.cellX = plan.grid() == null ? index : index % set.columns;
                     tile.cellY = plan.grid() == null ? 0 : index / set.columns;
                 }
@@ -294,7 +322,8 @@ public final class TilesetReimportService {
                     if (tile.normalSourceRelPath != null) referenced.add(tile.normalSourceRelPath);
                     if (tile.tilesetId == set.id()) {
                         String path = tile.sourceRelPath();
-                        if (path == null) throw new IllegalArgumentException("Tile color resource is missing: " + tile.id());
+                        if (path == null)
+                            throw new IllegalArgumentException("Tile color resource is missing: " + tile.id());
                         if (path.startsWith(prefix)) colors.add(path.substring(prefix.length()));
                         else {
                             String checkPath = ".retained-colors/" + tile.id() + ".png";
@@ -304,10 +333,12 @@ public final class TilesetReimportService {
                     }
                 }
             }
-            for (int i = 0; i < before.size(); i++) if (before.assetAt(i) instanceof TileAssetMeta tile && tile.tilesetId == set.id()) {
-                for (String path : new String[]{tile.sourceRelPath(), tile.normalSourceRelPath})
-                    if (path != null && path.startsWith(prefix) && !referenced.contains(path)) candidate.child(path.substring(prefix.length())).delete();
-            }
+            for (int i = 0; i < before.size(); i++)
+                if (before.assetAt(i) instanceof TileAssetMeta tile && tile.tilesetId == set.id()) {
+                    for (String path : new String[]{tile.sourceRelPath(), tile.normalSourceRelPath})
+                        if (path != null && path.startsWith(prefix) && !referenced.contains(path))
+                            candidate.child(path.substring(prefix.length())).delete();
+                }
             if (split != null) split.deleteDirectory();
             packing.validate(candidate, colors);
             candidate.child(".retained-colors").deleteDirectory();
@@ -321,8 +352,9 @@ public final class TilesetReimportService {
             try {
                 games.pixscape.studio.service.ProjectFileCleanupService.restoreFileFromSnapshot(catalogFile, catalogBytes);
                 if (db.nextId() > before.nextId()) db.save(catalogFile);
+            } catch (RuntimeException rollbackFailure) {
+                failure.addSuppressed(rollbackFailure);
             }
-            catch (RuntimeException rollbackFailure) { failure.addSuppressed(rollbackFailure); }
             throw failure;
         } finally {
             AtomicDirectoryPublication.discardCandidate(candidate);
@@ -331,18 +363,25 @@ public final class TilesetReimportService {
 
     public TilesetImportResult importNew(TilesetDirectoryImportRequest request) {
         return apply(prepareDirectory(request, -1, ids -> Map.of()),
-                AtlasStudioService::validateTilesetImportCandidate, () -> {});
+                AtlasStudioService::validateTilesetImportCandidate, () -> {
+                });
     }
+
     public TilesetImportResult importNew(TilesetAtlasImportRequest request) {
         return apply(prepareAtlas(request, -1, ids -> Map.of()),
-                AtlasStudioService::validateTilesetImportCandidate, () -> {});
+                AtlasStudioService::validateTilesetImportCandidate, () -> {
+                });
     }
+
     private TilesetAssetMeta requireSet(int id) {
-        if (!(db.findById(id) instanceof TilesetAssetMeta set)) throw new IllegalArgumentException("Tileset not found: " + id);
+        if (!(db.findById(id) instanceof TilesetAssetMeta set))
+            throw new IllegalArgumentException("Tileset not found: " + id);
         return set;
     }
 
-    /** Reimport boundary only: projects without this feature's provenance remain usable. */
+    /**
+     * Reimport boundary only: projects without this feature's provenance remain usable.
+     */
     public void validateProvenance(int id) {
         TilesetAssetMeta set = requireSet(id);
         if (set.importKind == null || set.importKind.isBlank() || set.importSourceUri == null || set.importSourceUri.isBlank())
@@ -351,7 +390,8 @@ public final class TilesetReimportService {
             throw new IllegalArgumentException("Invalid current tileset import kind: " + set.importKind);
         try {
             java.net.URI uri = java.net.URI.create(set.importSourceUri);
-            if (!"file".equals(uri.getScheme()) || !new java.io.File(uri).isAbsolute()) throw new IllegalArgumentException();
+            if (!"file".equals(uri.getScheme()) || !new java.io.File(uri).isAbsolute())
+                throw new IllegalArgumentException();
         } catch (IllegalArgumentException failure) {
             throw new IllegalArgumentException("Invalid current tileset source URI: " + id, failure);
         }
@@ -386,34 +426,57 @@ public final class TilesetReimportService {
         return new IllegalArgumentException("Tileset " + id + " lacks required reimport provenance (" + field
                 + "). Older imports cannot be updated. No source recovery is performed; the project remains usable.");
     }
-    /** The lowercase "_n" marker is case-sensitive: "_N" is a color orientation. */
+
+    /**
+     * The lowercase "_n" marker is case-sensitive: "_N" is a color orientation.
+     */
     public static boolean isNormalCompanion(String fileName) {
         return fileName.endsWith("_n.png");
     }
-    static FileHandle companion(FileHandle color) { return color.sibling(color.nameWithoutExtension() + "_n.png"); }
+
+    static FileHandle companion(FileHandle color) {
+        return color.sibling(color.nameWithoutExtension() + "_n.png");
+    }
+
     static void validateNormal(FileHandle color, FileHandle normal) {
         if (!normal.exists()) return;
-        if (!Arrays.equals(size(color), size(normal))) throw new IllegalArgumentException("Normal dimensions differ from color: " + normal.name());
+        if (!Arrays.equals(size(color), size(normal)))
+            throw new IllegalArgumentException("Normal dimensions differ from color: " + normal.name());
     }
+
     static int[] size(FileHandle file) {
         Pixmap pixels = new Pixmap(file);
-        try { return new int[]{pixels.getWidth(), pixels.getHeight()}; }
-        finally { pixels.dispose(); }
+        try {
+            return new int[]{pixels.getWidth(), pixels.getHeight()};
+        } finally {
+            pixels.dispose();
+        }
     }
+
     static String sourceUri(FileHandle source) {
-        try { return source.file().getCanonicalFile().toURI().toString(); }
-        catch (java.io.IOException failure) { throw new IllegalArgumentException("Cannot resolve source path", failure); }
+        try {
+            return source.file().getCanonicalFile().toURI().toString();
+        } catch (java.io.IOException failure) {
+            throw new IllegalArgumentException("Cannot resolve source path", failure);
+        }
     }
+
     static String relative(FileHandle root, FileHandle file) {
         return root.file().toPath().toAbsolutePath().normalize().relativize(file.file().toPath().toAbsolutePath().normalize()).toString().replace('\\', '/');
     }
+
     private static void copyContents(FileHandle from, FileHandle to) {
         for (FileHandle item : listImportFiles(from)) {
-            if (java.nio.file.Files.isSymbolicLink(item.file().toPath())) throw new IllegalArgumentException("Source directory contains a symbolic link.");
-            if (item.isDirectory()) { FileHandle child = to.child(item.name()); child.mkdirs(); copyContents(item, child); }
-            else item.copyTo(to.child(item.name()));
+            if (java.nio.file.Files.isSymbolicLink(item.file().toPath()))
+                throw new IllegalArgumentException("Source directory contains a symbolic link.");
+            if (item.isDirectory()) {
+                FileHandle child = to.child(item.name());
+                child.mkdirs();
+                copyContents(item, child);
+            } else item.copyTo(to.child(item.name()));
         }
     }
+
     private static void collectOrphans(FileHandle root, FileHandle dir, Set<String> colors, List<String> notices) {
         for (FileHandle file : listImportFiles(dir)) {
             if (file.isDirectory()) collectOrphans(root, file, colors, notices);

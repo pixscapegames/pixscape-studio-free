@@ -13,7 +13,9 @@ import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.StudioDisplayOffsetResolver;
 
-/** Passive Studio overlays for imported Tiled Rectangle and Point objects. */
+/**
+ * Passive Studio overlays for imported Tiled Rectangle and Point objects.
+ */
 public final class TiledObjectOverlaySystem extends IteratingSystem {
 
     private static final float POINT_OUTER_RADIUS_PX = 6f;
@@ -73,11 +75,11 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
         if (meta == null
                 || transform == null
                 || !shouldDrawShape(
-                        meta.kind,
-                        isObjectVisible(entityId),
-                        isParentLayerVisible(entityId),
-                        isSelected(entityId),
-                        meta.kind == EntityKind.TILED_RECTANGLE && polygon != null)) {
+                meta.kind,
+                isObjectVisible(entityId),
+                isParentLayerVisible(entityId),
+                isSelected(entityId),
+                meta.kind == EntityKind.TILED_RECTANGLE && polygon != null)) {
             return;
         }
 
@@ -198,7 +200,9 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
         return POINT_CENTER_RADIUS_PX * worldPerPixel;
     }
 
-    /** A Tiled Point is the Transform position; origin, rotation, and scale are irrelevant. */
+    /**
+     * A Tiled Point is the Transform position; origin, rotation, and scale are irrelevant.
+     */
     static void pointCenter(TransformComponent transform, float[] out) {
         if (transform == null || out == null || out.length < 2) {
             throw new IllegalArgumentException("Point center output requires transform and 2 floats.");

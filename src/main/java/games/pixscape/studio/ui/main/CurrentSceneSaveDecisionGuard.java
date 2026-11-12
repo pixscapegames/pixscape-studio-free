@@ -28,8 +28,10 @@ final class CurrentSceneSaveDecisionGuard {
             return;
         }
 
-        Runnable cancel = onCancel != null ? onCancel : () -> { };
-        Consumer<Throwable> saveFailure = onSaveFailure != null ? onSaveFailure : throwable -> { };
+        Runnable cancel = onCancel != null ? onCancel : () -> {
+        };
+        Consumer<Throwable> saveFailure = onSaveFailure != null ? onSaveFailure : throwable -> {
+        };
         dialog.show(
                 title,
                 message,

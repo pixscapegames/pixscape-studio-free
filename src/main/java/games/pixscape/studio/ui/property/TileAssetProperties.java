@@ -19,7 +19,9 @@ import games.pixscape.studio.ui.property.entityproperties.EditPropertiesDialog;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** Inspector for one shared tile definition; history belongs to the asset catalog, not a scene. */
+/**
+ * Inspector for one shared tile definition; history belongs to the asset catalog, not a scene.
+ */
 public final class TileAssetProperties extends VisTable {
     private final Supplier<AssetMetaDatabase> databaseSource;
     private final Supplier<FileHandle> assetsFile;
@@ -51,14 +53,16 @@ public final class TileAssetProperties extends VisTable {
         add(id).left().growX().row();
         new Tooltip.Builder("Local ID within this tileset. Right-click to copy.").target(id).build();
         id.addListener(new ClickListener(Input.Buttons.RIGHT) {
-            @Override public void clicked(InputEvent event, float x, float y) {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
                 if (event.isTouchFocusCancel()) return;
                 TileAssetMeta tile = tile();
                 if (tile == null || tile.sheetIndex < 0) return;
                 String value = Integer.toString(tile.sheetIndex);
                 MenuItem copy = new MenuItem("Copy Id");
                 copy.addListener(new ChangeListener() {
-                    @Override public void changed(ChangeEvent event, Actor actor) {
+                    @Override
+                    public void changed(ChangeEvent event, Actor actor) {
                         Gdx.app.getClipboard().setContents(value);
                     }
                 });
@@ -72,7 +76,8 @@ public final class TileAssetProperties extends VisTable {
         add(summary).left();
         add(edit).right().row();
         edit.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 TileAssetMeta selected = tile();
                 if (selected == null) return;
                 int target = assetId;
@@ -108,10 +113,25 @@ public final class TileAssetProperties extends VisTable {
         history.execute(new EditTilePropertiesCommand(database, target, after, assetsFile, publisher));
     }
 
-    public boolean canUndo() { return database == databaseSource.get() && history.canUndo(); }
-    public boolean canRedo() { return database == databaseSource.get() && history.canRedo(); }
-    public boolean undo() { if (!canUndo()) return false; history.undo(); return true; }
-    public boolean redo() { if (!canRedo()) return false; history.redo(); return true; }
+    public boolean canUndo() {
+        return database == databaseSource.get() && history.canUndo();
+    }
+
+    public boolean canRedo() {
+        return database == databaseSource.get() && history.canRedo();
+    }
+
+    public boolean undo() {
+        if (!canUndo()) return false;
+        history.undo();
+        return true;
+    }
+
+    public boolean redo() {
+        if (!canRedo()) return false;
+        history.redo();
+        return true;
+    }
 
     private TileAssetMeta tile() {
         return database != null && database == databaseSource.get()

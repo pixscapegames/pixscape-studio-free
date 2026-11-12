@@ -24,16 +24,23 @@ public class ActiveDocumentCommandRouterTest {
         AtomicReference<HudScreenEditorDocument> hudSave = new AtomicReference<>();
         ActiveDocumentCommandRouter router = new ActiveDocumentCommandRouter(
                 manager, new ActiveDocumentCommandRouter.SceneCommands() {
-            @Override public void save(SceneEditorDocument document, Runnable onSuccess,
-                                       Consumer<Throwable> onFailure) {
+            @Override
+            public void save(SceneEditorDocument document, Runnable onSuccess,
+                             Consumer<Throwable> onFailure) {
                 sceneSave.set(document);
                 onSuccess.run();
             }
-            @Override public boolean undo(SceneEditorDocument document) {
+
+            @Override
+            public boolean undo(SceneEditorDocument document) {
                 sceneUndo.set(document);
                 return true;
             }
-            @Override public boolean redo(SceneEditorDocument document) { return true; }
+
+            @Override
+            public boolean redo(SceneEditorDocument document) {
+                return true;
+            }
         }, document -> {
             hudSave.set(document);
             document.editSession().markSaved();
@@ -56,7 +63,8 @@ public class ActiveDocumentCommandRouterTest {
         manager.activate(scene.key());
         assertTrue(router.undo());
         assertSame(scene, sceneUndo.get());
-        router.save(() -> {}, failOnError());
+        router.save(() -> {
+        }, failOnError());
         assertSame(scene, sceneSave.get());
     }
 
@@ -72,14 +80,22 @@ public class ActiveDocumentCommandRouterTest {
         AtomicReference<GameObjectEditorDocument> redone = new AtomicReference<>();
 
         ActiveDocumentCommandRouter router = new ActiveDocumentCommandRouter(
-                manager, noOpSceneCommands(), document -> { },
+                manager, noOpSceneCommands(), document -> {
+        },
                 new ActiveDocumentCommandRouter.GameObjectCommands() {
-                    @Override public void save(GameObjectEditorDocument document) { saved.set(document); }
-                    @Override public boolean undo(GameObjectEditorDocument document) {
+                    @Override
+                    public void save(GameObjectEditorDocument document) {
+                        saved.set(document);
+                    }
+
+                    @Override
+                    public boolean undo(GameObjectEditorDocument document) {
                         undone.set(document);
                         return true;
                     }
-                    @Override public boolean redo(GameObjectEditorDocument document) {
+
+                    @Override
+                    public boolean redo(GameObjectEditorDocument document) {
                         redone.set(document);
                         return true;
                     }
@@ -102,11 +118,23 @@ public class ActiveDocumentCommandRouterTest {
         manager.openGameObject(gameObject);
         RuntimeException failure = new RuntimeException("write failed");
         ActiveDocumentCommandRouter router = new ActiveDocumentCommandRouter(
-                manager, noOpSceneCommands(), document -> { }, new ActiveDocumentCommandRouter.GameObjectCommands() {
-                    @Override public void save(GameObjectEditorDocument document) { throw failure; }
-                    @Override public boolean undo(GameObjectEditorDocument document) { return false; }
-                    @Override public boolean redo(GameObjectEditorDocument document) { return false; }
-                });
+                manager, noOpSceneCommands(), document -> {
+        }, new ActiveDocumentCommandRouter.GameObjectCommands() {
+            @Override
+            public void save(GameObjectEditorDocument document) {
+                throw failure;
+            }
+
+            @Override
+            public boolean undo(GameObjectEditorDocument document) {
+                return false;
+            }
+
+            @Override
+            public boolean redo(GameObjectEditorDocument document) {
+                return false;
+            }
+        });
         AtomicReference<Throwable> reported = new AtomicReference<>();
 
         router.save(null, reported::set);
@@ -118,22 +146,37 @@ public class ActiveDocumentCommandRouterTest {
 
     private static ActiveDocumentCommandRouter.SceneCommands noOpSceneCommands() {
         return new ActiveDocumentCommandRouter.SceneCommands() {
-            @Override public void save(SceneEditorDocument document, Runnable onSuccess,
-                                       Consumer<Throwable> onFailure) { }
-            @Override public boolean undo(SceneEditorDocument document) { return false; }
-            @Override public boolean redo(SceneEditorDocument document) { return false; }
+            @Override
+            public void save(SceneEditorDocument document, Runnable onSuccess,
+                             Consumer<Throwable> onFailure) {
+            }
+
+            @Override
+            public boolean undo(SceneEditorDocument document) {
+                return false;
+            }
+
+            @Override
+            public boolean redo(SceneEditorDocument document) {
+                return false;
+            }
         };
     }
 
     private static ActiveDocumentCommandRouter.GameObjectCommands unexpectedGameObjectCommands() {
         return new ActiveDocumentCommandRouter.GameObjectCommands() {
-            @Override public void save(GameObjectEditorDocument document) {
+            @Override
+            public void save(GameObjectEditorDocument document) {
                 throw new AssertionError("Unexpected Game Object save.");
             }
-            @Override public boolean undo(GameObjectEditorDocument document) {
+
+            @Override
+            public boolean undo(GameObjectEditorDocument document) {
                 throw new AssertionError("Unexpected Game Object undo.");
             }
-            @Override public boolean redo(GameObjectEditorDocument document) {
+
+            @Override
+            public boolean redo(GameObjectEditorDocument document) {
                 throw new AssertionError("Unexpected Game Object redo.");
             }
         };

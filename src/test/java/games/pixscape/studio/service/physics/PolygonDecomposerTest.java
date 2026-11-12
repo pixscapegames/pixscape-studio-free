@@ -53,7 +53,7 @@ public class PolygonDecomposerTest {
 
     @Test
     public void invalidPolygonsAreRejectedByValidation() {
-        PolygonBuildResult selfIntersecting = PolygonDecomposer.build(new float[] {
+        PolygonBuildResult selfIntersecting = PolygonDecomposer.build(new float[]{
                 0f, 0f,
                 2f, 2f,
                 0f, 2f,
@@ -65,7 +65,7 @@ public class PolygonDecomposerTest {
                         || selfIntersecting.validation().code() == PolygonValidationResult.ZERO_AREA
         );
 
-        PolygonBuildResult duplicateConsecutive = PolygonDecomposer.build(new float[] {
+        PolygonBuildResult duplicateConsecutive = PolygonDecomposer.build(new float[]{
                 0f, 0f,
                 1f, 0f,
                 1f, 0f,
@@ -74,7 +74,7 @@ public class PolygonDecomposerTest {
         Assert.assertFalse(duplicateConsecutive.isValid());
         Assert.assertEquals(PolygonValidationResult.DUPLICATE_VERTEX, duplicateConsecutive.validation().code());
 
-        PolygonBuildResult zeroArea = PolygonDecomposer.build(new float[] {
+        PolygonBuildResult zeroArea = PolygonDecomposer.build(new float[]{
                 0f, 0f,
                 1f, 1f,
                 2f, 2f

@@ -4,7 +4,9 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
-/** Deterministic authored-volume picking from continuous footprint projection. */
+/**
+ * Deterministic authored-volume picking from continuous footprint projection.
+ */
 public final class SpatialBlockPicking {
     public static final int NO_BLOCK = -1;
 
@@ -85,13 +87,17 @@ public final class SpatialBlockPicking {
         boolean positive = false;
         boolean negative = false;
         float cross = cross(x0, y0, x1, y1, px, py);
-        positive |= cross > 0f; negative |= cross < 0f;
+        positive |= cross > 0f;
+        negative |= cross < 0f;
         cross = cross(x1, y1, x2, y2, px, py);
-        positive |= cross > 0f; negative |= cross < 0f;
+        positive |= cross > 0f;
+        negative |= cross < 0f;
         cross = cross(x2, y2, x3, y3, px, py);
-        positive |= cross > 0f; negative |= cross < 0f;
+        positive |= cross > 0f;
+        negative |= cross < 0f;
         cross = cross(x3, y3, x0, y0, px, py);
-        positive |= cross > 0f; negative |= cross < 0f;
+        positive |= cross > 0f;
+        negative |= cross < 0f;
         return !(positive && negative);
     }
 

@@ -16,8 +16,15 @@ import java.util.Queue;
 import static org.junit.Assert.*;
 
 public class DocumentDockPanelCoordinatorTest {
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
+
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
 
     @Test
     public void inactiveWidgetsOpenedFromViewPreserveFloatingPresentationAndRestoreLayers()
@@ -99,8 +106,15 @@ public class DocumentDockPanelCoordinatorTest {
 
     private static final class DeferredQueue {
         private final Queue<Runnable> pending = new ArrayDeque<>();
-        void post(Runnable runnable) { pending.add(runnable); }
-        int size() { return pending.size(); }
+
+        void post(Runnable runnable) {
+            pending.add(runnable);
+        }
+
+        int size() {
+            return pending.size();
+        }
+
         void drain() {
             while (!pending.isEmpty()) pending.remove().run();
             assertTrue(pending.isEmpty());

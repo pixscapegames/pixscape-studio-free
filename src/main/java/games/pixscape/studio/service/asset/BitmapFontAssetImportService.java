@@ -16,7 +16,9 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Validates and atomically imports one text BMFont descriptor and all of its PNG pages. */
+/**
+ * Validates and atomically imports one text BMFont descriptor and all of its PNG pages.
+ */
 public final class BitmapFontAssetImportService {
     private final AssetMetaDatabase database;
 
@@ -150,6 +152,9 @@ public final class BitmapFontAssetImportService {
         }
     }
 
-    private record Page(FileHandle file, Path relative) { }
-    private record FontBundle(FileHandle descriptor, List<Page> pages) { }
+    private record Page(FileHandle file, Path relative) {
+    }
+
+    private record FontBundle(FileHandle descriptor, List<Page> pages) {
+    }
 }

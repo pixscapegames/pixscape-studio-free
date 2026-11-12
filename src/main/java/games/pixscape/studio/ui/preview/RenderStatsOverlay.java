@@ -61,23 +61,45 @@ public final class RenderStatsOverlay {
         pixel.dispose();
     }
 
-    public void toggle() { setEnabled(!enabled); }
-    public void setEnabled(boolean enabled) { this.enabled = enabled; refresh(); }
-    public boolean isEnabled() { return enabled; }
-    public boolean isDetailed() { return detailed; }
+    public void toggle() {
+        setEnabled(!enabled);
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+        refresh();
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public boolean isDetailed() {
+        return detailed;
+    }
+
     public void toggleDetails() {
         detailed = !enabled || !detailed;
         enabled = true;
         refresh();
     }
-    void refresh() { dirty = true; }
+
+    void refresh() {
+        dirty = true;
+    }
 
     public void setFrameTimes(double p95Ms, double p99Ms, double maxMs) {
-        this.p95Ms = p95Ms; this.p99Ms = p99Ms; this.maxMs = maxMs;
+        this.p95Ms = p95Ms;
+        this.p99Ms = p99Ms;
+        this.maxMs = maxMs;
     }
+
     public void setBox2dStats(double stepMs, int substeps, int bodies, int contacts, int joints) {
-        boxStepMs = stepMs; boxSubsteps = substeps;
-        boxBodies = bodies; boxContacts = contacts; boxJoints = joints;
+        boxStepMs = stepMs;
+        boxSubsteps = substeps;
+        boxBodies = bodies;
+        boxContacts = contacts;
+        boxJoints = joints;
     }
 
     public void render(long nowNs) {
@@ -87,7 +109,9 @@ public final class RenderStatsOverlay {
                 || enabled && nowNs - lastUiRefreshNs >= UI_REFRESH_NS) {
             layoutLines(width, height);
             lastUiRefreshNs = nowNs;
-            dirty = false; lastWidth = width; lastHeight = height;
+            dirty = false;
+            lastWidth = width;
+            lastHeight = height;
         }
         var batch = uiStage.getBatch();
         batch.setProjectionMatrix(uiStage.getViewport().getCamera().combined);
@@ -101,12 +125,15 @@ public final class RenderStatsOverlay {
         batch.setColor(r, g, b, a);
         help.draw(batch);
         if (enabled) for (int i = 0; i < lines.length; i++) {
-            names[i].draw(batch); lines[i].draw(batch);
+            names[i].draw(batch);
+            lines[i].draw(batch);
         }
         batch.end();
     }
 
-    /** Hidden statistics must not lay out text, open a batch, or submit GL draws. */
+    /**
+     * Hidden statistics must not lay out text, open a batch, or submit GL draws.
+     */
     static boolean submitsDraws(boolean enabled) {
         return enabled;
     }
@@ -117,26 +144,38 @@ public final class RenderStatsOverlay {
         help.setColor(Color.WHITE);
         var helpLayout = help.setText(HELP_PREFIX,
                 12, 0, usable, Align.left, true);
-        helpHeight = helpLayout.height; helpWidth = Math.min(width - 8, helpLayout.width + 16);
+        helpHeight = helpLayout.height;
+        helpWidth = Math.min(width - 8, helpLayout.width + 16);
         help.setPosition(0, helpHeight + 10);
-        for (int i = 0; i < lines.length; i++) { lines[i].clear(); names[i].clear(); }
+        for (int i = 0; i < lines.length; i++) {
+            lines[i].clear();
+            names[i].clear();
+        }
         if (!enabled) return;
         for (StringBuilder value : text) value.setLength(0);
         panelWidth = 0;
         appendFps(text[0], cadence.fps());
         averageLabel.setLength(0);
         if (cadence.isFull()) averageLabel.append(LABELS[1]);
-        else { averageLabel.append("Avg (partial "); append2(averageLabel, cadence.seconds()); averageLabel.append(" s)"); }
+        else {
+            averageLabel.append("Avg (partial ");
+            append2(averageLabel, cadence.seconds());
+            averageLabel.append(" s)");
+        }
         appendFps(text[1], cadence.averageFps());
-        if (cadence.sampleCount() == 0) text[2].append("--"); else append2(text[2], cadence.averageMs());
+        if (cadence.sampleCount() == 0) text[2].append("--");
+        else append2(text[2], cadence.averageMs());
         text[2].append(" ms");
-        append2(text[3], p95Ms); text[3].append(" ms");
-        append2(text[4], p99Ms); text[4].append(" ms");
-        append2(text[5], maxMs); text[5].append(" ms");
+        append2(text[3], p95Ms);
+        text[3].append(" ms");
+        append2(text[4], p99Ms);
+        text[4].append(" ms");
+        append2(text[5], maxMs);
+        text[5].append(" ms");
         RenderStatsTextFormatter.appendCount(text[6], stats.frameQueueQuads);
         RenderStatsTextFormatter.appendCount(text[7], stats.drawCalls);
         RenderStatsTextFormatter.appendCount(text[8], stats.flushes);
-        text[8].append(stats.forwardLighting?"  [FWD]":"  [LEG]");
+        text[8].append(stats.forwardLighting ? "  [FWD]" : "  [LEG]");
         float y = height - 14;
         y = row(0, y, usable, ACCENT);
         y = row(3, y, usable, Color.WHITE);
@@ -150,7 +189,8 @@ public final class RenderStatsOverlay {
             RenderStatsTextFormatter.appendTiledRefsLine(text[14], stats);
             RenderStatsTextFormatter.appendBuildLine(text[15], stats);
             RenderStatsTextFormatter.appendDrawStagesLine(text[17], stats);
-            text[16].append("Box2D: step="); append2(text[16], boxStepMs);
+            text[16].append("Box2D: step=");
+            append2(text[16], boxStepMs);
             text[16].append("ms sub=").append(boxSubsteps).append("  bodies:").append(boxBodies)
                     .append("  contacts:").append(boxContacts).append("  joints:").append(boxJoints);
             y -= 6;
@@ -172,7 +212,8 @@ public final class RenderStatsOverlay {
         // Short windows keep the summary and help; all details return on a taller resize.
         for (int i = 9; i < lines.length; i++) {
             if (lines[i].getLayouts().size > 0 && lines[i].getY() - lines[i].getLayouts().first().height < panelBottom) {
-                lines[i].clear(); names[i].clear();
+                lines[i].clear();
+                names[i].clear();
             }
         }
     }
@@ -183,7 +224,11 @@ public final class RenderStatsOverlay {
             int column = i % 3;
             float preferredWidth = labelWidths[column] + PAIR_GAP + valueWidth;
             float cellWidth = Math.min(preferredWidth, usable);
-            if (x > 0 && x + cellWidth > usable) { y -= rowHeight + ROW_GAP; x = 0; rowHeight = 0; }
+            if (x > 0 && x + cellWidth > usable) {
+                y -= rowHeight + ROW_GAP;
+                x = 0;
+                rowHeight = 0;
+            }
             CharSequence label = i == 1 ? averageLabel : LABELS[i];
             float cellHeight;
             if (cellWidth >= preferredWidth) {
@@ -202,21 +247,26 @@ public final class RenderStatsOverlay {
         }
         return y - rowHeight - ROW_GAP;
     }
+
     private float put(BitmapFontCache cache, CharSequence value, float x, float y, float width, int align, Color color) {
-        cache.setPosition(0, 0); cache.setColor(color);
+        cache.setPosition(0, 0);
+        cache.setColor(color);
         var layout = cache.setText(value, 0, 0, width, align, true);
         cache.setPosition(x, y);
         panelWidth = Math.max(panelWidth, x + layout.width + 4);
         return layout.height;
     }
+
     private float measure(CharSequence value) {
         metrics.setText(font, value);
-        return (float)Math.ceil(metrics.width);
+        return (float) Math.ceil(metrics.width);
     }
+
     private void appendFps(StringBuilder out, double value) {
         if (cadence.sampleCount() == 0) out.append("--");
-        else RenderStatsTextFormatter.appendCount(out, (int)Math.round(value));
+        else RenderStatsTextFormatter.appendCount(out, (int) Math.round(value));
     }
+
     private static void append2(StringBuilder out, double value) {
         long scaled = Math.round(value * 100);
         out.append(scaled / 100).append('.');
@@ -224,5 +274,9 @@ public final class RenderStatsOverlay {
         if (fraction < 10) out.append('0');
         out.append(fraction);
     }
-    public void dispose() { background.dispose(); font.dispose(); }
+
+    public void dispose() {
+        background.dispose();
+        font.dispose();
+    }
 }

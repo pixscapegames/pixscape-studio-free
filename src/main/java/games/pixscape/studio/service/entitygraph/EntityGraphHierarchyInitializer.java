@@ -8,7 +8,9 @@ import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.history.initializer.Initializer;
 
-/** Materializes one prepared graph entry without retaining source hierarchy identities. */
+/**
+ * Materializes one prepared graph entry without retaining source hierarchy identities.
+ */
 final class EntityGraphHierarchyInitializer implements Initializer {
     private final World world;
     private final GenericEntityInitializer generic;
@@ -32,7 +34,10 @@ final class EntityGraphHierarchyInitializer implements Initializer {
         this.customProperties = customProperties != null ? customProperties.copy() : null;
     }
 
-    @Override public int activeLightCount() { return generic.activeLightCount(); }
+    @Override
+    public int activeLightCount() {
+        return generic.activeLightCount();
+    }
 
     @Override
     public void syncFrom(int entityId) {

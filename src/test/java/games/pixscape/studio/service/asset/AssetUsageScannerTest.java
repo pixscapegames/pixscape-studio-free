@@ -130,7 +130,8 @@ public class AssetUsageScannerTest {
         assertTrue(report.sceneNames().contains("Main", false));
     }
 
-    @Test public void bitmapFontUsageIncludesOpenDirtyAndPersistedHudDocuments() throws Exception {
+    @Test
+    public void bitmapFontUsageIncludesOpenDirtyAndPersistedHudDocuments() throws Exception {
         ProjectConfig cfg = projectConfig();
         AssetMetaDatabase db = new AssetMetaDatabase();
         AssetMeta used = db.registerIfAbsent(AssetType.FONT, "fonts/used", "orig/fonts/1/used.fnt",
@@ -157,7 +158,8 @@ public class AssetUsageScannerTest {
         assertFalse(scanner.scanAsset(unused.id()).used());
     }
 
-    @Test public void unreadablePersistedHudBlocksBitmapFontUsageDecision() throws Exception {
+    @Test
+    public void unreadablePersistedHudBlocksBitmapFontUsageDecision() throws Exception {
         ProjectConfig cfg = projectConfig();
         AssetMetaDatabase db = new AssetMetaDatabase();
         AssetMeta font = db.registerIfAbsent(AssetType.FONT, "fonts/test", "orig/fonts/1/test.fnt",
@@ -171,7 +173,8 @@ public class AssetUsageScannerTest {
         assertTrue(failure.getMessage().contains("broken"));
     }
 
-    @Test public void bitmapFontUsageIncludesEveryNativeTextPayload() throws Exception {
+    @Test
+    public void bitmapFontUsageIncludesEveryNativeTextPayload() throws Exception {
         ProjectConfig cfg = projectConfig();
         AssetMetaDatabase db = new AssetMetaDatabase();
         AssetMeta font = db.registerIfAbsent(AssetType.FONT, "fonts/test",
@@ -189,7 +192,8 @@ public class AssetUsageScannerTest {
         assertTrue(report.documentNames().contains("hud/text-widgets", false));
     }
 
-    @Test public void bitmapFontUsedOnlyByTooltipBlocksDeletion() throws Exception {
+    @Test
+    public void bitmapFontUsedOnlyByTooltipBlocksDeletion() throws Exception {
         ProjectConfig cfg = projectConfig();
         AssetMetaDatabase db = new AssetMetaDatabase();
         AssetMeta font = db.registerIfAbsent(AssetType.FONT, "fonts/tooltip",
@@ -209,7 +213,8 @@ public class AssetUsageScannerTest {
         assertTrue(report.documentNames().contains("hud/tooltip", false));
     }
 
-    @Test public void bitmapFontUsedOnlyByWindowTitleBlocksDeletion() throws Exception {
+    @Test
+    public void bitmapFontUsedOnlyByWindowTitleBlocksDeletion() throws Exception {
         ProjectConfig cfg = projectConfig();
         AssetMetaDatabase db = new AssetMetaDatabase();
         AssetMeta font = db.registerIfAbsent(AssetType.FONT, "fonts/window",
@@ -231,7 +236,8 @@ public class AssetUsageScannerTest {
         assertTrue(report.documentNames().contains("hud/window", false));
     }
 
-    @Test public void skinUsageIncludesOpenDirtyAndPersistedHudAssetsWithoutLiveScene() throws Exception {
+    @Test
+    public void skinUsageIncludesOpenDirtyAndPersistedHudAssetsWithoutLiveScene() throws Exception {
         ProjectConfig cfg = projectConfig();
         AssetMetaDatabase db = new AssetMetaDatabase();
         AssetMeta used = db.registerIfAbsent(AssetType.SKIN, "skins/used",
@@ -260,7 +266,8 @@ public class AssetUsageScannerTest {
         assertFalse(scanner.scanAsset(unused.id()).used());
     }
 
-    @Test public void skinUsageTracksTheCurrentUndoableOpenHudAssociation() throws Exception {
+    @Test
+    public void skinUsageTracksTheCurrentUndoableOpenHudAssociation() throws Exception {
         ProjectConfig cfg = projectConfig();
         AssetMetaDatabase db = new AssetMetaDatabase();
         AssetMeta previous = db.registerIfAbsent(AssetType.SKIN, "skins/previous",
@@ -283,7 +290,8 @@ public class AssetUsageScannerTest {
         assertFalse(scanner.scanAsset(current.id()).used());
     }
 
-    @Test public void unreadablePersistedHudBlocksSkinUsageDecision() throws Exception {
+    @Test
+    public void unreadablePersistedHudBlocksSkinUsageDecision() throws Exception {
         ProjectConfig cfg = projectConfig();
         AssetMetaDatabase db = new AssetMetaDatabase();
         AssetMeta skin = db.registerIfAbsent(AssetType.SKIN, "skins/test",
@@ -297,7 +305,8 @@ public class AssetUsageScannerTest {
         assertTrue(failure.getMessage().contains("broken"));
     }
 
-    @Test public void skinUsageNormalizesDotParentSegmentsAndSupportedSeparators() throws Exception {
+    @Test
+    public void skinUsageNormalizesDotParentSegmentsAndSupportedSeparators() throws Exception {
         ProjectConfig cfg = projectConfig();
         AssetMetaDatabase db = new AssetMetaDatabase();
         AssetMeta skin = db.registerIfAbsent(AssetType.SKIN, "skins/test",
@@ -314,7 +323,8 @@ public class AssetUsageScannerTest {
         assertEquals(3, report.occurrenceCount());
     }
 
-    @Test public void normalizedPersistedSkinReferenceIsFoundButDifferentReferenceIsNot() throws Exception {
+    @Test
+    public void normalizedPersistedSkinReferenceIsFoundButDifferentReferenceIsNot() throws Exception {
         ProjectConfig cfg = projectConfig();
         AssetMetaDatabase db = new AssetMetaDatabase();
         AssetMeta used = db.registerIfAbsent(AssetType.SKIN, "skins/used",
@@ -330,7 +340,8 @@ public class AssetUsageScannerTest {
         assertFalse(scanner.scanAsset(different.id()).used());
     }
 
-    @Test public void escapingPersistedSkinReferenceBlocksUsageDecision() throws Exception {
+    @Test
+    public void escapingPersistedSkinReferenceBlocksUsageDecision() throws Exception {
         ProjectConfig cfg = projectConfig();
         AssetMetaDatabase db = new AssetMetaDatabase();
         AssetMeta skin = db.registerIfAbsent(AssetType.SKIN, "skins/test",
@@ -345,7 +356,8 @@ public class AssetUsageScannerTest {
         assertTrue(failure.getCause().getMessage().contains("escapes"));
     }
 
-    @Test public void absentOpenHudSkinReferenceRemainsUnused() throws Exception {
+    @Test
+    public void absentOpenHudSkinReferenceRemainsUnused() throws Exception {
         ProjectConfig cfg = projectConfig();
         AssetMetaDatabase db = new AssetMetaDatabase();
         AssetMeta skin = db.registerIfAbsent(AssetType.SKIN, "skins/test",

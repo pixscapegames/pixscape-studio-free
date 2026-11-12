@@ -197,7 +197,9 @@ public class SpatialBlockPhysicsCollisionCommandTest {
                 Assert.assertEquals(h.owner, base.aEid);
                 Assert.assertEquals(other, base.bEid);
             }
-        } finally { h.world.dispose(); }
+        } finally {
+            h.world.dispose();
+        }
     }
 
     private static final class Harness {

@@ -10,7 +10,9 @@ import java.lang.reflect.Modifier;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Isolates desktop application globals from headless tests sharing the test worker. */
+/**
+ * Isolates desktop application globals from headless tests sharing the test worker.
+ */
 public final class StudioGlTestScope implements AutoCloseable {
     private final Map<Field, Object> gdx = new LinkedHashMap<>();
     private final ObjectMap<Object, Array<Object>> listeners;
@@ -37,7 +39,8 @@ public final class StudioGlTestScope implements AutoCloseable {
         pending.clear();
     }
 
-    @Override public void close() throws Exception {
+    @Override
+    public void close() throws Exception {
         listeners.clear();
         listeners.putAll(savedListeners);
         pending.clear();

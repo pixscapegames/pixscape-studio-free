@@ -11,7 +11,9 @@ import games.pixscape.studio.service.hud.HudSelectionTarget;
 
 import java.util.Objects;
 
-/** Gives editor overlay targets precedence over authored HUD Actors and the world canvas. */
+/**
+ * Gives editor overlay targets precedence over authored HUD Actors and the world canvas.
+ */
 public final class HudCanvasSelectionInputListener extends InputListener {
     private final HudEditorSession session;
     private int contextPointer = -1;
@@ -30,8 +32,9 @@ public final class HudCanvasSelectionInputListener extends InputListener {
         this.session = Objects.requireNonNull(session, "session");
     }
 
-    @Override public boolean touchDown(InputEvent event, float x, float y,
-                                       int pointer, int button) {
+    @Override
+    public boolean touchDown(InputEvent event, float x, float y,
+                             int pointer, int button) {
         requestKeyboardFocus(event);
         if (button == Input.Buttons.RIGHT) {
             contextPointer = -1;
@@ -83,7 +86,8 @@ public final class HudCanvasSelectionInputListener extends InputListener {
         return handled;
     }
 
-    @Override public void touchDragged(InputEvent event, float x, float y, int pointer) {
+    @Override
+    public void touchDragged(InputEvent event, float x, float y, int pointer) {
         if (pointer == pendingMovePointer) {
             if (!pendingMoveResolved && crossedDragThreshold(event.getStageX(), event.getStageY())) {
                 pendingMoveResolved = true;
@@ -111,7 +115,8 @@ public final class HudCanvasSelectionInputListener extends InputListener {
         }
     }
 
-    @Override public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
+    @Override
+    public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
         if (event.isTouchFocusCancel()) {
             contextPointer = -1;
             contextNodeId = null;
@@ -172,19 +177,22 @@ public final class HudCanvasSelectionInputListener extends InputListener {
         }
     }
 
-    @Override public boolean mouseMoved(InputEvent event, float x, float y) {
+    @Override
+    public boolean mouseMoved(InputEvent event, float x, float y) {
         session.updateHoveredOverlayTargetAt(event.getStageX(), event.getStageY());
         session.updateTransformCursorAt(event.getStageX(), event.getStageY());
         return false;
     }
 
-    @Override public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) {
+    @Override
+    public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) {
         if (pointer == -1 && event.getStage() != null && event.getListenerActor() != null) {
             event.getStage().setScrollFocus(event.getListenerActor());
         }
     }
 
-    @Override public void exit(InputEvent event, float x, float y, int pointer, Actor toActor) {
+    @Override
+    public void exit(InputEvent event, float x, float y, int pointer, Actor toActor) {
         if (pointer == -1) releaseOwnedScrollFocus(event.getStage(), event.getListenerActor());
         if (!session.hasActiveTransformGesture()) session.clearHoveredOverlayTarget();
         if (!session.hasActiveResizeGesture()) {
@@ -196,8 +204,9 @@ public final class HudCanvasSelectionInputListener extends InputListener {
         if (stage != null && stage.getScrollFocus() == owner) stage.setScrollFocus(null);
     }
 
-    @Override public boolean scrolled(InputEvent event, float x, float y,
-                                      float amountX, float amountY) {
+    @Override
+    public boolean scrolled(InputEvent event, float x, float y,
+                            float amountX, float amountY) {
         boolean handled = session.scrollHudAt(event.getStageX(), event.getStageY(), amountX, amountY);
         if (handled) event.stop();
         return handled;

@@ -7,7 +7,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.LongSupplier;
 
-/** Coordinates generic, generation-aware asynchronous preparation. */
+/**
+ * Coordinates generic, generation-aware asynchronous preparation.
+ */
 public final class AsyncAtlasRepackCoordinator<T extends AutoCloseable> {
 
     public enum RepackReason {
@@ -21,7 +23,8 @@ public final class AsyncAtlasRepackCoordinator<T extends AutoCloseable> {
         T pack(String targetKey, long generation, RepackReason reason) throws Exception;
     }
 
-    public record PackFailure(String targetKey, long generation, Exception cause) {}
+    public record PackFailure(String targetKey, long generation, Exception cause) {
+    }
 
     /**
      * The coordinator owns a prepared payload until the caller takes it. Callers own a taken
@@ -109,7 +112,9 @@ public final class AsyncAtlasRepackCoordinator<T extends AutoCloseable> {
         this(packRunner, createExecutor(), System::currentTimeMillis, PACK_DEBOUNCE_MS);
     }
 
-    /** Executor/clock injection for deterministic behavioral tests, not a separate repack framework. */
+    /**
+     * Executor/clock injection for deterministic behavioral tests, not a separate repack framework.
+     */
     public AsyncAtlasRepackCoordinator(PackRunner<T> packRunner, ExecutorService executor,
                                        LongSupplier clock, long debounceMs) {
         if (packRunner == null) throw new IllegalArgumentException("packRunner is null");
@@ -172,7 +177,9 @@ public final class AsyncAtlasRepackCoordinator<T extends AutoCloseable> {
                 || (readyPrepared != null && targetKey.equals(readyPrepared.targetKey()));
     }
 
-    /** Delivered once on the caller/UI thread; cancellations and stale failures are not errors. */
+    /**
+     * Delivered once on the caller/UI thread; cancellations and stale failures are not errors.
+     */
     public synchronized PackFailure pollFailure() {
         PackFailure failure = readyFailure;
         readyFailure = null;

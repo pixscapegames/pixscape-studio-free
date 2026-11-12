@@ -28,29 +28,45 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** Non-interactive Runtime-style HUD composition drawn over the active Studio Scene canvas. */
+/**
+ * Non-interactive Runtime-style HUD composition drawn over the active Studio Scene canvas.
+ */
 public final class SceneHudCompositionRenderer implements AutoCloseable {
-    record Association(String projectRoot, String sceneTag, String screenId) {}
+    record Association(String projectRoot, String sceneTag, String screenId) {
+    }
 
     interface PreparationAccess {
         void ensureSceneRequested(String sceneTag);
+
         long publishedGeneration(String sceneTag);
-        default long resourceGeneration(String sceneTag) { return publishedGeneration(sceneTag); }
+
+        default long resourceGeneration(String sceneTag) {
+            return publishedGeneration(sceneTag);
+        }
     }
 
     interface View extends AutoCloseable {
         void resize(int screenX, int screenY, int width, int height);
+
         void act(float delta);
+
         void draw();
-        default boolean recompose(Association association) { return false; }
-        @Override void close();
+
+        default boolean recompose(Association association) {
+            return false;
+        }
+
+        @Override
+        void close();
     }
 
-    @FunctionalInterface interface AssociationResolver {
+    @FunctionalInterface
+    interface AssociationResolver {
         Association resolve(String sceneIdentity);
     }
 
-    @FunctionalInterface interface ViewFactory {
+    @FunctionalInterface
+    interface ViewFactory {
         View create(Association association);
     }
 
@@ -82,15 +98,18 @@ public final class SceneHudCompositionRenderer implements AutoCloseable {
         this.associationResolver = sceneIdentity -> resolveAssociation(
                 projectDir.get(), configuration.get(), sceneIdentity);
         this.preparation = new PreparationAccess() {
-            @Override public void ensureSceneRequested(String sceneTag) {
+            @Override
+            public void ensureSceneRequested(String sceneTag) {
                 preparation.ensureSceneRequested(sceneTag);
             }
 
-            @Override public long publishedGeneration(String sceneTag) {
+            @Override
+            public long publishedGeneration(String sceneTag) {
                 return preparation.compositionGeneration(sceneTag);
             }
 
-            @Override public long resourceGeneration(String sceneTag) {
+            @Override
+            public long resourceGeneration(String sceneTag) {
                 return preparation.resourceGeneration(sceneTag);
             }
         };
@@ -132,7 +151,9 @@ public final class SceneHudCompositionRenderer implements AutoCloseable {
                 try {
                     if (activeView.recompose(association)) attemptedResourceGeneration = resourceGeneration;
                     else if (installCandidate(association)) attemptedResourceGeneration = resourceGeneration;
-                } catch (RuntimeException failure) { errorHandler.accept(failure); }
+                } catch (RuntimeException failure) {
+                    errorHandler.accept(failure);
+                }
             } else if (installCandidate(association)) attemptedResourceGeneration = resourceGeneration;
         }
         if (activeView == null || hiddenAssociations.contains(association)) return;
@@ -153,8 +174,11 @@ public final class SceneHudCompositionRenderer implements AutoCloseable {
             activeView.act(delta);
             activeView.draw();
         } catch (RuntimeException failure) {
-            try { clearView(); }
-            catch (RuntimeException cleanupFailure) { failure.addSuppressed(cleanupFailure); }
+            try {
+                clearView();
+            } catch (RuntimeException cleanupFailure) {
+                failure.addSuppressed(cleanupFailure);
+            }
             errorHandler.accept(failure);
         }
     }
@@ -227,11 +251,11 @@ public final class SceneHudCompositionRenderer implements AutoCloseable {
                         skinId == null ? List.of() : List.of(skinId));
             } else {
                 resources = HudResources.prepareEnvironmentWithFonts(
-                    project,
-                    SceneHudEnvironmentPaths.atlasId(association.sceneTag()),
-                    HudTextureProfile.DEFAULT_ID,
-                    skinId == null ? List.of() : List.of(skinId),
-                    authoringFontSpecs(project, requirements));
+                        project,
+                        SceneHudEnvironmentPaths.atlasId(association.sceneTag()),
+                        HudTextureProfile.DEFAULT_ID,
+                        skinId == null ? List.of() : List.of(skinId),
+                        authoringFontSpecs(project, requirements));
             }
             HudSelectedResources selected = resources.select(skinId);
             HudValidationResult resourceAware = validator.validate(document, selected);
@@ -295,8 +319,11 @@ public final class SceneHudCompositionRenderer implements AutoCloseable {
             String sceneTag = configuration.canonicalSceneTagFor(scene);
             if (!Objects.equals(sceneIdentity, sceneTag)) continue;
             String screenId;
-            try { screenId = HudScreenAssetId.normalizeOptional(scene.defaultHudScreenId); }
-            catch (RuntimeException failure) { return null; }
+            try {
+                screenId = HudScreenAssetId.normalizeOptional(scene.defaultHudScreenId);
+            } catch (RuntimeException failure) {
+                return null;
+            }
             return screenId == null ? null
                     : new Association(project.path(), sceneTag, screenId);
         }
@@ -335,7 +362,8 @@ public final class SceneHudCompositionRenderer implements AutoCloseable {
         screenHeight = -1;
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         if (closed) return;
         closed = true;
         onProjectChanging();
@@ -348,14 +376,15 @@ public final class SceneHudCompositionRenderer implements AutoCloseable {
         private final HudDocumentPersistenceService persistence;
 
         private RuntimeView(HudResources resources, HudSession session,
-                             EditorDocumentManager documents, HudDocumentPersistenceService persistence) {
+                            EditorDocumentManager documents, HudDocumentPersistenceService persistence) {
             this.resources = resources;
             this.session = session;
             this.documents = documents;
             this.persistence = persistence;
         }
 
-        @Override public boolean recompose(Association association) {
+        @Override
+        public boolean recompose(Association association) {
             var loaded = loadAuthoritative(new FileHandle(association.projectRoot()),
                     association.screenId(), documents, persistence);
             loaded.asset().validate();
@@ -372,8 +401,9 @@ public final class SceneHudCompositionRenderer implements AutoCloseable {
                     loaded.asset().documentId, validated);
             MaterializedHud materialized = new HudMaterializer().materialize(
                     validated.validatedDocument(), selected);
-            try { session.install(materialized); }
-            catch (RuntimeException failure) {
+            try {
+                session.install(materialized);
+            } catch (RuntimeException failure) {
                 // install may have adopted the candidate before old-content disposal failed.
                 // Only a still-detached candidate remains ours to release.
                 if (materialized.root().getParent() == null) materialized.dispose();
@@ -382,27 +412,35 @@ public final class SceneHudCompositionRenderer implements AutoCloseable {
             return true;
         }
 
-        @Override public void resize(int screenX, int screenY, int width, int height) {
+        @Override
+        public void resize(int screenX, int screenY, int width, int height) {
             if (session != null) session.resizeUnscaled(screenX, screenY, width, height);
         }
 
-        @Override public void act(float delta) {
+        @Override
+        public void act(float delta) {
             if (session != null) session.act(delta);
         }
 
-        @Override public void draw() {
+        @Override
+        public void draw() {
             if (session != null) session.draw();
         }
 
-        @Override public void close() {
+        @Override
+        public void close() {
             RuntimeException failure = null;
             if (session != null) {
-                try { session.dispose(); }
-                catch (RuntimeException disposalFailure) { failure = disposalFailure; }
+                try {
+                    session.dispose();
+                } catch (RuntimeException disposalFailure) {
+                    failure = disposalFailure;
+                }
             }
             if (resources != null) {
-                try { resources.dispose(); }
-                catch (RuntimeException disposalFailure) {
+                try {
+                    resources.dispose();
+                } catch (RuntimeException disposalFailure) {
                     if (failure == null) failure = disposalFailure;
                 }
             }

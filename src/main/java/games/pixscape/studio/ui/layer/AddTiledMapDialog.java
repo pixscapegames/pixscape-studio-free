@@ -10,7 +10,9 @@ import games.pixscape.studio.ui.modal.StudioDialog;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-/** Per-operation Tiled Map configuration. */
+/**
+ * Per-operation Tiled Map configuration.
+ */
 public final class AddTiledMapDialog extends StudioDialog {
     static final TiledProjection DEFAULT_PROJECTION = TiledProjection.ORTHO;
     static final int DEFAULT_TILE_WIDTH = 32;
@@ -20,7 +22,8 @@ public final class AddTiledMapDialog extends StudioDialog {
     static final int DEFAULT_CHUNK_SIZE = 16;
 
     public record Request(int mapWidth, int mapHeight, TiledProjection projection,
-                          int tileWidth, int tileHeight, int chunkSize) {}
+                          int tileWidth, int tileHeight, int chunkSize) {
+    }
 
     private final VisSelectBox<String> projection = new VisSelectBox<>();
     private final VisTextField tileWidth = new VisTextField();

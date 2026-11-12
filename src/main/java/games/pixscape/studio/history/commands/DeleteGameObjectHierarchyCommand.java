@@ -209,7 +209,8 @@ public final class DeleteGameObjectHierarchyCommand implements Command {
     private PropertySet captureProperties(int entityId) {
         var properties = world.getMapper(CustomPropertiesComponent.class).getSafe(entityId, null);
         if (properties == null) return null;
-        if (properties.properties == null) throw new IllegalArgumentException("Custom properties require a PropertySet.");
+        if (properties.properties == null)
+            throw new IllegalArgumentException("Custom properties require a PropertySet.");
         return properties.properties.copy();
     }
 

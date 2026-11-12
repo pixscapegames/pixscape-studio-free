@@ -12,9 +12,12 @@ import org.junit.Test;
 import static games.pixscape.studio.ui.main.ResourceAssetInspectorGlTest.*;
 import static org.junit.Assert.*;
 
-/** Real Items clicks, docked Inspector, scene persistence and isolated asset editing. */
+/**
+ * Real Items clicks, docked Inspector, scene persistence and isolated asset editing.
+ */
 public class EffectiveLayerOwnershipGlTest {
-    @Test public void inheritedLayerTracksCurrentRootAndSurvivesSceneReload() throws Exception {
+    @Test
+    public void inheritedLayerTracksCurrentRootAndSurvivesSceneReload() throws Exception {
         withStudio(900, (studio, directory) -> {
             var file = project(studio, directory.child("ownership"));
             addImage(file.parent(), "child", 80, 40);

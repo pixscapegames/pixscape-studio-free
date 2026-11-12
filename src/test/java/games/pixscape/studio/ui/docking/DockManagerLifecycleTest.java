@@ -17,8 +17,15 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class DockManagerLifecycleTest {
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
+
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
 
     @Test
     public void repeatedHideAndRedockCollapsesEmptyBranchesAndRestoresProportions() throws Exception {
@@ -52,7 +59,8 @@ public class DockManagerLifecycleTest {
         }
     }
 
-    @Test public void contentAndEditedStateSurviveSlotChangesAndOtherPanelHides() throws Exception {
+    @Test
+    public void contentAndEditedStateSurviveSlotChangesAndOtherPanelHides() throws Exception {
         try (DockingTestFixture f = DockingTestFixture.create()) {
             f.studioStage.addActor(f.shell);
             VisTable content = new VisTable();
@@ -92,7 +100,8 @@ public class DockManagerLifecycleTest {
         assertUsable(field);
     }
 
-    @Test public void everyCombinationHasOnlyBinarySplitsAndPositiveUsableContent() throws Exception {
+    @Test
+    public void everyCombinationHasOnlyBinarySplitsAndPositiveUsableContent() throws Exception {
         try (DockingTestFixture f = DockingTestFixture.create()) {
             f.studioStage.addActor(f.shell);
             DockablePanel[] panels = {f.items, f.properties, f.layers, f.assets};
@@ -125,7 +134,8 @@ public class DockManagerLifecycleTest {
         }
     }
 
-    @Test public void rebuildingCancelsSeparatorAndRemovedContentBeforeDetaching() throws Exception {
+    @Test
+    public void rebuildingCancelsSeparatorAndRemovedContentBeforeDetaching() throws Exception {
         try (DockingTestFixture f = DockingTestFixture.create()) {
             f.studioStage.addActor(f.shell);
             f.resize(1200, 800);
@@ -133,8 +143,11 @@ public class DockManagerLifecycleTest {
             Vector2 p = split.localToStageCoordinates(new Vector2(split.getWidth() / 2,
                     split.getSecondWidgetBounds().height + split.getStyle().handle.getMinHeight() / 2));
             InputEvent down = new InputEvent();
-            down.setType(InputEvent.Type.touchDown); down.setPointer(0); down.setButton(0);
-            down.setStageX(p.x); down.setStageY(p.y);
+            down.setType(InputEvent.Type.touchDown);
+            down.setPointer(0);
+            down.setButton(0);
+            down.setStageX(p.x);
+            down.setStageY(p.y);
             split.fire(down);
             assertTrue(down.isHandled());
             f.manager.hide(f.properties);
@@ -150,8 +163,13 @@ public class DockManagerLifecycleTest {
             f.properties.add(child);
             boolean[] cancelledWhileAttached = {false};
             child.addListener(new InputListener() {
-                @Override public boolean touchDown(InputEvent e, float x, float y, int p, int b) { return true; }
-                @Override public void touchUp(InputEvent e, float x, float y, int p, int b) {
+                @Override
+                public boolean touchDown(InputEvent e, float x, float y, int p, int b) {
+                    return true;
+                }
+
+                @Override
+                public void touchUp(InputEvent e, float x, float y, int p, int b) {
                     cancelledWhileAttached[0] = e.isTouchFocusCancel() && child.getStage() == f.studioStage;
                 }
             });

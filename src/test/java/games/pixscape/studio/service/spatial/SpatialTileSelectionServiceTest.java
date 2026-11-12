@@ -24,6 +24,7 @@ public class SpatialTileSelectionServiceTest {
         selection.clearHover();
         Assert.assertFalse(selection.hasHover());
     }
+
     @Test
     public void dragHorizontalCreatesOneCellTallRectangle() {
         SpatialTileSelectionService selection = new SpatialTileSelectionService();

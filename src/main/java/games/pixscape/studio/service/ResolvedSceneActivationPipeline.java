@@ -27,7 +27,9 @@ import games.pixscape.studio.service.spatial.SpatialWallAuthoringValidator;
 import games.pixscape.studio.service.tiled.TiledAllocatorService;
 import games.pixscape.studio.ui.log.StudioLog;
 
-/** Activates one already resolved scene in the existing, already cleared editor World. */
+/**
+ * Activates one already resolved scene in the existing, already cleared editor World.
+ */
 final class ResolvedSceneActivationPipeline {
 
     private final World world;
@@ -73,7 +75,7 @@ final class ResolvedSceneActivationPipeline {
         sceneLoader.load(world, target.sceneFile(), false, target.meta());
         normalizeSceneAtlasTags(target.canonicalTag());
         world.process();
-        if(target.meta().forwardLighting)games.pixscape.runtime.render.lighting.ActiveLights.validateForward(world);
+        if (target.meta().forwardLighting) games.pixscape.runtime.render.lighting.ActiveLights.validateForward(world);
         // Populate all persisted bounds through the normal dirty-driven geometry system.
         SceneLoader.forceFullRenderDirty(world);
         resolveTiledLayersForActivation(

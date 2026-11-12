@@ -25,9 +25,11 @@ public class HudAuthoringSessionLayoutBoundsTest {
     private static GL20 previousGl;
     private static GL20 previousGl20;
 
-    @BeforeClass public static void bootGdx() {
+    @BeforeClass
+    public static void bootGdx() {
         if (Gdx.app == null) {
-            new HeadlessApplication(new ApplicationAdapter() {},
+            new HeadlessApplication(new ApplicationAdapter() {
+            },
                     new HeadlessApplicationConfiguration());
         }
         if (Gdx.graphics == null) Gdx.graphics = new MockGraphics();
@@ -46,12 +48,14 @@ public class HudAuthoringSessionLayoutBoundsTest {
         }
     }
 
-    @AfterClass public static void restoreGl() {
+    @AfterClass
+    public static void restoreGl() {
         Gdx.gl = previousGl;
         Gdx.gl20 = previousGl20;
     }
 
-    @Test public void nativeDebugAllCoversNestedTablesAndSurvivesRootReplacement() {
+    @Test
+    public void nativeDebugAllCoversNestedTablesAndSurvivesRootReplacement() {
         Batch borrowed = inertBatch();
         HudAuthoringSession session = new HudAuthoringSession(borrowed);
         Stage stage = session.stage();

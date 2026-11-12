@@ -10,10 +10,18 @@ import org.junit.Test;
 import static org.junit.Assert.assertSame;
 
 public class RulerActorProjectionTest {
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
 
-    @Test public void leavingHudProjectionRestoresSceneCamera() {
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
+
+    @Test
+    public void leavingHudProjectionRestoresSceneCamera() {
         OrthographicCamera sceneCamera = new OrthographicCamera();
         OrthographicCamera hudCamera = new OrthographicCamera();
         RulerActor ruler = new RulerActor(

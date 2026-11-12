@@ -12,7 +12,8 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 public class HudLayoutAuthoringTest {
-    @Test public void movingAndSwappingCellContentsKeepsCellIdentityConstraintsAndSubtrees() {
+    @Test
+    public void movingAndSwappingCellContentsKeepsCellIdentityConstraintsAndSubtrees() {
         HudDocumentV1 document = document();
         HudNode table = new HudNode("table", HudNodeKind.TABLE);
         table.table = HudLayoutAuthoring.newTableLayout(document.root, 1, 4, false);
@@ -49,6 +50,7 @@ public class HudLayoutAuthoringTest {
         assertEquals(47f, second.constraints.minWidth, 0f);
         assertEquals(53f, third.constraints.minWidth, 0f);
     }
+
     @Test
     public void windowCreationUsesExistingFreeCellDirectPlacementsAndInitialSize() {
         HudDocumentV1 document = document();
@@ -126,6 +128,7 @@ public class HudLayoutAuthoringTest {
         assertTrue(history.redo());
         assertTrue(HudLayoutAuthoring.node(history.document(), buttonId).windowActions.isEmpty());
     }
+
     @Test
     public void labelCreationUsesParentPlacementAndNativeTablePreference() {
         HudDocumentV1 freeDocument = document();
@@ -566,10 +569,11 @@ public class HudLayoutAuthoringTest {
             if (found != null) return found;
         }
         if (node.table != null) for (HudTableRow row : node.table.rows)
-            for (HudTableCell cell : row.cells) if (cell.content != null) {
-                HudNode found = find(cell.content, id);
-                if (found != null) return found;
-            }
+            for (HudTableCell cell : row.cells)
+                if (cell.content != null) {
+                    HudNode found = find(cell.content, id);
+                    if (found != null) return found;
+                }
         return null;
     }
 
@@ -580,11 +584,12 @@ public class HudLayoutAuthoringTest {
             if (nested != null) return nested;
         }
         if (node.table != null) for (HudTableRow row : node.table.rows)
-            for (HudTableCell cell : row.cells) if (cell.content != null) {
-                if (id.equals(cell.content.id)) return HudChild.cell(cell.content, cell.constraints);
-                HudChild nested = findChild(cell.content, id);
-                if (nested != null) return nested;
-            }
+            for (HudTableCell cell : row.cells)
+                if (cell.content != null) {
+                    if (id.equals(cell.content.id)) return HudChild.cell(cell.content, cell.constraints);
+                    HudChild nested = findChild(cell.content, id);
+                    if (nested != null) return nested;
+                }
         return null;
     }
 

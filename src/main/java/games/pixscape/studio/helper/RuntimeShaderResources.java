@@ -52,7 +52,9 @@ public final class RuntimeShaderResources {
         return (int) readBundledResources(target).stream().filter(resource -> !resource.directory()).count();
     }
 
-    /** Enumerates the resolved Runtime dependency, shared by export and HTML preloading. */
+    /**
+     * Enumerates the resolved Runtime dependency, shared by export and HTML preloading.
+     */
     public static List<Resource> bundledResources() throws IOException {
         return readBundledResources(null);
     }

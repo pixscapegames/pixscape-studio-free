@@ -5,7 +5,9 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.*;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
-/** Studio-safe validation and staging boundary around the strict Runtime compiler. */
+/**
+ * Studio-safe validation and staging boundary around the strict Runtime compiler.
+ */
 public final class SpatialStructureCompilation {
     public static final class Result {
         private final boolean success;
@@ -18,10 +20,21 @@ public final class SpatialStructureCompilation {
             this.structures = structures;
         }
 
-        public boolean success() { return success; }
-        public String diagnostic() { return diagnostic; }
-        public int structureCount() { return structures.length; }
-        public CompiledSpatialStructure structure(int index) { return structures[index]; }
+        public boolean success() {
+            return success;
+        }
+
+        public String diagnostic() {
+            return diagnostic;
+        }
+
+        public int structureCount() {
+            return structures.length;
+        }
+
+        public CompiledSpatialStructure structure(int index) {
+            return structures[index];
+        }
     }
 
     private SpatialStructureCompilation() {

@@ -15,7 +15,9 @@ import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.SpatialActorShapeSupport;
 
-/** Atomically enables or disables the authored Spatial Actor state for one entity. */
+/**
+ * Atomically enables or disables the authored Spatial Actor state for one entity.
+ */
 public final class ToggleSpatialActorCommand
         implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
     private final World world;
@@ -31,7 +33,9 @@ public final class ToggleSpatialActorCommand
     private final boolean noop;
     private games.pixscape.runtime.spatial.ActorSpatialRectangles initialRectangles;
 
-    /** Prepared by the activation UI from all attached animation clips, before publication. */
+    /**
+     * Prepared by the activation UI from all attached animation clips, before publication.
+     */
     public ToggleSpatialActorCommand withRectangles(games.pixscape.runtime.spatial.ActorSpatialRectangles rectangles) {
         rectangles.validate();
         initialRectangles = rectangles.copy();
@@ -203,8 +207,8 @@ public final class ToggleSpatialActorCommand
                 targetShapes);
         return FixtureCommandSupport.containsLinkedShape(targetShapes)
                 ? PhysicsService.prepareBodyCandidate(
-                        world, entityId, targetShapes,
-                        FixtureCommandSupport.requireCurrentPixelsPerMeter())
+                world, entityId, targetShapes,
+                FixtureCommandSupport.requireCurrentPixelsPerMeter())
                 : PhysicsService.prepareBodyCandidate(targetShapes);
     }
 

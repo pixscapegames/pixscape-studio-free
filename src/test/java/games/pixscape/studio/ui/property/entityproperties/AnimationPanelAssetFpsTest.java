@@ -129,7 +129,7 @@ public class AnimationPanelAssetFpsTest {
                     () -> available,
                     new AnimationAssetAuthoringService(
                             () -> assets, () -> assetsFile, ignored -> {
-                            }),
+                    }),
                     0, sceneMeta);
 
             int entityId = world.create();

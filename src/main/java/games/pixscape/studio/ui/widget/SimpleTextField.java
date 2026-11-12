@@ -54,7 +54,9 @@ public final class SimpleTextField extends VisTextField implements TextInputWidg
         return this;
     }
 
-    /** Opt-in non-ECS binding: Tab uses VisUI's normal focus traversal. */
+    /**
+     * Opt-in non-ECS binding: Tab uses VisUI's normal focus traversal.
+     */
     public SimpleTextField onFocusLostCommit(BooleanSupplier commitAllowed) {
         this.commitAllowed = Objects.requireNonNull(commitAllowed);
         if (!focusCommitInstalled) {
@@ -64,7 +66,9 @@ public final class SimpleTextField extends VisTextField implements TextInputWidg
         return this;
     }
 
-    /** Call before removing/replacing authored controls, so teardown is not a user commit. */
+    /**
+     * Call before removing/replacing authored controls, so teardown is not a user commit.
+     */
     public void unbind() {
         reader = null;
         applier = null;

@@ -10,8 +10,15 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class IdVisTreeRegressionTest {
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
+
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
 
     @Test
     public void sharedRowKeepsSceneIconsRenameIndexesAndMultiSelection() {

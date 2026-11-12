@@ -53,9 +53,13 @@ public class SceneProperties extends VisTable {
     private SceneMeta boundScene;
     private java.util.function.Consumer<Boolean> prepareLighting;
     private final VisCheckBox enableLighting = new VisCheckBox("Enable lighting");
+
     public void bindLighting(SceneMeta scene, java.util.function.Consumer<Boolean> prepare) {
-        boundScene=scene;prepareLighting=prepare;refreshLightingFromMeta();
+        boundScene = scene;
+        prepareLighting = prepare;
+        refreshLightingFromMeta();
     }
+
     private final VisTable lightingBlock;
     private final ColorPickerField ambientColorPicker;
     private final SimpleFloatSlider ambientIntensitySlider;
@@ -288,20 +292,23 @@ public class SceneProperties extends VisTable {
         EventFlow.i().subscribe(EventFlow.MaterialBlendResult.class, result -> {
             if (result.world() == world && result.refusal() == null) messageCell.clearActor();
         });
-        enableLighting.addListener(new ChangeListener(){
-            @Override public void changed(ChangeEvent event,Actor actor) {
-                if(internalLightingRefresh || prepareLighting==null || boundScene==null)return;
+        enableLighting.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                if (internalLightingRefresh || prepareLighting == null || boundScene == null) return;
                 try {
                     historyManager.execute(new games.pixscape.studio.history.commands.SetSceneLightingCommand(
-                            world,boundScene,enableLighting.isChecked(),prepareLighting,markCurrentSceneSaveRequired));
-                } catch(RuntimeException failure) {
-                    if(getStage()==null)throw failure;
-                    com.kotcrab.vis.ui.util.dialog.Dialogs.showOKDialog(getStage(),"Lighting",failure.getMessage());
-                } finally {refreshLightingFromMeta();}
+                            world, boundScene, enableLighting.isChecked(), prepareLighting, markCurrentSceneSaveRequired));
+                } catch (RuntimeException failure) {
+                    if (getStage() == null) throw failure;
+                    com.kotcrab.vis.ui.util.dialog.Dialogs.showOKDialog(getStage(), "Lighting", failure.getMessage());
+                } finally {
+                    refreshLightingFromMeta();
+                }
             }
         });
-        EventFlow.i().subscribe(EventFlow.SceneLightingChanged.class,event->{
-            if(event.scene()==boundScene) {
+        EventFlow.i().subscribe(EventFlow.SceneLightingChanged.class, event -> {
+            if (event.scene() == boundScene) {
                 messageCell.clearActor();
                 refreshLightingFromMeta();
             }
@@ -475,7 +482,7 @@ public class SceneProperties extends VisTable {
     }
 
     private SceneMeta currentMeta() {
-        if(boundScene!=null)return boundScene;
+        if (boundScene != null) return boundScene;
         ProjectConfig cfg = ProjectConfig.getInstance();
         return cfg != null ? cfg.getCurrentSceneMeta() : null;
     }
@@ -581,7 +588,7 @@ public class SceneProperties extends VisTable {
             enableLighting.setChecked(m.lightingEnabled);
             ambientColorPicker.setDisabled(!m.lightingEnabled);
             ambientIntensitySlider.setDisabled(!m.lightingEnabled);
-            lightingBlock.setColor(1f,1f,1f,m.lightingEnabled?1f:0.5f);
+            lightingBlock.setColor(1f, 1f, 1f, m.lightingEnabled ? 1f : 0.5f);
             ambientColorPicker.refresh();
             ambientIntensitySlider.refresh();
         } finally {

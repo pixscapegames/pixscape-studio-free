@@ -208,10 +208,26 @@ public class DeleteGameObjectHierarchyCommandTest {
             f.close();
         }
     }
-    @Test public void deletesAndRestoresLeafSprite() { assertLeaf(EntityKind.SPRITE); }
-    @Test public void deletesAndRestoresLeafAnimation() { assertLeaf(EntityKind.ANIMATION); }
-    @Test public void deletesAndRestoresLeafPointLight() { assertLeaf(EntityKind.POINT_LIGHT); }
-    @Test public void deletesAndRestoresLeafConeLight() { assertLeaf(EntityKind.CONE_LIGHT); }
+
+    @Test
+    public void deletesAndRestoresLeafSprite() {
+        assertLeaf(EntityKind.SPRITE);
+    }
+
+    @Test
+    public void deletesAndRestoresLeafAnimation() {
+        assertLeaf(EntityKind.ANIMATION);
+    }
+
+    @Test
+    public void deletesAndRestoresLeafPointLight() {
+        assertLeaf(EntityKind.POINT_LIGHT);
+    }
+
+    @Test
+    public void deletesAndRestoresLeafConeLight() {
+        assertLeaf(EntityKind.CONE_LIGHT);
+    }
 
     @Test
     public void nestedGameObjectDeletionCascadesAndNeverOrphansDescendants() {
@@ -409,7 +425,8 @@ public class DeleteGameObjectHierarchyCommandTest {
                 case ANIMATION -> world.getMapper(AnimationComponent.class).create(entityId);
                 case POINT_LIGHT -> world.getMapper(PointLightComponent.class).create(entityId);
                 case CONE_LIGHT -> world.getMapper(ConeLightComponent.class).create(entityId);
-                default -> { }
+                default -> {
+                }
             }
             return entityId;
         }

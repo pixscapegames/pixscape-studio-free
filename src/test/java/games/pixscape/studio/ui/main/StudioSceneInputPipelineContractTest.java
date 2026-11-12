@@ -11,16 +11,16 @@ import static org.junit.Assert.*;
 public class StudioSceneInputPipelineContractTest {
     @Test
     public void cornerEditingKeepsOverviewAndCreationMenuWithoutInstructionOverlay() throws Exception {
-        String menu=read("src/main/java/games/pixscape/studio/ui/contextmenu/StudioContextMenu.java");
+        String menu = read("src/main/java/games/pixscape/studio/ui/contextmenu/StudioContextMenu.java");
         assertTrue(menu.contains("\"Edit corner profile\""));
         assertTrue(menu.contains("edit::removeProfile"));
-        String picking=read("src/main/java/games/pixscape/studio/system/PickingSystem.java");
+        String picking = read("src/main/java/games/pixscape/studio/system/PickingSystem.java");
         assertFalse(picking.contains("showLightValueHint(corner.hint())"));
-        String gizmos=read("src/main/java/games/pixscape/studio/system/GizmoSystem.java");
+        String gizmos = read("src/main/java/games/pixscape/studio/system/GizmoSystem.java");
         assertFalse(gizmos.contains("{drawCornerProfile();return;}"));
         assertTrue(gizmos.contains("if(edit.isEditingOccurrence(corner.target()))continue;"));
         assertTrue(gizmos.contains("if(edit.active())drawCornerProfile();"));
-        String overview=gizmos.substring(gizmos.indexOf("private void drawCornerOverview()"),gizmos.indexOf("private void drawCornerSupport("));
+        String overview = gizmos.substring(gizmos.indexOf("private void drawCornerOverview()"), gizmos.indexOf("private void drawCornerSupport("));
         assertFalse(overview.contains("filledRectangle"));
         assertFalse(picking.contains("if(target==null)return corner.active()"));
     }

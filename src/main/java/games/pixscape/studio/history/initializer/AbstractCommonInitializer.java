@@ -52,7 +52,9 @@ public abstract class AbstractCommonInitializer implements Initializer {
         this.world = world;
     }
 
-    public final boolean isVisible() { return !hasVisibility || visible; }
+    public final boolean isVisible() {
+        return !hasVisibility || visible;
+    }
 
     public final boolean hasCapturedZIndex() {
         return capturedZIndex;

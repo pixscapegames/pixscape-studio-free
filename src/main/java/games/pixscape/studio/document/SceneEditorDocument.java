@@ -4,7 +4,9 @@ import games.pixscape.studio.scene.SceneEditorContext;
 
 import java.util.Objects;
 
-/** One open Scene tab and the live editor context whose lifecycle it owns. */
+/**
+ * One open Scene tab and the live editor context whose lifecycle it owns.
+ */
 public final class SceneEditorDocument extends OpenEditorDocument implements ContextEditorDocument {
     private final SceneEditorContext context;
     private boolean closed;
@@ -16,13 +18,25 @@ public final class SceneEditorDocument extends OpenEditorDocument implements Con
         this.context = Objects.requireNonNull(context, "context");
     }
 
-    public SceneEditorContext context() { return context; }
-    public boolean isDirty() { return !closed && context.isDirty(); }
-    public boolean isClosed() { return closed; }
+    public SceneEditorContext context() {
+        return context;
+    }
 
-    @Override public boolean closeable() { return true; }
+    public boolean isDirty() {
+        return !closed && context.isDirty();
+    }
 
-    @Override public void close() {
+    public boolean isClosed() {
+        return closed;
+    }
+
+    @Override
+    public boolean closeable() {
+        return true;
+    }
+
+    @Override
+    public void close() {
         if (closed) return;
         closed = true;
         context.dispose();

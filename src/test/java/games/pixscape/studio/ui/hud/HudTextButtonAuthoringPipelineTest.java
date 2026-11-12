@@ -25,10 +25,18 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class HudTextButtonAuthoringPipelineTest {
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
 
-    @Test public void createdFreeAndTableButtonsMaterializeAtNaturalSize() {
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
+
+    @Test
+    public void createdFreeAndTableButtonsMaterializeAtNaturalSize() {
         TextButton.TextButtonStyle style =
                 VisUI.getSkin().get("default", TextButton.TextButtonStyle.class);
         TextButton probe = new TextButton("Button", style);
@@ -55,7 +63,8 @@ public class HudTextButtonAuthoringPipelineTest {
         assertEquals(probe.getPrefHeight(), tableButton.getHeight(), 0.01f);
     }
 
-    @Test public void explicitWidthAndAutomaticHeightFollowNativeTextAndStyleLayout() {
+    @Test
+    public void explicitWidthAndAutomaticHeightFollowNativeTextAndStyleLayout() {
         TextButton.TextButtonStyle style =
                 VisUI.getSkin().get("default", TextButton.TextButtonStyle.class);
         HudVisualResources resources = buttonResources(style);
@@ -119,14 +128,31 @@ public class HudTextButtonAuthoringPipelineTest {
     private static HudVisualResources buttonResources(
             TextButton.TextButtonStyle style, TextButton.TextButtonStyle tallStyle) {
         return new HudVisualResources() {
-            @Override public TextureRegion region(String name) { return null; }
-            @Override public Drawable drawable(String name) { return null; }
-            @Override public Label.LabelStyle labelStyle(String name) { return null; }
-            @Override public TextButton.TextButtonStyle textButtonStyle(String name) {
+            @Override
+            public TextureRegion region(String name) {
+                return null;
+            }
+
+            @Override
+            public Drawable drawable(String name) {
+                return null;
+            }
+
+            @Override
+            public Label.LabelStyle labelStyle(String name) {
+                return null;
+            }
+
+            @Override
+            public TextButton.TextButtonStyle textButtonStyle(String name) {
                 if ("default".equals(name)) return style;
                 return "tall".equals(name) ? tallStyle : null;
             }
-            @Override public TextButton.TextButtonStyle builtInTextButtonStyle() { return style; }
+
+            @Override
+            public TextButton.TextButtonStyle builtInTextButtonStyle() {
+                return style;
+            }
         };
     }
 }

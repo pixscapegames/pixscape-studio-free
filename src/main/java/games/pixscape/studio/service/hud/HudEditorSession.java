@@ -30,20 +30,30 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** Active-only native authoring preview and navigation projection for the selected HUD document. */
+/**
+ * Active-only native authoring preview and navigation projection for the selected HUD document.
+ */
 public final class HudEditorSession implements Disposable {
     public static final float TRANSFORM_DRAG_THRESHOLD_LOGICAL_PIXELS = 4f;
     private static final String DEFAULT_LABEL_TEXT = "Label";
     private static final String DEFAULT_TEXTRA_LABEL_TEXT = "Text";
     private static final String DEFAULT_TEXT_BUTTON_TEXT = "Button";
+
     public enum ImageButtonImageSlot {
         UP("Image"), DOWN("Down image"), OVER("Over image"), DISABLED("Disabled image"),
         CHECKED("Checked image"), CHECKED_DOWN("Checked down image"),
         CHECKED_OVER("Checked over image");
 
         private final String label;
-        ImageButtonImageSlot(String label) { this.label = label; }
-        public String label() { return label; }
+
+        ImageButtonImageSlot(String label) {
+            this.label = label;
+        }
+
+        public String label() {
+            return label;
+        }
+
         public HudImageData get(HudImageButtonData data) {
             return switch (this) {
                 case UP -> data.imageUp;
@@ -55,6 +65,7 @@ public final class HudEditorSession implements Disposable {
                 case CHECKED_OVER -> data.imageCheckedOver;
             };
         }
+
         public void set(HudImageButtonData data, HudImageData image) {
             switch (this) {
                 case UP -> data.imageUp = image;
@@ -66,6 +77,7 @@ public final class HudEditorSession implements Disposable {
                 case CHECKED_OVER -> data.imageCheckedOver = image;
             }
         }
+
         public HudImageData get(HudImageTextButtonData data) {
             return switch (this) {
                 case UP -> data.imageUp;
@@ -78,10 +90,18 @@ public final class HudEditorSession implements Disposable {
             };
         }
     }
-    public record ImageResourceOption(String resourceName, String label) { }
-    public record FontResourceOption(Integer assetId, String label) { }
-    public record SkinResourceOption(int assetId, String skinId, String label) { }
-    public enum Status { CLOSED, READY, ERROR }
+
+    public record ImageResourceOption(String resourceName, String label) {
+    }
+
+    public record FontResourceOption(Integer assetId, String label) {
+    }
+
+    public record SkinResourceOption(int assetId, String skinId, String label) {
+    }
+
+    public enum Status {CLOSED, READY, ERROR}
+
     public record ImageDropTarget(String parentId,
                                   games.pixscape.runtime.hud.document.HudFreePlacement placement,
                                   float imageWidth, float imageHeight,
@@ -90,20 +110,28 @@ public final class HudEditorSession implements Disposable {
                                games.pixscape.runtime.hud.document.HudFreePlacement placement) {
             this(parentId, placement, 0f, 0f, null);
         }
+
         public ImageDropTarget(String parentId,
                                games.pixscape.runtime.hud.document.HudFreePlacement placement,
                                float imageWidth, float imageHeight) {
             this(parentId, placement, imageWidth, imageHeight, null);
         }
-        public boolean targetsImageButton() { return imageButtonNodeId != null; }
+
+        public boolean targetsImageButton() {
+            return imageButtonNodeId != null;
+        }
     }
-    /** A toolbox-widget destination resolved from the live authoring preview. */
+
+    /**
+     * A toolbox-widget destination resolved from the live authoring preview.
+     */
     public record WidgetDropTarget(String parentId, HudFreePlacement placement,
                                    boolean preselected, boolean fallback, String feedbackParentId,
                                    String cellId) {
         public WidgetDropTarget(String parentId, HudFreePlacement placement) {
             this(parentId, placement, false, false, parentId, null);
         }
+
         public WidgetDropTarget(String parentId, HudFreePlacement placement, boolean preselected,
                                 boolean fallback, String feedbackParentId) {
             this(parentId, placement, preselected, fallback, feedbackParentId, null);
@@ -150,13 +178,19 @@ public final class HudEditorSession implements Disposable {
     private HudInteractiveTestSession interactiveTestSession;
 
     private HudAuthoringResources currentResources;
-    public HudEditorSession() { this(() -> null, () -> null, () -> null); }
+
+    public HudEditorSession() {
+        this(() -> null, () -> null, () -> null);
+    }
+
     public HudEditorSession(Supplier<AssetMetaDatabase> assetDatabase) {
         this(assetDatabase, () -> null, () -> null);
     }
+
     public HudEditorSession(Supplier<AssetMetaDatabase> assetDatabase, Supplier<Batch> batch) {
         this(assetDatabase, batch, () -> null);
     }
+
     public HudEditorSession(Supplier<AssetMetaDatabase> assetDatabase, Supplier<Batch> batch,
                             Supplier<ShapeDrawer> drawer) {
         this.assetDatabase = Objects.requireNonNull(assetDatabase);
@@ -164,7 +198,9 @@ public final class HudEditorSession implements Disposable {
         this.drawer = Objects.requireNonNull(drawer);
     }
 
-    /** Projects the document's current in-memory authored state; never reloads it from disk. */
+    /**
+     * Projects the document's current in-memory authored state; never reloads it from disk.
+     */
     public void open(FileHandle projectDir, HudScreenEditorDocument requestedDocument) {
         suspend();
         this.projectDir = projectDir;
@@ -197,7 +233,9 @@ public final class HudEditorSession implements Disposable {
         notifyListeners();
     }
 
-    /** Detaches all active Runtime/GL state while retaining lightweight values for document capture. */
+    /**
+     * Detaches all active Runtime/GL state while retaining lightweight values for document capture.
+     */
     public void suspend() {
         exitTestMode();
         if (editorDocument != null) {
@@ -255,7 +293,9 @@ public final class HudEditorSession implements Disposable {
         notifyListeners();
     }
 
-    /** Selects an explicit native cell without introducing an authored Actor. */
+    /**
+     * Selects an explicit native cell without introducing an authored Actor.
+     */
     public void selectCell(String cellId) {
         if (isTestMode() || status != Status.READY || (materialized == null
                 ? HudLayoutAuthoring.cell(document, cellId) == null
@@ -274,13 +314,18 @@ public final class HudEditorSession implements Disposable {
         notifyListeners();
     }
 
-    /** Extends the current cell selection across one authored row, including merged cells. */
+    /**
+     * Extends the current cell selection across one authored row, including merged cells.
+     */
     public void selectCellRange(String otherCellId) {
         if (isTestMode() || document == null || otherCellId == null) return;
         HudLayoutAuthoring.CellPosition start = HudLayoutAuthoring.cellPosition(document, selectedCellId);
         HudLayoutAuthoring.CellPosition end = HudLayoutAuthoring.cellPosition(document, otherCellId);
         if (start == null || end == null || !start.tableId().equals(end.tableId())
-                || start.row() != end.row()) { selectCell(otherCellId); return; }
+                || start.row() != end.row()) {
+            selectCell(otherCellId);
+            return;
+        }
         HudNode table = HudLayoutAuthoring.node(document, start.tableId());
         List<String> range = new ArrayList<>();
         for (int index = Math.min(start.cellIndex(), end.cellIndex());
@@ -294,9 +339,13 @@ public final class HudEditorSession implements Disposable {
         notifyListeners();
     }
 
-    public List<String> selectedCellRange() { return selectedCellRange; }
+    public List<String> selectedCellRange() {
+        return selectedCellRange;
+    }
 
-    /** Shift-click resolves the native cell under the pointer, including occupied cells. */
+    /**
+     * Shift-click resolves the native cell under the pointer, including occupied cells.
+     */
     public boolean selectCellRangeAt(float stageX, float stageY) {
         if (isTestMode() || materialized == null || document == null || authoringSession == null)
             return false;
@@ -321,20 +370,27 @@ public final class HudEditorSession implements Disposable {
             int candidateDepth = 0;
             for (String id = owner.id; id != null; id = HudLayoutAuthoring.parentId(document, id))
                 candidateDepth++;
-            if (candidateDepth > depth) { depth = candidateDepth; found = cell.id; }
+            if (candidateDepth > depth) {
+                depth = candidateDepth;
+                found = cell.id;
+            }
         }
         if (found == null) return false;
         selectCellRange(found);
         return true;
     }
 
-    /** Runs one validated structural mutation through the document's atomic edit history. */
+    /**
+     * Runs one validated structural mutation through the document's atomic edit history.
+     */
     public boolean editSelectedTableStructure(HudLayoutAuthoring.StructureAction action,
                                               int logicalColumn) {
         return editTableStructure(action, selectedCellId, cellRangeEndId, logicalColumn);
     }
 
-    /** Executes an explicitly targeted table edit through the existing atomic history boundary. */
+    /**
+     * Executes an explicitly targeted table edit through the existing atomic history boundary.
+     */
     public boolean editTableStructure(HudLayoutAuthoring.StructureAction action,
                                       String anchorId, String otherId, int logicalColumn) {
         if (isTestMode() || status != Status.READY || editorDocument == null
@@ -373,7 +429,9 @@ public final class HudEditorSession implements Disposable {
                 selectedCellId, other, logicalColumn);
     }
 
-    /** True only for a live non-root node in the currently projected HUD document. */
+    /**
+     * True only for a live non-root node in the currently projected HUD document.
+     */
     public boolean canDeleteNode(String nodeId) {
         if (isTestMode() || status != Status.READY || editorDocument == null || nodeId == null) return false;
         HudDocumentV1 current = editorDocument.document();
@@ -381,7 +439,9 @@ public final class HudEditorSession implements Disposable {
                 && HudLayoutAuthoring.parentId(current, nodeId) != null;
     }
 
-    /** Deletes a live non-root HUD subtree in one edit-session transaction. */
+    /**
+     * Deletes a live non-root HUD subtree in one edit-session transaction.
+     */
     public boolean deleteNode(String nodeId) {
         if (!canDeleteNode(nodeId)) return false;
         cancelTransformGesture();
@@ -400,7 +460,9 @@ public final class HudEditorSession implements Disposable {
         return true;
     }
 
-    /** Deletes the current selection when it remains a live non-root node. */
+    /**
+     * Deletes the current selection when it remains a live non-root node.
+     */
     public boolean deleteSelectedNode() {
         return deleteNode(selectedNodeId);
     }
@@ -437,7 +499,7 @@ public final class HudEditorSession implements Disposable {
     }
 
     public boolean editSelectedDialogResultButton(String label,
-            java.util.function.Consumer<games.pixscape.runtime.hud.document.HudDialogResultButton> mutation) {
+                                                  java.util.function.Consumer<games.pixscape.runtime.hud.document.HudDialogResultButton> mutation) {
         if (isTestMode() || status != Status.READY || editorDocument == null
                 || selectedNodeId == null || mutation == null) return false;
         String buttonId = selectedNodeId;
@@ -456,7 +518,9 @@ public final class HudEditorSession implements Disposable {
         creationsByRevision.put(revision, new CreationSelection(createdNodeId, previousNodeId));
     }
 
-    /** Applies one property mutation to the current selected node through the HUD document history. */
+    /**
+     * Applies one property mutation to the current selected node through the HUD document history.
+     */
     public boolean editSelectedNode(String label, BiConsumer<HudNode, HudChild> mutation) {
         if (isTestMode() || status != Status.READY || editorDocument == null || selectedNodeId == null
                 || mutation == null) return false;
@@ -473,7 +537,9 @@ public final class HudEditorSession implements Disposable {
         return editorDocument.editSession().currentRevision() != revision;
     }
 
-    /** Applies one cell-constraint edit through the same atomic document history. */
+    /**
+     * Applies one cell-constraint edit through the same atomic document history.
+     */
     public boolean editSelectedCell(String label, Consumer<HudTableCell> mutation) {
         if (isTestMode() || status != Status.READY || editorDocument == null || selectedCellId == null
                 || mutation == null) return false;
@@ -488,7 +554,9 @@ public final class HudEditorSession implements Disposable {
         return editorDocument.editSession().currentRevision() != revision;
     }
 
-    /** Edits initial visibility only for the document and node captured by the inspector. */
+    /**
+     * Edits initial visibility only for the document and node captured by the inspector.
+     */
     public boolean editNodeVisibility(String originScreenId, String nodeId, boolean visible) {
         if (isTestMode() || status != Status.READY || editorDocument == null || nodeId == null
                 || !Objects.equals(screenId, originScreenId)
@@ -503,10 +571,13 @@ public final class HudEditorSession implements Disposable {
         return editorDocument.editSession().currentRevision() != revision;
     }
 
-    /** Label styles that resolve through the active HUD's authoring Skin. */
+    /**
+     * Label styles that resolve through the active HUD's authoring Skin.
+     */
     public List<String> labelStyleNames() {
         return labelStyleNames(false);
     }
+
     public List<String> labelStyleNames(boolean hasFontOverride) {
         return currentResources != null
                 ? currentResources.labelStyleNames(hasFontOverride) : List.of();
@@ -570,8 +641,12 @@ public final class HudEditorSession implements Disposable {
         return editorDocument.editSession().currentRevision() != revision;
     }
 
-    /** Rebuilds resource-backed property choices without changing the HUD document or history. */
-    public void refreshAssetOptions() { notifyListeners(); }
+    /**
+     * Rebuilds resource-backed property choices without changing the HUD document or history.
+     */
+    public void refreshAssetOptions() {
+        notifyListeners();
+    }
 
     public boolean assignFont(String screenId, String nodeId, Integer assetId) {
         if (isTestMode() || editorDocument == null || !Objects.equals(this.screenId, screenId)
@@ -609,39 +684,52 @@ public final class HudEditorSession implements Disposable {
         return editorDocument.editSession().currentRevision() != revision;
     }
 
-    /** TextButton styles that resolve through the active HUD's authoring Skin. */
+    /**
+     * TextButton styles that resolve through the active HUD's authoring Skin.
+     */
     public List<String> textButtonStyleNames() {
         return textButtonStyleNames(false);
     }
+
     public List<String> textButtonStyleNames(boolean hasFontOverride) {
         return currentResources != null
                 ? currentResources.textButtonStyleNames(hasFontOverride) : List.of();
     }
 
-    /** ImageButton styles that resolve through the active HUD's authoring Skin. */
+    /**
+     * ImageButton styles that resolve through the active HUD's authoring Skin.
+     */
     public List<String> imageButtonStyleNames() {
         return currentResources != null ? currentResources.imageButtonStyleNames() : List.of();
     }
 
-    /** ImageTextButton styles that resolve through the active HUD's authoring Skin. */
+    /**
+     * ImageTextButton styles that resolve through the active HUD's authoring Skin.
+     */
     public List<String> imageTextButtonStyleNames(boolean hasFontOverride) {
         return currentResources != null
                 ? currentResources.imageTextButtonStyleNames(hasFontOverride) : List.of();
     }
 
-    /** TextField styles that resolve through the active HUD's authoring Skin. */
+    /**
+     * TextField styles that resolve through the active HUD's authoring Skin.
+     */
     public List<String> textFieldStyleNames() {
         return textFieldStyleNames(false);
     }
+
     public List<String> textFieldStyleNames(boolean hasFontOverride) {
         return currentResources != null
                 ? currentResources.textFieldStyleNames(hasFontOverride) : List.of();
     }
 
-    /** SelectBox styles that resolve through the active HUD's authoring Skin. */
+    /**
+     * SelectBox styles that resolve through the active HUD's authoring Skin.
+     */
     public List<String> selectBoxStyleNames() {
         return selectBoxStyleNames(false);
     }
+
     public List<String> selectBoxStyleNames(boolean hasFontOverride) {
         return currentResources != null
                 ? currentResources.selectBoxStyleNames(hasFontOverride) : List.of();
@@ -651,21 +739,28 @@ public final class HudEditorSession implements Disposable {
         return currentResources != null ? currentResources.listStyleNames(hasFontOverride) : List.of();
     }
 
-    /** CheckBox styles that resolve through the active HUD's authoring Skin. */
+    /**
+     * CheckBox styles that resolve through the active HUD's authoring Skin.
+     */
     public List<String> checkBoxStyleNames() {
         return checkBoxStyleNames(false);
     }
+
     public List<String> checkBoxStyleNames(boolean hasFontOverride) {
         return currentResources != null
                 ? currentResources.checkBoxStyleNames(hasFontOverride) : List.of();
     }
 
-    /** Slider styles that resolve through the active HUD's authoring Skin. */
+    /**
+     * Slider styles that resolve through the active HUD's authoring Skin.
+     */
     public List<String> sliderStyleNames() {
         return currentResources != null ? currentResources.sliderStyleNames() : List.of();
     }
 
-    /** ProgressBar styles that resolve through the active HUD's authoring Skin. */
+    /**
+     * ProgressBar styles that resolve through the active HUD's authoring Skin.
+     */
     public List<String> progressBarStyleNames() {
         return currentResources != null ? currentResources.progressBarStyleNames() : List.of();
     }
@@ -701,7 +796,9 @@ public final class HudEditorSession implements Disposable {
         return editorDocument.editSession().currentRevision() != revision;
     }
 
-    /** Existing importable Image assets that can provide an ImageButton native state override. */
+    /**
+     * Existing importable Image assets that can provide an ImageButton native state override.
+     */
     public List<ImageResourceOption> imageResourceOptions() {
         AssetMetaDatabase database = assetDatabase.get();
         if (database == null || projectDir == null) return List.of();
@@ -717,7 +814,9 @@ public final class HudEditorSession implements Disposable {
         return List.copyOf(options);
     }
 
-    /** Availability is independent from selection so a toolbox drag may target the root. */
+    /**
+     * Availability is independent from selection so a toolbox drag may target the root.
+     */
     public boolean isWidgetAvailable(HudNodeKind kind) {
         if (isTestMode() || kind == null || status != Status.READY || editorDocument == null) return false;
         return switch (kind) {
@@ -750,14 +849,18 @@ public final class HudEditorSession implements Disposable {
         return cell != null && cell.content == null && owner != null ? owner.id : null;
     }
 
-    /** Captures the current TABLE destination, including an explicitly selected empty cell. */
+    /**
+     * Captures the current TABLE destination, including an explicitly selected empty cell.
+     */
     public WidgetDropTarget selectedTableTarget() {
         String parentId = selectedWidgetParentId();
         return parentId != null ? new WidgetDropTarget(parentId, null, false, false,
                 parentId, selectedCellId) : null;
     }
 
-    /** Preserves the selected-parent click flow while sharing the widget factories with DnD. */
+    /**
+     * Preserves the selected-parent click flow while sharing the widget factories with DnD.
+     */
     public boolean createSelectedWidget(HudNodeKind kind) {
         if (selectedCellId != null) {
             HudNode owner = HudLayoutAuthoring.tableOwner(document, selectedCellId);
@@ -766,14 +869,18 @@ public final class HudEditorSession implements Disposable {
         return createWidget(kind, selectedNodeId, null, editorDocument, false, null);
     }
 
-    /** Publishes one resolved widget after the controller has revalidated its drop. */
+    /**
+     * Publishes one resolved widget after the controller has revalidated its drop.
+     */
     public boolean createWidgetAt(HudNodeKind kind, WidgetDropTarget target,
-                                   HudScreenEditorDocument capturedDocument) {
+                                  HudScreenEditorDocument capturedDocument) {
         return target != null && createWidget(kind, target.parentId(), target.placement(),
                 capturedDocument, true, target.cellId());
     }
 
-    /** Commits a confirmed TABLE grid against the destination captured before its dimension dialog. */
+    /**
+     * Commits a confirmed TABLE grid against the destination captured before its dimension dialog.
+     */
     public boolean createTableAt(int rows, int columns, WidgetDropTarget target,
                                  HudScreenEditorDocument capturedDocument) {
         if (rows < 1 || columns < 1 || rows > 64 || columns > 64 || target == null
@@ -814,7 +921,9 @@ public final class HudEditorSession implements Disposable {
         return true;
     }
 
-    /** Confirms a TABLE dialog opened from the toolbox against its originally selected parent. */
+    /**
+     * Confirms a TABLE dialog opened from the toolbox against its originally selected parent.
+     */
     public boolean createSelectedTable(int rows, int columns, HudScreenEditorDocument capturedDocument,
                                        String capturedParentId) {
         return capturedParentId != null && createTableAt(rows, columns,
@@ -927,7 +1036,9 @@ public final class HudEditorSession implements Disposable {
         return canCreateWidgetAt(HudNodeKind.PROGRESS_BAR, selectedWidgetParentId());
     }
 
-    /** Creates and selects one native non-interactive ProgressBar through normal HUD history. */
+    /**
+     * Creates and selects one native non-interactive ProgressBar through normal HUD history.
+     */
     public boolean createProgressBar() {
         return canCreateProgressBar() && createSelectedWidget(HudNodeKind.PROGRESS_BAR);
     }
@@ -982,7 +1093,9 @@ public final class HudEditorSession implements Disposable {
         });
     }
 
-    /** Creates and selects one Label through the active HUD document's normal history pipeline. */
+    /**
+     * Creates and selects one Label through the active HUD document's normal history pipeline.
+     */
     public boolean createLabel() {
         if (!canCreateLabel()) return false;
         return createSelectedWidget(HudNodeKind.LABEL);
@@ -992,13 +1105,17 @@ public final class HudEditorSession implements Disposable {
         return canCreateWidgetAt(HudNodeKind.TEXTRA_LABEL, selectedWidgetParentId());
     }
 
-    /** Creates and selects one native Textra TypingLabel through normal HUD history. */
+    /**
+     * Creates and selects one native Textra TypingLabel through normal HUD history.
+     */
     public boolean createTextraLabel() {
         if (!canCreateTextraLabel()) return false;
         return createSelectedWidget(HudNodeKind.TEXTRA_LABEL);
     }
 
-    /** Restarts only the live authoring actor; this transient preview never edits history. */
+    /**
+     * Restarts only the live authoring actor; this transient preview never edits history.
+     */
     public boolean previewSelectedTextraTyping() {
         HudNode selected = selectedNode();
         if (selected == null || selected.textraLabel == null
@@ -1013,7 +1130,9 @@ public final class HudEditorSession implements Disposable {
         return canCreateWidgetAt(HudNodeKind.TEXT_BUTTON, selectedWidgetParentId());
     }
 
-    /** Creates and selects one TextButton through the active HUD document's history pipeline. */
+    /**
+     * Creates and selects one TextButton through the active HUD document's history pipeline.
+     */
     public boolean createTextButton() {
         if (!canCreateTextButton()) return false;
         return createSelectedWidget(HudNodeKind.TEXT_BUTTON);
@@ -1023,7 +1142,9 @@ public final class HudEditorSession implements Disposable {
         return canCreateWidgetAt(HudNodeKind.IMAGE_BUTTON, selectedWidgetParentId());
     }
 
-    /** Creates and selects one ImageButton through the active HUD document's history pipeline. */
+    /**
+     * Creates and selects one ImageButton through the active HUD document's history pipeline.
+     */
     public boolean createImageButton() {
         if (!canCreateImageButton()) return false;
         return createSelectedWidget(HudNodeKind.IMAGE_BUTTON);
@@ -1033,7 +1154,9 @@ public final class HudEditorSession implements Disposable {
         return canCreateWidgetAt(HudNodeKind.IMAGE_TEXT_BUTTON, selectedWidgetParentId());
     }
 
-    /** Creates and selects one ImageTextButton through the active HUD document's history pipeline. */
+    /**
+     * Creates and selects one ImageTextButton through the active HUD document's history pipeline.
+     */
     public boolean createImageTextButton() {
         if (!canCreateImageTextButton()) return false;
         return createSelectedWidget(HudNodeKind.IMAGE_TEXT_BUTTON);
@@ -1043,7 +1166,9 @@ public final class HudEditorSession implements Disposable {
         return canCreateWidgetAt(HudNodeKind.TEXT_FIELD, selectedWidgetParentId());
     }
 
-    /** Creates and selects one TextField through the active HUD document's normal history pipeline. */
+    /**
+     * Creates and selects one TextField through the active HUD document's normal history pipeline.
+     */
     public boolean createTextField() {
         if (!canCreateTextField()) return false;
         return createSelectedWidget(HudNodeKind.TEXT_FIELD);
@@ -1053,7 +1178,9 @@ public final class HudEditorSession implements Disposable {
         return canCreateWidgetAt(HudNodeKind.SELECT_BOX, selectedWidgetParentId());
     }
 
-    /** Creates and selects one native SelectBox through the active document history pipeline. */
+    /**
+     * Creates and selects one native SelectBox through the active document history pipeline.
+     */
     public boolean createSelectBox() {
         if (!canCreateSelectBox()) return false;
         return createSelectedWidget(HudNodeKind.SELECT_BOX);
@@ -1071,7 +1198,9 @@ public final class HudEditorSession implements Disposable {
         return canCreateWidgetAt(HudNodeKind.CHECK_BOX, selectedWidgetParentId());
     }
 
-    /** Creates and selects one native CheckBox through the active document history pipeline. */
+    /**
+     * Creates and selects one native CheckBox through the active document history pipeline.
+     */
     public boolean createCheckBox() {
         if (!canCreateCheckBox()) return false;
         return createSelectedWidget(HudNodeKind.CHECK_BOX);
@@ -1081,7 +1210,9 @@ public final class HudEditorSession implements Disposable {
         return canCreateWidgetAt(HudNodeKind.SLIDER, selectedWidgetParentId());
     }
 
-    /** Creates and selects one native Slider through the active document history pipeline. */
+    /**
+     * Creates and selects one native Slider through the active document history pipeline.
+     */
     public boolean createSlider() {
         if (!canCreateSlider()) return false;
         return createSelectedWidget(HudNodeKind.SLIDER);
@@ -1105,7 +1236,7 @@ public final class HudEditorSession implements Disposable {
             if (!currentResources.hasUsableTextButtonStyle(node.textButton.styleName,
                     node.textButton.fontAssetId != null)) {
                 throw new HudEditRejectedException(
-                    "The selected TextButton style is no longer available.");
+                        "The selected TextButton style is no longer available.");
             }
         });
     }
@@ -1286,9 +1417,12 @@ public final class HudEditorSession implements Disposable {
         });
     }
 
-    /** Applies or removes one native ImageButton image override in a single history operation. */
+    /**
+     * Applies or removes one native ImageButton image override in a single history operation.
+     */
     public boolean editImageButtonImage(String nodeId, ImageButtonImageSlot slot, String resourceName) {
-        if (isTestMode() || status != Status.READY || editorDocument == null || nodeId == null || slot == null) return false;
+        if (isTestMode() || status != Status.READY || editorDocument == null || nodeId == null || slot == null)
+            return false;
         long revision = editorDocument.editSession().currentRevision();
         editorDocument.editSession().edit("Edit HUD ImageButton " + slot.label(), candidate -> {
             HudNode node = HudLayoutAuthoring.node(candidate, nodeId);
@@ -1307,9 +1441,12 @@ public final class HudEditorSession implements Disposable {
         return editorDocument.editSession().currentRevision() != revision;
     }
 
-    /** Applies or removes one native ImageTextButton image override in a single history operation. */
+    /**
+     * Applies or removes one native ImageTextButton image override in a single history operation.
+     */
     public boolean editImageTextButtonImage(String nodeId, ImageButtonImageSlot slot, String resourceName) {
-        if (isTestMode() || status != Status.READY || editorDocument == null || nodeId == null || slot == null) return false;
+        if (isTestMode() || status != Status.READY || editorDocument == null || nodeId == null || slot == null)
+            return false;
         long revision = editorDocument.editSession().currentRevision();
         editorDocument.editSession().edit("Edit HUD ImageTextButton " + slot.label(), candidate -> {
             HudNode node = HudLayoutAuthoring.node(candidate, nodeId);
@@ -1378,7 +1515,9 @@ public final class HudEditorSession implements Disposable {
         else if (authoringSession != null) authoringSession.act(delta);
     }
 
-    /** Supplies logical Studio center bounds to the authoring HUD viewport and draws it. */
+    /**
+     * Supplies logical Studio center bounds to the authoring HUD viewport and draws it.
+     */
     public void draw(Rectangle centerBoundsLogical) {
         if (!configurePreview(centerBoundsLogical)) return;
         if (interactiveTestSession != null) interactiveTestSession.draw();
@@ -1412,7 +1551,9 @@ public final class HudEditorSession implements Disposable {
                 && editorDocument != null && projectDir != null && asset != null && document != null;
     }
 
-    /** Builds a fresh native Scene2D graph from the active document's defensive in-memory snapshot. */
+    /**
+     * Builds a fresh native Scene2D graph from the active document's defensive in-memory snapshot.
+     */
     public boolean enterTestMode() {
         if (!canEnterTestMode()) return false;
         testModeErrorMessage = null;
@@ -1435,8 +1576,11 @@ public final class HudEditorSession implements Disposable {
             return true;
         } catch (RuntimeException failure) {
             if (candidate != null) {
-                try { candidate.dispose(); }
-                catch (RuntimeException cleanupFailure) { failure.addSuppressed(cleanupFailure); }
+                try {
+                    candidate.dispose();
+                } catch (RuntimeException cleanupFailure) {
+                    failure.addSuppressed(cleanupFailure);
+                }
             }
             logCleanupFailure("HUD interactive test mode could not be entered.", failure);
             testModeErrorMessage = message(failure);
@@ -1445,19 +1589,24 @@ public final class HudEditorSession implements Disposable {
         }
     }
 
-    /** Cancels native focus/gestures and destroys only the resources owned by the test instance. */
+    /**
+     * Cancels native focus/gestures and destroys only the resources owned by the test instance.
+     */
     public void exitTestMode() {
         HudInteractiveTestSession previous = interactiveTestSession;
         if (previous == null) return;
         interactiveTestSession = null;
-        try { previous.dispose(); }
-        catch (RuntimeException failure) {
+        try {
+            previous.dispose();
+        } catch (RuntimeException failure) {
             logCleanupFailure("Failed to dispose HUD interactive test mode.", failure);
         }
         notifyListeners();
     }
 
-    public boolean isTestMode() { return interactiveTestSession != null; }
+    public boolean isTestMode() {
+        return interactiveTestSession != null;
+    }
 
     public com.badlogic.gdx.scenes.scene2d.Stage testStage() {
         return interactiveTestSession != null ? interactiveTestSession.stage() : null;
@@ -1472,7 +1621,9 @@ public final class HudEditorSession implements Disposable {
                 && interactiveTestSession.containsScreenPoint(screenX, screenY, logicalWindowHeight);
     }
 
-    /** Routes a logical Studio-stage click through the HUD viewport to the editor overlay. */
+    /**
+     * Routes a logical Studio-stage click through the HUD viewport to the editor overlay.
+     */
     public boolean selectOverlayTargetAt(float studioStageX, float studioStageY) {
         if (isTestMode()) return false;
         HudSelectionTarget target = findOverlayTargetAt(studioStageX, studioStageY);
@@ -1482,12 +1633,16 @@ public final class HudEditorSession implements Disposable {
         return true;
     }
 
-    /** Returns the current canvas target without changing selection. */
+    /**
+     * Returns the current canvas target without changing selection.
+     */
     public HudSelectionTarget overlayTargetAt(float studioStageX, float studioStageY) {
         return findOverlayTargetAt(studioStageX, studioStageY);
     }
 
-    /** Captures a directly pointed authored cell widget before the Stage drag threshold. */
+    /**
+     * Captures a directly pointed authored cell widget before the Stage drag threshold.
+     */
     public boolean beginCellContentGesture(float stageX, float stageY) {
         if (isTestMode() || toolboxWidgetDragActive || status != Status.READY
                 || editorDocument == null || materialized == null || cellContentGesture != null
@@ -1512,10 +1667,15 @@ public final class HudEditorSession implements Disposable {
         return true;
     }
 
-    public boolean hasCellContentGesture() { return cellContentGesture != null; }
+    public boolean hasCellContentGesture() {
+        return cellContentGesture != null;
+    }
 
     public boolean startCellContentGesture(float stageX, float stageY, boolean pointable) {
-        if (!cellGestureValid()) { cancelCellContentGesture(); return false; }
+        if (!cellGestureValid()) {
+            cancelCellContentGesture();
+            return false;
+        }
         cellContentGesture.dragging = true;
         clearHoveredOverlayTarget();
         updateCellContentGesture(stageX, stageY, pointable);
@@ -1523,7 +1683,10 @@ public final class HudEditorSession implements Disposable {
     }
 
     public void updateCellContentGesture(float stageX, float stageY, boolean pointable) {
-        if (!cellGestureValid()) { cancelCellContentGesture(); return; }
+        if (!cellGestureValid()) {
+            cancelCellContentGesture();
+            return;
+        }
         CellContentGesture gesture = cellContentGesture;
         if (!gesture.dragging) return;
         gesture.destinationCellId = pointable ? cellDestinationAt(gesture, stageX, stageY) : null;
@@ -1542,7 +1705,10 @@ public final class HudEditorSession implements Disposable {
 
     public boolean endCellContentGesture(float stageX, float stageY, boolean pointable) {
         if (cellContentGesture == null) return false;
-        if (!cellGestureValid()) { cancelCellContentGesture(); return true; }
+        if (!cellGestureValid()) {
+            cancelCellContentGesture();
+            return true;
+        }
         updateCellContentGesture(stageX, stageY, pointable);
         CellContentGesture gesture = cellContentGesture;
         cancelCellContentGesture();
@@ -1602,27 +1768,32 @@ public final class HudEditorSession implements Disposable {
                 .stageToLocalCoordinates(new Vector2(point));
         Actor visualLeaf = deepestVisibleAuthoredActorAt(authoringSession.stage().getRoot(), point);
         String visualId = visualLeaf != null ? visualLeaf.getName() : null;
-        for (var row : table.table.rows) for (HudTableCell cell : row.cells) {
-            if (cell == null || cell.id.equals(gesture.sourceCellId)) continue;
-            Cell<?> nativeCell = materialized.cell(cell.id);
-            if (nativeCell == null) continue;
-            Rectangle bounds = HudOverlayGeometry.visibleCellBoundsInOverlay(nativeCell,
-                    authoringSession.selectionOverlayActor(), new Rectangle());
-            if (bounds.width > 0f && bounds.height > 0f && bounds.contains(overlayPoint)
-                    && (gesture.tableId.equals(visualId)
-                    || cell.content != null && isAuthoredAncestor(cell.content.id, visualId)))
-                return cell.id;
-        }
+        for (var row : table.table.rows)
+            for (HudTableCell cell : row.cells) {
+                if (cell == null || cell.id.equals(gesture.sourceCellId)) continue;
+                Cell<?> nativeCell = materialized.cell(cell.id);
+                if (nativeCell == null) continue;
+                Rectangle bounds = HudOverlayGeometry.visibleCellBoundsInOverlay(nativeCell,
+                        authoringSession.selectionOverlayActor(), new Rectangle());
+                if (bounds.width > 0f && bounds.height > 0f && bounds.contains(overlayPoint)
+                        && (gesture.tableId.equals(visualId)
+                        || cell.content != null && isAuthoredAncestor(cell.content.id, visualId)))
+                    return cell.id;
+            }
         return null;
     }
 
-    /** Starts an editor-only transform gesture when a selected FREE node owns the pointed gizmo region. */
+    /**
+     * Starts an editor-only transform gesture when a selected FREE node owns the pointed gizmo region.
+     */
     public boolean beginTransformGesture(float studioStageX, float studioStageY) {
         if (isTestMode()) return false;
         return beginTransformGesture(studioStageX, studioStageY, false);
     }
 
-    /** Starts only a transform-handle gesture so body movement can defer click resolution. */
+    /**
+     * Starts only a transform-handle gesture so body movement can defer click resolution.
+     */
     public boolean beginTransformHandleGesture(float studioStageX, float studioStageY) {
         if (isTestMode()) return false;
         return beginTransformGesture(studioStageX, studioStageY, true);
@@ -1672,7 +1843,9 @@ public final class HudEditorSession implements Disposable {
         return true;
     }
 
-    /** Starts the existing move preview from the original press point after the UI threshold is crossed. */
+    /**
+     * Starts the existing move preview from the original press point after the UI threshold is crossed.
+     */
     public boolean startPendingMoveGesture(float studioStageX, float studioStageY) {
         PendingMoveGesture pending = pendingMove;
         pendingMove = null;
@@ -1694,7 +1867,9 @@ public final class HudEditorSession implements Disposable {
         return true;
     }
 
-    public boolean hasPendingMoveGesture() { return pendingMove != null; }
+    public boolean hasPendingMoveGesture() {
+        return pendingMove != null;
+    }
 
     private boolean isPendingMoveValid(PendingMoveGesture pending) {
         if (pending == null || pending.editorDocument != editorDocument
@@ -1704,7 +1879,9 @@ public final class HudEditorSession implements Disposable {
         return current != null && current.actor == pending.context.actor;
     }
 
-    /** Updates only transient Scene2D/overlay bounds. The document and history remain untouched. */
+    /**
+     * Updates only transient Scene2D/overlay bounds. The document and history remain untouched.
+     */
     public boolean updateTransformGesture(float studioStageX, float studioStageY) {
         if (isTestMode()) return false;
         if (activeTransform == null) return false;
@@ -1722,7 +1899,7 @@ public final class HudEditorSession implements Disposable {
                 deltaX, deltaY);
         activeTransform.currentOverlayBounds = HudTransformGeometry.clampToSurface(
                 activeTransform.currentOverlayBounds,
-                 authoringSession.surfaceWidth(), authoringSession.surfaceHeight());
+                authoringSession.surfaceWidth(), authoringSession.surfaceHeight());
         Actor actor = materialized != null ? materialized.actor(activeTransform.context.nodeId) : null;
         if (authoringSession != null) {
             authoringSession.previewAuthoredActorBounds(actor, activeTransform.currentOverlayBounds);
@@ -1731,7 +1908,9 @@ public final class HudEditorSession implements Disposable {
         return true;
     }
 
-    /** Commits one document edit for a completed drag; click/noise gestures restore their preview without history. */
+    /**
+     * Commits one document edit for a completed drag; click/noise gestures restore their preview without history.
+     */
     public boolean endTransformGesture(float studioStageX, float studioStageY) {
         if (isTestMode()) return false;
         if (activeTransform == null) return false;
@@ -1766,7 +1945,9 @@ public final class HudEditorSession implements Disposable {
         return true;
     }
 
-    /** Restores the transient preview without publishing a document/history change. */
+    /**
+     * Restores the transient preview without publishing a document/history change.
+     */
     public boolean cancelTransformGesture() {
         boolean cancelledPending = cancelPendingMoveGesture();
         if (activeTransform == null) return cancelledPending;
@@ -1778,12 +1959,17 @@ public final class HudEditorSession implements Disposable {
         return true;
     }
 
-    public boolean hasActiveTransformGesture() { return activeTransform != null; }
+    public boolean hasActiveTransformGesture() {
+        return activeTransform != null;
+    }
+
     public boolean hasActiveResizeGesture() {
         return activeTransform != null && activeTransform.handle != null;
     }
 
-    /** Resolves the resize cursor from the same gizmo handle hit-test used to begin resize. */
+    /**
+     * Resolves the resize cursor from the same gizmo handle hit-test used to begin resize.
+     */
     public void updateTransformCursorAt(float studioStageX, float studioStageY) {
         if (activeTransform != null) {
             transformCursor.showFor(activeTransform.handle);
@@ -1792,30 +1978,45 @@ public final class HudEditorSession implements Disposable {
         transformCursor.showFor(transformHandleAt(studioStageX, studioStageY));
     }
 
-    /** Relinquishes HUD cursor ownership; it never forces Arrow if HUD owns nothing. */
-    public void clearTransformCursor() { transformCursor.clear(); }
+    /**
+     * Relinquishes HUD cursor ownership; it never forces Arrow if HUD owns nothing.
+     */
+    public void clearTransformCursor() {
+        transformCursor.clear();
+    }
 
-    /** Updates only the editor-only overlay hover state; it never changes HUD selection. */
+    /**
+     * Updates only the editor-only overlay hover state; it never changes HUD selection.
+     */
     public boolean updateHoveredOverlayTargetAt(float studioStageX, float studioStageY) {
         if (toolboxWidgetDragActive || activeTransform != null) return false;
         HudSelectionTarget target = findOverlayTargetAt(studioStageX, studioStageY);
         return authoringSession != null && authoringSession.setHoveredSelectionTarget(target);
     }
 
-    /** Clears transient canvas hover when the pointer leaves the Studio input host. */
+    /**
+     * Clears transient canvas hover when the pointer leaves the Studio input host.
+     */
     public boolean clearHoveredOverlayTarget() {
         if (activeTransform != null) return false;
         return authoringSession != null && authoringSession.clearHoveredSelectionTarget();
     }
 
-    public void addListener(Runnable listener) { listeners.add(listener); }
-    public boolean isShowingLayoutBounds() { return showLayoutBounds; }
+    public void addListener(Runnable listener) {
+        listeners.add(listener);
+    }
+
+    public boolean isShowingLayoutBounds() {
+        return showLayoutBounds;
+    }
+
     public void setShowLayoutBounds(boolean show) {
         if (showLayoutBounds == show) return;
         showLayoutBounds = show;
         if (authoringSession != null) authoringSession.setShowLayoutBounds(show);
         notifyListeners();
     }
+
     public void refreshDocumentMetadata(HudScreenEditorDocument document) {
         if (editorDocument != document) return;
         HudScreenAsset updated = document.asset();
@@ -1829,12 +2030,18 @@ public final class HudEditorSession implements Disposable {
         asset = updated;
         notifyListeners();
     }
-    /** Keeps current live resources usable, but forces transactional replacement on next install. */
+
+    /**
+     * Keeps current live resources usable, but forces transactional replacement on next install.
+     */
     public void markResourcesStale() {
         exitTestMode();
         resourcesStale = true;
     }
-    /** Rebuilds the active preview from its current in-memory document after an owned resource changes. */
+
+    /**
+     * Rebuilds the active preview from its current in-memory document after an owned resource changes.
+     */
     public void reloadResources() {
         exitTestMode();
         if (editorDocument == null || projectDir == null) return;
@@ -1849,33 +2056,77 @@ public final class HudEditorSession implements Disposable {
             throw failure;
         }
     }
-    public boolean resourcesStale() { return resourcesStale; }
-    public boolean projects(HudScreenEditorDocument document) { return editorDocument == document; }
-    public Status status() { return status; }
-    public String screenId() { return screenId; }
-    public HudScreenAsset asset() { return asset; }
-    public boolean isDirty() { return editorDocument != null && editorDocument.isDirty(); }
-    public HudDocumentV1 document() { return document; }
-    public HudValidationResult validation() { return validation; }
-    public String selectedNodeId() { return selectedNodeId; }
-    public String selectedCellId() { return selectedCellId; }
-    public String errorMessage() { return errorMessage; }
-    public String testModeErrorMessage() { return testModeErrorMessage; }
+
+    public boolean resourcesStale() {
+        return resourcesStale;
+    }
+
+    public boolean projects(HudScreenEditorDocument document) {
+        return editorDocument == document;
+    }
+
+    public Status status() {
+        return status;
+    }
+
+    public String screenId() {
+        return screenId;
+    }
+
+    public HudScreenAsset asset() {
+        return asset;
+    }
+
+    public boolean isDirty() {
+        return editorDocument != null && editorDocument.isDirty();
+    }
+
+    public HudDocumentV1 document() {
+        return document;
+    }
+
+    public HudValidationResult validation() {
+        return validation;
+    }
+
+    public String selectedNodeId() {
+        return selectedNodeId;
+    }
+
+    public String selectedCellId() {
+        return selectedCellId;
+    }
+
+    public String errorMessage() {
+        return errorMessage;
+    }
+
+    public String testModeErrorMessage() {
+        return testModeErrorMessage;
+    }
+
     public HudNode selectedNode() {
         return validation != null && validation.isValid() && selectedNodeId != null
                 ? validation.validatedDocument().node(selectedNodeId) : null;
     }
-    public MaterializedHud materializedHud() { return materialized; }
+
+    public MaterializedHud materializedHud() {
+        return materialized;
+    }
+
     public List<HudSelectionTarget> selectionTargets() {
         return authoringSession != null ? authoringSession.selectionTargets() : List.of();
     }
+
     HudSelectionTarget hoveredSelectionTarget() {
         return authoringSession != null ? authoringSession.hoveredSelectionTarget() : null;
     }
+
     HudSelectionOverlay.VisualState selectionVisualState(HudSelectionTarget target) {
         return authoringSession != null ? authoringSession.selectionVisualState(target)
                 : HudSelectionOverlay.VisualState.IDLE;
     }
+
     HudTransformHandle transformHandleAt(float studioStageX, float studioStageY) {
         if (status != Status.READY || authoringSession == null || materialized == null
                 || previewX == Integer.MIN_VALUE) return null;
@@ -1887,23 +2138,30 @@ public final class HudEditorSession implements Disposable {
         Vector2 hudPoint = studioToHud(studioStageX, studioStageY, new Vector2());
         return hudPoint != null ? authoringSession.transformHandleAt(hudPoint.x, hudPoint.y) : null;
     }
+
     HudTransformHandle transformCursorHandleAt(float studioStageX, float studioStageY) {
         return activeTransform != null ? activeTransform.handle : transformHandleAt(studioStageX, studioStageY);
     }
+
     com.badlogic.gdx.graphics.Cursor.SystemCursor ownedTransformCursor() {
         return transformCursor.ownedCursor();
     }
+
     boolean isShowingTransformGizmo() {
         return authoringSession != null && authoringSession.isShowingTransformGizmo();
     }
+
     HudTransformGeometry.Bounds transformGizmoBounds() {
         return authoringSession != null ? authoringSession.transformBounds() : null;
     }
+
     public HudTableCell selectedCell() {
         return selectedCellId != null && document != null ? HudLayoutAuthoring.cell(document, selectedCellId) : null;
     }
 
-    /** Resolves the top visual authored branch to its deepest compatible layout parent. */
+    /**
+     * Resolves the top visual authored branch to its deepest compatible layout parent.
+     */
     public WidgetDropTarget widgetDropTargetAt(float studioStageX, float studioStageY) {
         if (status != Status.READY || authoringSession == null || materialized == null
                 || document == null || document.root == null || previewX == Integer.MIN_VALUE) return null;
@@ -1947,9 +2205,11 @@ public final class HudEditorSession implements Disposable {
         return null;
     }
 
-    /** Resolves an explicitly captured selection only inside its nearest visible authored ancestor. */
+    /**
+     * Resolves an explicitly captured selection only inside its nearest visible authored ancestor.
+     */
     public WidgetDropTarget preselectedWidgetDropTargetAt(String selectedParentId,
-                                                           float studioStageX, float studioStageY) {
+                                                          float studioStageX, float studioStageY) {
         if (selectedParentId == null || status != Status.READY || authoringSession == null
                 || materialized == null || document == null || document.root == null
                 || previewX == Integer.MIN_VALUE || !HudLayoutAuthoring.canAddChild(document, selectedParentId)) {
@@ -1978,9 +2238,11 @@ public final class HudEditorSession implements Disposable {
                 freePlacementAt(selected, selectedActor, hudPoint), true, false, feedbackParentId);
     }
 
-    /** Whether a direct ancestor target may yield to the captured selected layout. */
+    /**
+     * Whether a direct ancestor target may yield to the captured selected layout.
+     */
     public boolean widgetDropTargetMayYieldToPreselection(WidgetDropTarget target,
-                                                           String selectedParentId) {
+                                                          String selectedParentId) {
         return target != null && selectedParentId != null
                 && !target.parentId().equals(selectedParentId)
                 && (target.fallback() || isAuthoredAncestor(target.parentId(), selectedParentId));
@@ -1995,7 +2257,9 @@ public final class HudEditorSession implements Disposable {
         return placement;
     }
 
-    /** Shows transient DnD feedback without changing authored selection or document state. */
+    /**
+     * Shows transient DnD feedback without changing authored selection or document state.
+     */
     public void showWidgetDropFeedback(WidgetDropTarget target) {
         if (target == null || authoringSession == null || materialized == null) {
             clearWidgetDropFeedback();
@@ -2036,7 +2300,9 @@ public final class HudEditorSession implements Disposable {
         rebuildSelectionOverlay();
     }
 
-    /** Resolves a screen pointer through the persistent authoring viewport to the nearest valid parent. */
+    /**
+     * Resolves a screen pointer through the persistent authoring viewport to the nearest valid parent.
+     */
     public ImageDropTarget imageDropTargetAt(int screenX, int screenY, int logicalWindowHeight) {
         return imageDropTargetAt(screenX, screenY, logicalWindowHeight, 0f, 0f);
     }
@@ -2109,12 +2375,16 @@ public final class HudEditorSession implements Disposable {
         return null;
     }
 
-    /** Finds the topmost materialized node actor without relying on layout-group touchability. */
+    /**
+     * Finds the topmost materialized node actor without relying on layout-group touchability.
+     */
     private Actor deepestDropActorAt(Actor actor, Vector2 stagePoint) {
         return deepestVisibleAuthoredActorAt(actor, stagePoint);
     }
 
-    /** Uses native actor bounds, clipping and draw order without relying on touchability. */
+    /**
+     * Uses native actor bounds, clipping and draw order without relying on touchability.
+     */
     private Actor deepestVisibleAuthoredActorAt(Actor actor, Vector2 stagePoint) {
         if (actor == null || !actor.isVisible()) return null;
         String nodeId = actor.getName();
@@ -2225,7 +2495,9 @@ public final class HudEditorSession implements Disposable {
                 || containsChildClip(actor, stagePoint);
     }
 
-    /** Routes one editor wheel event through the materialized native Scene2D actor tree. */
+    /**
+     * Routes one editor wheel event through the materialized native Scene2D actor tree.
+     */
     public boolean scrollHudAt(float studioStageX, float studioStageY, float amountX, float amountY) {
         if (status != Status.READY || authoringSession == null || materialized == null) return false;
         Vector2 hudPoint = studioToHud(studioStageX, studioStageY, new Vector2());
@@ -2263,14 +2535,16 @@ public final class HudEditorSession implements Disposable {
         }
         HudTransformGeometry.Bounds clamped = HudTransformGeometry.clampToSurface(
                 new HudTransformGeometry.Bounds(hudPoint.x, hudPoint.y, imageWidth, imageHeight),
-                 authoringSession.surfaceWidth(), authoringSession.surfaceHeight());
+                authoringSession.surfaceWidth(), authoringSession.surfaceHeight());
         Vector2 lower = parent.stageToLocalCoordinates(new Vector2(clamped.x(), clamped.y()));
         Vector2 upper = parent.stageToLocalCoordinates(new Vector2(clamped.right(), clamped.top()));
         return new DropGeometry(lower.x, lower.y,
                 Math.abs(upper.x - lower.x), Math.abs(upper.y - lower.y));
     }
 
-    private static float positiveDimension(float value) { return value > 0f ? value : 0f; }
+    private static float positiveDimension(float value) {
+        return value > 0f ? value : 0f;
+    }
 
     static Vector2 screenToHud(com.badlogic.gdx.utils.viewport.Viewport viewport,
                                int logicalWindowHeight, int screenX, int screenY, Vector2 out) {
@@ -2278,6 +2552,7 @@ public final class HudEditorSession implements Disposable {
         viewportPointToHud(viewport, screenX, bottomY, out);
         return out;
     }
+
     public List<HudHierarchyEntry> hierarchy() {
         return status == Status.READY ? HudHierarchyProjection.from(document) : List.of();
     }
@@ -2312,7 +2587,9 @@ public final class HudEditorSession implements Disposable {
         resourcesStale = false;
     }
 
-    /** Called before the edit session publishes its candidate/history cursor. */
+    /**
+     * Called before the edit session publishes its candidate/history cursor.
+     */
     private void installCandidate(HudScreenAsset candidateAsset, HudDocumentV1 candidate,
                                   HudValidationResult structuralValidation) {
         if (editorDocument == null) throw new IllegalStateException("HUD preview is not active.");
@@ -2408,8 +2685,7 @@ public final class HudEditorSession implements Disposable {
         if (context == null) {
             authoringSession.clearTransformGizmo();
             transformCursor.clear();
-        }
-        else authoringSession.showTransformGizmo(context.overlayBounds);
+        } else authoringSession.showTransformGizmo(context.overlayBounds);
     }
 
     private TransformContext selectedFreeTransformContext() {
@@ -2437,7 +2713,7 @@ public final class HudEditorSession implements Disposable {
     }
 
     private HudTransformGeometry.Bounds overlayToParentBounds(TransformContext context,
-                                                               HudTransformGeometry.Bounds overlayBounds) {
+                                                              HudTransformGeometry.Bounds overlayBounds) {
         Actor parent = context.actor.getParent();
         if (parent == null || authoringSession == null) return context.snapshot.visualBounds();
         Vector2 lower = authoringSession.selectionOverlayActor().localToStageCoordinates(
@@ -2449,7 +2725,9 @@ public final class HudEditorSession implements Disposable {
         return new HudTransformGeometry.Bounds(lower.x, lower.y, upper.x - lower.x, upper.y - lower.y);
     }
 
-    /** Resolves the sole current target through the same viewport and overlay hit-test for click and hover. */
+    /**
+     * Resolves the sole current target through the same viewport and overlay hit-test for click and hover.
+     */
     private HudSelectionTarget findOverlayTargetAt(float studioStageX, float studioStageY) {
         if (status != Status.READY || authoringSession == null || materialized == null
                 || previewX == Integer.MIN_VALUE) return null;
@@ -2470,7 +2748,9 @@ public final class HudEditorSession implements Disposable {
         return out;
     }
 
-    /** Resolves a logical Studio-stage point inside the HUD canvas. */
+    /**
+     * Resolves a logical Studio-stage point inside the HUD canvas.
+     */
     public boolean hudPointAt(float studioStageX, float studioStageY, Vector2 out) {
         if (out == null || authoringSession == null || previewX == Integer.MIN_VALUE) return false;
         var viewport = authoringSession.viewport();
@@ -2512,16 +2792,28 @@ public final class HudEditorSession implements Disposable {
     }
 
     private record TransformContext(String nodeId, Actor actor, HudFreeTransform.Snapshot snapshot,
-                                    HudTransformGeometry.Bounds overlayBounds) {}
+                                    HudTransformGeometry.Bounds overlayBounds) {
+    }
+
     private record PendingMoveGesture(HudScreenEditorDocument editorDocument,
                                       HudDocumentV1 document,
                                       TransformContext context,
-                                      float startHudX, float startHudY) {}
-    private record DeletionSelection(String deletedNodeId, String parentNodeId) {}
-    private record CreationSelection(String createdNodeId, String previousNodeId) {}
-    private record CellMoveSelection(String beforeNodeId, String widgetId) {}
+                                      float startHudX, float startHudY) {
+    }
+
+    private record DeletionSelection(String deletedNodeId, String parentNodeId) {
+    }
+
+    private record CreationSelection(String createdNodeId, String previousNodeId) {
+    }
+
+    private record CellMoveSelection(String beforeNodeId, String widgetId) {
+    }
+
     private record StructureSelection(String beforeCellId, List<String> beforeRange, String beforeEndId,
-                                      String afterCellId) {}
+                                      String afterCellId) {
+    }
+
     private static final class CellContentGesture {
         final HudScreenEditorDocument editorDocument;
         final HudDocumentEditSession editSession;
@@ -2529,6 +2821,7 @@ public final class HudEditorSession implements Disposable {
         final String tableId, sourceCellId, widgetId, previousSelectionId;
         String destinationCellId;
         boolean dragging;
+
         CellContentGesture(HudScreenEditorDocument editorDocument, HudDocumentEditSession editSession,
                            long revision, String tableId, String sourceCellId, String widgetId,
                            String previousSelectionId) {
@@ -2541,7 +2834,10 @@ public final class HudEditorSession implements Disposable {
             this.previousSelectionId = previousSelectionId;
         }
     }
-    private record DropGeometry(float localX, float localY, float localWidth, float localHeight) {}
+
+    private record DropGeometry(float localX, float localY, float localWidth, float localHeight) {
+    }
+
     private static final class TransformGesture {
         private final TransformContext context;
         private final HudTransformHandle handle;
@@ -2558,13 +2854,20 @@ public final class HudEditorSession implements Disposable {
             this.startY = startY;
             currentOverlayBounds = context.overlayBounds;
         }
-        private boolean changesWidth() { return handle != null && handle.changesWidth(); }
-        private boolean changesHeight() { return handle != null && handle.changesHeight(); }
+
+        private boolean changesWidth() {
+            return handle != null && handle.changesWidth();
+        }
+
+        private boolean changesHeight() {
+            return handle != null && handle.changesHeight();
+        }
     }
 
     private static void requireValid(HudValidationResult result) {
         if (!result.isValid()) throw new HudEditRejectedException(validationMessage(result));
     }
+
     private static void disposeFailedCandidate(Disposable disposable, RuntimeException failure) {
         if (disposable == null) return;
         try {
@@ -2573,25 +2876,30 @@ public final class HudEditorSession implements Disposable {
             failure.addSuppressed(cleanupFailure);
         }
     }
+
     private static void disposeFailedCandidate(Disposable first, Disposable second,
                                                RuntimeException failure) {
         disposeFailedCandidate(first, failure);
         disposeFailedCandidate(second, failure);
     }
+
     private HudAuthoringResources prepareResources(HudValidationResult validation,
                                                    HudScreenAsset resourceAsset) {
         return HudAuthoringResources.prepare(validation.validatedDocument(), projectDir,
                 assetDatabase.get(), resourceAsset.skinId);
     }
+
     private static MaterializedHud materialize(HudValidationResult validation, HudAuthoringResources resources) {
         return new HudMaterializer().materialize(validation.validatedDocument(), resources, false);
     }
+
     private void ensureContext() {
         if (authoringSession == null) {
             authoringSession = new HudAuthoringSession(batch.get(), drawer.get());
             authoringSession.setShowLayoutBounds(showLayoutBounds);
         }
     }
+
     private static void disposeReplaced(MaterializedHud projection,
                                         HudAuthoringResources resources) {
         try {
@@ -2605,15 +2913,21 @@ public final class HudEditorSession implements Disposable {
             logCleanupFailure("Failed to dispose replaced HUD resources.", cleanupFailure);
         }
     }
+
     private static void logCleanupFailure(String message, RuntimeException failure) {
         if (Gdx.app != null) Gdx.app.error("HudEditorSession", message, failure);
     }
+
     private void notifyListeners() {
         for (Runnable listener : List.copyOf(listeners)) {
-            try { listener.run(); }
-            catch (RuntimeException failure) { logCleanupFailure("HUD projection listener failed.", failure); }
+            try {
+                listener.run();
+            } catch (RuntimeException failure) {
+                logCleanupFailure("HUD projection listener failed.", failure);
+            }
         }
     }
+
     private void closePreview() {
         if (authoringSession != null) authoringSession.clear();
         try {
@@ -2640,14 +2954,22 @@ public final class HudEditorSession implements Disposable {
             if (actor instanceof TypingLabel label) label.skipToTheEnd(true, false);
         }
     }
+
     private static String validationMessage(HudValidationResult result) {
         StringBuilder out = new StringBuilder("HUD document validation failed:");
         result.issues().forEach(issue -> out.append("\n").append(issue.code())
                 .append(" at ").append(issue.path()).append(": ").append(issue.message()));
         return out.toString();
     }
+
     private static String message(Throwable failure) {
         return failure.getMessage() != null ? failure.getMessage() : failure.getClass().getSimpleName();
     }
-    @Override public void dispose() { close(); if (authoringSession != null) authoringSession.dispose(); authoringSession = null; }
+
+    @Override
+    public void dispose() {
+        close();
+        if (authoringSession != null) authoringSession.dispose();
+        authoringSession = null;
+    }
 }

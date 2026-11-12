@@ -4,9 +4,12 @@ import com.badlogic.gdx.utils.JsonValue;
 
 import java.util.function.IntConsumer;
 
-/** Logical cell IDs in an authored Scene, before tile animation IDs are expanded to frames. */
+/**
+ * Logical cell IDs in an authored Scene, before tile animation IDs are expanded to frames.
+ */
 public final class TiledLayerTileIds {
-    private TiledLayerTileIds() {}
+    private TiledLayerTileIds() {
+    }
 
     public static void forEach(JsonValue scene, IntConsumer consumer) {
         if (scene == null || !scene.isObject()) throw new IllegalArgumentException("Expected a Scene object.");

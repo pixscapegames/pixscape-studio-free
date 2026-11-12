@@ -22,10 +22,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.Assert.*;
 
 public class HudRootGroupAuthoringPipelineTest {
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
 
-    @BeforeClass public static void bootGdx() {
-        if (Gdx.files == null) new HeadlessApplication(new ApplicationAdapter() {},
+    @BeforeClass
+    public static void bootGdx() {
+        if (Gdx.files == null) new HeadlessApplication(new ApplicationAdapter() {
+        },
                 new HeadlessApplicationConfiguration());
     }
 

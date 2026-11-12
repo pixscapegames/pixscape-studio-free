@@ -7,7 +7,9 @@ import com.kotcrab.vis.ui.widget.MenuItem;
 import com.kotcrab.vis.ui.widget.PopupMenu;
 import games.pixscape.studio.service.hud.HudEditorSession;
 
-/** HUD-node actions shared by the canvas and hierarchy context menus. */
+/**
+ * HUD-node actions shared by the canvas and hierarchy context menus.
+ */
 final class HudNodeContextMenu {
     private HudNodeContextMenu() {
     }
@@ -18,7 +20,8 @@ final class HudNodeContextMenu {
         PopupMenu menu = new PopupMenu();
         MenuItem delete = new MenuItem("Delete");
         delete.addListener(new ClickListener() {
-            @Override public void clicked(InputEvent event, float x, float y) {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
                 session.deleteNode(nodeId);
                 event.handle();
             }

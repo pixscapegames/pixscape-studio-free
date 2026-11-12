@@ -185,12 +185,23 @@ public class TopMenuBar extends MenuBar {
         });
 
         app.getEditorDocumentManager().addListener(new EditorDocumentManager.Listener() {
-            @Override public void documentOpened(OpenEditorDocument document) { refreshWorldEditingAvailability(); }
-            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+            @Override
+            public void documentOpened(OpenEditorDocument document) {
                 refreshWorldEditingAvailability();
             }
-            @Override public void documentClosed(OpenEditorDocument document) { refreshWorldEditingAvailability(); }
-            @Override public void documentTitleChanged(OpenEditorDocument document) {
+
+            @Override
+            public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+                refreshWorldEditingAvailability();
+            }
+
+            @Override
+            public void documentClosed(OpenEditorDocument document) {
+                refreshWorldEditingAvailability();
+            }
+
+            @Override
+            public void documentTitleChanged(OpenEditorDocument document) {
                 refreshWorldEditingAvailability();
             }
         });
@@ -305,8 +316,9 @@ public class TopMenuBar extends MenuBar {
         editMenu.addItem(undo);
         editMenu.addItem(redo);
         editMenu.openButton.addListener(new com.badlogic.gdx.scenes.scene2d.InputListener() {
-            @Override public boolean touchDown(com.badlogic.gdx.scenes.scene2d.InputEvent event,
-                                               float x, float y, int pointer, int button) {
+            @Override
+            public boolean touchDown(com.badlogic.gdx.scenes.scene2d.InputEvent event,
+                                     float x, float y, int pointer, int button) {
                 refreshWorldEditingAvailability();
                 return false;
             }

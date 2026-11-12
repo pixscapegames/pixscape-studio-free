@@ -9,7 +9,9 @@ import games.pixscape.studio.history.HistoryIdRegistry;
 
 import java.util.function.IntConsumer;
 
-/** Builds one failure-atomic history command for a mixed standalone/hierarchy selection. */
+/**
+ * Builds one failure-atomic history command for a mixed standalone/hierarchy selection.
+ */
 public final class DeleteEntitiesCommandFactory {
     private DeleteEntitiesCommandFactory() {
     }

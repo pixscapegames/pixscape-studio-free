@@ -24,11 +24,19 @@ import java.lang.reflect.Proxy;
 import static org.junit.Assert.*;
 
 public class ItemTreeContextMenuInputListenerTest {
-    @Test public void hidingAssetsCancelsHeldItemsContextClickWithoutOpeningMenu() throws Exception {
+    @Test
+    public void hidingAssetsCancelsHeldItemsContextClickWithoutOpeningMenu() throws Exception {
         Graphics previous = Gdx.graphics;
         Gdx.graphics = new MockGraphics() {
-            @Override public int getWidth() { return 1200; }
-            @Override public int getHeight() { return 800; }
+            @Override
+            public int getWidth() {
+                return 1200;
+            }
+
+            @Override
+            public int getHeight() {
+                return 800;
+            }
         };
         try (DockingTestFixture f = DockingTestFixture.create()) {
             f.studioStage.getViewport().update(1200, 800, true);
@@ -36,7 +44,8 @@ public class ItemTreeContextMenuInputListenerTest {
             StubTree tree = new StubTree(new EntityNode("Layer", null, 17, true, EntityNode.NodeKind.LAYER));
             f.items.add(tree).grow();
             int[] presented = {0};
-            tree.addListener(new ItemTreeContextMenuInputListener<>(tree, n -> true, n -> {},
+            tree.addListener(new ItemTreeContextMenuInputListener<>(tree, n -> true, n -> {
+            },
                     () -> null, (n, context, owner, x, y) -> presented[0]++));
             f.resize(1200, 800);
             Vector2 p = f.studioStage.stageToScreenCoordinates(tree.localToStageCoordinates(new Vector2(10, 10)));
@@ -50,7 +59,9 @@ public class ItemTreeContextMenuInputListenerTest {
             assertTrue(f.studioStage.touchDown(Math.round(p.x), Math.round(p.y), 0, Input.Buttons.RIGHT));
             f.studioStage.touchUp(Math.round(p.x), Math.round(p.y), 0, Input.Buttons.RIGHT);
             assertEquals(1, presented[0]);
-        } finally { Gdx.graphics = previous; }
+        } finally {
+            Gdx.graphics = previous;
+        }
     }
 
     @BeforeClass
@@ -140,7 +151,8 @@ public class ItemTreeContextMenuInputListenerTest {
             ItemTreeContextMenuInputListener<Object> realListener = new ItemTreeContextMenuInputListener<>(
                     realTree,
                     node -> node.isEntityNode() && node.getEntityId() == 41,
-                    ignored -> { },
+                    ignored -> {
+                    },
                     () -> null,
                     (node, context, shownStage, stageX, stageY) -> presented.add(node.getEntityId()));
             InputEvent event = inputEvent(stage, 10f, 11f);
@@ -169,7 +181,8 @@ public class ItemTreeContextMenuInputListenerTest {
             tree.addListener(new ItemTreeContextMenuInputListener<>(
                     tree,
                     node -> node.isLayerNode() && node.getEntityId() == 17,
-                    ignored -> { },
+                    ignored -> {
+                    },
                     () -> null,
                     (node, context, shownStage, stageX, stageY) ->
                             menu.showMenu(shownStage, stageX, stageY)));

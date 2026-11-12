@@ -2,7 +2,9 @@ package games.pixscape.studio.ui.preview;
 
 import static org.lwjgl.opengl.GL32C.*;
 
-/** Owned by the uncapped Desktop Preview and used only on its GL thread. */
+/**
+ * Owned by the uncapped Desktop Preview and used only on its GL thread.
+ */
 class PreviewGpuFrames {
     private final long[] fences = new long[2];
     private int next;
@@ -54,6 +56,8 @@ class PreviewGpuFrames {
     }
 
     static final class SyncFailure extends IllegalStateException {
-        SyncFailure(String message) { super(message); }
+        SyncFailure(String message) {
+            super(message);
+        }
     }
 }

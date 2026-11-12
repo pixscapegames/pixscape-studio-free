@@ -4,7 +4,9 @@ import com.badlogic.gdx.Input;
 
 import java.util.function.BooleanSupplier;
 
-/** Prevents operating-system key repeat from deleting newly selected HUD parents. */
+/**
+ * Prevents operating-system key repeat from deleting newly selected HUD parents.
+ */
 final class HudDeleteKeyGate {
     private boolean deletionHandledWhileHeld;
 

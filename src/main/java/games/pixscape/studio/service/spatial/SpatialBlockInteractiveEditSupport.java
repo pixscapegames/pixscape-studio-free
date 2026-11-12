@@ -3,7 +3,9 @@ package games.pixscape.studio.service.spatial;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialWallGeometry;
 
-/** Continuous transient editing within the linked-cell or existing physical envelope. */
+/**
+ * Continuous transient editing within the linked-cell or existing physical envelope.
+ */
 public final class SpatialBlockInteractiveEditSupport {
     public enum ResizeHandle {
         MIN_Y, MAX_X, MAX_Y, MIN_X,

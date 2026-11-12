@@ -8,7 +8,9 @@ import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.LayerService;
 
-/** Toggles participation of one ordinary layer in Spatial actor ordering. */
+/**
+ * Toggles participation of one ordinary layer in Spatial actor ordering.
+ */
 public final class ToggleSpatialActorLayerCommand
         implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
     private final World world;

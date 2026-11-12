@@ -15,7 +15,9 @@ public class ImportDialogApplySupportTest {
 
         ImportDialogApplySupport.ApplyResult result = ImportDialogApplySupport.tryApply(
                 items,
-                ignored -> { throw new IllegalArgumentException("Sheet not divisible by tile size"); }
+                ignored -> {
+                    throw new IllegalArgumentException("Sheet not divisible by tile size");
+                }
         );
 
         assertFalse(result.success);

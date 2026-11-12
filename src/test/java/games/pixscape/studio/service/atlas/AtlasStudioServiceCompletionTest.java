@@ -13,14 +13,18 @@ import org.junit.rules.TemporaryFolder;
 import static org.junit.Assert.*;
 
 public class AtlasStudioServiceCompletionTest {
-    @Rule public TemporaryFolder temporaryFolder = new TemporaryFolder();
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
-    @BeforeClass public static void app() {
-        if (Gdx.app == null) new HeadlessApplication(new ApplicationAdapter() {},
+    @BeforeClass
+    public static void app() {
+        if (Gdx.app == null) new HeadlessApplication(new ApplicationAdapter() {
+        },
                 new HeadlessApplicationConfiguration());
     }
 
-    @Test public void workerAndInvalidPublicationFailuresNeverBecomeSuccessOrRepackLoops()
+    @Test
+    public void workerAndInvalidPublicationFailuresNeverBecomeSuccessOrRepackLoops()
             throws Exception {
         ControlledAtlasExecutor executor = new ControlledAtlasExecutor();
         FileHandle output = new FileHandle(temporaryFolder.newFolder("output"));

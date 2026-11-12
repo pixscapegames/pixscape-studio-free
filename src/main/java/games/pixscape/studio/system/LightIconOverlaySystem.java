@@ -54,12 +54,18 @@ public final class LightIconOverlaySystem extends IteratingSystem {
     private Property hoveredValueProperty;
     private boolean valueDragging;
     private final games.pixscape.studio.helper.RotationArc inclinationArc = new games.pixscape.studio.helper.RotationArc();
-    private float arcX,arcY,arcRotation,arcScale;
+    private float arcX, arcY, arcRotation, arcScale;
     private final games.pixscape.studio.helper.RotationArc.Projection inclinationProjection =
-            (angle,out)->ConeLightGizmoGeometry.inclinationArcPoint(arcX,arcY,arcRotation,angle,arcScale,out);
+            (angle, out) -> ConeLightGizmoGeometry.inclinationArcPoint(arcX, arcY, arcRotation, angle, arcScale, out);
 
-    public void setDrawingAllowed(boolean allowed) { drawingAllowed = allowed; }
-    @Override protected boolean checkProcessing() { return drawingAllowed; }
+    public void setDrawingAllowed(boolean allowed) {
+        drawingAllowed = allowed;
+    }
+
+    @Override
+    protected boolean checkProcessing() {
+        return drawingAllowed;
+    }
 
     public void setValueHandle(int entity, Property property, boolean dragging) {
         hoveredValueEntity = entity;
@@ -173,20 +179,20 @@ public final class LightIconOverlaySystem extends IteratingSystem {
         ctx.drawer.setColor(EditorOverlayPalette.SPATIAL_NEUTRAL_COLOR);
         if (Vector2.dst2(x, y, gx, gy) > p * p) ctx.drawer.line(x, y, gx, gy, p);
         // Runtime XY projects to (1,.5) and (-1,.5), regardless of scene map metrics.
-        ctx.drawer.line(gx - 5f*p, gy - 2.5f*p, gx + 5f*p, gy + 2.5f*p, p);
-        ctx.drawer.line(gx + 5f*p, gy - 2.5f*p, gx - 5f*p, gy + 2.5f*p, p);
-        float hy = y - LightGizmoGeometry.HEIGHT_OFFSET_PX*p;
+        ctx.drawer.line(gx - 5f * p, gy - 2.5f * p, gx + 5f * p, gy + 2.5f * p, p);
+        ctx.drawer.line(gx + 5f * p, gy - 2.5f * p, gx - 5f * p, gy + 2.5f * p, p);
+        float hy = y - LightGizmoGeometry.HEIGHT_OFFSET_PX * p;
         valueColor(entity, Property.HEIGHT);
-        ctx.drawer.line(x, hy - 7f*p, x, hy + 7f*p, thickness);
-        ctx.drawer.line(x - 4f*p, hy + 3f*p, x, hy + 7f*p, thickness);
-        ctx.drawer.line(x + 4f*p, hy + 3f*p, x, hy + 7f*p, thickness);
-        ctx.drawer.line(x - 4f*p, hy - 3f*p, x, hy - 7f*p, thickness);
-        ctx.drawer.line(x + 4f*p, hy - 3f*p, x, hy - 7f*p, thickness);
+        ctx.drawer.line(x, hy - 7f * p, x, hy + 7f * p, thickness);
+        ctx.drawer.line(x - 4f * p, hy + 3f * p, x, hy + 7f * p, thickness);
+        ctx.drawer.line(x + 4f * p, hy + 3f * p, x, hy + 7f * p, thickness);
+        ctx.drawer.line(x - 4f * p, hy - 3f * p, x, hy - 7f * p, thickness);
+        ctx.drawer.line(x + 4f * p, hy - 3f * p, x, hy - 7f * p, thickness);
         valueColor(entity, Property.INTENSITY);
-        float ix = x + LightGizmoGeometry.INTENSITY_OFFSET_X_PX*p;
-        float iy = y + LightGizmoGeometry.INTENSITY_OFFSET_Y_PX*p;
-        ctx.drawer.line(ix - 10f*p, iy, ix + 10f*p, iy, thickness);
-        ctx.drawer.line(ix, iy - 5f*p, ix, iy + 5f*p, thickness);
+        float ix = x + LightGizmoGeometry.INTENSITY_OFFSET_X_PX * p;
+        float iy = y + LightGizmoGeometry.INTENSITY_OFFSET_Y_PX * p;
+        ctx.drawer.line(ix - 10f * p, iy, ix + 10f * p, iy, thickness);
+        ctx.drawer.line(ix, iy - 5f * p, ix, iy + 5f * p, thickness);
     }
 
     private void valueColor(int entity, Property property) {
@@ -198,11 +204,14 @@ public final class LightIconOverlaySystem extends IteratingSystem {
     private void drawInclinationHandle(int entity, float x, float y, float rotation, float inclination) {
         float wpp = ctx.wpp();
         ctx.drawer.setColor(EditorOverlayPalette.SPATIAL_NEUTRAL_COLOR);
-        arcX=x;arcY=y;arcRotation=rotation;arcScale=wpp;
-        inclinationArc.draw(ctx.drawer,inclinationProjection,-90f,90f,CONE_SEGMENTS,wpp);
+        arcX = x;
+        arcY = y;
+        arcRotation = rotation;
+        arcScale = wpp;
+        inclinationArc.draw(ctx.drawer, inclinationProjection, -90f, 90f, CONE_SEGMENTS, wpp);
         ConeLightGizmoGeometry.inclinationArcPoint(x, y, rotation, inclination, wpp, tmpRadiusControl);
         valueColor(entity, Property.INCLINATION);
-        games.pixscape.studio.helper.RotationArc.handle(ctx.drawer,x + ConeLightGizmoGeometry.INCLINATION_OFFSET_X_PX * wpp,
+        games.pixscape.studio.helper.RotationArc.handle(ctx.drawer, x + ConeLightGizmoGeometry.INCLINATION_OFFSET_X_PX * wpp,
                 y + ConeLightGizmoGeometry.INCLINATION_OFFSET_Y_PX * wpp,
                 tmpRadiusControl.x, tmpRadiusControl.y, wpp);
     }
@@ -223,10 +232,10 @@ public final class LightIconOverlaySystem extends IteratingSystem {
         float thickness = ctx.pxToWorld(2f);
 
         ctx.drawer.setColor(1f, 0.9f, 0.2f, 0.5f);
-        ConeLightGizmoGeometry.tiltedSectionPoint(x,y,rotationRad,light.inclinationDeg,-halfAngleRad,radius,tmpRadiusControl);
-        float x1=tmpRadiusControl.x,y1=tmpRadiusControl.y;
-        ConeLightGizmoGeometry.tiltedSectionPoint(x,y,rotationRad,light.inclinationDeg,halfAngleRad,radius,tmpRadiusControl);
-        float x2=tmpRadiusControl.x,y2=tmpRadiusControl.y;
+        ConeLightGizmoGeometry.tiltedSectionPoint(x, y, rotationRad, light.inclinationDeg, -halfAngleRad, radius, tmpRadiusControl);
+        float x1 = tmpRadiusControl.x, y1 = tmpRadiusControl.y;
+        ConeLightGizmoGeometry.tiltedSectionPoint(x, y, rotationRad, light.inclinationDeg, halfAngleRad, radius, tmpRadiusControl);
+        float x2 = tmpRadiusControl.x, y2 = tmpRadiusControl.y;
 
         ctx.drawer.line(x, y, x1, y1, thickness);
         ctx.drawer.line(x, y, x2, y2, thickness);
@@ -238,15 +247,15 @@ public final class LightIconOverlaySystem extends IteratingSystem {
         float prevY = y1;
         for (int i = 1; i <= segments; i++) {
             float ang = -halfAngleRad + step * i;
-            ConeLightGizmoGeometry.tiltedSectionPoint(x,y,rotationRad,light.inclinationDeg,ang,radius,tmpRadiusControl);
-            float nx=tmpRadiusControl.x,ny=tmpRadiusControl.y;
+            ConeLightGizmoGeometry.tiltedSectionPoint(x, y, rotationRad, light.inclinationDeg, ang, radius, tmpRadiusControl);
+            float nx = tmpRadiusControl.x, ny = tmpRadiusControl.y;
             ctx.drawer.line(prevX, prevY, nx, ny, thickness);
             prevX = nx;
             prevY = ny;
         }
         if (light.inclinationDeg != 0f) {
-            ConeLightGizmoGeometry.tiltedSectionPoint(x,y,rotationRad,light.inclinationDeg,0f,radius,tmpRadiusControl);
-            ctx.drawer.line(x,y,tmpRadiusControl.x,tmpRadiusControl.y,thickness);
+            ConeLightGizmoGeometry.tiltedSectionPoint(x, y, rotationRad, light.inclinationDeg, 0f, radius, tmpRadiusControl);
+            ctx.drawer.line(x, y, tmpRadiusControl.x, tmpRadiusControl.y, thickness);
         }
     }
 
@@ -272,9 +281,9 @@ public final class LightIconOverlaySystem extends IteratingSystem {
         if (radius <= 0f) return;
 
         if (cone != null) {
-            ConeLightGizmoGeometry.sectionPoint(x,y,rotationRad,0f,radius,tmpRadiusControl);
+            ConeLightGizmoGeometry.sectionPoint(x, y, rotationRad, 0f, radius, tmpRadiusControl);
         } else {
-            LightGizmoGeometry.pointSectionPoint(x,y,0f,radius,tmpRadiusControl);
+            LightGizmoGeometry.pointSectionPoint(x, y, 0f, radius, tmpRadiusControl);
         }
         float hx = tmpRadiusControl.x, hy = tmpRadiusControl.y;
         float half = ctx.pxToWorld(LIGHT_RADIUS_HANDLE_SIZE_PX * 0.5f);
@@ -282,9 +291,10 @@ public final class LightIconOverlaySystem extends IteratingSystem {
         ctx.drawer.setColor(1f, 0.9f, 0.2f, 0.8f);
         ctx.drawer.line(x, y, hx, hy, ctx.pxToWorld(2f));
         LightGizmoGeometry.radiusControl(sourceX, sourceY, hx, hy, ctx.wpp(), tmpRadiusControl);
-        if (Vector2.dst2(hx,hy,tmpRadiusControl.x,tmpRadiusControl.y)>ctx.wpp()*ctx.wpp())
-            ctx.drawer.line(hx,hy,tmpRadiusControl.x,tmpRadiusControl.y,ctx.pxToWorld(1f));
-        hx=tmpRadiusControl.x;hy=tmpRadiusControl.y;
+        if (Vector2.dst2(hx, hy, tmpRadiusControl.x, tmpRadiusControl.y) > ctx.wpp() * ctx.wpp())
+            ctx.drawer.line(hx, hy, tmpRadiusControl.x, tmpRadiusControl.y, ctx.pxToWorld(1f));
+        hx = tmpRadiusControl.x;
+        hy = tmpRadiusControl.y;
         ctx.drawer.line(hx - half, hy - half, hx + half, hy - half, ctx.pxToWorld(2f));
         ctx.drawer.line(hx + half, hy - half, hx + half, hy + half, ctx.pxToWorld(2f));
         ctx.drawer.line(hx + half, hy + half, hx - half, hy + half, ctx.pxToWorld(2f));

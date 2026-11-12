@@ -11,9 +11,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Validates a scene atlas against a stable snapshot of its input files. */
+/**
+ * Validates a scene atlas against a stable snapshot of its input files.
+ */
 public final class SceneAtlasCoverage {
-    private SceneAtlasCoverage() {}
+    private SceneAtlasCoverage() {
+    }
 
     public record FileStamp(String path, long length, long modified) {
         static FileStamp of(FileHandle file) {
@@ -22,16 +25,22 @@ public final class SceneAtlasCoverage {
         }
     }
 
-    public record InputFile(String relativePath, FileStamp stamp) {}
+    public record InputFile(String relativePath, FileStamp stamp) {
+    }
 
-    public record InputSnapshot(FileHandle directory,List<InputFile> files,List<FileStamp> normalFiles) {
-        public InputSnapshot(FileHandle directory,List<InputFile> files){this(directory,files,List.of());}
+    public record InputSnapshot(FileHandle directory, List<InputFile> files, List<FileStamp> normalFiles) {
+        public InputSnapshot(FileHandle directory, List<InputFile> files) {
+            this(directory, files, List.of());
+        }
+
         public boolean sameFiles(InputSnapshot other) {
             return other != null && files.equals(other.files) && normalFiles.equals(other.normalFiles);
         }
     }
 
-    /** Region coverage and file stamps from one successful descriptor parse. */
+    /**
+     * Region coverage and file stamps from one successful descriptor parse.
+     */
     public record Validation(InputSnapshot input, FileStamp atlas, List<FileStamp> pages) {
         public boolean stillCurrent(InputSnapshot currentInput, FileHandle currentAtlas) {
             if (!input.sameFiles(currentInput) || !atlas.equals(FileStamp.of(currentAtlas))) return false;
@@ -66,11 +75,12 @@ public final class SceneAtlasCoverage {
         List<InputFile> files = new ArrayList<>();
         collect(inputDir, "", files);
         files.sort((a, b) -> a.relativePath().compareTo(b.relativePath()));
-        List<FileStamp> normalFiles=new ArrayList<>();
-        FileHandle normalDir=NormalAtlasPackingService.input(inputDir);
-        if(normalDir.exists())for(FileHandle file:normalDir.list())if(!file.isDirectory())normalFiles.add(FileStamp.of(file));
-        normalFiles.sort((a,b)->a.path().compareTo(b.path()));
-        return new InputSnapshot(inputDir,List.copyOf(files),List.copyOf(normalFiles));
+        List<FileStamp> normalFiles = new ArrayList<>();
+        FileHandle normalDir = NormalAtlasPackingService.input(inputDir);
+        if (normalDir.exists())
+            for (FileHandle file : normalDir.list()) if (!file.isDirectory()) normalFiles.add(FileStamp.of(file));
+        normalFiles.sort((a, b) -> a.path().compareTo(b.path()));
+        return new InputSnapshot(inputDir, List.copyOf(files), List.copyOf(normalFiles));
     }
 
     private static void collect(FileHandle directory, String prefix, List<InputFile> files) {
@@ -106,35 +116,36 @@ public final class SceneAtlasCoverage {
             pages.add(stamp);
         }
         if (pages.isEmpty()) throw new IllegalStateException("Scene atlas has no pages: " + atlasFile.path());
-        FileHandle normalDescriptor=atlasFile.sibling(atlasFile.nameWithoutExtension()+games.pixscape.runtime.service.NormalMapAtlas.SUFFIX+".atlas");
-        Set<Integer> packedNormals=new HashSet<>();
-        if(normalDescriptor.exists()){
+        FileHandle normalDescriptor = atlasFile.sibling(atlasFile.nameWithoutExtension() + games.pixscape.runtime.service.NormalMapAtlas.SUFFIX + ".atlas");
+        Set<Integer> packedNormals = new HashSet<>();
+        if (normalDescriptor.exists()) {
             pages.add(FileStamp.of(normalDescriptor));
-            TextureAtlasData normals=new TextureAtlasData(normalDescriptor,normalDescriptor.parent(),false);
-            for(TextureAtlasData.Region region:normals.getRegions()) {
-                int marker=region.name.lastIndexOf("__a");
-                if(marker<0 || !packedNormals.add(Integer.parseInt(region.name.substring(marker+3))))
-                    throw new IllegalStateException("Invalid or duplicate normal identity: "+region.name);
+            TextureAtlasData normals = new TextureAtlasData(normalDescriptor, normalDescriptor.parent(), false);
+            for (TextureAtlasData.Region region : normals.getRegions()) {
+                int marker = region.name.lastIndexOf("__a");
+                if (marker < 0 || !packedNormals.add(Integer.parseInt(region.name.substring(marker + 3))))
+                    throw new IllegalStateException("Invalid or duplicate normal identity: " + region.name);
             }
-            for(TextureAtlasData.Page page:normals.getPages()){
-                FileStamp stamp=FileStamp.of(page.textureFile);
-                if(stamp==null || stamp.length()<=0)throw new IllegalStateException("Normal atlas page is missing: "+page.textureFile);
+            for (TextureAtlasData.Page page : normals.getPages()) {
+                FileStamp stamp = FileStamp.of(page.textureFile);
+                if (stamp == null || stamp.length() <= 0)
+                    throw new IllegalStateException("Normal atlas page is missing: " + page.textureFile);
                 pages.add(stamp);
             }
         }
         Set<String> packed = new HashSet<>();
-        Set<Integer> colorIds=new HashSet<>();
+        Set<Integer> colorIds = new HashSet<>();
         for (TextureAtlasData.Region region : data.getRegions()) {
             packed.add(key(region.name, region.index));
-            int marker=region.name.lastIndexOf("__a");
-            if(marker>=0)colorIds.add(Integer.parseInt(region.name.substring(marker+3)));
+            int marker = region.name.lastIndexOf("__a");
+            if (marker >= 0) colorIds.add(Integer.parseInt(region.name.substring(marker + 3)));
         }
-        FileHandle normalManifest=NormalAtlasPackingService.input(input.directory()).child("sources.tsv");
-        if(normalManifest.exists())for(String line:normalManifest.readString("UTF-8").split("\n")) {
-            if(line.isBlank())continue;
-            int id=Integer.parseInt(line.split("\t",2)[0]);
-            if(colorIds.contains(id) && !packedNormals.contains(id))
-                throw new IllegalStateException("Scene atlas omits declared normal: asset "+id);
+        FileHandle normalManifest = NormalAtlasPackingService.input(input.directory()).child("sources.tsv");
+        if (normalManifest.exists()) for (String line : normalManifest.readString("UTF-8").split("\n")) {
+            if (line.isBlank()) continue;
+            int id = Integer.parseInt(line.split("\t", 2)[0]);
+            if (colorIds.contains(id) && !packedNormals.contains(id))
+                throw new IllegalStateException("Scene atlas omits declared normal: asset " + id);
         }
         for (InputFile inputFile : input.files()) {
             String relative = inputFile.relativePath();
@@ -157,7 +168,9 @@ public final class SceneAtlasCoverage {
         return new Validation(input, descriptor, List.copyOf(pages));
     }
 
-    private static String key(String name, int index) { return name + '#' + index; }
+    private static String key(String name, int index) {
+        return name + '#' + index;
+    }
 
     private static boolean isFullyTransparent(FileHandle imageFile) {
         try {

@@ -19,7 +19,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
-/** Converts a text atlas into ordinary authored PNG assets; packing remains scene-driven. */
+/**
+ * Converts a text atlas into ordinary authored PNG assets; packing remains scene-driven.
+ */
 public final class TextureAtlasAssetImportService {
     private final AssetMetaDatabase database;
 
@@ -36,8 +38,9 @@ public final class TextureAtlasAssetImportService {
         List<Move> published = new ArrayList<>();
         try {
             for (Page page : data.getPages()) pages.put(page, readPage(descriptor, page));
-            for (Group group : groups) for (Region region : group.regions)
-                validateRegion(region, pages.get(region.page));
+            for (Group group : groups)
+                for (Region region : group.regions)
+                    validateRegion(region, pages.get(region.page));
             // All pixels are prepared before any catalog identity becomes visible.
             candidate = AtomicDirectoryPublication.createCandidate(projectDir.child("orig/atlas-import"));
             for (int i = 0; i < groups.size(); i++) {
@@ -50,7 +53,9 @@ public final class TextureAtlasAssetImportService {
                                 region.width, region.height, region.rotate, (int) region.offsetX,
                                 region.originalHeight - region.height - (int) region.offsetY);
                         PixmapIO.writePNG(candidate.child(i + "/" + frame + ".png"), restored);
-                    } finally { restored.dispose(); }
+                    } finally {
+                        restored.dispose();
+                    }
                 }
             }
             for (int i = 0; i < groups.size(); i++) {
@@ -86,8 +91,9 @@ public final class TextureAtlasAssetImportService {
                 try {
                     publication.staged.parent().mkdirs();
                     move(publication.target, publication.staged);
+                } catch (RuntimeException rollback) {
+                    failure.addSuppressed(rollback);
                 }
-                catch (RuntimeException rollback) { failure.addSuppressed(rollback); }
             }
             for (AssetMeta meta : created) database.removeById(meta.id()); // Allocated IDs remain consumed.
             throw failure;
@@ -136,8 +142,9 @@ public final class TextureAtlasAssetImportService {
                 || !"atlas".equalsIgnoreCase(descriptor.extension()))
             throw new IllegalArgumentException("A readable LibGDX .atlas descriptor is required.");
         TextureAtlasData data;
-        try { data = new TextureAtlasData(descriptor, descriptor.parent(), false); }
-        catch (RuntimeException failure) {
+        try {
+            data = new TextureAtlasData(descriptor, descriptor.parent(), false);
+        } catch (RuntimeException failure) {
             throw new IllegalArgumentException("Invalid LibGDX atlas '" + descriptor.name() + "': " + failure.getMessage(), failure);
         }
         if (data.getPages().isEmpty() || data.getRegions().isEmpty())
@@ -154,17 +161,23 @@ public final class TextureAtlasAssetImportService {
         try {
             if (!path.toRealPath().startsWith(root.toRealPath()))
                 throw new IllegalArgumentException("Atlas page escapes the descriptor folder: " + page.name);
-        } catch (IOException failure) { throw new IllegalArgumentException("Cannot read atlas page: " + page.name, failure); }
+        } catch (IOException failure) {
+            throw new IllegalArgumentException("Cannot read atlas page: " + page.name, failure);
+        }
         if (!"png".equalsIgnoreCase(page.textureFile.extension()))
             throw new IllegalArgumentException("Atlas page must be a PNG: " + page.name);
-        if (page.pma) throw new IllegalArgumentException("Premultiplied-alpha atlas pages are unsupported: " + page.name);
+        if (page.pma)
+            throw new IllegalArgumentException("Premultiplied-alpha atlas pages are unsupported: " + page.name);
         byte[] bytes = page.textureFile.readBytes();
         byte[] signature = {(byte) 137, 80, 78, 71, 13, 10, 26, 10};
         if (bytes.length < signature.length || !Arrays.equals(signature, Arrays.copyOf(bytes, signature.length)))
             throw new IllegalArgumentException("Atlas page is not a PNG: " + page.name);
         Pixmap pixels;
-        try { pixels = new Pixmap(bytes, 0, bytes.length); }
-        catch (RuntimeException failure) { throw new IllegalArgumentException("Cannot decode PNG atlas page: " + page.name, failure); }
+        try {
+            pixels = new Pixmap(bytes, 0, bytes.length);
+        } catch (RuntimeException failure) {
+            throw new IllegalArgumentException("Cannot decode PNG atlas page: " + page.name, failure);
+        }
         // An omitted page size is legal in LibGDX; a declared size must match the actual PNG.
         if ((page.width != 0 || page.height != 0)
                 && (page.width != pixels.getWidth() || page.height != pixels.getHeight())) {
@@ -205,12 +218,19 @@ public final class TextureAtlasAssetImportService {
     }
 
     private static void move(FileHandle source, FileHandle target) {
-        try { Files.move(source.file().toPath(), target.file().toPath()); }
-        catch (IOException failure) { throw new IllegalStateException("Cannot publish atlas Asset: " + target, failure); }
+        try {
+            Files.move(source.file().toPath(), target.file().toPath());
+        } catch (IOException failure) {
+            throw new IllegalStateException("Cannot publish atlas Asset: " + target, failure);
+        }
     }
 
-    private record Move(FileHandle staged, FileHandle target) { }
+    private record Move(FileHandle staged, FileHandle target) {
+    }
+
     private record Group(String name, AssetType type, List<Region> regions, Set<Integer> indices) {
-        String logicalPath() { return (type == AssetType.ANIMATION ? StudioFs.PREFIX_ANIMATIONS : StudioFs.PREFIX_IMAGES) + name; }
+        String logicalPath() {
+            return (type == AssetType.ANIMATION ? StudioFs.PREFIX_ANIMATIONS : StudioFs.PREFIX_IMAGES) + name;
+        }
     }
 }

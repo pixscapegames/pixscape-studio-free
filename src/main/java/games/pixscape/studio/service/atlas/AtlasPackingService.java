@@ -7,7 +7,9 @@ import games.pixscape.runtime.hud.HudTextureProfile;
 
 import java.io.IOException;
 
-/** One TexturePacker configuration authority for generated Studio atlases. */
+/**
+ * One TexturePacker configuration authority for generated Studio atlases.
+ */
 public final class AtlasPackingService {
     private AtlasPackingService() {
     }
@@ -17,7 +19,7 @@ public final class AtlasPackingService {
     }
 
     public static void packHud(FileHandle inputDir, FileHandle outputDir, String atlasName,
-                        HudTextureProfile profile) {
+                               HudTextureProfile profile) {
         TexturePacker.process(hudSettings(profile), inputDir.path(), outputDir.path(), atlasName);
     }
 
@@ -35,7 +37,9 @@ public final class AtlasPackingService {
         return settings;
     }
 
-    /** Shared GL-free validation, independent of membership or logical region identity. */
+    /**
+     * Shared GL-free validation, independent of membership or logical region identity.
+     */
     public static void validateHudPages(TextureAtlasData data, HudTextureProfile profile) {
         if (data.getPages().size == 0) throw new IllegalStateException("HUD atlas has no pages.");
         for (TextureAtlasData.Page page : data.getPages()) {
@@ -51,7 +55,9 @@ public final class AtlasPackingService {
                 var image = javax.imageio.ImageIO.read(page.textureFile.file());
                 if (image == null || image.getWidth() != profile.pageWidth() || image.getHeight() != profile.pageHeight())
                     throw new IllegalStateException("HUD atlas page pixels do not match profile dimensions.");
-            } catch (IOException failure) { throw new IllegalStateException("Invalid HUD atlas page pixels", failure); }
+            } catch (IOException failure) {
+                throw new IllegalStateException("Invalid HUD atlas page pixels", failure);
+            }
         }
     }
 

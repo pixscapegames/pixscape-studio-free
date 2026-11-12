@@ -15,7 +15,9 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.TextureArrayUploads;
 import games.pixscape.runtime.service.TextureRegistry;
 
-/** CPU-only, generation-scoped atlas and texture-array publication input. */
+/**
+ * CPU-only, generation-scoped atlas and texture-array publication input.
+ */
 public final class PreparedAtlasPublication implements AutoCloseable {
 
     private final String sceneTag;
@@ -35,7 +37,7 @@ public final class PreparedAtlasPublication implements AutoCloseable {
     private boolean disposed;
     private TextureAtlas.TextureAtlasData normalData;
     private final Array<Pixmap> normalPixels = new Array<>();
-    private long normalByteSize,normalPreparationNs,normalReadNs,normalDecodeNs;
+    private long normalByteSize, normalPreparationNs, normalReadNs, normalDecodeNs;
 
     private PreparedAtlasPublication(String sceneTag,
                                      long generation,
@@ -75,18 +77,18 @@ public final class PreparedAtlasPublication implements AutoCloseable {
 
     public static PreparedAtlasPublication prepare(String sceneTag, long generation,
                                                    FileHandle atlasFile, boolean useNormalMaps) {
-        return prepare(sceneTag,generation,atlasFile,AtlasRuntimeService.fixedLayerSize(),useNormalMaps);
+        return prepare(sceneTag, generation, atlasFile, AtlasRuntimeService.fixedLayerSize(), useNormalMaps);
     }
 
     static PreparedAtlasPublication prepare(String sceneTag,
                                             long generation,
                                             FileHandle atlasFile,
                                             int layerSize) {
-        return prepare(sceneTag,generation,atlasFile,layerSize,true);
+        return prepare(sceneTag, generation, atlasFile, layerSize, true);
     }
 
-    static PreparedAtlasPublication prepare(String sceneTag,long generation,
-                                                     FileHandle atlasFile,int layerSize,boolean useNormalMaps) {
+    static PreparedAtlasPublication prepare(String sceneTag, long generation,
+                                            FileHandle atlasFile, int layerSize, boolean useNormalMaps) {
         if (atlasFile == null) throw new IllegalArgumentException("Atlas file must not be null.");
         long started = System.nanoTime();
         TextureAtlas.TextureAtlasData data = new TextureAtlas.TextureAtlasData(
@@ -95,24 +97,29 @@ public final class PreparedAtlasPublication implements AutoCloseable {
                 false
         );
         long metadataNs = System.nanoTime() - started;
-        PreparedAtlasPublication candidate=prepareFromData(sceneTag, generation, data, layerSize, started, metadataNs);
+        PreparedAtlasPublication candidate = prepareFromData(sceneTag, generation, data, layerSize, started, metadataNs);
         try {
-            long normalStarted=System.nanoTime();
-            FileHandle normals=atlasFile.sibling(sceneTag+games.pixscape.runtime.service.NormalMapAtlas.SUFFIX+".atlas");
-            if(useNormalMaps && normals.exists()) {
-                candidate.normalData=new TextureAtlas.TextureAtlasData(normals,normals.parent(),false);
-                for(TextureAtlas.TextureAtlasData.Page page:candidate.normalData.getPages()) {
-                    long phase=System.nanoTime();
-                    byte[] encoded=page.textureFile.readBytes();
-                    candidate.normalReadNs+=System.nanoTime()-phase;phase=System.nanoTime();
-                    Pixmap pixels=new Pixmap(encoded,0,encoded.length);candidate.normalPixels.add(pixels);
-                    candidate.normalDecodeNs+=System.nanoTime()-phase;
-                    candidate.normalByteSize+=pixels.getPixels().capacity();
+            long normalStarted = System.nanoTime();
+            FileHandle normals = atlasFile.sibling(sceneTag + games.pixscape.runtime.service.NormalMapAtlas.SUFFIX + ".atlas");
+            if (useNormalMaps && normals.exists()) {
+                candidate.normalData = new TextureAtlas.TextureAtlasData(normals, normals.parent(), false);
+                for (TextureAtlas.TextureAtlasData.Page page : candidate.normalData.getPages()) {
+                    long phase = System.nanoTime();
+                    byte[] encoded = page.textureFile.readBytes();
+                    candidate.normalReadNs += System.nanoTime() - phase;
+                    phase = System.nanoTime();
+                    Pixmap pixels = new Pixmap(encoded, 0, encoded.length);
+                    candidate.normalPixels.add(pixels);
+                    candidate.normalDecodeNs += System.nanoTime() - phase;
+                    candidate.normalByteSize += pixels.getPixels().capacity();
                 }
             }
-            candidate.normalPreparationNs=System.nanoTime()-normalStarted;
+            candidate.normalPreparationNs = System.nanoTime() - normalStarted;
             return candidate;
-        } catch(RuntimeException | Error failure) {candidate.close();throw failure;}
+        } catch (RuntimeException | Error failure) {
+            candidate.close();
+            throw failure;
+        }
     }
 
     static PreparedAtlasPublication prepareFromPages(String sceneTag,
@@ -310,7 +317,7 @@ public final class PreparedAtlasPublication implements AutoCloseable {
     }
 
     public long byteSize() {
-        return byteSize+normalByteSize;
+        return byteSize + normalByteSize;
     }
 
     public long preparationNs() {
@@ -396,20 +403,26 @@ public final class PreparedAtlasPublication implements AutoCloseable {
 
             phaseStarted = System.nanoTime();
             atlas = new TextureAtlas(atlasData);
-            if(normalData!=null) {
-                long normalUploadStarted=System.nanoTime();
-                for(int i=0;i<normalData.getPages().size;i++) {
-                    TextureAtlas.TextureAtlasData.Page page=normalData.getPages().get(i);
-                    FileHandle publishedFile=publishedImagesDir.child(page.name);
-                    Texture texture=pageUploader.upload(publishedFile,normalPixels.get(i),page);
-                    if(texture==null)throw new IllegalStateException("Normal page upload returned null: "+page.name);
-                    page.textureFile=publishedFile;page.texture=texture;normalTextures.add(texture);
+            if (normalData != null) {
+                long normalUploadStarted = System.nanoTime();
+                for (int i = 0; i < normalData.getPages().size; i++) {
+                    TextureAtlas.TextureAtlasData.Page page = normalData.getPages().get(i);
+                    FileHandle publishedFile = publishedImagesDir.child(page.name);
+                    Texture texture = pageUploader.upload(publishedFile, normalPixels.get(i), page);
+                    if (texture == null)
+                        throw new IllegalStateException("Normal page upload returned null: " + page.name);
+                    page.textureFile = publishedFile;
+                    page.texture = texture;
+                    normalTextures.add(texture);
                 }
-                long normalUploadNs=System.nanoTime()-normalUploadStarted;pageUploadNs+=normalUploadNs;
-                phaseStarted+=normalUploadNs;
-                normalAtlas=new TextureAtlas(normalData);normalTextures.clear();
-                TextureAtlas transfer=normalAtlas;normalAtlas=null;
-                normals=new games.pixscape.runtime.service.NormalMapAtlas(sceneTag,transfer,atlas);
+                long normalUploadNs = System.nanoTime() - normalUploadStarted;
+                pageUploadNs += normalUploadNs;
+                phaseStarted += normalUploadNs;
+                normalAtlas = new TextureAtlas(normalData);
+                normalTextures.clear();
+                TextureAtlas transfer = normalAtlas;
+                normalAtlas = null;
+                normals = new games.pixscape.runtime.service.NormalMapAtlas(sceneTag, transfer, atlas);
             }
             atlasAssemblyNs = System.nanoTime() - phaseStarted;
             Array<Texture> snapshotPageTextures = AtlasRuntimeService.getPageTextures(atlas);
@@ -425,28 +438,30 @@ public final class PreparedAtlasPublication implements AutoCloseable {
             atlas = null;
             textureArray = null;
             pageTextures.clear();
-            Uploaded result=new Uploaded(
+            Uploaded result = new Uploaded(
                     sceneTag,
                     generation,
                     new Array<>(snapshotPageNames),
                     snapshotPageTextures,
                     transferredAtlas,
                     transferredArray,
-                    preparationNs+normalPreparationNs,
+                    preparationNs + normalPreparationNs,
                     metadataPreparationNs,
-                    pageFileReadNs+normalReadNs,
-                    pageDecodeNormalizeNs+normalDecodeNs,
-                    pagePixelsPreparationNs+normalPreparationNs,
+                    pageFileReadNs + normalReadNs,
+                    pageDecodeNormalizeNs + normalDecodeNs,
+                    pagePixelsPreparationNs + normalPreparationNs,
                     arrayUploadNs,
                     pageUploadNs,
                     atlasAssemblyNs,
-                    byteSize+normalByteSize
+                    byteSize + normalByteSize
             );
-            result.normals=normals;normals=null;return result;
+            result.normals = normals;
+            normals = null;
+            return result;
         } finally {
-            if(normals!=null)normals.dispose();
-            if(normalAtlas!=null)normalAtlas.dispose();
-            for(Texture texture:normalTextures)texture.dispose();
+            if (normals != null) normals.dispose();
+            if (normalAtlas != null) normalAtlas.dispose();
+            for (Texture texture : normalTextures) texture.dispose();
             if (atlas != null) {
                 atlas.dispose();
             } else if (!pageTextures.isEmpty()) {
@@ -462,7 +477,7 @@ public final class PreparedAtlasPublication implements AutoCloseable {
     public void close() {
         if (disposed) return;
         disposed = true;
-        for(Pixmap pixels:normalPixels)if(!pixels.isDisposed())pixels.dispose();
+        for (Pixmap pixels : normalPixels) if (!pixels.isDisposed()) pixels.dispose();
         normalPixels.clear();
         if (!snapshotLayers.isEmpty()) {
             Pixmap white = snapshotLayers.first();
@@ -473,10 +488,14 @@ public final class PreparedAtlasPublication implements AutoCloseable {
         snapshotLayers.clear();
     }
 
-    /** A scene option may change while a color publication is being prepared. */
+    /**
+     * A scene option may change while a color publication is being prepared.
+     */
     public void omitNormalMaps() {
-        for(Pixmap pixels:normalPixels)if(!pixels.isDisposed())pixels.dispose();
-        normalPixels.clear();normalData=null;normalByteSize=0;
+        for (Pixmap pixels : normalPixels) if (!pixels.isDisposed()) pixels.dispose();
+        normalPixels.clear();
+        normalData = null;
+        normalByteSize = 0;
     }
 
     private static Texture uploadPageTexture(FileHandle publishedFile,
@@ -622,8 +641,11 @@ public final class PreparedAtlasPublication implements AutoCloseable {
         public TextureAtlas atlas() {
             return atlas;
         }
+
         public games.pixscape.runtime.service.NormalMapAtlas takeNormals() {
-            games.pixscape.runtime.service.NormalMapAtlas result=normals;normals=null;return result;
+            games.pixscape.runtime.service.NormalMapAtlas result = normals;
+            normals = null;
+            return result;
         }
 
         public TextureAtlas takeAtlas() {
@@ -656,7 +678,10 @@ public final class PreparedAtlasPublication implements AutoCloseable {
 
         @Override
         public void close() {
-            if(normals!=null){normals.dispose();normals=null;}
+            if (normals != null) {
+                normals.dispose();
+                normals = null;
+            }
             if (atlas != null) {
                 atlas.dispose();
                 atlas = null;

@@ -13,19 +13,19 @@ public class HistoryManagerOutcomeTest {
         history.undo();
         int[] publications = {0};
         history.setListener((undoSize, redoSize, undoLabel, redoLabel, dirty) -> publications[0]++);
-        long mutation=history.getMutationRevision();
+        long mutation = history.getMutationRevision();
 
         OutcomeCommand rejected = new OutcomeCommand("Rejected", CommandOutcome.REJECTED);
         history.execute(rejected);
         assertRedoOnly(history, "Legacy");
         Assert.assertEquals(0, publications[0]);
-        Assert.assertEquals(mutation,history.getMutationRevision());
+        Assert.assertEquals(mutation, history.getMutationRevision());
 
         OutcomeCommand noChange = new OutcomeCommand("No change", CommandOutcome.NO_CHANGE);
         history.execute(noChange);
         assertRedoOnly(history, "Legacy");
         Assert.assertEquals(0, publications[0]);
-        Assert.assertEquals(mutation,history.getMutationRevision());
+        Assert.assertEquals(mutation, history.getMutationRevision());
     }
 
     @Test
@@ -227,16 +227,34 @@ public class HistoryManagerOutcomeTest {
             this.executeOutcome = executeOutcome;
         }
 
-        @Override public String label() { return label; }
-        @Override public void redo() { }
-        @Override public void undo() { }
+        @Override
+        public String label() {
+            return label;
+        }
+
+        @Override
+        public void redo() {
+        }
+
+        @Override
+        public void undo() {
+        }
+
         @Override
         public CommandOutcome executeOutcome() {
             if (throwExecute) throw new IllegalStateException("programming failure");
             return executeOutcome;
         }
-        @Override public CommandOutcome undoOutcome() { return undoOutcome; }
-        @Override public CommandOutcome redoOutcome() { return redoOutcome; }
+
+        @Override
+        public CommandOutcome undoOutcome() {
+            return undoOutcome;
+        }
+
+        @Override
+        public CommandOutcome redoOutcome() {
+            return redoOutcome;
+        }
     }
 
     private static final class MarkedOutcomeCommand
@@ -245,16 +263,41 @@ public class HistoryManagerOutcomeTest {
         private int noopCheckCount;
         private int redoCount;
 
-        @Override public String label() { return "Marked outcome"; }
-        @Override public boolean isNoop() { noopCheckCount++; return true; }
-        @Override public void redo() { redoCount++; }
-        @Override public void undo() { }
-        @Override public CommandOutcome executeOutcome() {
+        @Override
+        public String label() {
+            return "Marked outcome";
+        }
+
+        @Override
+        public boolean isNoop() {
+            noopCheckCount++;
+            return true;
+        }
+
+        @Override
+        public void redo() {
+            redoCount++;
+        }
+
+        @Override
+        public void undo() {
+        }
+
+        @Override
+        public CommandOutcome executeOutcome() {
             executeCount++;
             return CommandOutcome.APPLIED;
         }
-        @Override public CommandOutcome undoOutcome() { return CommandOutcome.APPLIED; }
-        @Override public CommandOutcome redoOutcome() { return CommandOutcome.APPLIED; }
+
+        @Override
+        public CommandOutcome undoOutcome() {
+            return CommandOutcome.APPLIED;
+        }
+
+        @Override
+        public CommandOutcome redoOutcome() {
+            return CommandOutcome.APPLIED;
+        }
     }
 
     private static final class MarkedCommand implements Command, PreExecutionNoopCommand {
@@ -269,19 +312,49 @@ public class HistoryManagerOutcomeTest {
             this.revision = revision;
         }
 
-        @Override public String label() { return label; }
-        @Override public boolean isNoop() { return noop; }
-        @Override public void redo() { redoCount++; revision[0]++; }
-        @Override public void undo() { revision[0]--; }
+        @Override
+        public String label() {
+            return label;
+        }
+
+        @Override
+        public boolean isNoop() {
+            return noop;
+        }
+
+        @Override
+        public void redo() {
+            redoCount++;
+            revision[0]++;
+        }
+
+        @Override
+        public void undo() {
+            revision[0]--;
+        }
     }
 
     private static final class LegacyNoopCommand implements Command, HistoryManager.SupportsNoop {
         private int redoCount;
 
-        @Override public String label() { return "Legacy no-op"; }
-        @Override public boolean isNoop() { return true; }
-        @Override public void redo() { redoCount++; }
-        @Override public void undo() { }
+        @Override
+        public String label() {
+            return "Legacy no-op";
+        }
+
+        @Override
+        public boolean isNoop() {
+            return true;
+        }
+
+        @Override
+        public void redo() {
+            redoCount++;
+        }
+
+        @Override
+        public void undo() {
+        }
     }
 
     private static final class TestCommand implements Command {
@@ -295,7 +368,10 @@ public class HistoryManagerOutcomeTest {
             this.label = label;
         }
 
-        @Override public String label() { return label; }
+        @Override
+        public String label() {
+            return label;
+        }
 
         @Override
         public void redo() {

@@ -35,12 +35,15 @@ import java.util.ArrayList;
 import static org.junit.Assert.*;
 
 public class HudAssetDropControllerTest {
-    @Rule public TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public TemporaryFolder temporary = new TemporaryFolder();
     private static GL20 previousGl;
     private static GL20 previousGl20;
 
-    @BeforeClass public static void bootGdx() {
-        if (Gdx.app == null) new HeadlessApplication(new ApplicationAdapter() {},
+    @BeforeClass
+    public static void bootGdx() {
+        if (Gdx.app == null) new HeadlessApplication(new ApplicationAdapter() {
+        },
                 new HeadlessApplicationConfiguration());
         previousGl = Gdx.gl;
         previousGl20 = Gdx.gl20;
@@ -49,14 +52,19 @@ public class HudAssetDropControllerTest {
         Gdx.gl20 = Gdx.gl;
     }
 
-    @AfterClass public static void restoreGl() {
+    @AfterClass
+    public static void restoreGl() {
         Gdx.gl = previousGl;
         Gdx.gl20 = previousGl20;
     }
 
-    @After public void clearDrag() { DragContext.get().cancel(); }
+    @After
+    public void clearDrag() {
+        DragContext.get().cancel();
+    }
 
-    @Test public void sharedDragReleaseUsesProjectedTargetSizeBoundsAndSelectionHistory() throws Exception {
+    @Test
+    public void sharedDragReleaseUsesProjectedTargetSizeBoundsAndSelectionHistory() throws Exception {
         Graphics previousGraphics = Gdx.graphics;
         Gdx.graphics = logicalGraphics(400, 300);
         ActualFixture f = null;
@@ -129,7 +137,8 @@ public class HudAssetDropControllerTest {
         }
     }
 
-    @Test public void cursorFeedbackTracksTheSameLiveDestinationUsedByDrop() throws Exception {
+    @Test
+    public void cursorFeedbackTracksTheSameLiveDestinationUsedByDrop() throws Exception {
         Graphics previousGraphics = Gdx.graphics;
         Gdx.graphics = logicalGraphics(400, 300);
         ActualFixture f = null;
@@ -160,7 +169,8 @@ public class HudAssetDropControllerTest {
         }
     }
 
-    @Test public void tableDropsUseNativeCellPreferenceAndRetainOrderThroughHistory() throws Exception {
+    @Test
+    public void tableDropsUseNativeCellPreferenceAndRetainOrderThroughHistory() throws Exception {
         Graphics previousGraphics = Gdx.graphics;
         Gdx.graphics = logicalGraphics(400, 300);
         ActualFixture f = null;
@@ -218,7 +228,8 @@ public class HudAssetDropControllerTest {
         }
     }
 
-    @Test public void windowImageDropUsesCellOnlyInsideItsVisibleContent() throws Exception {
+    @Test
+    public void windowImageDropUsesCellOnlyInsideItsVisibleContent() throws Exception {
         Graphics previousGraphics = Gdx.graphics;
         Gdx.graphics = logicalGraphics(400, 300);
         ActualFixture f = null;
@@ -242,7 +253,8 @@ public class HudAssetDropControllerTest {
         }
     }
 
-    @Test public void imagePayloadDropUsesNormalEditSelectionCoordinatesAndHistory() throws Exception {
+    @Test
+    public void imagePayloadDropUsesNormalEditSelectionCoordinatesAndHistory() throws Exception {
         Fixture f = fixture();
         HudFreePlacement placement = new HudFreePlacement();
         placement.offsetX = 123f;
@@ -276,7 +288,8 @@ public class HudAssetDropControllerTest {
         f.close();
     }
 
-    @Test public void managedTargetsKeepCellDirectAndSingleChildCapacityPolicies() throws Exception {
+    @Test
+    public void managedTargetsKeepCellDirectAndSingleChildCapacityPolicies() throws Exception {
         Fixture f = fixture();
         f.hud.editSession().edit("Add managed layouts", candidate -> {
             games.pixscape.studio.service.hud.HudLayoutAuthoring.addChild(
@@ -307,7 +320,8 @@ public class HudAssetDropControllerTest {
         f.close();
     }
 
-    @Test public void cancellingSharedDragMutatesNothing() throws Exception {
+    @Test
+    public void cancellingSharedDragMutatesNothing() throws Exception {
         Fixture f = fixture();
         DragContext.get().begin(imagePayload(f.image.id()));
         DragContext.get().cancel();
@@ -316,7 +330,8 @@ public class HudAssetDropControllerTest {
         f.close();
     }
 
-    @Test public void documentSwitchPermanentlyInvalidatesCurrentDrag() throws Exception {
+    @Test
+    public void documentSwitchPermanentlyInvalidatesCurrentDrag() throws Exception {
         Fixture f = fixture();
         DragPayload payload = imagePayload(f.image.id());
         DragContext.get().begin(payload);
@@ -338,7 +353,8 @@ public class HudAssetDropControllerTest {
         f.close();
     }
 
-    @Test public void unsupportedInactiveInvalidAndStaleTargetsNeverPublish() throws Exception {
+    @Test
+    public void unsupportedInactiveInvalidAndStaleTargetsNeverPublish() throws Exception {
         Fixture f = fixture();
         HudEditorSession.ImageDropTarget root =
                 new HudEditorSession.ImageDropTarget("root", new HudFreePlacement());
@@ -361,7 +377,8 @@ public class HudAssetDropControllerTest {
         f.close();
     }
 
-    @Test public void onlyProjectImageAssetIdentityIsEligible() throws Exception {
+    @Test
+    public void onlyProjectImageAssetIdentityIsEligible() throws Exception {
         Fixture f = fixture();
         AssetMeta animation = f.database.registerIfAbsent(AssetType.ANIMATION,
                 "animations/walk", "orig/animations/walk__a2.png", AssetMeta.AssetScope.USER);
@@ -375,7 +392,8 @@ public class HudAssetDropControllerTest {
         f.close();
     }
 
-    @Test public void imageDropAssignsImageButtonUpStateInOneUndoableOperation() throws Exception {
+    @Test
+    public void imageDropAssignsImageButtonUpStateInOneUndoableOperation() throws Exception {
         Fixture f = fixture();
         f.hud.editSession().edit("Add button", document -> {
             HudNode button = new HudNode("button", HudNodeKind.IMAGE_BUTTON);
@@ -399,7 +417,8 @@ public class HudAssetDropControllerTest {
         f.close();
     }
 
-    @Test public void imageDropAssignsImageTextButtonUpStateInOneUndoableOperation() throws Exception {
+    @Test
+    public void imageDropAssignsImageTextButtonUpStateInOneUndoableOperation() throws Exception {
         Fixture f = fixture();
         f.hud.editSession().edit("Add button", document -> {
             HudNode button = new HudNode("button", HudNodeKind.IMAGE_TEXT_BUTTON);
@@ -534,14 +553,21 @@ public class HudAssetDropControllerTest {
                            EditorDocumentManager manager, HudScreenEditorDocument hud,
                            HudEditorSession session, HudImageAuthoringService authoring,
                            HudAssetDropController controller) {
-        void close() { controller.close(); authoring.close(); }
+        void close() {
+            controller.close();
+            authoring.close();
+        }
     }
 
     private record ActualFixture(AssetMeta image, HudScreenEditorDocument hud,
                                  HudEditorSession session, HudImageAuthoringService authoring,
                                  HudAssetDropController controller,
                                  ArrayList<RuntimeException> failures) {
-        void close() { controller.close(); authoring.close(); session.dispose(); }
+        void close() {
+            controller.close();
+            authoring.close();
+            session.dispose();
+        }
     }
 
     private static Batch inertBatch() {

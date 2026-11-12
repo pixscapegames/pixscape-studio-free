@@ -5,12 +5,23 @@ import com.badlogic.gdx.files.FileHandle;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Rollback boundary for a logical save comprising several atomic file replacements. */
+/**
+ * Rollback boundary for a logical save comprising several atomic file replacements.
+ */
 public final class AtomicTextPublication {
-    @FunctionalInterface public interface Writer { void write(FileHandle target, String content); }
-    public record Entry(FileHandle target, String content) {}
-    private record Previous(FileHandle target, byte[] bytes, FileHandle backup, byte[] backupBytes) {}
-    private AtomicTextPublication() {}
+    @FunctionalInterface
+    public interface Writer {
+        void write(FileHandle target, String content);
+    }
+
+    public record Entry(FileHandle target, String content) {
+    }
+
+    private record Previous(FileHandle target, byte[] bytes, FileHandle backup, byte[] backupBytes) {
+    }
+
+    private AtomicTextPublication() {
+    }
 
     public static void publish(List<Entry> entries, Writer writer) {
         List<Previous> previous = new ArrayList<>();

@@ -40,17 +40,21 @@ public final class SceneAtlasInputService {
         return false;
     }
 
-    /** Refreshes an already materialized closed Scene's color inputs, without changing its membership. */
+    /**
+     * Refreshes an already materialized closed Scene's color inputs, without changing its membership.
+     */
     public void refreshImportedColorInputs(FileHandle project, String tag, java.util.Map<String, String> replacements) {
         FileHandle input = inputDir(project, tag);
         for (var entry : replacements.entrySet()) {
             FileHandle oldInput = input.child(new FileHandle(entry.getKey()).name());
             if (!oldInput.exists()) continue;
             if (entry.getValue() == null) {
-                if (!oldInput.delete()) throw new IllegalStateException("Cannot remove obsolete atlas input: " + oldInput);
+                if (!oldInput.delete())
+                    throw new IllegalStateException("Cannot remove obsolete atlas input: " + oldInput);
             } else {
                 FileHandle source = project.child(entry.getValue());
-                if (!source.exists()) throw new IllegalArgumentException("Imported color resource is missing: " + source);
+                if (!source.exists())
+                    throw new IllegalArgumentException("Imported color resource is missing: " + source);
                 FileHandle dest = input.child(source.name());
                 source.copyTo(dest);
                 if (!dest.equals(oldInput) && !oldInput.delete())
@@ -63,11 +67,12 @@ public final class SceneAtlasInputService {
                                                     String sceneTag,
                                                     FileHandle projectDir,
                                                     Set<String> requiredProjectRelativePaths) {
-        return syncSceneAtlasInput(cfg,sceneTag,projectDir,requiredProjectRelativePaths,
-                projectDir!=null && projectDir.child(StudioFs.FILE_ASSETS_JSON).exists()?AssetMetaDatabase.load(projectDir.child(StudioFs.FILE_ASSETS_JSON)):null);
+        return syncSceneAtlasInput(cfg, sceneTag, projectDir, requiredProjectRelativePaths,
+                projectDir != null && projectDir.child(StudioFs.FILE_ASSETS_JSON).exists() ? AssetMetaDatabase.load(projectDir.child(StudioFs.FILE_ASSETS_JSON)) : null);
     }
-    public AtlasInputSyncResult syncSceneAtlasInput(ProjectConfig cfg,String sceneTag,FileHandle projectDir,
-            Set<String> requiredProjectRelativePaths,AssetMetaDatabase assetDb) {
+
+    public AtlasInputSyncResult syncSceneAtlasInput(ProjectConfig cfg, String sceneTag, FileHandle projectDir,
+                                                    Set<String> requiredProjectRelativePaths, AssetMetaDatabase assetDb) {
         if (cfg == null) throw new IllegalArgumentException("cfg is null");
         if (sceneTag == null || sceneTag.isBlank()) throw new IllegalArgumentException("sceneTag is blank");
         if (projectDir == null) throw new IllegalArgumentException("projectDir is null");
@@ -78,8 +83,8 @@ public final class SceneAtlasInputService {
 
         AtlasInputSyncResult result = AtlasInputFileSync.sync(
                 projectDir, inputDir(projectDir, sceneTag), required, false, true);
-        AtlasInputSyncResult normals=NormalAtlasPackingService.sync(projectDir,inputDir(projectDir,sceneTag),assetDb,required);
-        result=new AtlasInputSyncResult(result.changed()||normals.changed(),result.copiedCount()+normals.copiedCount(),result.deletedCount()+normals.deletedCount());
+        AtlasInputSyncResult normals = NormalAtlasPackingService.sync(projectDir, inputDir(projectDir, sceneTag), assetDb, required);
+        result = new AtlasInputSyncResult(result.changed() || normals.changed(), result.copiedCount() + normals.copiedCount(), result.deletedCount() + normals.deletedCount());
         Gdx.app.log(TAG,
                 "Atlas input synced: scene=" + sceneTag
                         + " changed=" + result.changed()
@@ -97,7 +102,7 @@ public final class SceneAtlasInputService {
         }
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
         Set<String> required = collectRequiredAtlasInputPathsForScene(cfg, world, cfg.getCurrentSceneMeta(), assetDb, tileAnimationsDb);
-        return syncSceneAtlasInput(cfg, cfg.canonicalSceneTagCurrent(), projectDir, required,assetDb);
+        return syncSceneAtlasInput(cfg, cfg.canonicalSceneTagCurrent(), projectDir, required, assetDb);
     }
 
     public IntSet collectUsedTiledRenderableAssetIds(World world,
@@ -129,10 +134,10 @@ public final class SceneAtlasInputService {
     }
 
     public Set<String> collectRequiredAtlasInputPathsForScene(ProjectConfig cfg,
-                                                                      World world,
-                                                                      SceneMeta scene,
-                                                                      AssetMetaDatabase assetDb,
-                                                                      TileAnimationsMetaDatabase tileAnimationsDb) {
+                                                              World world,
+                                                              SceneMeta scene,
+                                                              AssetMetaDatabase assetDb,
+                                                              TileAnimationsMetaDatabase tileAnimationsDb) {
         Set<String> required = new HashSet<>();
         ComponentMapper<AssetRefComponent> mAssetRef = world.getMapper(AssetRefComponent.class);
         IntBag assetRefs = world.getAspectSubscriptionManager().get(Aspect.all(AssetRefComponent.class)).getEntities();
@@ -217,10 +222,10 @@ public final class SceneAtlasInputService {
     }
 
     private void addRuntimeAvailableGameObjectSources(ProjectConfig cfg,
-                                                  World world,
-                                                  AssetMetaDatabase assetDb,
-                                                  SceneRuntimeAvailabilityData availability,
-                                                  Set<String> required) {
+                                                      World world,
+                                                      AssetMetaDatabase assetDb,
+                                                      SceneRuntimeAvailabilityData availability,
+                                                      Set<String> required) {
         if (cfg == null || world == null || assetDb == null) return;
 
         GameObjectAssetService gameObjectAssetService = new GameObjectAssetService(world);

@@ -4,16 +4,21 @@ import games.pixscape.runtime.hud.document.HudFreePlacement;
 import games.pixscape.runtime.hud.document.HudHorizontalAnchor;
 import games.pixscape.runtime.hud.document.HudVerticalAnchor;
 
-/** Converts visual FREE bounds to the exact authored anchor/pivot/offset representation. */
+/**
+ * Converts visual FREE bounds to the exact authored anchor/pivot/offset representation.
+ */
 public final class HudFreeTransform {
     public record Snapshot(HudHorizontalAnchor horizontalAnchor, HudVerticalAnchor verticalAnchor,
                            float pivotX, float pivotY, float parentWidth, float parentHeight,
                            float authoredWidth, float authoredHeight,
-                           HudTransformGeometry.Bounds visualBounds) {}
+                           HudTransformGeometry.Bounds visualBounds) {
+    }
 
-    public record Result(float offsetX, float offsetY, float width, float height) {}
+    public record Result(float offsetX, float offsetY, float width, float height) {
+    }
 
-    private HudFreeTransform() {}
+    private HudFreeTransform() {
+    }
 
     public static Snapshot snapshot(HudFreePlacement placement, float authoredWidth,
                                     float authoredHeight, float parentWidth, float parentHeight,

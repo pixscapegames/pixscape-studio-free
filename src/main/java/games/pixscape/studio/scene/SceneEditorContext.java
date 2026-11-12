@@ -28,7 +28,9 @@ public final class SceneEditorContext implements Disposable {
     public static final int DEFAULT_HISTORY_CAPACITY = 1024;
 
     private final HistoryManager historyManager;
-    /** Non-owning compatibility projection; HUD/document activation remains application-owned. */
+    /**
+     * Non-owning compatibility projection; HUD/document activation remains application-owned.
+     */
     private final StudioEditingModeService editingModeService;
     private final PhysicsSelectionService physicsSelectionService;
     private final PhysicsSelectionReconciler physicsSelectionReconciler;
@@ -70,7 +72,9 @@ public final class SceneEditorContext implements Disposable {
         sceneIdentity = normalizeIdentity(initialSceneIdentity);
     }
 
-    /** Completes the single context after WorldCanvas has assembled the Runtime World. */
+    /**
+     * Completes the single context after WorldCanvas has assembled the Runtime World.
+     */
     public SelectionService initializeWorld(World ownedWorld,
                                             TiledAllocatorService tiledAllocatorService,
                                             SceneMeta sceneMeta) {
@@ -94,7 +98,9 @@ public final class SceneEditorContext implements Disposable {
         return selectionService;
     }
 
-    /** Clears per-Scene editor state at the existing single-Scene replacement boundary. */
+    /**
+     * Clears per-Scene editor state at the existing single-Scene replacement boundary.
+     */
     public void resetForSceneReplacement(int sourceTag) {
         ensureInitialized();
         boolean replacingMaterializedScene = sceneIdentity != null;
@@ -114,49 +120,111 @@ public final class SceneEditorContext implements Disposable {
         }
     }
 
-    /** Binds the canonical identity of the Scene loaded into this single live context. */
+    /**
+     * Binds the canonical identity of the Scene loaded into this single live context.
+     */
     public void bindSceneIdentity(String canonicalSceneIdentity) {
         ensureInitialized();
         sceneIdentity = Objects.requireNonNull(
                 normalizeIdentity(canonicalSceneIdentity), "canonicalSceneIdentity");
     }
 
-    public String sceneIdentity() { return sceneIdentity; }
-    public long generation() { return generation; }
-    public int resetCount() { return resetCount; }
-    public int disposeCount() { return disposeCount; }
-    public boolean isDisposed() { return disposed; }
-    public boolean isInitialized() { return world != null && !disposed; }
-    public boolean isActive() { return active && !disposed; }
-    public int attachCount() { return attachCount; }
-    public int detachCount() { return detachCount; }
-    public long processedFrameCount() { return processedFrameCount; }
+    public String sceneIdentity() {
+        return sceneIdentity;
+    }
 
-    public World world() { ensureInitialized(); return world; }
-    /** Technical settings belong to this World, including standalone asset editing Worlds. */
-    public SceneMeta sceneMeta() { ensureInitialized(); return sceneMeta; }
-    public HistoryManager historyManager() { ensureUsable(); return historyManager; }
-    public SelectionService selectionService() { ensureInitialized(); return selectionService; }
-    public LayerService layerService() { ensureInitialized(); return layerService; }
-    public IdentityRegistry identityRegistry() { ensureInitialized(); return identityRegistry; }
+    public long generation() {
+        return generation;
+    }
+
+    public int resetCount() {
+        return resetCount;
+    }
+
+    public int disposeCount() {
+        return disposeCount;
+    }
+
+    public boolean isDisposed() {
+        return disposed;
+    }
+
+    public boolean isInitialized() {
+        return world != null && !disposed;
+    }
+
+    public boolean isActive() {
+        return active && !disposed;
+    }
+
+    public int attachCount() {
+        return attachCount;
+    }
+
+    public int detachCount() {
+        return detachCount;
+    }
+
+    public long processedFrameCount() {
+        return processedFrameCount;
+    }
+
+    public World world() {
+        ensureInitialized();
+        return world;
+    }
+
+    /**
+     * Technical settings belong to this World, including standalone asset editing Worlds.
+     */
+    public SceneMeta sceneMeta() {
+        ensureInitialized();
+        return sceneMeta;
+    }
+
+    public HistoryManager historyManager() {
+        ensureUsable();
+        return historyManager;
+    }
+
+    public SelectionService selectionService() {
+        ensureInitialized();
+        return selectionService;
+    }
+
+    public LayerService layerService() {
+        ensureInitialized();
+        return layerService;
+    }
+
+    public IdentityRegistry identityRegistry() {
+        ensureInitialized();
+        return identityRegistry;
+    }
+
     public PhysicsSelectionService physicsSelectionService() {
         ensureUsable();
         return physicsSelectionService;
     }
+
     public PhysicsSelectionReconciler physicsSelectionReconciler() {
         ensureUsable();
         return physicsSelectionReconciler;
     }
+
     public SpatialBlockSelectionService spatialBlockSelectionService() {
         ensureUsable();
         return spatialBlockSelectionService;
     }
+
     public SpatialTileSelectionService spatialTileSelectionService() {
         ensureUsable();
         return spatialTileSelectionService;
     }
 
-    public StudioEditingMode sceneSubmode() { return sceneSubmode; }
+    public StudioEditingMode sceneSubmode() {
+        return sceneSubmode;
+    }
 
     public void rememberSceneSubmode(StudioEditingMode mode) {
         if (mode != null && mode != StudioEditingMode.HUD) sceneSubmode = mode;
@@ -170,10 +238,21 @@ public final class SceneEditorContext implements Disposable {
         viewStateInitialized = true;
     }
 
-    public boolean hasViewState() { return viewStateInitialized; }
-    public float cameraX() { return cameraX; }
-    public float cameraY() { return cameraY; }
-    public float cameraZoom() { return cameraZoom; }
+    public boolean hasViewState() {
+        return viewStateInitialized;
+    }
+
+    public float cameraX() {
+        return cameraX;
+    }
+
+    public float cameraY() {
+        return cameraY;
+    }
+
+    public float cameraZoom() {
+        return cameraZoom;
+    }
 
     public void markExplicitSaveRequired() {
         ensureUsable();
@@ -203,7 +282,9 @@ public final class SceneEditorContext implements Disposable {
         if (dirtyStateListener != null) dirtyStateListener.run();
     }
 
-    /** Lifecycle hook called only by the shared canvas attachment seam. */
+    /**
+     * Lifecycle hook called only by the shared canvas attachment seam.
+     */
     public void attached() {
         ensureInitialized();
         if (active) return;
@@ -214,7 +295,9 @@ public final class SceneEditorContext implements Disposable {
         spatialTileSelectionService.setContextActive(true);
     }
 
-    /** Suspension preserves all Scene-owned state. */
+    /**
+     * Suspension preserves all Scene-owned state.
+     */
     public void detached() {
         if (!active) return;
         active = false;

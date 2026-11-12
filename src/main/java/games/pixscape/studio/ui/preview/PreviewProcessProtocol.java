@@ -4,7 +4,9 @@ import com.badlogic.gdx.Gdx;
 
 import java.util.Objects;
 
-/** Minimal line protocol between the Studio process and its one Desktop Preview child. */
+/**
+ * Minimal line protocol between the Studio process and its one Desktop Preview child.
+ */
 final class PreviewProcessProtocol {
     static final String PREFIX = "PIXSCAPE_PREVIEW";
     static final String SESSION_PROPERTY = "pixscape.preview.session";

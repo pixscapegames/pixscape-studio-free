@@ -202,17 +202,23 @@ public class EditPropertiesDialogTest {
         Object cost = rowNamed(dialog, "cost");
         VisTextField name = field(cost, "nameField", VisTextField.class);
         for (String invalid : new String[]{" ", "file", "speed"}) {
-            name.setText(invalid); invokeResult(dialog, true); Assert.assertNull(applied.get());
+            name.setText(invalid);
+            invokeResult(dialog, true);
+            Assert.assertNull(applied.get());
         }
         name.setText("cost");
         VisTextField number = field(cost, "numberField", VisTextField.class);
         for (String invalid : new String[]{"bad", "2147483648", "2.5"}) {
-            number.setText(invalid); invokeResult(dialog, true); Assert.assertNull(applied.get());
+            number.setText(invalid);
+            invokeResult(dialog, true);
+            Assert.assertNull(applied.get());
         }
         number.setText("9");
         VisTextField speed = field(rowNamed(dialog, "speed"), "numberField", VisTextField.class);
         for (String invalid : new String[]{"NaN", "Infinity"}) {
-            speed.setText(invalid); invokeResult(dialog, true); Assert.assertNull(applied.get());
+            speed.setText(invalid);
+            invokeResult(dialog, true);
+            Assert.assertNull(applied.get());
         }
         speed.setText("1.25");
         invokeResult(dialog, true);
@@ -310,14 +316,17 @@ public class EditPropertiesDialogTest {
                     new SelectionService(world, layers),
                     identities,
                     new IconResolver(world),
-                    () -> { },
+                    () -> {
+                    },
                     id -> null,
-                    id -> { },
+                    id -> {
+                    },
                     Array::new,
                     new AnimationAssetAuthoringService(
                             AssetMetaDatabase::new,
                             () -> new FileHandle("unused-assets.json"),
-                            ignored -> { }),
+                            ignored -> {
+                            }),
                     0, sceneMeta);
         }
 

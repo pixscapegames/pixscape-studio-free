@@ -10,7 +10,9 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** Owns authoritative mutations of authored Animation asset metadata. */
+/**
+ * Owns authoritative mutations of authored Animation asset metadata.
+ */
 public final class AnimationAssetAuthoringService {
     private final Supplier<AssetMetaDatabase> databaseSupplier;
     private final Supplier<FileHandle> assetsFileSupplier;

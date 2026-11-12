@@ -7,7 +7,9 @@ import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.AddSpatialBlockCommand;
 
-/** Production selection-to-command path shared by pointer release and editor operations. */
+/**
+ * Production selection-to-command path shared by pointer release and editor operations.
+ */
 public final class SpatialWallCreationService {
     private SpatialWallCreationService() {
     }

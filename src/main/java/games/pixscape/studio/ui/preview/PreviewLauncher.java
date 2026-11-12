@@ -22,7 +22,9 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-/** Owns the one Desktop Preview child process associated with this Studio instance. */
+/**
+ * Owns the one Desktop Preview child process associated with this Studio instance.
+ */
 public final class PreviewLauncher {
     private static final Object LOCK = new Object();
     private static final int MAX_LOG_BYTES = 1_048_576;
@@ -111,7 +113,9 @@ public final class PreviewLauncher {
         }
     }
 
-    /** Requests normal child shutdown and only targets the Preview process if it does not exit. */
+    /**
+     * Requests normal child shutdown and only targets the Preview process if it does not exit.
+     */
     public static void close() {
         Session session;
         synchronized (LOCK) {
@@ -149,7 +153,7 @@ public final class PreviewLauncher {
         command.add(Integer.toString(resolution.height()));
         command.add("--gl-samples");
         command.add(Integer.toString(glSamples));
-        if(forwardLighting!=null){
+        if (forwardLighting != null) {
             command.add("--forward-lighting");
             command.add(Boolean.toString(forwardLighting));
         }

@@ -13,10 +13,18 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.Assert.*;
 
 public class AnimationAssetClipsEditorTest {
-    @BeforeClass public static void load() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unload() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void load() {
+        VisUiTestBootstrap.loadSkin();
+    }
 
-    @Test public void cancelDoesNotSaveOrMutateTheSource() throws Exception {
+    @AfterClass
+    public static void unload() {
+        VisUiTestBootstrap.unloadSkin();
+    }
+
+    @Test
+    public void cancelDoesNotSaveOrMutateTheSource() throws Exception {
         AnimationAssetMeta source = animation();
         AtomicReference<AnimationAssetMeta> saved = new AtomicReference<>();
         AnimationClipsDialog dialog = AnimationAssetClipsEditor.create(source, 4, saved::set);
@@ -28,7 +36,8 @@ public class AnimationAssetClipsEditorTest {
         assertEquals(3, source.clips.get("walk").end);
     }
 
-    @Test public void validationPublishesOnlyTheEditedCopy() throws Exception {
+    @Test
+    public void validationPublishesOnlyTheEditedCopy() throws Exception {
         AnimationAssetMeta source = animation();
         AtomicReference<AnimationAssetMeta> saved = new AtomicReference<>();
         AnimationClipsDialog dialog = AnimationAssetClipsEditor.create(source, 4, saved::set);

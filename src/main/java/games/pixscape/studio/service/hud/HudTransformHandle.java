@@ -1,6 +1,8 @@
 package games.pixscape.studio.service.hud;
 
-/** The eight conventional resize handles for a rectangular transform gizmo. */
+/**
+ * The eight conventional resize handles for a rectangular transform gizmo.
+ */
 public enum HudTransformHandle {
     NW(true, false, false, true),
     N(false, false, false, true),
@@ -23,10 +25,27 @@ public enum HudTransformHandle {
         this.north = north;
     }
 
-    public boolean movesWest() { return west; }
-    public boolean movesEast() { return east; }
-    public boolean movesSouth() { return south; }
-    public boolean movesNorth() { return north; }
-    public boolean changesWidth() { return west || east; }
-    public boolean changesHeight() { return south || north; }
+    public boolean movesWest() {
+        return west;
+    }
+
+    public boolean movesEast() {
+        return east;
+    }
+
+    public boolean movesSouth() {
+        return south;
+    }
+
+    public boolean movesNorth() {
+        return north;
+    }
+
+    public boolean changesWidth() {
+        return west || east;
+    }
+
+    public boolean changesHeight() {
+        return south || north;
+    }
 }

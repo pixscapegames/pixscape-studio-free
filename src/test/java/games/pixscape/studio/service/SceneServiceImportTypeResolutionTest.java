@@ -17,7 +17,8 @@ import static org.junit.Assert.assertNotNull;
 
 public class SceneServiceImportTypeResolutionTest {
 
-    @Test public void resolveTextureAtlasWithoutExplicitType() {
+    @Test
+    public void resolveTextureAtlasWithoutExplicitType() {
         assertEquals(ImportDialog.ImportType.ATLAS,
                 SceneService.resolveImportType(new ImportDialog.ImportItem(new FileHandle("sprites.ATLAS"))));
     }

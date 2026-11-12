@@ -40,14 +40,14 @@ import java.lang.reflect.Proxy;
 public class ShaderManagerDialogSkinTest {
 
     private static void installExistingMaterial(File project, String name, ShaderManagerDialog dialog, Object kind) throws Exception {
-        FileHandle directory=new FileHandle(project).child("orig/shaders/custom/material/"+name);
-        FileHandle fixture=new FileHandle("src/test/resources/supplied-shader-before");
-        for(String variant:new String[]{"desktop-gl30","es3-webgl2"}) {
-            fixture.child("core/"+variant+"/texture-array.vert").copyTo(directory.child(variant+".vert"));
-            fixture.child("examples/material/"+variant+"/wave_uv.frag").copyTo(directory.child(variant+".frag"));
+        FileHandle directory = new FileHandle(project).child("orig/shaders/custom/material/" + name);
+        FileHandle fixture = new FileHandle("src/test/resources/supplied-shader-before");
+        for (String variant : new String[]{"desktop-gl30", "es3-webgl2"}) {
+            fixture.child("core/" + variant + "/texture-array.vert").copyTo(directory.child(variant + ".vert"));
+            fixture.child("examples/material/" + variant + "/wave_uv.frag").copyTo(directory.child(variant + ".frag"));
         }
-        Method metadata=privateMethod("buildShaderJson",String.class,kind.getClass(),FileHandle.class);
-        directory.child("shader.json").writeString((String)metadata.invoke(dialog,name,kind,null),false,"UTF-8");
+        Method metadata = privateMethod("buildShaderJson", String.class, kind.getClass(), FileHandle.class);
+        directory.child("shader.json").writeString((String) metadata.invoke(dialog, name, kind, null), false, "UTF-8");
     }
 
     @Test
@@ -453,7 +453,7 @@ public class ShaderManagerDialogSkinTest {
                     targetDir.child("includes/common/nested.glsl").readString("UTF-8"));
             Assert.assertEquals("root include", targetDir.child("includes/root.glsl").readString("UTF-8"));
             String json = targetDir.child("shader.json").readString("UTF-8");
-            Assert.assertEquals("editor_copy",new com.badlogic.gdx.utils.JsonReader().parse(json).getString("name"));
+            Assert.assertEquals("editor_copy", new com.badlogic.gdx.utils.JsonReader().parse(json).getString("name"));
             Assert.assertNull("Preserve fields of the original legacy descriptor", new com.badlogic.gdx.utils.JsonReader().parse(json).get("contract"));
             Assert.assertTrue(json.contains("\"u_gain\""));
             Assert.assertTrue(json.contains("\"u_speed\""));

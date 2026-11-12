@@ -29,8 +29,15 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 public class HudTableContextMenuTest {
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
+
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
 
     @Test
     public void disabledActionsAndMergeUseOneTransactionWithUndoRedo() throws Exception {
@@ -207,6 +214,11 @@ public class HudTableContextMenuTest {
         }
     }
 
-    private record Fixture(HudScreenEditorDocument document, HudEditorSession session) { }
-    @FunctionalInterface private interface StageAction { void run(Stage stage) throws Exception; }
+    private record Fixture(HudScreenEditorDocument document, HudEditorSession session) {
+    }
+
+    @FunctionalInterface
+    private interface StageAction {
+        void run(Stage stage) throws Exception;
+    }
 }

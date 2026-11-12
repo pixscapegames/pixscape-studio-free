@@ -17,7 +17,8 @@ import games.pixscape.studio.service.zorder.LayerLogicalOrderService;
 
 import java.util.*;
 
-/** Cold, detached preparation for Items moves. No identity allocation, commands, or ECS publication.
+/**
+ * Cold, detached preparation for Items moves. No identity allocation, commands, or ECS publication.
  * All IDs exposed here are stable IDs within the owning Scene document. Body/Joint information
  * rows are not sources: the UI supplies the owning item only for actual item rows.
  */
@@ -33,42 +34,78 @@ public final class ItemMovePreparation {
      */
     public static final float WORLD_POSE_EPSILON = 0.0001f;
 
-    /** insertionIndex counts siblings AFTER removing the normalized sources, frontmost first.
+    /**
+     * insertionIndex counts siblings AFTER removing the normalized sources, frontmost first.
      * parentStableId == 0 denotes the layer root. Before/after a group uses that group's parent.
      */
-    public record Destination(OpenEditorDocument document, int layerStableId, int parentStableId, int insertionIndex) {}
-    public record Result(Prepared move, String refusal) {
-        public boolean accepted() { return move != null; }
+    public record Destination(OpenEditorDocument document, int layerStableId, int parentStableId, int insertionIndex) {
     }
+
+    public record Result(Prepared move, String refusal) {
+        public boolean accepted() {
+            return move != null;
+        }
+    }
+
     public record Pose(float x, float y, float originX, float originY, float rotation, float scaleX, float scaleY) {
         static Pose read(TransformComponent t) {
             if (t == null) throw new IllegalArgumentException("Item requires a transform.");
             Pose value = new Pose(t.x, t.y, t.originX, t.originY, t.rotationRad, t.scaleX, t.scaleY);
-            for (float f : value.values()) if (!Float.isFinite(f)) throw new IllegalArgumentException("Item transform must be finite.");
+            for (float f : value.values())
+                if (!Float.isFinite(f)) throw new IllegalArgumentException("Item transform must be finite.");
             return value;
         }
+
         TransformComponent component() {
             TransformComponent t = new TransformComponent();
-            t.x = x; t.y = y; t.originX = originX; t.originY = originY;
-            t.rotationRad = rotation; t.scaleX = scaleX; t.scaleY = scaleY; t.refreshCaches();
+            t.x = x;
+            t.y = y;
+            t.originX = originX;
+            t.originY = originY;
+            t.rotationRad = rotation;
+            t.scaleX = scaleX;
+            t.scaleY = scaleY;
+            t.refreshCaches();
             return t;
         }
-        private float[] values() { return new float[]{x, y, originX, originY, rotation, scaleX, scaleY}; }
+
+        private float[] values() {
+            return new float[]{x, y, originX, originY, rotation, scaleX, scaleY};
+        }
+
         boolean closeTo(Pose other) {
             float[] a = values(), b = other.values();
-            for (int i = 0; i < a.length; i++) if (Math.abs(a[i] - b[i]) > WORLD_POSE_EPSILON * Math.max(1, Math.max(Math.abs(a[i]), Math.abs(b[i])))) return false;
+            for (int i = 0; i < a.length; i++)
+                if (Math.abs(a[i] - b[i]) > WORLD_POSE_EPSILON * Math.max(1, Math.max(Math.abs(a[i]), Math.abs(b[i]))))
+                    return false;
             return true;
         }
     }
-    /** storedLayer retains historical member indices; effective ownership is given by the group. */
-    public record State(int stableId, int parentStableId, int storedLayer, int z, Pose pose) {}
-    public record Change(State before, State after, int beforeEffectiveLayerStableId, int afterEffectiveLayerStableId) {}
-    /** A parent group has layerStableId == 0; a layer-root group has parentStableId == 0. */
-    public record Group(int layerStableId, int parentStableId) {}
-    public record Order(Group group, List<Integer> before, List<Integer> after) {
-        public Order { before = List.copyOf(before); after = List.copyOf(after); }
+
+    /**
+     * storedLayer retains historical member indices; effective ownership is given by the group.
+     */
+    public record State(int stableId, int parentStableId, int storedLayer, int z, Pose pose) {
     }
-    private record Layer(int stableId, int index, boolean locked, boolean spatial) {}
+
+    public record Change(State before, State after, int beforeEffectiveLayerStableId, int afterEffectiveLayerStableId) {
+    }
+
+    /**
+     * A parent group has layerStableId == 0; a layer-root group has parentStableId == 0.
+     */
+    public record Group(int layerStableId, int parentStableId) {
+    }
+
+    public record Order(Group group, List<Integer> before, List<Integer> after) {
+        public Order {
+            before = List.copyOf(before);
+            after = List.copyOf(after);
+        }
+    }
+
+    private record Layer(int stableId, int index, boolean locked, boolean spatial) {
+    }
 
     public static final class Prepared {
         final SceneEditorDocument owner;
@@ -86,20 +123,50 @@ public final class ItemMovePreparation {
         private Prepared(SceneEditorDocument owner, List<Integer> requested, Destination destination,
                          List<Integer> sources, List<Change> changes, List<Order> orders,
                          List<State> guards, Set<Integer> subtreeIds, List<Layer> layers) {
-            this.owner = owner; this.world = owner.context().world(); this.generation = owner.context().generation();
-            this.requested = List.copyOf(requested); this.destination = destination;
-            this.sources = List.copyOf(sources); this.changes = List.copyOf(changes);
-            this.orders = List.copyOf(orders); this.guards = List.copyOf(guards); this.layers = List.copyOf(layers);
+            this.owner = owner;
+            this.world = owner.context().world();
+            this.generation = owner.context().generation();
+            this.requested = List.copyOf(requested);
+            this.destination = destination;
+            this.sources = List.copyOf(sources);
+            this.changes = List.copyOf(changes);
+            this.orders = List.copyOf(orders);
+            this.guards = List.copyOf(guards);
+            this.layers = List.copyOf(layers);
             this.subtreeIds = Set.copyOf(subtreeIds);
         }
-        public List<Integer> sources() { return sources; }
-        public List<Change> changes() { return changes; }
-        public List<Order> orders() { return orders; }
-        public Destination destination() { return destination; }
-        public boolean isNoop() { return changes.isEmpty(); }
-        public MoveItemsCommand command() { return new MoveItemsCommand(this); }
-        List<Integer> affectedLayerIndices() { return layers.stream().map(Layer::index).toList(); }
-        /** Drop boundary: recompute and compare the detached result; never silently retarget. */
+
+        public List<Integer> sources() {
+            return sources;
+        }
+
+        public List<Change> changes() {
+            return changes;
+        }
+
+        public List<Order> orders() {
+            return orders;
+        }
+
+        public Destination destination() {
+            return destination;
+        }
+
+        public boolean isNoop() {
+            return changes.isEmpty();
+        }
+
+        public MoveItemsCommand command() {
+            return new MoveItemsCommand(this);
+        }
+
+        List<Integer> affectedLayerIndices() {
+            return layers.stream().map(Layer::index).toList();
+        }
+
+        /**
+         * Drop boundary: recompute and compare the detached result; never silently retarget.
+         */
         public boolean isCurrent() {
             if (!sameDocument()) return false;
             Result current = prepare(owner, requested, destination);
@@ -108,11 +175,15 @@ public final class ItemMovePreparation {
             return sources.equals(p.sources) && changes.equals(p.changes) && orders.equals(p.orders)
                     && guards.equals(p.guards) && layers.equals(p.layers);
         }
+
         boolean sameDocument() {
             return !owner.isClosed() && owner.context().isInitialized()
                     && owner.context().world() == world && owner.context().generation() == generation;
         }
-        /** All validation precedes the command's writes, including undo/redo on restored ECS IDs. */
+
+        /**
+         * All validation precedes the command's writes, including undo/redo on restored ECS IDs.
+         */
         boolean validate(boolean undo) {
             if (!sameDocument()) return false;
             try {
@@ -125,12 +196,15 @@ public final class ItemMovePreparation {
                 for (Change change : changes) byId.put(change.before.stableId, change);
                 for (State state : guards) expected.put(state.stableId, state);
                 if (undo) for (Change change : changes) expected.put(change.after.stableId, change.after);
-                for (State state : expected.values()) if (!state.equals(current.states.get(state.stableId))) return false;
-                for (Layer layer : layers) if (!layer.equals(current.layers.get(layer.stableId)) || layer.locked) return false;
+                for (State state : expected.values())
+                    if (!state.equals(current.states.get(state.stableId))) return false;
+                for (Layer layer : layers)
+                    if (!layer.equals(current.layers.get(layer.stableId)) || layer.locked) return false;
                 // Z/parent values are checked above. Restored ECS IDs may change the legacy
                 // tie-break without changing authored state, so history checks membership here.
-                for (Order order : orders) if (!new HashSet<>(current.order(order.group))
-                        .equals(new HashSet<>(undo ? order.after : order.before))) return false;
+                for (Order order : orders)
+                    if (!new HashSet<>(current.order(order.group))
+                            .equals(new HashSet<>(undo ? order.after : order.before))) return false;
                 for (int source : sources) {
                     Change change = byId.get(source);
                     State target = change == null ? current.states.get(source) : undo ? change.before : change.after;
@@ -141,7 +215,9 @@ public final class ItemMovePreparation {
                     current.validateSource(source, target.parentStableId, layer);
                 }
                 return true;
-            } catch (IllegalArgumentException | IllegalStateException ex) { return false; }
+            } catch (IllegalArgumentException | IllegalStateException ex) {
+                return false;
+            }
         }
     }
 
@@ -151,28 +227,35 @@ public final class ItemMovePreparation {
                 throw new IllegalArgumentException("Items moves require an open Scene document; HUD and Game Object assets are excluded.");
             if (destination == null || destination.document != document)
                 throw new IllegalArgumentException("Source and destination must belong to the same Scene document.");
-            if (sourceStableIds == null || sourceStableIds.isEmpty()) throw new IllegalArgumentException("Select at least one item.");
+            if (sourceStableIds == null || sourceStableIds.isEmpty())
+                throw new IllegalArgumentException("Select at least one item.");
             Current current = new Current(owner);
             Layer targetLayer = current.requireLayer(destination.layerStableId);
             int parent = destination.parentStableId;
             if (parent != 0 && current.layerOf(parent) != targetLayer.stableId)
                 throw new IllegalArgumentException("The destination parent belongs to another layer.");
             Set<Integer> selected = new HashSet<>(sourceStableIds);
-            for (int id : selected) if (!current.states.containsKey(id)) throw new IllegalArgumentException("A source is missing or is not an item.");
+            for (int id : selected)
+                if (!current.states.containsKey(id))
+                    throw new IllegalArgumentException("A source is missing or is not an item.");
             List<Integer> sources = new ArrayList<>();
             // Preorder gives deterministic reading order across layers/parents and removes selected descendants.
             Set<Integer> covered = new HashSet<>();
             for (int id : current.readingOrder) {
                 State state = current.states.get(id);
                 if (covered.contains(state.parentStableId)) covered.add(id);
-                else if (selected.contains(id)) { sources.add(id); covered.add(id); }
+                else if (selected.contains(id)) {
+                    sources.add(id);
+                    covered.add(id);
+                }
             }
             if (sources.isEmpty()) throw new IllegalArgumentException("No movable source items.");
             Group targetGroup = new Group(parent == 0 ? targetLayer.stableId : 0, parent);
             LinkedHashMap<Group, List<Integer>> before = new LinkedHashMap<>();
             for (int id : sources) {
                 current.validateSource(id, parent, targetLayer.stableId);
-                Group group = current.groupOf(id); before.putIfAbsent(group, current.order(group));
+                Group group = current.groupOf(id);
+                before.putIfAbsent(group, current.order(group));
             }
             before.putIfAbsent(targetGroup, current.order(targetGroup));
             Map<Group, List<Integer>> after = new LinkedHashMap<>();
@@ -193,19 +276,23 @@ public final class ItemMovePreparation {
                     TransformComponent parentWorld = parent == 0 ? null : GameObjectHierarchyCommandSupport.worldTransform(current.world, current.ids, current.entity(parent));
                     TransformComponent local = parent == 0 ? original : GameObjectTransformMath.worldToLocal(parentWorld, original, root, new TransformComponent());
                     TransformComponent restored = parent == 0 ? local : GameObjectTransformMath.localToWorld(parentWorld, local, root, new TransformComponent());
-                    if (!Pose.read(original).closeTo(Pose.read(restored))) throw new IllegalArgumentException("Parent conversion exceeds world-pose tolerance.");
+                    if (!Pose.read(original).closeTo(Pose.read(restored)))
+                        throw new IllegalArgumentException("Parent conversion exceeds world-pose tolerance.");
                     pose = Pose.read(local);
                 }
                 updated.put(id, new State(id, parent, parent == 0 ? targetLayer.index : old.storedLayer, old.z, pose));
             }
             for (var entry : before.entrySet()) {
-                Group group = entry.getKey(); List<Integer> next = after.get(group);
+                Group group = entry.getKey();
+                List<Integer> next = after.get(group);
                 orders.add(new Order(group, entry.getValue(), next));
                 // Identical order is a true no-op, even for sparse or tied Z values.
                 if (entry.getValue().equals(next)) continue;
-                if (next.size() - 1 > SortKey64.MAX_Z) throw new IllegalArgumentException("Too many siblings for Runtime Z range.");
+                if (next.size() - 1 > SortKey64.MAX_Z)
+                    throw new IllegalArgumentException("Too many siblings for Runtime Z range.");
                 for (int i = 0; i < next.size(); i++) {
-                    int id = next.get(i); State state = updated.getOrDefault(id, current.states.get(id));
+                    int id = next.get(i);
+                    State state = updated.getOrDefault(id, current.states.get(id));
                     updated.put(id, new State(id, state.parentStableId, state.storedLayer, next.size() - 1 - i, state.pose));
                 }
             }
@@ -220,14 +307,19 @@ public final class ItemMovePreparation {
                         current.layerOf(id), moving.contains(id) ? targetLayer.stableId : current.layerOf(id)));
             }
             List<State> guards = guarded.stream().sorted().map(current.states::get).toList();
-            Set<Integer> layerIds = new TreeSet<>(); layerIds.add(targetLayer.stableId);
+            Set<Integer> layerIds = new TreeSet<>();
+            layerIds.add(targetLayer.stableId);
             for (int id : sources) layerIds.add(current.layerOf(id));
             return new Result(new Prepared(owner, sourceStableIds, destination, sources, changes, orders,
                     guards, covered, layerIds.stream().map(current.layers::get).toList()), null);
-        } catch (IllegalArgumentException | IllegalStateException ex) { return new Result(null, ex.getMessage()); }
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            return new Result(null, ex.getMessage());
+        }
     }
 
-    /** One preparation-local projection, discarded after preparation/validation; never a scene cache. */
+    /**
+     * One preparation-local projection, discarded after preparation/validation; never a scene cache.
+     */
     private static final class Current {
         final World world;
         final IdentityRegistry ids;
@@ -240,15 +332,19 @@ public final class ItemMovePreparation {
         final IntMap<IntArray> children = new IntMap<>();
 
         Current(SceneEditorDocument document) {
-            world = document.context().world(); ids = document.context().identityRegistry();
-            IntArray entities = new IntArray(); ids.collectIndexedEntityIds(entities);
+            world = document.context().world();
+            ids = document.context().identityRegistry();
+            IntArray entities = new IntArray();
+            ids.collectIndexedEntityIds(entities);
             for (int i = 0; i < entities.size; i++) {
                 int entity = entities.get(i), stable = ids.getStableId(entity);
                 LayerComponent layer = world.getMapper(LayerComponent.class).getSafe(entity, null);
                 if (layer != null) {
                     LayerMetaComponent meta = world.getMapper(LayerMetaComponent.class).getSafe(entity, null);
                     Layer value = new Layer(stable, layer.layerIndex, meta != null && meta.locked, layer.spatialEnabled);
-                    layers.put(stable, value); layersByIndex.put(layer.layerIndex, value); continue;
+                    layers.put(stable, value);
+                    layersByIndex.put(layer.layerIndex, value);
+                    continue;
                 }
                 EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).getSafe(entity, null);
                 if (index == null || world.getMapper(PhysicsJointComponent.class).has(entity)) continue;
@@ -263,7 +359,10 @@ public final class ItemMovePreparation {
                 groups.computeIfAbsent(groupOf(state.stableId), key -> new ArrayList<>()).add(state.stableId);
                 if (state.parentStableId != 0) {
                     IntArray siblings = children.get(state.parentStableId);
-                    if (siblings == null) { siblings = new IntArray(); children.put(state.parentStableId, siblings); }
+                    if (siblings == null) {
+                        siblings = new IntArray();
+                        children.put(state.parentStableId, siblings);
+                    }
                     siblings.add(entity(state.stableId));
                 }
             }
@@ -271,57 +370,86 @@ public final class ItemMovePreparation {
                     ? LayerLogicalOrderService.compareTopToBottom(entity(a), states.get(a).z, entity(b), states.get(b).z)
                     : LayerLogicalOrderService.compareTopToBottom(a, states.get(a).z, b, states.get(b).z)));
             List<Layer> orderedLayers = layers.values().stream().sorted(Comparator.comparingInt(Layer::index).reversed()).toList();
-            for (Layer layer : orderedLayers) for (int root : order(new Group(layer.stableId, 0))) visit(root, layer.stableId, 0);
-            if (readingOrder.size() != states.size()) throw new IllegalArgumentException("Item hierarchy is cyclic or unreachable.");
+            for (Layer layer : orderedLayers)
+                for (int root : order(new Group(layer.stableId, 0))) visit(root, layer.stableId, 0);
+            if (readingOrder.size() != states.size())
+                throw new IllegalArgumentException("Item hierarchy is cyclic or unreachable.");
         }
+
         void visit(int id, int layer, int depth) {
-            if (depth >= 1024 || effectiveLayers.putIfAbsent(id, layer) != null) throw new IllegalArgumentException("Invalid hierarchy depth or cycle.");
+            if (depth >= 1024 || effectiveLayers.putIfAbsent(id, layer) != null)
+                throw new IllegalArgumentException("Invalid hierarchy depth or cycle.");
             readingOrder.add(id);
             for (int child : order(new Group(0, id))) visit(child, layer, depth + 1);
         }
-        int entity(int stable) { int e = ids.findByStableId(stable); if (e < 0) throw new IllegalArgumentException("Item no longer exists."); return e; }
+
+        int entity(int stable) {
+            int e = ids.findByStableId(stable);
+            if (e < 0) throw new IllegalArgumentException("Item no longer exists.");
+            return e;
+        }
+
         Layer requireLayer(int stable) {
             Layer layer = layers.get(stable);
-            if (layer == null || layer.locked) throw new IllegalArgumentException("Source or destination layer is missing or locked.");
+            if (layer == null || layer.locked)
+                throw new IllegalArgumentException("Source or destination layer is missing or locked.");
             return layer;
         }
+
         Layer layerByIndex(int index) {
             Layer layer = layersByIndex.get(index);
             if (layer == null) throw new IllegalArgumentException("Item layer no longer exists.");
             return layer;
         }
+
         int layerOf(int id) {
             Integer layer = effectiveLayers.get(id);
             if (layer == null) throw new IllegalArgumentException("Destination must be an item in this document.");
             return layer;
         }
+
         Group groupOf(int id) {
             State state = states.get(id);
             return new Group(state.parentStableId == 0 ? layerByIndex(state.storedLayer).stableId : 0, state.parentStableId);
         }
-        List<Integer> order(Group group) { return groups.getOrDefault(group, List.of()); }
+
+        List<Integer> order(Group group) {
+            return groups.getOrDefault(group, List.of());
+        }
+
         void collectSubtree(int id, Set<Integer> result) {
             if (!states.containsKey(id)) throw new IllegalArgumentException("Source no longer exists.");
             result.add(id);
             for (int child : order(new Group(0, id))) collectSubtree(child, result);
         }
+
         void guardAncestors(int id, Set<Integer> result) {
-            while (id != 0) { result.add(id); id = states.get(id).parentStableId; }
+            while (id != 0) {
+                result.add(id);
+                id = states.get(id).parentStableId;
+            }
         }
+
         void validateSource(int source, int parent, int layer) {
-            requireLayer(layerOf(source)); Layer target = requireLayer(layer);
+            requireLayer(layerOf(source));
+            Layer target = requireLayer(layer);
             int entity = entity(source);
-            if (parent != 0) GameObjectHierarchyCommandSupport.requireReparentCandidate(world, ids, entity, entity(parent), children);
-            else if (world.getMapper(GameObjectComponent.class).has(entity)) GameObjectHierarchyCommandSupport.validateCurrentSubtree(world, ids, entity, children);
+            if (parent != 0)
+                GameObjectHierarchyCommandSupport.requireReparentCandidate(world, ids, entity, entity(parent), children);
+            else if (world.getMapper(GameObjectComponent.class).has(entity))
+                GameObjectHierarchyCommandSupport.validateCurrentSubtree(world, ids, entity, children);
             validateSpatialSubtree(source, target.spatial);
         }
+
         void validateSpatialSubtree(int id, boolean spatial) {
             int entity = entity(id);
             if (!spatial) {
-                if (world.getMapper(SpatialHeightComponent.class).has(entity)) throw new IllegalArgumentException("Spatial actors require a Spatial-enabled destination layer; data will not be removed.");
+                if (world.getMapper(SpatialHeightComponent.class).has(entity))
+                    throw new IllegalArgumentException("Spatial actors require a Spatial-enabled destination layer; data will not be removed.");
                 var shapes = world.getMapper(PhysicsShapesComponent.class).getSafe(entity, null);
-                if (shapes != null) for (var shape : shapes.shapes) if (shape.spatialFootprint)
-                    throw new IllegalArgumentException("Spatial footprints require a Spatial-enabled destination layer.");
+                if (shapes != null) for (var shape : shapes.shapes)
+                    if (shape.spatialFootprint)
+                        throw new IllegalArgumentException("Spatial footprints require a Spatial-enabled destination layer.");
             }
             for (int child : order(new Group(0, id))) validateSpatialSubtree(child, spatial);
         }

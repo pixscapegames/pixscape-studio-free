@@ -42,7 +42,9 @@ public final class StudioModalChrome {
         return window;
     }
 
-    /** Adds the same background-level title stripe to third-party modal window subclasses. */
+    /**
+     * Adds the same background-level title stripe to third-party modal window subclasses.
+     */
     public static void installBackgroundTitleBar(VisWindow window) {
         WindowStyle current = window.getStyle();
         if (current.background instanceof FullWidthTitleBackground) return;

@@ -6,11 +6,16 @@ import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.utils.Align;
 
-/** Scene2D-only geometry used by editor overlays. */
+/**
+ * Scene2D-only geometry used by editor overlays.
+ */
 public final class HudOverlayGeometry {
-    private HudOverlayGeometry() {}
+    private HudOverlayGeometry() {
+    }
 
-    /** Returns the transformed Actor AABB in the supplied overlay's local coordinates. */
+    /**
+     * Returns the transformed Actor AABB in the supplied overlay's local coordinates.
+     */
     public static Rectangle actorBoundsInOverlay(Actor actor, Actor overlay, Rectangle out) {
         if (actor == null || overlay == null || out == null) {
             throw new IllegalArgumentException("Actor, overlay, and output rectangle are required.");
@@ -18,7 +23,9 @@ public final class HudOverlayGeometry {
         return transformedAabb(actor, 0f, 0f, actor.getWidth(), actor.getHeight(), overlay, out);
     }
 
-    /** Returns the native ScrollPane widget viewport, excluding background padding and scroll bars. */
+    /**
+     * Returns the native ScrollPane widget viewport, excluding background padding and scroll bars.
+     */
     public static Rectangle scrollPaneContentBoundsInOverlay(
             ScrollPane pane, Actor overlay, Rectangle out) {
         if (pane == null || overlay == null || out == null) {
@@ -28,7 +35,9 @@ public final class HudOverlayGeometry {
         return transformedAabb(pane, local.x, local.y, local.width, local.height, overlay, out);
     }
 
-    /** Returns the native widget viewport in ScrollPane-local coordinates. */
+    /**
+     * Returns the native widget viewport in ScrollPane-local coordinates.
+     */
     public static Rectangle scrollPaneContentBoundsLocal(ScrollPane pane, Rectangle out) {
         if (pane == null || out == null) {
             throw new IllegalArgumentException("ScrollPane and output rectangle are required.");
@@ -49,7 +58,9 @@ public final class HudOverlayGeometry {
         return out.set(x, y, pane.getScrollWidth(), pane.getScrollHeight());
     }
 
-    /** Window clips its authored Table children to the padded content, excluding the title. */
+    /**
+     * Window clips its authored Table children to the padded content, excluding the title.
+     */
     public static Rectangle windowContentBoundsLocal(Window window, Rectangle out) {
         if (window == null || out == null) {
             throw new IllegalArgumentException("Window and output rectangle are required.");
@@ -64,7 +75,9 @@ public final class HudOverlayGeometry {
         return transformedAabb(window, local.x, local.y, local.width, local.height, overlay, out);
     }
 
-    /** Intersects actor bounds with every native clipping ancestor. */
+    /**
+     * Intersects actor bounds with every native clipping ancestor.
+     */
     public static Rectangle visibleActorBoundsInOverlay(Actor actor, Actor overlay, Rectangle out) {
         if (actor == null || overlay == null || out == null) {
             throw new IllegalArgumentException("Actor, overlay, and output rectangle are required.");
@@ -74,7 +87,9 @@ public final class HudOverlayGeometry {
         return intersectClippingAncestors(actor, overlay, out);
     }
 
-    /** Intersects a Table cell with every native clipping ancestor of its actor. */
+    /**
+     * Intersects a Table cell with every native clipping ancestor of its actor.
+     */
     public static Rectangle visibleCellBoundsInOverlay(
             Cell<?> cell, Actor cellActor, Actor overlay, Rectangle out) {
         if (cell == null || cellActor == null || overlay == null || out == null) {
@@ -85,7 +100,9 @@ public final class HudOverlayGeometry {
         return intersectClippingAncestors(cellActor, overlay, out);
     }
 
-    /** Returns native allocated cell bounds even when the cell deliberately has no Actor. */
+    /**
+     * Returns native allocated cell bounds even when the cell deliberately has no Actor.
+     */
     public static Rectangle visibleCellBoundsInOverlay(Cell<?> cell, Actor overlay, Rectangle out) {
         if (cell == null || overlay == null || out == null) {
             throw new IllegalArgumentException("Cell, overlay, and output rectangle are required.");
@@ -99,7 +116,9 @@ public final class HudOverlayGeometry {
         return intersectClippingAncestors(table, overlay, out);
     }
 
-    /** Scene2D hides an entire branch when any of its actors is invisible. */
+    /**
+     * Scene2D hides an entire branch when any of its actors is invisible.
+     */
     public static boolean isEffectivelyVisible(Actor actor) {
         if (actor == null) return false;
         for (Actor current = actor; current != null; current = current.getParent()) {

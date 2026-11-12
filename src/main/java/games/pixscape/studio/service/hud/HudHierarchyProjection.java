@@ -6,7 +6,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Deterministic document-order projection; it never creates or mutates HUD DTOs. */
+/**
+ * Deterministic document-order projection; it never creates or mutates HUD DTOs.
+ */
 public final class HudHierarchyProjection {
     private HudHierarchyProjection() {
     }
@@ -32,10 +34,11 @@ public final class HudHierarchyProjection {
             }
         }
         if (node.table != null && node.table.rows != null) {
-            for (HudTableRow row : node.table.rows) if (row != null && row.cells != null)
-                for (HudTableCell cell : row.cells)
-                    if (cell != null && cell.content != null)
-                        append(cell.content, HudPlacementKind.CELL, depth + 1, result);
+            for (HudTableRow row : node.table.rows)
+                if (row != null && row.cells != null)
+                    for (HudTableCell cell : row.cells)
+                        if (cell != null && cell.content != null)
+                            append(cell.content, HudPlacementKind.CELL, depth + 1, result);
         }
     }
 }

@@ -29,7 +29,8 @@ public class SceneAtlasInputAnimationDependenciesTest {
     @BeforeClass
     public static void ensureHeadlessFiles() {
         if (Gdx.files == null) {
-            new HeadlessApplication(new ApplicationAdapter() {},
+            new HeadlessApplication(new ApplicationAdapter() {
+            },
                     new HeadlessApplicationConfiguration());
         }
     }

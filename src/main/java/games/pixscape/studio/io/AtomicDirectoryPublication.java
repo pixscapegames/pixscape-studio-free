@@ -8,10 +8,13 @@ import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.UUID;
 
-/** Directory candidate/backup lifecycle extracted from HUD profile atlas preparation.
- * Callers own the contents and serialize publications to the same target. */
+/**
+ * Directory candidate/backup lifecycle extracted from HUD profile atlas preparation.
+ * Callers own the contents and serialize publications to the same target.
+ */
 public final class AtomicDirectoryPublication {
-    private AtomicDirectoryPublication() {}
+    private AtomicDirectoryPublication() {
+    }
 
     @FunctionalInterface
     public interface Publisher {
@@ -39,7 +42,9 @@ public final class AtomicDirectoryPublication {
         return publish(candidate, target, AtomicDirectoryPublication::move);
     }
 
-    /** Serialized by the same caller as publication. Move-away is strict; obsolete cleanup is optional. */
+    /**
+     * Serialized by the same caller as publication. Move-away is strict; obsolete cleanup is optional.
+     */
     public static void retire(FileHandle target) {
         retire(target, AtomicDirectoryPublication::move);
     }
@@ -49,9 +54,11 @@ public final class AtomicDirectoryPublication {
         if (!Files.exists(live)) return;
         Path retired = live.resolveSibling(".retired-" + live.getFileName() + "-" + UUID.randomUUID());
         mover.publish(target, new FileHandle(retired.toFile()));
-        try { deleteTree(retired); }
-        catch (RuntimeException failure) {
-            if (Gdx.app != null) Gdx.app.error("AtomicDirectoryPublication", "Retired directory cleanup failed", failure);
+        try {
+            deleteTree(retired);
+        } catch (RuntimeException failure) {
+            if (Gdx.app != null)
+                Gdx.app.error("AtomicDirectoryPublication", "Retired directory cleanup failed", failure);
         }
     }
 
@@ -78,26 +85,39 @@ public final class AtomicDirectoryPublication {
             try {
                 if (attempted) deleteTree(live);
                 if (movedLive) move(new FileHandle(backup.toFile()), target);
-            } catch (RuntimeException | Error rollbackFailure) { failure.addSuppressed(rollbackFailure); }
+            } catch (RuntimeException | Error rollbackFailure) {
+                failure.addSuppressed(rollbackFailure);
+            }
             throw new IllegalStateException("Directory publication failed: " + target, failure);
         }
     }
 
-    /** Backup survives until the caller has accepted the new contents. Closing without commit rolls back. */
+    /**
+     * Backup survives until the caller has accepted the new contents. Closing without commit rolls back.
+     */
     public static final class Published implements AutoCloseable {
         private final Path live;
         private final Path backup;
         private boolean finished;
-        private Published(Path live, Path backup) { this.live = live; this.backup = backup; }
+
+        private Published(Path live, Path backup) {
+            this.live = live;
+            this.backup = backup;
+        }
+
         public void commit() {
             finished = true;
             // Publication is accepted even if obsolete backup cleanup fails (existing HUD policy).
-            try { if (backup != null) deleteTree(backup); }
-            catch (RuntimeException failure) {
-                if (Gdx.app != null) Gdx.app.error("AtomicDirectoryPublication", "Directory backup cleanup failed", failure);
+            try {
+                if (backup != null) deleteTree(backup);
+            } catch (RuntimeException failure) {
+                if (Gdx.app != null)
+                    Gdx.app.error("AtomicDirectoryPublication", "Directory backup cleanup failed", failure);
             }
         }
-        @Override public void close() {
+
+        @Override
+        public void close() {
             if (finished) return;
             deleteTree(live);
             if (backup != null) move(new FileHandle(backup.toFile()), new FileHandle(live.toFile()));
@@ -109,7 +129,9 @@ public final class AtomicDirectoryPublication {
         discardCandidate(candidate, parent -> Files.deleteIfExists(parent));
     }
 
-    /** Package-private seam keeps the optional container cleanup deterministic in filesystem tests. */
+    /**
+     * Package-private seam keeps the optional container cleanup deterministic in filesystem tests.
+     */
     static void discardCandidate(FileHandle candidate, EmptyCandidateParentDeleter parentDeleter) {
         Path path = candidate.file().toPath().toAbsolutePath().normalize();
         if (path.getParent() == null || !path.getParent().getFileName().toString().equals(".tmp"))
@@ -130,24 +152,35 @@ public final class AtomicDirectoryPublication {
 
     public static void move(FileHandle source, FileHandle target) {
         try {
-            try { Files.move(source.file().toPath(), target.file().toPath(), StandardCopyOption.ATOMIC_MOVE); }
-            catch (AtomicMoveNotSupportedException unsupported) { Files.move(source.file().toPath(), target.file().toPath()); }
-        } catch (IOException failure) { throw new IllegalStateException("Directory move failed: " + source + " -> " + target, failure); }
+            try {
+                Files.move(source.file().toPath(), target.file().toPath(), StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException unsupported) {
+                Files.move(source.file().toPath(), target.file().toPath());
+            }
+        } catch (IOException failure) {
+            throw new IllegalStateException("Directory move failed: " + source + " -> " + target, failure);
+        }
     }
 
-    /** Generated-directory operations reject symbolic-link ancestors rather than following them. */
+    /**
+     * Generated-directory operations reject symbolic-link ancestors rather than following them.
+     */
     public static void rejectSymlinks(Path path) {
         for (Path part = path.toAbsolutePath().normalize(); part != null; part = part.getParent())
-            if (Files.isSymbolicLink(part)) throw new IllegalArgumentException("Generated directory crosses a symbolic link: " + part);
+            if (Files.isSymbolicLink(part))
+                throw new IllegalArgumentException("Generated directory crosses a symbolic link: " + part);
     }
 
     private static Path directoryPath(FileHandle handle) {
         if (handle == null) throw new IllegalArgumentException("Directory is required.");
         Path path = handle.file().toPath().toAbsolutePath().normalize();
-        if (path.getParent() == null) throw new IllegalArgumentException("Filesystem root is not a generated directory.");
-        if (path.getFileName().toString().equals(".tmp")) throw new IllegalArgumentException("Candidate container cannot be a publication target.");
+        if (path.getParent() == null)
+            throw new IllegalArgumentException("Filesystem root is not a generated directory.");
+        if (path.getFileName().toString().equals(".tmp"))
+            throw new IllegalArgumentException("Candidate container cannot be a publication target.");
         rejectSymlinks(path);
-        if (Files.exists(path) && !Files.isDirectory(path)) throw new IllegalArgumentException("Not a directory: " + path);
+        if (Files.exists(path) && !Files.isDirectory(path))
+            throw new IllegalArgumentException("Not a directory: " + path);
         return path;
     }
 
@@ -156,14 +189,21 @@ public final class AtomicDirectoryPublication {
         try {
             if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) return;
             Files.walkFileTree(path, new SimpleFileVisitor<>() {
-                @Override public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    Files.delete(file); return FileVisitResult.CONTINUE;
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    Files.delete(file);
+                    return FileVisitResult.CONTINUE;
                 }
-                @Override public FileVisitResult postVisitDirectory(Path dir, IOException failure) throws IOException {
+
+                @Override
+                public FileVisitResult postVisitDirectory(Path dir, IOException failure) throws IOException {
                     if (failure != null) throw failure;
-                    Files.delete(dir); return FileVisitResult.CONTINUE;
+                    Files.delete(dir);
+                    return FileVisitResult.CONTINUE;
                 }
             });
-        } catch (IOException failure) { throw new IllegalStateException("Cannot discard generated directory: " + path, failure); }
+        } catch (IOException failure) {
+            throw new IllegalStateException("Cannot discard generated directory: " + path, failure);
+        }
     }
 }

@@ -72,7 +72,9 @@ public final class StandaloneTextureCache {
         return out;
     }
 
-    /** Reload borrowed handles in place so existing editor bindings remain usable. Render thread only. */
+    /**
+     * Reload borrowed handles in place so existing editor bindings remain usable. Render thread only.
+     */
     public static void reloadProjectRelative(java.util.Set<String> paths) {
         FileHandle project = StudioFs.requireStudioProjectDir(ProjectConfig.getInstance());
         for (String path : paths) {

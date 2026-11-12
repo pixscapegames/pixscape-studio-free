@@ -52,7 +52,8 @@ public final class ParticleThumbnail extends Actor {
         effect.dispose();
     }
 
-    @Override protected void setStage(Stage stage) {
+    @Override
+    protected void setStage(Stage stage) {
         if (stage == null) stopPreview();
         super.setStage(stage);
     }

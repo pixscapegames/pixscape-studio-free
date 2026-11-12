@@ -20,8 +20,10 @@ public final class StudioIO {
         if (parent != null && !parent.exists()) parent.mkdirs();
     }
 
-    /** Ordinary binary copy extracted from atlas input sync. Timestamp/size is a cache hint,
-     * not a content comparison; callers needing exact fresh bytes use a fresh destination. */
+    /**
+     * Ordinary binary copy extracted from atlas input sync. Timestamp/size is a cache hint,
+     * not a content comparison; callers needing exact fresh bytes use a fresh destination.
+     */
     public static boolean copyIfDifferent(FileHandle source, FileHandle dest) {
         if (source == null || dest == null || !source.exists() || source.isDirectory()) return false;
         if (dest.exists() && !dest.isDirectory() && dest.length() == source.length()

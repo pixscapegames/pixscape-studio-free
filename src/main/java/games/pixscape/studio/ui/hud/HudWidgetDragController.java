@@ -14,7 +14,9 @@ import games.pixscape.studio.service.hud.HudEditorSession;
 
 import java.util.Objects;
 
-/** Native Scene2D toolbox-to-canvas DnD for HUD layout authoring. */
+/**
+ * Native Scene2D toolbox-to-canvas DnD for HUD layout authoring.
+ */
 public final class HudWidgetDragController implements AutoCloseable {
     private static final float GHOST_SIZE = 32f;
     private static final float GHOST_ALPHA = 0.65f;
@@ -58,7 +60,8 @@ public final class HudWidgetDragController implements AutoCloseable {
 
     private void addSource(ImageButton actor, HudNodeKind kind) {
         dragAndDrop.addSource(new DragAndDrop.Source(actor) {
-            @Override public DragAndDrop.Payload dragStart(InputEvent event, float x, float y, int pointer) {
+            @Override
+            public DragAndDrop.Payload dragStart(InputEvent event, float x, float y, int pointer) {
                 HudScreenEditorDocument active = activeHudDocument();
                 if (active == null || !session.projects(active) || !session.isWidgetAvailable(kind)) return null;
                 DragAndDrop.Payload payload = new DragAndDrop.Payload();
@@ -68,14 +71,17 @@ public final class HudWidgetDragController implements AutoCloseable {
                 return payload;
             }
 
-            @Override public void dragStop(InputEvent event, float x, float y, int pointer,
-                                           DragAndDrop.Payload payload, DragAndDrop.Target target) {
+            @Override
+            public void dragStop(InputEvent event, float x, float y, int pointer,
+                                 DragAndDrop.Payload payload, DragAndDrop.Target target) {
                 session.endToolboxWidgetDrag();
             }
         });
     }
 
-    /** A separate, non-pickable actor keeps the source button and its shared drawable untouched. */
+    /**
+     * A separate, non-pickable actor keeps the source button and its shared drawable untouched.
+     */
     private static Image createGhost(ImageButton source) {
         Image ghost = new Image(source.getStyle().imageUp);
         ghost.setSize(GHOST_SIZE, GHOST_SIZE);
@@ -89,10 +95,13 @@ public final class HudWidgetDragController implements AutoCloseable {
         private float lastResolvedX = Float.NaN;
         private float lastResolvedY = Float.NaN;
 
-        private CanvasTarget(Actor actor) { super(actor); }
+        private CanvasTarget(Actor actor) {
+            super(actor);
+        }
 
-        @Override public boolean drag(DragAndDrop.Source source, DragAndDrop.Payload payload,
-                                      float x, float y, int pointer) {
+        @Override
+        public boolean drag(DragAndDrop.Source source, DragAndDrop.Payload payload,
+                            float x, float y, int pointer) {
             HudEditorSession.WidgetDropTarget target = resolve(payload, x, y);
             if (samePointer(x, y) && lastResolvedTarget != null
                     && (target == null || !sameDestination(lastResolvedTarget, target))) {
@@ -111,13 +120,15 @@ public final class HudWidgetDragController implements AutoCloseable {
             return true;
         }
 
-        @Override public void reset(DragAndDrop.Source source, DragAndDrop.Payload payload) {
+        @Override
+        public void reset(DragAndDrop.Source source, DragAndDrop.Payload payload) {
             clearResolution();
             session.clearWidgetDropFeedback();
         }
 
-        @Override public void drop(DragAndDrop.Source source, DragAndDrop.Payload payload,
-                                   float x, float y, int pointer) {
+        @Override
+        public void drop(DragAndDrop.Source source, DragAndDrop.Payload payload,
+                         float x, float y, int pointer) {
             WidgetDrag drag = widgetDrag(payload);
             HudEditorSession.WidgetDropTarget target = resolve(payload, x, y);
             try {
@@ -179,14 +190,21 @@ public final class HudWidgetDragController implements AutoCloseable {
         return documents.activeDocument() instanceof HudScreenEditorDocument hud ? hud : null;
     }
 
-    boolean isDragging() { return dragAndDrop.isDragging(); }
-    Actor dragActor() { return dragAndDrop.getDragActor(); }
+    boolean isDragging() {
+        return dragAndDrop.isDragging();
+    }
 
-    @Override public void close() {
+    Actor dragActor() {
+        return dragAndDrop.getDragActor();
+    }
+
+    @Override
+    public void close() {
         dragAndDrop.clear();
         session.endToolboxWidgetDrag();
     }
 
     private record WidgetDrag(HudNodeKind kind, HudScreenEditorDocument document,
-                              String selectedParentId) { }
+                              String selectedParentId) {
+    }
 }

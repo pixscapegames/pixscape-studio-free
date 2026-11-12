@@ -6,7 +6,9 @@ import com.kotcrab.vis.ui.widget.VisScrollPane;
 import games.pixscape.studio.event.GetScrollListener;
 import games.pixscape.studio.event.LoseScroolListener;
 
-/** Small stateless collection of the scrolling conventions shared by Studio trees. */
+/**
+ * Small stateless collection of the scrolling conventions shared by Studio trees.
+ */
 public final class StudioTreeUiSupport {
     private StudioTreeUiSupport() {
     }

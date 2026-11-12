@@ -28,7 +28,9 @@ public final class TmxPreflightService {
         this.fileResolver = fileResolver;
     }
 
-    /** Shared TSX/TMX definition parser; unsupported source semantics are retained, not coerced. */
+    /**
+     * Shared TSX/TMX definition parser; unsupported source semantics are retained, not coerced.
+     */
     public static PropertySet readTileProperties(XmlReader.Element tile, String location) {
         AnalysisState state = new AnalysisState(location);
         state.preserveTilePropertyTypes = true;
@@ -405,10 +407,10 @@ public final class TmxPreflightService {
     }
 
     private List<TmxTileDefinitionInfo> readTileDefinitions(int firstGid,
-                                                             XmlReader.Element tileset,
-                                                             int tileCount,
-                                                             String tilesetName,
-                                                             AnalysisState state) {
+                                                            XmlReader.Element tileset,
+                                                            int tileCount,
+                                                            String tilesetName,
+                                                            AnalysisState state) {
         List<TmxTileDefinitionInfo> definitions = new ArrayList<>();
         Set<Integer> ids = new HashSet<>();
         for (int i = 0; i < tileset.getChildCount(); i++) {
@@ -561,9 +563,9 @@ public final class TmxPreflightService {
     }
 
     private List<TmxObjectPoint> readObjectPoints(XmlReader.Element object,
-                                                   TmxObjectKind kind,
-                                                   String location,
-                                                   AnalysisState state) {
+                                                  TmxObjectKind kind,
+                                                  String location,
+                                                  AnalysisState state) {
         if (kind != TmxObjectKind.POLYGON && kind != TmxObjectKind.POLYLINE) {
             return List.of();
         }
@@ -694,9 +696,9 @@ public final class TmxPreflightService {
     }
 
     private ParsedProperties readPropertiesWithPaths(XmlReader.Element owner,
-                                                      AnalysisState state,
-                                                      String ownerLocation,
-                                                      List<String> pathPrefix) {
+                                                     AnalysisState state,
+                                                     String ownerLocation,
+                                                     List<String> pathPrefix) {
         XmlReader.Element propertiesElement = owner.getChildByName("properties");
         if (propertiesElement == null) {
             return new ParsedProperties(new PropertySet(0), List.of(), List.of());
@@ -766,9 +768,9 @@ public final class TmxPreflightService {
                                 location, state));
                 case "object" -> objectReferences.add(new TmxObjectPropertyReference(
                         path, parsePropertyObjectReference(
-                                property.hasAttribute("value") || (value != null && !value.isEmpty())
-                                        ? value : null,
-                                location, state), location));
+                        property.hasAttribute("value") || (value != null && !value.isEmpty())
+                                ? value : null,
+                        location, state), location));
                 case "class" -> {
                     ParsedProperties members = readPropertiesWithPaths(
                             property, state, ownerLocation, path);
@@ -921,8 +923,8 @@ public final class TmxPreflightService {
     }
 
     private static void validateObjectPropertyReferences(AnalysisState state,
-                                                          List<TmxObjectPropertyReference> references,
-                                                          Map<Integer, List<TmxObjectInfo>> objectsById) {
+                                                         List<TmxObjectPropertyReference> references,
+                                                         Map<Integer, List<TmxObjectInfo>> objectsById) {
         for (TmxObjectPropertyReference reference : references) {
             if (reference.sourceObjectId() == 0) continue;
             List<TmxObjectInfo> targets = objectsById.get(reference.sourceObjectId());

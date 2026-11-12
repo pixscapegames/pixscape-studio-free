@@ -36,11 +36,19 @@ public final class AlignService {
         PACK_HORIZONTAL("Pack Horizontally"), PACK_VERTICAL("Pack Vertically");
 
         private final String label;
-        Operation(String label) { this.label = label; }
+
+        Operation(String label) {
+            this.label = label;
+        }
+
         boolean horizontal() {
             return this == LEFT || this == RIGHT || this == CENTER_HORIZONTAL || this == PACK_HORIZONTAL;
         }
-        boolean packing() { return this == PACK_HORIZONTAL || this == PACK_VERTICAL; }
+
+        boolean packing() {
+            return this == PACK_HORIZONTAL || this == PACK_VERTICAL;
+        }
+
         float anchor(Bounds b) {
             return switch (this) {
                 case LEFT, PACK_HORIZONTAL -> b.left;
@@ -77,23 +85,53 @@ public final class AlignService {
 
     // All eight existing operations require two independent, usable targets and a reference.
     // The toolbar and every public command use this same admission path.
+
     /**
      * Cold command-time query. Game Object content requires one O(scene identities) membership
      * snapshot; UI refresh must use the explicitly post-ECS reader below instead.
      */
-    public boolean isPlacementAvailable() { return prepare(false) != null; }
+    public boolean isPlacementAvailable() {
+        return prepare(false) != null;
+    }
 
-    /** UI-only boundary: call after hierarchy, geometry and composition have completed their ECS step. */
-    public boolean isPlacementAvailableAfterEcsStep() { return prepare(true) != null; }
+    /**
+     * UI-only boundary: call after hierarchy, geometry and composition have completed their ECS step.
+     */
+    public boolean isPlacementAvailableAfterEcsStep() {
+        return prepare(true) != null;
+    }
 
-    public void alignLeft() { execute(Operation.LEFT); }
-    public void alignRight() { execute(Operation.RIGHT); }
-    public void alignTop() { execute(Operation.TOP); }
-    public void alignBottom() { execute(Operation.BOTTOM); }
-    public void centerHorizontal() { execute(Operation.CENTER_HORIZONTAL); }
-    public void centerVertical() { execute(Operation.CENTER_VERTICAL); }
-    public void packHorizontal() { execute(Operation.PACK_HORIZONTAL); }
-    public void packVertical() { execute(Operation.PACK_VERTICAL); }
+    public void alignLeft() {
+        execute(Operation.LEFT);
+    }
+
+    public void alignRight() {
+        execute(Operation.RIGHT);
+    }
+
+    public void alignTop() {
+        execute(Operation.TOP);
+    }
+
+    public void alignBottom() {
+        execute(Operation.BOTTOM);
+    }
+
+    public void centerHorizontal() {
+        execute(Operation.CENTER_HORIZONTAL);
+    }
+
+    public void centerVertical() {
+        execute(Operation.CENTER_VERTICAL);
+    }
+
+    public void packHorizontal() {
+        execute(Operation.PACK_HORIZONTAL);
+    }
+
+    public void packVertical() {
+        execute(Operation.PACK_VERTICAL);
+    }
 
     public void execute(Operation operation) {
         Placement placement = prepare(false);
@@ -235,7 +273,9 @@ public final class AlignService {
         }
     }
 
-    /** One evaluation only: memoized authored frames, never a second persistent geometry cache. */
+    /**
+     * One evaluation only: memoized authored frames, never a second persistent geometry cache.
+     */
     private final class Geometry {
         private final Map<Integer, Frame> worldFrames = new HashMap<>();
         private final boolean afterEcsStep;
@@ -243,9 +283,13 @@ public final class AlignService {
         private final OrientedBoundsComponent scratchBounds = new OrientedBoundsComponent();
         private final float[] corners = new float[8];
 
-        Geometry(boolean afterEcsStep) { this.afterEcsStep = afterEcsStep; }
+        Geometry(boolean afterEcsStep) {
+            this.afterEcsStep = afterEcsStep;
+        }
 
-        /** One O(scene identities) snapshot at a command boundary, never on the UI frame path. */
+        /**
+         * One O(scene identities) snapshot at a command boundary, never on the UI frame path.
+         */
         private void collectCurrentChildren() {
             IdentityRegistry identities = IdentityRegistry.boundTo(world);
             childrenByParent = CurrentGameObjectRelations.collectCurrentChildrenByParentStableId(world, identities);
@@ -331,8 +375,10 @@ public final class AlignService {
             float left = Float.POSITIVE_INFINITY, bottom = Float.POSITIVE_INFINITY;
             float right = Float.NEGATIVE_INFINITY, top = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < 8; i += 2) {
-                left = Math.min(left, corners[i]); right = Math.max(right, corners[i]);
-                bottom = Math.min(bottom, corners[i + 1]); top = Math.max(top, corners[i + 1]);
+                left = Math.min(left, corners[i]);
+                right = Math.max(right, corners[i]);
+                bottom = Math.min(bottom, corners[i + 1]);
+                top = Math.max(top, corners[i + 1]);
             }
             return new Bounds(left, right, bottom, top);
         }
@@ -352,7 +398,9 @@ public final class AlignService {
                     ? new Bounds(state.minX[entity], state.maxX[entity], state.minY[entity], state.maxY[entity]) : null;
         }
 
-        /** O(selected subtrees), without per-descendant allocations or geometry reconstruction. */
+        /**
+         * O(selected subtrees), without per-descendant allocations or geometry reconstruction.
+         */
         private void validatePublishedContent(int entity, int depth, boolean parentUnitScale) {
             requireActive(entity, depth);
             TransformComponent local = requireTransform(entity);
@@ -391,13 +439,20 @@ public final class AlignService {
                 && Float.isFinite(t.scaleX) && Float.isFinite(t.scaleY);
     }
 
-    private record Frame(TransformComponent transform, Affine2 matrix, boolean unitScaleAncestry, boolean visible) { }
-    private record Placement(ArrayList<Target> targets, int referenceEntityId, Bounds reference) { }
-    private record Target(int entityId, Bounds bounds, Affine2 inverseParent) { }
+    private record Frame(TransformComponent transform, Affine2 matrix, boolean unitScaleAncestry, boolean visible) {
+    }
+
+    private record Placement(ArrayList<Target> targets, int referenceEntityId, Bounds reference) {
+    }
+
+    private record Target(int entityId, Bounds bounds, Affine2 inverseParent) {
+    }
+
     private record Bounds(float left, float right, float bottom, float top) {
         boolean valid() {
             return validBounds(left, right, bottom, top);
         }
+
         Bounds union(Bounds other) {
             return new Bounds(Math.min(left, other.left), Math.max(right, other.right),
                     Math.min(bottom, other.bottom), Math.max(top, other.top));

@@ -12,7 +12,9 @@ import com.kotcrab.vis.ui.widget.VisScrollPane;
 import com.kotcrab.vis.ui.widget.VisTable;
 import com.kotcrab.vis.ui.widget.VisTextArea;
 
-/** A code text area whose scrollable content tracks the source dimensions. */
+/**
+ * A code text area whose scrollable content tracks the source dimensions.
+ */
 public final class ScrollableCodeEditor extends VisTable {
 
     private final CodeTextArea textArea;

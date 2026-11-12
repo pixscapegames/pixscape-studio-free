@@ -2,11 +2,13 @@ package games.pixscape.studio.service.hud;
 
 import com.badlogic.gdx.math.Rectangle;
 
-/** Immutable, actor-free description of one current HUD canvas interaction region. */
+/**
+ * Immutable, actor-free description of one current HUD canvas interaction region.
+ */
 public record HudSelectionTarget(String nodeId, Type type,
                                  float x, float y, float width, float height,
                                  boolean selected) {
-    public enum Type { ACTOR, CELL, PARENT }
+    public enum Type {ACTOR, CELL, PARENT}
 
     public HudSelectionTarget {
         if (nodeId == null || nodeId.isBlank()) throw new IllegalArgumentException("Node ID is required.");
@@ -19,5 +21,7 @@ public record HudSelectionTarget(String nodeId, Type type,
                 bounds.width, bounds.height, selected);
     }
 
-    public Rectangle bounds() { return new Rectangle(x, y, width, height); }
+    public Rectangle bounds() {
+        return new Rectangle(x, y, width, height);
+    }
 }

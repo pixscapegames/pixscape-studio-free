@@ -12,8 +12,8 @@ public class HudShellContractTest {
     @Test
     public void toolboxExposesOnlyLayoutAndNonResourceContentConstructs() {
         Assert.assertEquals(List.of(HudNodeKind.GROUP, HudNodeKind.TABLE,
-                HudNodeKind.STACK, HudNodeKind.CONTAINER, HudNodeKind.SCROLL_PANE,
-                HudNodeKind.WINDOW, HudNodeKind.DIALOG),
+                        HudNodeKind.STACK, HudNodeKind.CONTAINER, HudNodeKind.SCROLL_PANE,
+                        HudNodeKind.WINDOW, HudNodeKind.DIALOG),
                 HudWidgetsPanel.layoutKinds());
         Assert.assertEquals(List.of(HudNodeKind.LABEL, HudNodeKind.TEXTRA_LABEL,
                         HudNodeKind.TEXT_FIELD, HudNodeKind.TEXT_BUTTON,

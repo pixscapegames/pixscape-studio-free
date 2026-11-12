@@ -30,7 +30,8 @@ import static org.junit.Assert.*;
 public class StudioWorldConfigSpatialSystemTest {
 
 
-    @Rule public final TemporaryFolder home = new TemporaryFolder();
+    @Rule
+    public final TemporaryFolder home = new TemporaryFolder();
 
     @Test
     public void studioViewportUsesRuntimeWorldFactoryAndStudioSubmitSystem() throws Exception {
@@ -48,7 +49,8 @@ public class StudioWorldConfigSpatialSystemTest {
             new Lwjgl3Application(new ApplicationAdapter() {
                 final StudioApplicationAdapter studio = new StudioApplicationAdapter();
 
-                @Override public void create() {
+                @Override
+                public void create() {
                     try {
                         studio.create();
                         assertViewportConfiguration(studio.getCanvas().getEcsWorld());
@@ -57,7 +59,8 @@ public class StudioWorldConfigSpatialSystemTest {
                     }
                 }
 
-                @Override public void dispose() {
+                @Override
+                public void dispose() {
                     studio.dispose();
                     InternalTextures.dispose();
                     TextureRegistry.clear();

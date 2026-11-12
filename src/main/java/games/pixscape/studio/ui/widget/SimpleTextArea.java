@@ -42,7 +42,9 @@ public final class SimpleTextArea extends VisTextArea implements TextInputWidget
         });
     }
 
-    /** Plain ENTER inserts a newline; CTRL+ENTER retains the established explicit commit shortcut. */
+    /**
+     * Plain ENTER inserts a newline; CTRL+ENTER retains the established explicit commit shortcut.
+     */
     public SimpleTextArea withMultilineEditing() {
         multilineEditing = true;
         return this;

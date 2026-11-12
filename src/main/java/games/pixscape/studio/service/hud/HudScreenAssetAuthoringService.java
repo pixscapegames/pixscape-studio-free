@@ -11,7 +11,9 @@ import games.pixscape.runtime.hud.document.HudDocumentV1;
 import games.pixscape.studio.io.AtomicTextPublication;
 import games.pixscape.studio.io.StudioIO;
 
-/** Creates one valid current-format HUD screen and its structural root document. */
+/**
+ * Creates one valid current-format HUD screen and its structural root document.
+ */
 public final class HudScreenAssetAuthoringService {
     private final HudScreenAssetLoader loader = new HudScreenAssetLoader();
     private final HudDocumentCodec documentCodec = new HudDocumentCodec();

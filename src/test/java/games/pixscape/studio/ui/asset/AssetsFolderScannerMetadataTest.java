@@ -34,7 +34,8 @@ public class AssetsFolderScannerMetadataTest {
     @BeforeClass
     public static void initializeGdxFiles() {
         if (Gdx.app == null) {
-            new HeadlessApplication(new ApplicationAdapter() {}, new HeadlessApplicationConfiguration());
+            new HeadlessApplication(new ApplicationAdapter() {
+            }, new HeadlessApplicationConfiguration());
         }
     }
 

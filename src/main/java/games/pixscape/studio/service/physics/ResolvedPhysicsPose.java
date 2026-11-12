@@ -46,7 +46,9 @@ public final class ResolvedPhysicsPose {
         return true;
     }
 
-    /** Remaps a point expressed in the authored Body world pose into the resolved Body world pose. */
+    /**
+     * Remaps a point expressed in the authored Body world pose into the resolved Body world pose.
+     */
     public boolean remapAuthoredWorldPoint(int entityId, Vector2 point) {
         if (point == null || world == null) return false;
         TransformComponent authored = world.getMapper(TransformComponent.class)
@@ -92,7 +94,9 @@ public final class ResolvedPhysicsPose {
         return true;
     }
 
-    /** Converts a resolved-world pointer into Body-local world-unit geometry coordinates. */
+    /**
+     * Converts a resolved-world pointer into Body-local world-unit geometry coordinates.
+     */
     public boolean resolvedWorldToLocal(int entityId, float worldX, float worldY, Vector2 out) {
         if (out == null || !resolve(entityId, resolved)) return false;
         float cos = MathUtils.cos(resolved.rotationRad);

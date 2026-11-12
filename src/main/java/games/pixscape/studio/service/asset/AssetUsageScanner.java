@@ -97,9 +97,11 @@ public final class AssetUsageScanner {
         return acc.toReport();
     }
 
-    /** Cold, project-wide deletion proof. Tileset membership is deliberately not a reference. */
+    /**
+     * Cold, project-wide deletion proof. Tileset membership is deliberately not a reference.
+     */
     public java.util.Map<Integer, String> tileRetentionReasons(java.util.Set<Integer> candidates,
-                                                              List<World> openWorlds) {
+                                                               List<World> openWorlds) {
         java.util.Map<Integer, String> retained = new java.util.LinkedHashMap<>();
         if (candidates.isEmpty()) return retained;
         FileHandle root = resolveProjectDir();
@@ -177,7 +179,7 @@ public final class AssetUsageScanner {
     }
 
     private FileHandle[] retentionFiles(FileHandle directory, java.util.Set<Integer> ids,
-                                         java.util.Map<Integer, String> retained) {
+                                        java.util.Map<Integer, String> retained) {
         if (java.nio.file.Files.isSymbolicLink(directory.file().toPath())) {
             retainUnknown(ids, retained, "Cannot inspect linked authored directory: " + directory.name());
             return new FileHandle[0];
@@ -198,12 +200,15 @@ public final class AssetUsageScanner {
             retainUnknown(ids, retained, "Missing authored resource: " + file.name());
             return;
         }
-        try { scanRetentionJson(file.readString("UTF-8"), ids, retained, file.name()); }
-        catch (RuntimeException failure) { retainUnknown(ids, retained, "Cannot read authored resource: " + file.name()); }
+        try {
+            scanRetentionJson(file.readString("UTF-8"), ids, retained, file.name());
+        } catch (RuntimeException failure) {
+            retainUnknown(ids, retained, "Cannot read authored resource: " + file.name());
+        }
     }
 
     private void scanRetentionJson(String content, java.util.Set<Integer> ids,
-                                          java.util.Map<Integer, String> retained, String label) {
+                                   java.util.Map<Integer, String> retained, String label) {
         try {
             JsonValue root = new JsonReader().parse(content);
             if (!root.isObject() && !root.isArray()) throw new IllegalArgumentException("Invalid authored JSON root");
@@ -221,7 +226,7 @@ public final class AssetUsageScanner {
                 || (gameObjects && node.name == null);
         if (node.isString() && (gameObjects || name.equals("gameobjectid")
                 || (name.equals("assetid") && (node.asString().endsWith(".gameobject")
-                    || node.asString().startsWith("gameobjects/"))))) {
+                || node.asString().startsWith("gameobjects/"))))) {
             String value = node.asString();
             if (!value.isBlank()) {
                 try {
@@ -238,19 +243,19 @@ public final class AssetUsageScanner {
     }
 
     private static void retainUnknown(java.util.Set<Integer> ids, java.util.Map<Integer, String> retained,
-                                       String reason) {
+                                      String reason) {
         for (int id : ids) retained.putIfAbsent(id, reason);
     }
 
     private static void collectRetentionReferences(JsonValue node, boolean reference,
-                                                    java.util.Set<Integer> ids,
-                                                    java.util.Map<Integer, String> retained, String label) {
+                                                   java.util.Set<Integer> ids,
+                                                   java.util.Map<Integer, String> retained, String label) {
         collectRetentionReferences(node, reference, false, ids, retained, label);
     }
 
     private static void collectRetentionReferences(JsonValue node, boolean reference, boolean uncertain,
-                                                    java.util.Set<Integer> ids,
-                                                    java.util.Map<Integer, String> retained, String label) {
+                                                   java.util.Set<Integer> ids,
+                                                   java.util.Map<Integer, String> retained, String label) {
         String name = node.name == null ? "" : node.name.toLowerCase(java.util.Locale.ROOT);
         reference |= name.contains("asset") || name.endsWith("tileid") || name.endsWith("tileids");
         uncertain |= name.equals("properties") || name.equals("customproperties");
@@ -258,7 +263,8 @@ public final class AssetUsageScanner {
             JsonValue items = node.get("items");
             int size = node.getInt("size", items.size);
             if (!items.isArray() || size < 0 || size > items.size) {
-                retainUnknown(ids, retained, "Invalid asset reference bag in " + label); return;
+                retainUnknown(ids, retained, "Invalid asset reference bag in " + label);
+                return;
             }
             int index = 0;
             for (JsonValue item = items.child; item != null && index < size; item = item.next, index++)

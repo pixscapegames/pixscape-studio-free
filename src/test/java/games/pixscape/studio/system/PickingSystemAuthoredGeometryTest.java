@@ -81,8 +81,8 @@ public class PickingSystemAuthoredGeometryTest {
     }
 
     private static OrientedBoundsComponent bounds(float cx, float cy,
-                                                   float ux, float uy, float vx, float vy,
-                                                   float hx, float hy) {
+                                                  float ux, float uy, float vx, float vy,
+                                                  float hx, float hy) {
         OrientedBoundsComponent bounds = new OrientedBoundsComponent();
         bounds.cx = cx;
         bounds.cy = cy;

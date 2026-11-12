@@ -8,7 +8,8 @@ import org.junit.Test;
 import static org.junit.Assert.assertSame;
 
 public class HudCanvasInputHostCoverageTest {
-    @Test public void followsTheResolvedHudViewportBeyondItsLayoutParent() {
+    @Test
+    public void followsTheResolvedHudViewportBeyondItsLayoutParent() {
         Group layoutParent = new Group();
         layoutParent.setBounds(100f, 80f, 300f, 400f);
         HudCanvasInputHost host = new HudCanvasInputHost(new HudEditorSession());

@@ -17,11 +17,13 @@ import static games.pixscape.studio.ui.main.ResourceAssetInspectorGlTest.*;
 import static org.junit.Assert.*;
 
 public class DeleteLayerCompositionGlTest {
-    @Test public void editorRestoreCallbackDoesNotHideMissingImmediateIdentityRegistration() throws Exception {
+    @Test
+    public void editorRestoreCallbackDoesNotHideMissingImmediateIdentityRegistration() throws Exception {
         withStudio(900, (studio, directory) -> {
             var file = project(studio, directory.child("ordinary-restore"));
             addImage(file.parent(), "sprite", 80, 40);
-            open(studio, file); settle(studio);
+            open(studio, file);
+            settle(studio);
             var context = studio.getSceneEditorContext();
             var layers = context.layerService();
             layers.addLayerTop("B");
@@ -45,17 +47,20 @@ public class DeleteLayerCompositionGlTest {
         });
     }
 
-    @Test public void deleteButtonsAndUndoRedoKeepHierarchyInspectorAndRenderingCoherent() throws Exception {
+    @Test
+    public void deleteButtonsAndUndoRedoKeepHierarchyInspectorAndRenderingCoherent() throws Exception {
         withStudio(900, (studio, directory) -> {
             var file = project(studio, directory.child("delete-layer"));
             addImage(file.parent(), "child", 80, 40);
             var asset = file.parent().child("gameobjects/Assembly.gameobject");
             new GameObjectAssetLoader().save(asset, gameObjectAsset());
-            open(studio, file); settle(studio);
+            open(studio, file);
+            settle(studio);
             var context = studio.getSceneEditorContext();
             var layers = context.layerService();
             layers.meta(0).name = "Old layer A";
-            layers.addLayerTop("Effective layer B"); settle(studio);
+            layers.addLayerTop("Effective layer B");
+            settle(studio);
             var instance = studio.getCanvas().getGameObjectAssetService().instantiateGameObject(
                     asset, "gameobjects/Assembly.gameobject", 1, -180, 20);
             context.selectionService().setActivelayerId(layers.getLayerEntity(0));
@@ -99,7 +104,8 @@ public class DeleteLayerCompositionGlTest {
             }
             shortcut(studio, Input.Keys.Z);
             studio.getSceneService().saveProjectAndCurrentScene();
-            open(studio, file); settle(studio);
+            open(studio, file);
+            settle(studio);
             var restored = studio.getSceneEditorContext();
             child = restored.identityRegistry().findByStableId(stable);
             assertTrue(child >= 0);
@@ -139,10 +145,17 @@ public class DeleteLayerCompositionGlTest {
         Gdx.input = (Input) java.lang.reflect.Proxy.newProxyInstance(Input.class.getClassLoader(),
                 new Class<?>[]{Input.class}, (proxy, method, args) -> method.getName().equals("isKeyPressed")
                         ? (Integer) args[0] == Input.Keys.CONTROL_LEFT : method.invoke(original, args));
-        try { assertTrue(studio.getUiStage().keyDown(key)); studio.getUiStage().keyUp(key); }
-        finally { Gdx.input = original; }
+        try {
+            assertTrue(studio.getUiStage().keyDown(key));
+            studio.getUiStage().keyUp(key);
+        } finally {
+            Gdx.input = original;
+        }
         settle(studio);
     }
 
-    private static void settle(StudioApplicationAdapter studio) { studio.render(); studio.render(); }
+    private static void settle(StudioApplicationAdapter studio) {
+        studio.render();
+        studio.render();
+    }
 }

@@ -12,7 +12,9 @@ import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 
-/** Minimal Scene2D progress presentation used after the browser preloader. */
+/**
+ * Minimal Scene2D progress presentation used after the browser preloader.
+ */
 final class PreviewLoadingUi {
     private static final float BAR_HEIGHT = 10f;
 

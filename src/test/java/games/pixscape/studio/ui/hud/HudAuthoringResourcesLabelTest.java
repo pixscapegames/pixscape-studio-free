@@ -15,10 +15,18 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 public class HudAuthoringResourcesLabelTest {
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
 
-    @Test public void builtInDefaultNeedsNoSkin() {
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
+
+    @Test
+    public void builtInDefaultNeedsNoSkin() {
         HudAuthoringResources resources = resources(null);
         try {
             assertTrue(resources.labelStyleNames().isEmpty());
@@ -38,7 +46,8 @@ public class HudAuthoringResourcesLabelTest {
         }
     }
 
-    @Test public void exposesCustomStylesWithoutReplacingTheBuiltInDefault() {
+    @Test
+    public void exposesCustomStylesWithoutReplacingTheBuiltInDefault() {
         Skin skin = new Skin();
         Label.LabelStyle source = VisUI.getSkin().get("default", Label.LabelStyle.class);
         skin.add("body", new Label.LabelStyle(source));
@@ -55,7 +64,8 @@ public class HudAuthoringResourcesLabelTest {
         }
     }
 
-    @Test public void textButtonUsesBuiltInDefaultOrFirstUsableCustomStyle() {
+    @Test
+    public void textButtonUsesBuiltInDefaultOrFirstUsableCustomStyle() {
         HudAuthoringResources withoutSkin = resources(null);
         try {
             HudAuthoringResources.TextButtonDefaults defaults =
@@ -83,7 +93,8 @@ public class HudAuthoringResourcesLabelTest {
         }
     }
 
-    @Test public void imageButtonStylesNeedNoButtonBackground() {
+    @Test
+    public void imageButtonStylesNeedNoButtonBackground() {
         Skin skin = new Skin();
         ImageButton.ImageButtonStyle imageOnly = new ImageButton.ImageButtonStyle();
         imageOnly.imageUp = VisUI.getSkin().getDrawable("white");
@@ -99,7 +110,8 @@ public class HudAuthoringResourcesLabelTest {
         }
     }
 
-    @Test public void textFieldStylesRequireAFontAndFontColorButNoBackground() {
+    @Test
+    public void textFieldStylesRequireAFontAndFontColorButNoBackground() {
         Skin skin = new Skin();
         TextField.TextFieldStyle source =
                 VisUI.getSkin().get("default", TextField.TextFieldStyle.class);
@@ -125,7 +137,8 @@ public class HudAuthoringResourcesLabelTest {
         }
     }
 
-    @Test public void selectBoxStylesRequireListAndScrollPaneButNoBackground() {
+    @Test
+    public void selectBoxStylesRequireListAndScrollPaneButNoBackground() {
         Skin skin = new Skin();
         SelectBox.SelectBoxStyle source = VisUI.getSkin().get("default", SelectBox.SelectBoxStyle.class);
         SelectBox.SelectBoxStyle textOnly = new SelectBox.SelectBoxStyle(source);
@@ -146,7 +159,8 @@ public class HudAuthoringResourcesLabelTest {
         }
     }
 
-    @Test public void listStylesExposeUsableSkinNamesAndDefault() {
+    @Test
+    public void listStylesExposeUsableSkinNamesAndDefault() {
         Skin skin = new Skin();
         com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle source =
                 VisUI.getSkin().get("default", com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle.class);
@@ -165,7 +179,8 @@ public class HudAuthoringResourcesLabelTest {
         }
     }
 
-    @Test public void checkBoxStylesRequireFontAndBothBoxDrawablesButNotFontColor() {
+    @Test
+    public void checkBoxStylesRequireFontAndBothBoxDrawablesButNotFontColor() {
         Skin skin = new Skin();
         CheckBox.CheckBoxStyle source =
                 VisUI.getSkin().get("default", CheckBox.CheckBoxStyle.class);
@@ -189,7 +204,8 @@ public class HudAuthoringResourcesLabelTest {
         }
     }
 
-    @Test public void sliderStylesRequireOnlyTheNativeInteractiveBackground() {
+    @Test
+    public void sliderStylesRequireOnlyTheNativeInteractiveBackground() {
         Skin skin = new Skin();
         Slider.SliderStyle usable = new Slider.SliderStyle();
         usable.background = VisUI.getSkin().getDrawable("white");
@@ -207,7 +223,8 @@ public class HudAuthoringResourcesLabelTest {
         }
     }
 
-    @Test public void progressBarStylesRequireOnlyTheNativeNonNullStyleInstance() {
+    @Test
+    public void progressBarStylesRequireOnlyTheNativeNonNullStyleInstance() {
         Skin skin = new Skin();
         ProgressBar.ProgressBarStyle backgroundAndKnob = new ProgressBar.ProgressBarStyle();
         backgroundAndKnob.background = VisUI.getSkin().getDrawable("white");
@@ -232,7 +249,8 @@ public class HudAuthoringResourcesLabelTest {
         }
     }
 
-    @Test public void scrollPaneStylesRequireOnlyTheNativeNonNullStyleInstance() {
+    @Test
+    public void scrollPaneStylesRequireOnlyTheNativeNonNullStyleInstance() {
         Skin skin = new Skin();
         ScrollPane.ScrollPaneStyle complete = new ScrollPane.ScrollPaneStyle();
         complete.background = VisUI.getSkin().getDrawable("white");

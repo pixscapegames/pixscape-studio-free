@@ -103,7 +103,9 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
         this.atlasReadiness = atlasReadiness;
     }
 
-    /** Binds the Runtime system used only for its INTERNAL prepared-state query. */
+    /**
+     * Binds the Runtime system used only for its INTERNAL prepared-state query.
+     */
     public void setRuntimeParticleSystem(RenderParticleSyncSystem runtimeParticleSystem) {
         this.runtimeParticleSystem = runtimeParticleSystem;
     }

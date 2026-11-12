@@ -3,7 +3,9 @@ package games.pixscape.studio.service.entitygraph;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 
-/** One clipboard-local entity and its optional clipboard-local parent. */
+/**
+ * One clipboard-local entity and its optional clipboard-local parent.
+ */
 public record EntityGraphEntry(
         int sourceEntityId,
         int parentSourceEntityId,
@@ -12,7 +14,9 @@ public record EntityGraphEntry(
         GenericEntityInitializer initializer,
         PropertySet customProperties) {
 
-    /** Materialization always binds a fresh initializer to the destination World. */
+    /**
+     * Materialization always binds a fresh initializer to the destination World.
+     */
     public GenericEntityInitializer initializerFor(com.artemis.World destination) {
         return initializer.duplicateFor(java.util.Objects.requireNonNull(destination, "destination"));
     }

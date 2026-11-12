@@ -24,17 +24,22 @@ import java.util.*;
  */
 public final class SceneHudDependencyCollector {
 
-    /** Identity-only dependencies; inspecting them never reads Image, Font or Skin source bytes. */
+    /**
+     * Identity-only dependencies; inspecting them never reads Image, Font or Skin source bytes.
+     */
     public record HudUsage(java.util.Set<Integer> fontAssetIds, String runtimeSkinId,
                            String authoringSkinId) {
-        public HudUsage { fontAssetIds = java.util.Set.copyOf(fontAssetIds); }
+        public HudUsage {
+            fontAssetIds = java.util.Set.copyOf(fontAssetIds);
+        }
     }
 
     public HudUsage inspectUsage(SceneHudScreenSnapshot screen) {
         Objects.requireNonNull(screen, "HUD screen snapshot");
         HudScreenAsset asset = screen.asset();
-        try { asset.validate(); }
-        catch (RuntimeException failure) {
+        try {
+            asset.validate();
+        } catch (RuntimeException failure) {
             throw rootFailure(screen.screenId(), "has an invalid HUD asset", failure);
         }
         HudValidationResult validation = validator.validate(screen.document());
@@ -53,7 +58,9 @@ public final class SceneHudDependencyCollector {
         return skinId == null || skinId.isBlank() ? null : skinId.trim().replace('\\', '/');
     }
 
-    /** Cheap authored-only check before reusing a previously resolved closure. No source files are read. */
+    /**
+     * Cheap authored-only check before reusing a previously resolved closure. No source files are read.
+     */
     boolean samePackReferences(SceneHudScreenSnapshot before, SceneHudScreenSnapshot after) {
         if (before == null || after == null || !before.screenId().equals(after.screenId())) return false;
         References previous = references(before);
@@ -61,7 +68,8 @@ public final class SceneHudDependencyCollector {
     }
 
     private record References(String skinId, boolean requiresAtlas, boolean builtInLabel,
-                              java.util.Set<Integer> fonts, java.util.Set<String> images) {}
+                              java.util.Set<Integer> fonts, java.util.Set<String> images) {
+    }
 
     private References references(SceneHudScreenSnapshot screen) {
         HudValidationResult validation = validator.validate(screen.document());
@@ -78,7 +86,9 @@ public final class SceneHudDependencyCollector {
                 new TreeSet<>(requirements.bitmapFontAssetIds()), images);
     }
 
-    /** Reuses the Runtime HUD Skin dependency rules for an isolated import bundle. */
+    /**
+     * Reuses the Runtime HUD Skin dependency rules for an isolated import bundle.
+     */
     public static SceneHudDependencyClosure.SkinDependency inspectSkinBundle(
             FileHandle bundleRoot, String skinRelativePath) {
         if (bundleRoot == null || skinRelativePath == null || skinRelativePath.isBlank()) {
@@ -86,6 +96,7 @@ public final class SceneHudDependencyCollector {
         }
         return scanSkin("Skin import", bundleRoot, skinRelativePath.replace('\\', '/'));
     }
+
     private final HudDocumentPersistenceService persistence;
     private final HudDocumentValidator validator;
 
@@ -215,7 +226,7 @@ public final class SceneHudDependencyCollector {
     }
 
     private static BitmapFontData parseStandaloneFontData(FileHandle descriptor,
-                                                           String rootId, int assetId) {
+                                                          String rootId, int assetId) {
         try {
             BitmapFontData data = new BitmapFontData(descriptor, false);
             if (data.getImagePaths() == null || data.getImagePaths().length == 0) {
@@ -269,23 +280,23 @@ public final class SceneHudDependencyCollector {
                                            HudImageData image,
                                            FileHandle projectDir, AssetMetaDatabase database,
                                            Map<Integer, SceneHudDependencyClosure.ImageDependency> out) {
-            if (image == null || image.source != HudImageSource.REGION) return;
-            String resourceName = image.resourceName;
-            try {
-                HudImageAssetRef reference = HudImageAssetRef.resolve(resourceName, database);
-                FileHandle source = projectDir.child(reference.sourceRelPath());
-                if (!source.exists() || source.isDirectory()) {
-                    throw new IllegalStateException("source file is missing: " + reference.sourceRelPath());
-                }
-                AssetMeta meta = database.findById(reference.assetId());
-                out.putIfAbsent(reference.assetId(), new SceneHudDependencyClosure.ImageDependency(
-                        reference.assetId(), meta != null ? meta.logicalPath() : null,
-                        reference.resourceName(), reference.sourceRelPath()));
-            } catch (RuntimeException failure) {
-                throw rootFailure(rootId, "node '" + node.id + "' field '" + fieldPath
-                        + "' REGION resource '"
-                        + resourceName + "' cannot resolve a project Image dependency", failure);
+        if (image == null || image.source != HudImageSource.REGION) return;
+        String resourceName = image.resourceName;
+        try {
+            HudImageAssetRef reference = HudImageAssetRef.resolve(resourceName, database);
+            FileHandle source = projectDir.child(reference.sourceRelPath());
+            if (!source.exists() || source.isDirectory()) {
+                throw new IllegalStateException("source file is missing: " + reference.sourceRelPath());
             }
+            AssetMeta meta = database.findById(reference.assetId());
+            out.putIfAbsent(reference.assetId(), new SceneHudDependencyClosure.ImageDependency(
+                    reference.assetId(), meta != null ? meta.logicalPath() : null,
+                    reference.resourceName(), reference.sourceRelPath()));
+        } catch (RuntimeException failure) {
+            throw rootFailure(rootId, "node '" + node.id + "' field '" + fieldPath
+                    + "' REGION resource '"
+                    + resourceName + "' cannot resolve a project Image dependency", failure);
+        }
     }
 
     private static String normalizedRequiredSkinId(String rootId, HudScreenAsset asset) {
@@ -470,7 +481,9 @@ public final class SceneHudDependencyCollector {
         return out.toString();
     }
 
-    /** GL-free source-atlas facts used only to mirror LibGDX Skin font resolution. */
+    /**
+     * GL-free source-atlas facts used only to mirror LibGDX Skin font resolution.
+     */
     private record SourceSkinAtlas(List<FileHandle> pages, Map<String, List<Integer>> indexesByName) {
         private SourceSkinAtlas {
             pages = List.copyOf(pages);
@@ -481,9 +494,9 @@ public final class SceneHudDependencyCollector {
 
         private FontAtlasResolution resolveFont(String descriptorStem, int pageCount) {
             return switch (SceneHudBitmapFontResolution.resolve(indexesByName, descriptorStem, pageCount)) {
-            case COMPLETE_UNINDEXED, COMPLETE_INDEXED -> FontAtlasResolution.COMPLETE;
-            case ABSENT -> FontAtlasResolution.ABSENT;
-            case INCOMPLETE -> FontAtlasResolution.INCOMPLETE;
+                case COMPLETE_UNINDEXED, COMPLETE_INDEXED -> FontAtlasResolution.COMPLETE;
+                case ABSENT -> FontAtlasResolution.ABSENT;
+                case INCOMPLETE -> FontAtlasResolution.INCOMPLETE;
             };
         }
 

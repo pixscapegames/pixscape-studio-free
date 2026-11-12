@@ -14,7 +14,9 @@ import games.pixscape.studio.asset.AssetMeta;
 import java.util.Objects;
 import java.util.function.IntFunction;
 
-/** Applies the selected clip's first frame for immediate editor feedback. */
+/**
+ * Applies the selected clip's first frame for immediate editor feedback.
+ */
 public final class StudioAnimationPreviewRefresher {
     private final DynamicEntityRenderState state;
     private final StudioAssetVisualResolver visualResolver;

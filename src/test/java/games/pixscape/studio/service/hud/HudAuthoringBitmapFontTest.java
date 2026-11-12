@@ -19,11 +19,21 @@ import org.junit.rules.TemporaryFolder;
 import static org.junit.Assert.*;
 
 public class HudAuthoringBitmapFontTest {
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
 
-    @Test public void loadsOneSharedMultipageFontForEveryNativeTextWidget() throws Exception {
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
+
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
+
+    @Test
+    public void loadsOneSharedMultipageFontForEveryNativeTextWidget() throws Exception {
         FileHandle project = new FileHandle(temporary.newFolder("project"));
         FileHandle bundle = project.child("orig/fonts/1");
         writePng(bundle.child("zero.png"));

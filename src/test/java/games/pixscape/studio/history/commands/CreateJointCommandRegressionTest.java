@@ -33,13 +33,65 @@ public class CreateJointCommandRegressionTest {
                 PhysicsDistanceJointComponent.class
         );
     }
-    @Test public void createRevoluteJointCommandCreatesExpectedComponentsAndValues() { assertJointCreated(PhysicsJointComponent.TYPE_REVOLUTE, r -> {}, PhysicsRevoluteJointComponent.class); }
-    @Test public void createPrismaticJointCommandCreatesExpectedComponentsAndValues() { assertJointCreated(PhysicsJointComponent.TYPE_PRISMATIC, p -> Assert.assertTrue(Math.abs(p.axisX) + Math.abs(p.axisY) > 0f), PhysicsPrismaticJointComponent.class); }
-    @Test public void createWheelJointCommandPreservesWheelSpecificFields() { assertJointCreated(PhysicsJointComponent.TYPE_WHEEL, wheel -> { Assert.assertEquals(0f, wheel.axisX, 0f); Assert.assertEquals(1f, wheel.axisY, 0f); Assert.assertEquals(4f, wheel.frequencyHz, 0f); Assert.assertEquals(0.7f, wheel.dampingRatio, 0f); Assert.assertFalse(wheel.enableMotor); Assert.assertEquals(0f, wheel.motorSpeedRad, 0f); Assert.assertEquals(0f, wheel.maxMotorTorque, 0f);}, PhysicsWheelJointComponent.class); }
-    @Test public void createFrictionJointCommandCreatesExpectedComponentsAndValues() { assertJointCreated(PhysicsJointComponent.TYPE_FRICTION, f -> { Assert.assertTrue(f.maxForce >= 0f); Assert.assertTrue(f.maxTorque >= 0f);}, PhysicsFrictionJointComponent.class); }
-    @Test public void createMotorJointCommandCreatesExpectedComponentsAndValues() { assertJointCreated(PhysicsJointComponent.TYPE_MOTOR, m -> { Assert.assertTrue(m.maxForce >= 0f); Assert.assertTrue(m.maxTorque >= 0f); Assert.assertTrue(m.correctionFactor >= 0f && m.correctionFactor <= 1f);}, PhysicsMotorJointComponent.class); }
-    @Test public void createWeldJointCommandCreatesExpectedComponentsAndValues() { assertJointCreated(PhysicsJointComponent.TYPE_WELD, w -> { Assert.assertTrue(w.frequencyHz >= 0f); Assert.assertTrue(w.dampingRatio >= 0f && w.dampingRatio <= 1f);}, PhysicsWeldJointComponent.class); }
-    @Test public void createPulleyJointCommandCreatesExpectedComponentsAndValues() { assertJointCreated(PhysicsJointComponent.TYPE_PULLEY, p -> { Assert.assertTrue(p.ratio > 0f); Assert.assertTrue(p.lengthAM > 0f); Assert.assertTrue(p.lengthBM > 0f);}, PhysicsPulleyJointComponent.class); }
+
+    @Test
+    public void createRevoluteJointCommandCreatesExpectedComponentsAndValues() {
+        assertJointCreated(PhysicsJointComponent.TYPE_REVOLUTE, r -> {
+        }, PhysicsRevoluteJointComponent.class);
+    }
+
+    @Test
+    public void createPrismaticJointCommandCreatesExpectedComponentsAndValues() {
+        assertJointCreated(PhysicsJointComponent.TYPE_PRISMATIC, p -> Assert.assertTrue(Math.abs(p.axisX) + Math.abs(p.axisY) > 0f), PhysicsPrismaticJointComponent.class);
+    }
+
+    @Test
+    public void createWheelJointCommandPreservesWheelSpecificFields() {
+        assertJointCreated(PhysicsJointComponent.TYPE_WHEEL, wheel -> {
+            Assert.assertEquals(0f, wheel.axisX, 0f);
+            Assert.assertEquals(1f, wheel.axisY, 0f);
+            Assert.assertEquals(4f, wheel.frequencyHz, 0f);
+            Assert.assertEquals(0.7f, wheel.dampingRatio, 0f);
+            Assert.assertFalse(wheel.enableMotor);
+            Assert.assertEquals(0f, wheel.motorSpeedRad, 0f);
+            Assert.assertEquals(0f, wheel.maxMotorTorque, 0f);
+        }, PhysicsWheelJointComponent.class);
+    }
+
+    @Test
+    public void createFrictionJointCommandCreatesExpectedComponentsAndValues() {
+        assertJointCreated(PhysicsJointComponent.TYPE_FRICTION, f -> {
+            Assert.assertTrue(f.maxForce >= 0f);
+            Assert.assertTrue(f.maxTorque >= 0f);
+        }, PhysicsFrictionJointComponent.class);
+    }
+
+    @Test
+    public void createMotorJointCommandCreatesExpectedComponentsAndValues() {
+        assertJointCreated(PhysicsJointComponent.TYPE_MOTOR, m -> {
+            Assert.assertTrue(m.maxForce >= 0f);
+            Assert.assertTrue(m.maxTorque >= 0f);
+            Assert.assertTrue(m.correctionFactor >= 0f && m.correctionFactor <= 1f);
+        }, PhysicsMotorJointComponent.class);
+    }
+
+    @Test
+    public void createWeldJointCommandCreatesExpectedComponentsAndValues() {
+        assertJointCreated(PhysicsJointComponent.TYPE_WELD, w -> {
+            Assert.assertTrue(w.frequencyHz >= 0f);
+            Assert.assertTrue(w.dampingRatio >= 0f && w.dampingRatio <= 1f);
+        }, PhysicsWeldJointComponent.class);
+    }
+
+    @Test
+    public void createPulleyJointCommandCreatesExpectedComponentsAndValues() {
+        assertJointCreated(PhysicsJointComponent.TYPE_PULLEY, p -> {
+            Assert.assertTrue(p.ratio > 0f);
+            Assert.assertTrue(p.lengthAM > 0f);
+            Assert.assertTrue(p.lengthBM > 0f);
+        }, PhysicsPulleyJointComponent.class);
+    }
+
     @Test
     public void createWheelJointCommandPreservesSelectedBodyOrder() {
         World world = new World(new WorldConfiguration());
@@ -106,7 +158,9 @@ public class CreateJointCommandRegressionTest {
             box2d.dispose();
         }
     }
-    @Test public void wheelJointCreatedByRealPathHasNoEntityIndexAndNoTransform() {
+
+    @Test
+    public void wheelJointCreatedByRealPathHasNoEntityIndexAndNoTransform() {
         World world = new World(new WorldConfiguration());
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
         Box2dWorldService box2d = new Box2dWorldService(100f, new Vector2(0f, -9.81f));

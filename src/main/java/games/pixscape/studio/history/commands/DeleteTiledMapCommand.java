@@ -7,7 +7,9 @@ import games.pixscape.studio.service.LayerService;
 
 import java.util.function.IntConsumer;
 
-/** Deletes and restores one Tiled Map without cascading to its owning layer. */
+/**
+ * Deletes and restores one Tiled Map without cascading to its owning layer.
+ */
 public final class DeleteTiledMapCommand implements Command {
     private final HistoryIdRegistry historyIds;
     private final DeleteGameObjectHierarchyCommand deletion;
@@ -25,7 +27,10 @@ public final class DeleteTiledMapCommand implements Command {
         this.onTargetChanged = onTargetChanged;
     }
 
-    @Override public String label() { return "Delete Tiled Map"; }
+    @Override
+    public String label() {
+        return "Delete Tiled Map";
+    }
 
     @Override
     public void redo() {

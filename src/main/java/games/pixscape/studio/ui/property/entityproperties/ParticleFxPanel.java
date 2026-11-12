@@ -79,7 +79,9 @@ public final class ParticleFxPanel extends CollapsibleWidget {
         if (!command.isNoop()) ctx.history.execute(command);
     }
 
-    public void refresh() { ambientBinder.refresh(); }
+    public void refresh() {
+        ambientBinder.refresh();
+    }
 
     public void setEntityId(int entityId) {
         this.entityId = entityId;

@@ -426,9 +426,9 @@ public class LayerSpatialDepthCommandsTest {
     }
 
     private static int createMap(World world,
-                                               int layerIndex,
-                                               int mapWidth,
-                                               boolean spatialEnabled) {
+                                 int layerIndex,
+                                 int mapWidth,
+                                 boolean spatialEnabled) {
         int mapId = world.create();
         world.getMapper(EntityIndexComponent.class).create(mapId).layerIndex = layerIndex;
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(mapId);
@@ -451,7 +451,7 @@ public class LayerSpatialDepthCommandsTest {
         index.zIndex = 0;
         SpatialHeightComponent spatial = world.getMapper(SpatialHeightComponent.class).create(actorId);
         spatial.altitude = altitude;
-        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(spatial,height);
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(spatial, height);
         return actorId;
     }
 

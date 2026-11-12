@@ -9,7 +9,8 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class EffectiveLayerOwnershipTest {
-    @Test public void brokenParentAndCycleNeverAuthorizeHistoricalLayer() throws Exception {
+    @Test
+    public void brokenParentAndCycleNeverAuthorizeHistoricalLayer() throws Exception {
         try (var f = new AlignServiceTest.Fixture()) {
             int root = f.root(0, 0), child = f.sprite(10, 0, 10, 10);
             f.attach(child, root);
@@ -31,7 +32,8 @@ public class EffectiveLayerOwnershipTest {
         }
     }
 
-    @Test public void ownershipTransitionsLeaveAuthoredPhysicsUntouched() throws Exception {
+    @Test
+    public void ownershipTransitionsLeaveAuthoredPhysicsUntouched() throws Exception {
         try (var f = new AlignServiceTest.Fixture()) {
             f.context.layerService().addLayerTop("Destination");
             int root = f.root(0, 0), child = f.sprite(10, 20, 12, 12);
@@ -65,9 +67,12 @@ public class EffectiveLayerOwnershipTest {
         }
     }
 
-    @Test public void attachmentUsesDestinationLockAndVisibilityBeforeAndAfterPublication() throws Exception {
+    @Test
+    public void attachmentUsesDestinationLockAndVisibilityBeforeAndAfterPublication() throws Exception {
         try (var f = new AlignServiceTest.Fixture()) {
-            var layers = f.context.layerService(); layers.addLayerTop("Destination"); f.process();
+            var layers = f.context.layerService();
+            layers.addLayerTop("Destination");
+            f.process();
             int root = f.root(10, 20), child = f.sprite(50, 60, 12, 12);
             f.world.getMapper(EntityIndexComponent.class).get(root).layerIndex = 1;
             f.history.execute(new AddEntityToGameObjectCommand(f.world, f.history.historyIds(), f.context.identityRegistry(), child, root, 0));
@@ -97,15 +102,19 @@ public class EffectiveLayerOwnershipTest {
         }
     }
 
-    @Test public void rootTransferChangesNestedOwnershipAndDetachKeepsItAcrossUndoRedo() throws Exception {
+    @Test
+    public void rootTransferChangesNestedOwnershipAndDetachKeepsItAcrossUndoRedo() throws Exception {
         try (var f = new AlignServiceTest.Fixture()) {
-            var layers = f.context.layerService(); layers.addLayerTop("Destination"); f.process();
+            var layers = f.context.layerService();
+            layers.addLayerTop("Destination");
+            f.process();
             int root = f.root(10, 0), nested = f.root(20, 0), child = f.sprite(50, 0, 10, 10);
             f.history.execute(new AddEntityToGameObjectCommand(f.world, f.history.historyIds(), f.context.identityRegistry(), nested, root, 0));
             f.history.execute(new AddEntityToGameObjectCommand(f.world, f.history.historyIds(), f.context.identityRegistry(), child, nested, 0));
             f.process();
             var move = new ChangeLayerIndexCommand(f.world, f.history.historyIds());
-            move.addEntry(f.history.historyIds().ensureForEntity(root), 0, 1); f.history.execute(move);
+            move.addEntry(f.history.historyIds().ensureForEntity(root), 0, 1);
+            f.history.execute(move);
             layers.setLayerLocked(layers.getLayerEntity(0), true);
             f.selection.selectOnly(child, SelectionService.SelectionSource.TREE);
             assertEquals(child, f.selection.getSelectionSnapshot().first());
@@ -116,25 +125,35 @@ public class EffectiveLayerOwnershipTest {
                 f.history.undo(); // Restore the stored 0, but membership remains effective 1.
                 assertEquals(0, f.world.getMapper(EntityIndexComponent.class).get(child).layerIndex);
                 assertFalse(f.selection.isLayerLocked(child));
-                f.history.undo(); assertTrue(f.selection.isLayerLocked(child));
-                f.history.redo(); assertFalse(f.selection.isLayerLocked(child));
-                f.history.redo(); assertEquals(1, f.world.getMapper(EntityIndexComponent.class).get(child).layerIndex);
+                f.history.undo();
+                assertTrue(f.selection.isLayerLocked(child));
+                f.history.redo();
+                assertFalse(f.selection.isLayerLocked(child));
+                f.history.redo();
+                assertEquals(1, f.world.getMapper(EntityIndexComponent.class).get(child).layerIndex);
             }
-            f.process(); assertFalse(f.selection.isLayerLocked(child));
+            f.process();
+            assertFalse(f.selection.isLayerLocked(child));
         }
     }
 
-    @Test public void lockedEffectiveLayerRejectsPlacementWithoutHistoryOrTransformChanges() throws Exception {
+    @Test
+    public void lockedEffectiveLayerRejectsPlacementWithoutHistoryOrTransformChanges() throws Exception {
         try (var f = new AlignServiceTest.Fixture()) {
-            var layers = f.context.layerService(); layers.addLayerTop("Destination"); f.process();
+            var layers = f.context.layerService();
+            layers.addLayerTop("Destination");
+            f.process();
             int root = f.root(10, 0), child = f.sprite(50, 0, 10, 10), target = f.sprite(0, 0, 10, 10);
             f.world.getMapper(EntityIndexComponent.class).get(root).layerIndex = 1;
             f.history.execute(new AddEntityToGameObjectCommand(f.world, f.history.historyIds(), f.context.identityRegistry(), child, root, 0));
             f.select(child, target);
             layers.setLayerLocked(layers.getLayerEntity(1), true);
-            int cursor = f.history.getCursor(); float x = f.t.get(child).x;
-            assertFalse(f.align.isPlacementAvailable()); f.align.alignLeft();
-            assertEquals(cursor, f.history.getCursor()); assertEquals(x, f.t.get(child).x, 0);
+            int cursor = f.history.getCursor();
+            float x = f.t.get(child).x;
+            assertFalse(f.align.isPlacementAvailable());
+            f.align.alignLeft();
+            assertEquals(cursor, f.history.getCursor());
+            assertEquals(x, f.t.get(child).x, 0);
         }
     }
 }

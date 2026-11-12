@@ -12,7 +12,7 @@ public class EntityPropertiesCustomPropertiesUiContractTest {
     @Test
     public void commonHeaderPlacesPropertiesBetweenTagsAndLayer() throws Exception {
         String source = Files.readString(Path.of(
-                "src/main/java/games/pixscape/studio/ui/property/entityproperties/EntityProperties.java"),
+                        "src/main/java/games/pixscape/studio/ui/property/entityproperties/EntityProperties.java"),
                 StandardCharsets.UTF_8);
 
         int name = source.indexOf("new VisLabel(\"Name:\")");

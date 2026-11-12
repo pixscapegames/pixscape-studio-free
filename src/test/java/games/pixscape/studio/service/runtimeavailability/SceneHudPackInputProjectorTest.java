@@ -23,14 +23,18 @@ import java.util.stream.Stream;
 import static org.junit.Assert.*;
 
 public class SceneHudPackInputProjectorTest {
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
 
-    @BeforeClass public static void bootGdx() {
-        if (Gdx.files == null) new HeadlessApplication(new ApplicationAdapter() {},
+    @BeforeClass
+    public static void bootGdx() {
+        if (Gdx.files == null) new HeadlessApplication(new ApplicationAdapter() {
+        },
                 new HeadlessApplicationConfiguration());
     }
 
-    @Test public void regionImagesUseTheirLogicalResourceNameAndDeduplicate() throws Exception {
+    @Test
+    public void regionImagesUseTheirLogicalResourceNameAndDeduplicate() throws Exception {
         FileHandle root = root();
         root.child("orig/unrelated-basename.png").writeString("pixels", false, "UTF-8");
         SceneHudDependencyClosure.ImageDependency image = new SceneHudDependencyClosure.ImageDependency(
@@ -44,7 +48,8 @@ public class SceneHudPackInputProjectorTest {
         assertEquals(List.of("hud/main"), entry.provenance().get(0).hudRoots());
     }
 
-    @Test public void standaloneFontHomonymsUseAssetIdentityForMultipageKeys() throws Exception {
+    @Test
+    public void standaloneFontHomonymsUseAssetIdentityForMultipageKeys() throws Exception {
         FileHandle root = root();
         writeStandaloneFont(root, "orig/fonts/7/default.fnt", "a.png", "nested/b.png");
         writeStandaloneFont(root, "orig/fonts/8/default.fnt", "a.png");
@@ -67,8 +72,9 @@ public class SceneHudPackInputProjectorTest {
         java.util.ArrayList<SceneHudDependencyClosure.FileDependency> files = new java.util.ArrayList<>();
         files.add(new SceneHudDependencyClosure.FileDependency(
                 SceneHudDependencyClosure.FileKind.BITMAP_FONT_DESCRIPTOR, descriptor));
-        for (String page : pages) files.add(new SceneHudDependencyClosure.FileDependency(
-                SceneHudDependencyClosure.FileKind.BITMAP_FONT_PAGE, page));
+        for (String page : pages)
+            files.add(new SceneHudDependencyClosure.FileDependency(
+                    SceneHudDependencyClosure.FileKind.BITMAP_FONT_PAGE, page));
         return new SceneHudDependencyClosure.FontDependency(id, "fonts/default", descriptor,
                 files, List.of("hud/main"));
     }
@@ -87,7 +93,8 @@ public class SceneHudPackInputProjectorTest {
         descriptor.writeString(text.toString(), false, "UTF-8");
     }
 
-    @Test public void imageButtonSecondaryStatesKeepTheirPackedImageProvenance() throws Exception {
+    @Test
+    public void imageButtonSecondaryStatesKeepTheirPackedImageProvenance() throws Exception {
         FileHandle root = root();
         root.child("orig/up.png").writeString("up", false, "UTF-8");
         root.child("orig/over.png").writeString("over", false, "UTF-8");
@@ -109,7 +116,8 @@ public class SceneHudPackInputProjectorTest {
         assertEquals(List.of("hud/main"), plan.entry(key("over__a2", -1)).provenance().get(0).hudRoots());
     }
 
-    @Test public void skinRegionsPreserveAtlasMetadataAndIndexedLookupIdentity() throws Exception {
+    @Test
+    public void skinRegionsPreserveAtlasMetadataAndIndexedLookupIdentity() throws Exception {
         FileHandle root = root();
         writeSkin(root, "skins/game.json", "{}");
         writeAtlas(root, "skins/game.atlas", "page.png", """
@@ -152,7 +160,8 @@ public class SceneHudPackInputProjectorTest {
         assertNotNull(plan.entry(key("frames", 2)));
     }
 
-    @Test public void atlasBackedFontsReuseExistingSingleAndIndexedSkinEntries() throws Exception {
+    @Test
+    public void atlasBackedFontsReuseExistingSingleAndIndexedSkinEntries() throws Exception {
         FileHandle root = root();
         writeSkin(root, "skins/game.json", """
                 {"com.badlogic.gdx.graphics.g2d.BitmapFont":{
@@ -185,7 +194,8 @@ public class SceneHudPackInputProjectorTest {
         assertEquals(0, plan.fontPageEntries().size());
     }
 
-    @Test public void fallbackFontsUseDescriptorStemsInsteadOfPageBasenames() throws Exception {
+    @Test
+    public void fallbackFontsUseDescriptorStemsInsteadOfPageBasenames() throws Exception {
         FileHandle root = root();
         writeSkin(root, "skins/game.json", """
                 {"BitmapFont":{"single":{"file":"fancy.fnt"},"multi":{"file":"multi.fnt"}}}
@@ -205,7 +215,8 @@ public class SceneHudPackInputProjectorTest {
         assertNotNull(plan.entry(key("multi", 1)));
     }
 
-    @Test public void whitePixelIsReservedOnceAndProjectionHasNoWritesOrGl() throws Exception {
+    @Test
+    public void whitePixelIsReservedOnceAndProjectionHasNoWritesOrGl() throws Exception {
         FileHandle root = root();
         List<String> before = tree(root.file().toPath());
         SceneHudPackInputPlan plan = project(root, closure(List.of(), List.of(), List.of()));
@@ -216,7 +227,8 @@ public class SceneHudPackInputProjectorTest {
         assertNull(Gdx.gl);
     }
 
-    @Test public void builtInLabelFontIsOneReservedSceneLocalAtlasInput() throws Exception {
+    @Test
+    public void builtInLabelFontIsOneReservedSceneLocalAtlasInput() throws Exception {
         FileHandle root = root();
         SceneHudDependencyClosure.SelectedHudScreen screen =
                 new SceneHudDependencyClosure.SelectedHudScreen(
@@ -237,25 +249,27 @@ public class SceneHudPackInputProjectorTest {
         assertEquals(List.of("hud/main"), entry.provenance().get(0).hudRoots());
     }
 
-    @Test public void incompatibleImageAndSkinCollisionNamesBothProvenances() throws Exception {
+    @Test
+    public void incompatibleImageAndSkinCollisionNamesBothProvenances() throws Exception {
         FileHandle root = root();
         root.child("orig/button.png").writeString("image", false, "UTF-8");
         writeSkin(root, "skins/game.json", "{}");
         writeAtlas(root, "skins/game.atlas", "page.png", simpleRegion("button", -1));
 
         assertCollision(root, closure(List.of("hud/main"), List.of(new SceneHudDependencyClosure.ImageDependency(
-                1, "images/button", "button", "orig/button.png")),
+                        1, "images/button", "button", "orig/button.png")),
                 List.of(skin("skins/game.json", "skins/game.atlas", List.of()))), "REGION Image", "Skin");
     }
 
-    @Test public void incompatibleSkinsAndFontAndInternalCollisionsFailDeterministically() throws Exception {
+    @Test
+    public void incompatibleSkinsAndFontAndInternalCollisionsFailDeterministically() throws Exception {
         FileHandle root = root();
         writeSkin(root, "skins/a.json", "{}");
         writeAtlas(root, "skins/a.atlas", "a.png", simpleRegion("button", -1));
         writeSkin(root, "skins/b.json", "{}");
         writeAtlas(root, "skins/b.atlas", "b.png", simpleRegion("button", -1));
         assertCollision(root, closure(List.of("hud/a", "hud/b"), List.of(), List.of(
-                skin("skins/a.json", "skins/a.atlas", List.of()), skin("skins/b.json", "skins/b.atlas", List.of()))),
+                        skin("skins/a.json", "skins/a.atlas", List.of()), skin("skins/b.json", "skins/b.atlas", List.of()))),
                 "Skin 'skins/a.json'", "Skin 'skins/b.json'");
 
         writeSkin(root, "skins/font.json", "{" + "\"BitmapFont\":{\"button\":{\"file\":\"button.fnt\"}}}");
@@ -267,11 +281,12 @@ public class SceneHudPackInputProjectorTest {
 
         root.child("orig/internal.png").writeString("pixels", false, "UTF-8");
         assertCollision(root, closure(List.of("hud/main"), List.of(new SceneHudDependencyClosure.ImageDependency(
-                2, "images/internal", "__pixscape_internal__/__ps_internal_white_px", "orig/internal.png")),
+                        2, "images/internal", "__pixscape_internal__/__ps_internal_white_px", "orig/internal.png")),
                 List.of()), "REGION Image", "Pixscape internal");
     }
 
-    @Test public void incompatibleFallbackFontPagesWithTheSameDescriptorStemFail() throws Exception {
+    @Test
+    public void incompatibleFallbackFontPagesWithTheSameDescriptorStemFail() throws Exception {
         FileHandle root = root();
         writeSkin(root, "skins/a.json", "{\"BitmapFont\":{\"first\":{\"file\":\"a/button.fnt\"}}}");
         writeSkin(root, "skins/b.json", "{\"BitmapFont\":{\"second\":{\"file\":\"b/button.fnt\"}}}");
@@ -281,12 +296,13 @@ public class SceneHudPackInputProjectorTest {
         root.child("skins/b/second.png").writeString("second", false, "UTF-8");
 
         assertCollision(root, closure(List.of("hud/a", "hud/b"), List.of(), List.of(
-                skin("skins/a.json", null, List.of("skins/a/button.fnt", "skins/a/first.png")),
-                skin("skins/b.json", null, List.of("skins/b/button.fnt", "skins/b/second.png")))),
+                        skin("skins/a.json", null, List.of("skins/a/button.fnt", "skins/a/first.png")),
+                        skin("skins/b.json", null, List.of("skins/b/button.fnt", "skins/b/second.png")))),
                 "BitmapFont descriptor 'skins/a/button.fnt'", "BitmapFont descriptor 'skins/b/button.fnt'");
     }
 
-    @Test public void equivalentSkinRegionsDeduplicateAndRetainBothProvenances() throws Exception {
+    @Test
+    public void equivalentSkinRegionsDeduplicateAndRetainBothProvenances() throws Exception {
         FileHandle root = root();
         writeSkin(root, "skins/a.json", "{}");
         writeSkin(root, "skins/b.json", "{}");
@@ -303,7 +319,8 @@ public class SceneHudPackInputProjectorTest {
         assertEquals("skins/b.json", entry.provenance().get(1).skinId());
     }
 
-    @Test public void distinctAtlasKeysCannotCollapseToSkinRegistrationKeys() throws Exception {
+    @Test
+    public void distinctAtlasKeysCannotCollapseToSkinRegistrationKeys() throws Exception {
         for (int index : List.of(0, 2)) {
             FileHandle root = root();
             String name = index == 0 ? "legitimate" : "button";
@@ -312,7 +329,7 @@ public class SceneHudPackInputProjectorTest {
             writeSkin(root, "skins/game.json", "{}");
             writeAtlas(root, "skins/game.atlas", "page.png", simpleRegion(name, index));
             SceneHudDependencyClosure dependencies = closure(List.of("hud/main"), List.of(
-                    new SceneHudDependencyClosure.ImageDependency(1, "images/image", collapsed, "orig/image.png")),
+                            new SceneHudDependencyClosure.ImageDependency(1, "images/image", collapsed, "orig/image.png")),
                     List.of(skin("skins/game.json", "skins/game.atlas", List.of())));
             List<String> before = tree(root.file().toPath());
             String diagnostic = null;
@@ -336,7 +353,8 @@ public class SceneHudPackInputProjectorTest {
         }
     }
 
-    @Test public void distinctSkinRegistrationKeysAndRepeatedIndexedKeysRemainValid() throws Exception {
+    @Test
+    public void distinctSkinRegistrationKeysAndRepeatedIndexedKeysRemainValid() throws Exception {
         FileHandle root = root();
         writeSkin(root, "skins/game.json", "{}");
         writeAtlas(root, "skins/game.atlas", "page.png", simpleRegion("ordinary", -1)
@@ -346,10 +364,12 @@ public class SceneHudPackInputProjectorTest {
                 List.of(skin("skins/game.json", "skins/game.atlas", List.of()))));
         assertEquals(4, plan.skinAtlasRegionEntries().size());
         for (SceneHudPackInputPlan.AtlasKey key : List.of(key("ordinary", -1), key("different", -1),
-                key("button", 0), key("button", 2))) assertNotNull(plan.entry(key));
+                key("button", 0), key("button", 2)))
+            assertNotNull(plan.entry(key));
     }
 
-    @Test public void planRetainsExactlyTheClosureRoots() throws Exception {
+    @Test
+    public void planRetainsExactlyTheClosureRoots() throws Exception {
         FileHandle root = root();
         SceneHudPackInputPlan plan = project(root, closure(List.of("hud/selected", "hud/other"), List.of(), List.of()));
         assertEquals(List.of("hud/selected", "hud/other"), plan.rootIds());
@@ -361,8 +381,8 @@ public class SceneHudPackInputProjectorTest {
     }
 
     private static SceneHudDependencyClosure closure(List<String> roots,
-                                                      List<SceneHudDependencyClosure.ImageDependency> images,
-                                                      List<SceneHudDependencyClosure.SkinDependency> skins) {
+                                                     List<SceneHudDependencyClosure.ImageDependency> images,
+                                                     List<SceneHudDependencyClosure.SkinDependency> skins) {
         List<String> imageNames = images.stream().map(SceneHudDependencyClosure.ImageDependency::resourceName).toList();
         List<SceneHudDependencyClosure.SelectedHudScreen> screens = new java.util.ArrayList<>();
         for (int index = 0; index < roots.size(); index++) {
@@ -373,7 +393,7 @@ public class SceneHudPackInputProjectorTest {
     }
 
     private static SceneHudDependencyClosure.SelectedHudScreen screen(String root, String skinId,
-                                                                        List<String> imageNames) {
+                                                                      List<String> imageNames) {
         HudScreenAsset asset = new HudScreenAsset();
         asset.skinId = skinId;
         return new SceneHudDependencyClosure.SelectedHudScreen(root, asset, document(imageNames),
@@ -381,12 +401,12 @@ public class SceneHudPackInputProjectorTest {
     }
 
     private static SceneHudDependencyClosure.SkinDependency skin(String skinJson, String atlas,
-                                                                  List<String> additionalFiles) {
+                                                                 List<String> additionalFiles) {
         return skin(skinJson, atlas, null, additionalFiles);
     }
 
     private static SceneHudDependencyClosure.SkinDependency skin(String skinJson, String atlas,
-                                                                  String explicitPage, List<String> additionalFiles) {
+                                                                 String explicitPage, List<String> additionalFiles) {
         List<SceneHudDependencyClosure.FileDependency> files = new java.util.ArrayList<>();
         files.add(file(SceneHudDependencyClosure.FileKind.SKIN_JSON, skinJson));
         if (atlas != null) {
@@ -396,9 +416,10 @@ public class SceneHudPackInputProjectorTest {
                     : atlas.contains("b.atlas") ? "b.png" : "page.png");
             files.add(file(SceneHudDependencyClosure.FileKind.SKIN_ATLAS_PAGE, page));
         }
-        for (String path : additionalFiles) files.add(file(path.endsWith(".fnt")
-                ? SceneHudDependencyClosure.FileKind.BITMAP_FONT_DESCRIPTOR
-                : SceneHudDependencyClosure.FileKind.BITMAP_FONT_PAGE, path));
+        for (String path : additionalFiles)
+            files.add(file(path.endsWith(".fnt")
+                    ? SceneHudDependencyClosure.FileKind.BITMAP_FONT_DESCRIPTOR
+                    : SceneHudDependencyClosure.FileKind.BITMAP_FONT_PAGE, path));
         return new SceneHudDependencyClosure.SkinDependency(skinJson, files);
     }
 
@@ -414,7 +435,9 @@ public class SceneHudPackInputProjectorTest {
         return Gdx.files.absolute(temporary.newFolder().getAbsolutePath());
     }
 
-    private static HudDocumentV1 group() { return new HudDocumentV1(new HudNode("root", HudNodeKind.GROUP)); }
+    private static HudDocumentV1 group() {
+        return new HudDocumentV1(new HudNode("root", HudNodeKind.GROUP));
+    }
 
     private static HudDocumentV1 document(List<String> imageNames) {
         HudNode root = new HudNode("root", HudNodeKind.GROUP);

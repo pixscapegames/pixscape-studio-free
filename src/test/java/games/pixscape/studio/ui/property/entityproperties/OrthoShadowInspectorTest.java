@@ -31,9 +31,11 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
 public class OrthoShadowInspectorTest {
-    @org.junit.Rule public org.junit.rules.TemporaryFolder files = new org.junit.rules.TemporaryFolder();
+    @org.junit.Rule
+    public org.junit.rules.TemporaryFolder files = new org.junit.rules.TemporaryFolder();
 
-    @Test public void selectingHardPcfAndNoneCanBeUndoneAndRedone() throws Exception {
+    @Test
+    public void selectingHardPcfAndNoneCanBeUndoneAndRedone() throws Exception {
         VisUiTestBootstrap.loadSkin();
         SceneMeta scene = new SceneMeta("Ortho", "ortho.json");
         scene.lightingEnabled = true;
@@ -56,16 +58,26 @@ public class OrthoShadowInspectorTest {
             world.process();
             panel.setEntityId(entity);
             SimpleSelectBox<String> quality = panel.findActor("light-shadow-quality");
-            quality.setSelected("Hard"); assertEquals(1, light.shadowQuality);
-            quality.setSelected("PCF"); assertEquals(2, light.shadowQuality);
-            quality.setSelected("None"); assertEquals(0, light.shadowQuality);
-            history.undo(); assertEquals(2, light.shadowQuality);
-            panel.setEntityId(entity); assertEquals("PCF", quality.getSelected());
-            history.undo(); assertEquals(1, light.shadowQuality);
-            panel.setEntityId(entity); assertEquals("Hard", quality.getSelected());
-            history.undo(); assertEquals(0, light.shadowQuality);
-            history.redo(); assertEquals(1, light.shadowQuality);
-            history.redo(); assertEquals(2, light.shadowQuality);
+            quality.setSelected("Hard");
+            assertEquals(1, light.shadowQuality);
+            quality.setSelected("PCF");
+            assertEquals(2, light.shadowQuality);
+            quality.setSelected("None");
+            assertEquals(0, light.shadowQuality);
+            history.undo();
+            assertEquals(2, light.shadowQuality);
+            panel.setEntityId(entity);
+            assertEquals("PCF", quality.getSelected());
+            history.undo();
+            assertEquals(1, light.shadowQuality);
+            panel.setEntityId(entity);
+            assertEquals("Hard", quality.getSelected());
+            history.undo();
+            assertEquals(0, light.shadowQuality);
+            history.redo();
+            assertEquals(1, light.shadowQuality);
+            history.redo();
+            assertEquals(2, light.shadowQuality);
             FileHandle file = new FileHandle(files.newFile("ortho.json"));
             SceneService.saveScene(world, file, false);
             World reopened = world(scene);
@@ -81,8 +93,10 @@ public class OrthoShadowInspectorTest {
             } finally {
                 reopened.dispose();
             }
-            history.redo(); assertEquals(0, light.shadowQuality);
-            panel.setEntityId(entity); assertEquals("None", quality.getSelected());
+            history.redo();
+            assertEquals(0, light.shadowQuality);
+            panel.setEntityId(entity);
+            assertEquals("None", quality.getSelected());
         } finally {
             world.dispose();
             VisUiTestBootstrap.unloadSkin();
@@ -101,7 +115,10 @@ public class OrthoShadowInspectorTest {
         return new LightingPanel(new EntityPropertiesContext(world, history,
                 new PhysicsSelectionService(), new PhysicsService(world, null, scene), layers,
                 new AtlasStudioService(null), new SelectionService(world, layers), identities,
-                new IconResolver(world), () -> {}, assets::findById, ignored -> {}, Array::new,
-                new AnimationAssetAuthoringService(() -> assets, () -> null, ignored -> {}), 0, scene), true);
+                new IconResolver(world), () -> {
+        }, assets::findById, ignored -> {
+        }, Array::new,
+                new AnimationAssetAuthoringService(() -> assets, () -> null, ignored -> {
+                }), 0, scene), true);
     }
 }

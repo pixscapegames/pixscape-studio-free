@@ -53,7 +53,8 @@ public final class TilesetAssetImportService {
             else {
                 java.nio.file.Path root = sourceRoot.file().toPath();
                 while (root != null && !parent.startsWith(root)) root = root.getParent();
-                if (root == null) throw new IllegalArgumentException("Collection images have no common source directory.");
+                if (root == null)
+                    throw new IllegalArgumentException("Collection images have no common source directory.");
                 sourceRoot = new FileHandle(root.toFile());
             }
         }
@@ -83,7 +84,8 @@ public final class TilesetAssetImportService {
             }
             Map<Integer, Integer> localIds = new LinkedHashMap<>();
             for (ImageCollectionTileSource item : sourceTiles) {
-                if (item == null || item.sourceFile() == null || TilesetReimportService.isNormalCompanion(item.sourceFile().name())) continue;
+                if (item == null || item.sourceFile() == null || TilesetReimportService.isNormalCompanion(item.sourceFile().name()))
+                    continue;
                 String key = TilesetReimportService.relative(originalRoot, item.sourceFile());
                 TileAssetMeta tile = existingByLocalId.get(item.localTileId());
                 if (key.startsWith("../") || tile == null || !key.equals(tile.importSourceKey))
@@ -329,7 +331,7 @@ public final class TilesetAssetImportService {
     }
 
     void applyProfileSettings(TilesetAssetMeta tilesetMeta,
-                                      TilesetProfileImportSettings profileSettings) {
+                              TilesetProfileImportSettings profileSettings) {
         if (tilesetMeta == null) return;
 
         TilesetProfileImportSettings settings = profileSettings != null
@@ -544,12 +546,12 @@ public final class TilesetAssetImportService {
     }
 
     void splitGridImage(FileHandle sourceFile,
-                                FileHandle outputDir,
-                                int tileWidth,
-                                int tileHeight,
-                                int spacing,
-                                int margin,
-                                String prefix) {
+                        FileHandle outputDir,
+                        int tileWidth,
+                        int tileHeight,
+                        int spacing,
+                        int margin,
+                        String prefix) {
         if (sourceFile == null || !sourceFile.exists()) {
             throw new IllegalArgumentException("Source image is missing");
         }

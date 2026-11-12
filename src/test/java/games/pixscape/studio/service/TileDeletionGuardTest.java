@@ -40,7 +40,8 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 public class TileDeletionGuardTest {
-    @Rule public TemporaryFolder temp = new TemporaryFolder();
+    @Rule
+    public TemporaryFolder temp = new TemporaryFolder();
     private final ProjectConfig cfg = new ProjectConfig();
     private final ProjectConfig previous = ProjectConfig.getInstance();
     private final EditorDocumentManager documents = new EditorDocumentManager();
@@ -56,7 +57,8 @@ public class TileDeletionGuardTest {
     private SceneEditorContext castle;
     private WorldCanvas canvas;
 
-    @Before public void setup() throws Exception {
+    @Before
+    public void setup() throws Exception {
         globals = new StudioGlTestScope();
         Gdx.files = new HeadlessFiles();
         Gdx.app = (Application) Proxy.newProxyInstance(Application.class.getClassLoader(),
@@ -108,33 +110,39 @@ public class TileDeletionGuardTest {
         set(canvas, "sceneEditorContext", castle);
     }
 
-    @After public void tearDown() throws Exception {
+    @After
+    public void tearDown() throws Exception {
         for (SceneEditorContext context : contexts) context.dispose();
         ProjectConfig.setInstance(previous);
         globals.close();
     }
 
-    @Test public void closedSceneProtectsTopLevelBag() {
+    @Test
+    public void closedSceneProtectsTopLevelBag() {
         painted("Test2", "tileAssetIds: {items: [" + grass.id() + "], size: 1}");
         assertTilesetProtected("terrain", "Test2");
     }
 
-    @Test public void closedSceneProtectsNestedBag() {
+    @Test
+    public void closedSceneProtectsNestedBag() {
         painted("Test2", "data: {tileAssetIds: {items: [" + grass.id() + "], size: 1}}");
         assertTilesetProtected("terrain", "Test2");
     }
 
-    @Test public void savedCellsInMultipleScenesStillBlockWhenActiveWorldIsEmpty() {
+    @Test
+    public void savedCellsInMultipleScenesStillBlockWhenActiveWorldIsEmpty() {
         for (String name : List.of("castle", "Test2")) painted(name, "tileAssetIds: [" + grass.id() + "]");
         assertTilesetProtected("terrain", "castle", "Test2");
     }
 
-    @Test public void closedSceneProtectsPaintedAnimation() {
+    @Test
+    public void closedSceneProtectsPaintedAnimation() {
         painted("Test2", "data: {tileAssetIds: {items: [" + wave.id + "], size: 1}}");
         assertAnimationProtected("Test2");
     }
 
-    @Test public void unsavedCellsInInactiveTabProtectTileAndAnimation() {
+    @Test
+    public void unsavedCellsInInactiveTabProtectTileAndAnimation() {
         SceneEditorContext test2 = open("Test2");
         World world = test2.world();
         TiledLayerComponent layer = world.getMapper(TiledLayerComponent.class).create(world.create());
@@ -149,20 +157,23 @@ public class TileDeletionGuardTest {
         assertAnimationProtected("Test2");
     }
 
-    @Test public void unreadableSceneBlocksBothDeletions() {
+    @Test
+    public void unreadableSceneBlocksBothDeletions() {
         scene("Test2").writeString("{invalid", false);
         assertTilesetProtected("Cannot read scene 'Test2'");
         assertAnimationProtected("Cannot read scene 'Test2'");
     }
 
-    @Test public void tileAnimationFrameProtectsItsTileset() {
+    @Test
+    public void tileAnimationFrameProtectsItsTileset() {
         wave.frameAssetIds = new int[]{grass.id()};
         wave.frameDurationsMs = new int[]{120};
         TileAnimationsIO.save(animations, definitions);
         assertTilesetProtected("terrain", "wave");
     }
 
-    @Test public void animationBaseProtectsItsTilesetAfterAllFramesMoveElsewhere() {
+    @Test
+    public void animationBaseProtectsItsTilesetAfterAllFramesMoveElsewhere() {
         var other = assets.registerIfAbsent(AssetType.TILESET, "tiles/other", null, AssetMeta.AssetScope.USER);
         TileAssetMeta frame = (TileAssetMeta) assets.registerIfAbsent(AssetType.TILE, "tiles/other/7",
                 "orig/tiles/other/7.png", AssetMeta.AssetScope.USER);
@@ -182,7 +193,8 @@ public class TileDeletionGuardTest {
         assertEquals(9, frame.properties.getInt("cost", -1));
     }
 
-    @Test public void unusedTilesetWithIdOnlyAfterBagSizeCanBeDeleted() {
+    @Test
+    public void unusedTilesetWithIdOnlyAfterBagSizeCanBeDeleted() {
         painted("Test2", "tileAssetIds: {items: [0," + grass.id() + "], size: 1}");
         service.deleteTilesetDirectory("terrain");
         assertFalse(source.parent().exists());
@@ -190,7 +202,8 @@ public class TileDeletionGuardTest {
         assertNull(AssetMetaDatabase.load(catalog).findById(grass.tilesetId));
     }
 
-    @Test public void availabilityAloneAllowsAnimationDeletionAndIsCleanedUp() throws Exception {
+    @Test
+    public void availabilityAloneAllowsAnimationDeletionAndIsCleanedUp() throws Exception {
         cfg.getSceneMeta("Test2").runtimeAvailability.tiledAnimationIds.add(wave.id);
         registry.put(wave.id, new int[]{grass.id()}, new int[]{120});
         GdxNativesLoader.load();

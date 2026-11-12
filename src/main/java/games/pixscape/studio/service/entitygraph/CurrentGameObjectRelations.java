@@ -10,11 +10,15 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.system.GameObjectHierarchySystem;
 
-/** Studio hierarchy reads: current authored relations at action boundaries, published topology in frame readers. */
+/**
+ * Studio hierarchy reads: current authored relations at action boundaries, published topology in frame readers.
+ */
 public final class CurrentGameObjectRelations {
-    private CurrentGameObjectRelations() {}
+    private CurrentGameObjectRelations() {
+    }
 
-    /** Current authored root, O(ancestry depth), no allocation or global scan.
+    /**
+     * Current authored root, O(ancestry depth), no allocation or global scan.
      * Command/interaction boundary only; published frame readers use Runtime topology instead.
      * A broken relation never falls back to the child's historical layer index.
      */
@@ -33,7 +37,8 @@ public final class CurrentGameObjectRelations {
         throw new IllegalArgumentException("Layer ownership hierarchy is cyclic or exceeds the depth limit.");
     }
 
-    /** O(1) ownership from published topology for frame readers; never refreshes ECS.
+    /**
+     * O(1) ownership from published topology for frame readers; never refreshes ECS.
      * Missing/unpublished member relations return -1 instead of using historical child indices.
      */
     public static int publishedLayerIndex(World world, int entityId) {
@@ -51,7 +56,9 @@ public final class CurrentGameObjectRelations {
         return index != null ? index.layerIndex : -1;
     }
 
-    /** Stored descendant indices remain serialization/history data, not ownership authority. */
+    /**
+     * Stored descendant indices remain serialization/history data, not ownership authority.
+     */
     public static int layerIndex(World world, int entityId) {
         int root = rootEntityId(world, IdentityRegistry.boundTo(world), entityId);
         LayerComponent layer = world.getMapper(LayerComponent.class).getSafe(root, null);

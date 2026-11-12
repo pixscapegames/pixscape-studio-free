@@ -2,7 +2,9 @@ package games.pixscape.studio.service.tiled;
 
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
-/** Resolves the logical Tiled cell used by Studio editing without allocating per update. */
+/**
+ * Resolves the logical Tiled cell used by Studio editing without allocating per update.
+ */
 public final class TiledCursorResolver {
     private TiledCursorResolver() {
     }

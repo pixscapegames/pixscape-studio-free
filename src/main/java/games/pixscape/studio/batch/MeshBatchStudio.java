@@ -110,8 +110,11 @@ public final class MeshBatchStudio implements MetricsBatch {
         if (enabled != blendingEnabled || src != blendSrc || dst != blendDst
                 || srcAlpha != blendSrcAlpha || dstAlpha != blendDstAlpha) {
             flush(stats);
-            blendingEnabled = enabled; blendSrc = src; blendDst = dst;
-            blendSrcAlpha = srcAlpha; blendDstAlpha = dstAlpha;
+            blendingEnabled = enabled;
+            blendSrc = src;
+            blendDst = dst;
+            blendSrcAlpha = srcAlpha;
+            blendDstAlpha = dstAlpha;
             if (stats != null) stats.blendModeSwitches++;
         }
     }
@@ -228,8 +231,10 @@ public final class MeshBatchStudio implements MetricsBatch {
         if (stats != null) {
             stats.flushes++;
             stats.drawCalls++;
-            stats.bufferUploads++;stats.bufferUploadBytes+=(long)vertCount*4;
-            stats.uploadedVertices+=vertCount/VERT_STRIDE_FLOATS;stats.drawnIndices+=quadCount*6;
+            stats.bufferUploads++;
+            stats.bufferUploadBytes += (long) vertCount * 4;
+            stats.uploadedVertices += vertCount / VERT_STRIDE_FLOATS;
+            stats.drawnIndices += quadCount * 6;
         }
 
         vertCount = 0;

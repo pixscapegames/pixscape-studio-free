@@ -208,7 +208,7 @@ public class StudioParticleFallbackReadinessTest {
 
         fixture.vfxState.clearFrame();
         collectEffect.invoke(fixture.system, effect, 0, 0, null, 27, true);
-        assertEquals(27,fixture.vfxState.sourceEmitter[0]);
+        assertEquals(27, fixture.vfxState.sourceEmitter[0]);
         assertTrue(fixture.vfxState.ignoreAmbientLighting[0]);
 
         assertEquals(1, fixture.vfxState.activeCount);

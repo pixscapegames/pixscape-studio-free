@@ -7,7 +7,9 @@ import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.studio.model.EntityKind;
 
-/** Focused snapshot/materializer for a composition-only Game Object root. */
+/**
+ * Focused snapshot/materializer for a composition-only Game Object root.
+ */
 public final class GameObjectRootInitializer extends AbstractCommonInitializer {
     private String sourceAssetId = "";
     private final PropertySet customProperties = new PropertySet();

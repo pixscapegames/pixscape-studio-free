@@ -37,17 +37,25 @@ import java.lang.reflect.Proxy;
 
 import static org.junit.Assert.*;
 
-/** Exercises the actual Scene2D source/target lifecycle, not a hand-built controller payload. */
+/**
+ * Exercises the actual Scene2D source/target lifecycle, not a hand-built controller payload.
+ */
 public class HudWidgetDragControllerTest {
-    @BeforeClass public static void bootGdx() {
-        if (Gdx.app == null) new HeadlessApplication(new ApplicationAdapter() {},
+    @BeforeClass
+    public static void bootGdx() {
+        if (Gdx.app == null) new HeadlessApplication(new ApplicationAdapter() {
+        },
                 new HeadlessApplicationConfiguration());
         VisUiTestBootstrap.loadSkin();
     }
 
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
 
-    @Test public void tableDimensionDialogCancelsWithoutPublishingAndConfirmsEnteredGrid() {
+    @Test
+    public void tableDimensionDialogCancelsWithoutPublishingAndConfirmsEnteredGrid() {
         Graphics previous = Gdx.graphics;
         Gdx.graphics = graphics(640, 480);
         Stage stage = new Stage(new ScreenViewport(), inertBatch());
@@ -71,10 +79,11 @@ public class HudWidgetDragControllerTest {
             dialog = (StudioDialog) stage.getActors().peek();
             VisTextField rows = null;
             VisTextField columns = null;
-            for (Actor actor : dialog.getContentTable().getChildren()) if (actor instanceof VisTextField field) {
-                if (rows == null) rows = field;
-                else columns = field;
-            }
+            for (Actor actor : dialog.getContentTable().getChildren())
+                if (actor instanceof VisTextField field) {
+                    if (rows == null) rows = field;
+                    else columns = field;
+                }
             assertNotNull(rows);
             assertNotNull(columns);
             rows.setText("3");
@@ -88,7 +97,10 @@ public class HudWidgetDragControllerTest {
             dialog = (StudioDialog) stage.getActors().peek();
             VisTextField invalidRows = null;
             for (Actor actor : dialog.getContentTable().getChildren())
-                if (actor instanceof VisTextField field) { invalidRows = field; break; }
+                if (actor instanceof VisTextField field) {
+                    invalidRows = field;
+                    break;
+                }
             assertNotNull(invalidRows);
             invalidRows.setText("0");
             dialogButton(dialog, "Create").fire(new ChangeListener.ChangeEvent());
@@ -107,7 +119,8 @@ public class HudWidgetDragControllerTest {
         throw new AssertionError("Missing dialog button " + caption);
     }
 
-    @Test public void imageTextButtonNativeDragCreatesOnceAtRootDespiteAnIncompatibleSelectedContainer() throws Exception {
+    @Test
+    public void imageTextButtonNativeDragCreatesOnceAtRootDespiteAnIncompatibleSelectedContainer() throws Exception {
         Graphics previous = Gdx.graphics;
         Gdx.graphics = graphics(220, 240);
         Stage stage = new Stage(new ScreenViewport(), inertBatch());
@@ -199,7 +212,8 @@ public class HudWidgetDragControllerTest {
         }
     }
 
-    @Test public void nativeDragCreatesInsideTheVisuallyTargetedNestedGroup() throws Exception {
+    @Test
+    public void nativeDragCreatesInsideTheVisuallyTargetedNestedGroup() throws Exception {
         Graphics previous = Gdx.graphics;
         Gdx.graphics = graphics(220, 120);
         Stage stage = new Stage(new ScreenViewport(), inertBatch());
@@ -246,7 +260,8 @@ public class HudWidgetDragControllerTest {
         }
     }
 
-    @Test public void nativeStageDragCreatesOneProgressBarAtTheResolvedDestination() throws Exception {
+    @Test
+    public void nativeStageDragCreatesOneProgressBarAtTheResolvedDestination() throws Exception {
         Graphics previous = Gdx.graphics;
         Gdx.graphics = graphics(220, 120);
         Stage stage = new Stage(new ScreenViewport(), inertBatch());
@@ -295,7 +310,8 @@ public class HudWidgetDragControllerTest {
         }
     }
 
-    @Test public void nativeListDragCreatesOneAuthoredListAtTheResolvedDestination() throws Exception {
+    @Test
+    public void nativeListDragCreatesOneAuthoredListAtTheResolvedDestination() throws Exception {
         Graphics previous = Gdx.graphics;
         Gdx.graphics = graphics(220, 120);
         Stage stage = new Stage(new ScreenViewport(), inertBatch());
@@ -343,7 +359,8 @@ public class HudWidgetDragControllerTest {
         }
     }
 
-    @Test public void nativeDragRejectsVisibleLabelsInZeroSizedGroupsAndClearsFeedback() throws Exception {
+    @Test
+    public void nativeDragRejectsVisibleLabelsInZeroSizedGroupsAndClearsFeedback() throws Exception {
         Graphics previous = Gdx.graphics;
         Gdx.graphics = graphics(220, 120);
         Stage stage = new Stage(new ScreenViewport(), inertBatch());
@@ -407,7 +424,8 @@ public class HudWidgetDragControllerTest {
         }
     }
 
-    @Test public void nativeDragUsesCapturedPreselectionBeforeTheRootFallback() throws Exception {
+    @Test
+    public void nativeDragUsesCapturedPreselectionBeforeTheRootFallback() throws Exception {
         Graphics previous = Gdx.graphics;
         Gdx.graphics = graphics(220, 120);
         Stage stage = new Stage(new ScreenViewport(), inertBatch());
@@ -484,7 +502,8 @@ public class HudWidgetDragControllerTest {
         }
     }
 
-    @Test public void nativeStageDragUsesNestedPreselectionOnlyInsideItsNearestVisibleAncestor()
+    @Test
+    public void nativeStageDragUsesNestedPreselectionOnlyInsideItsNearestVisibleAncestor()
             throws Exception {
         Graphics previous = Gdx.graphics;
         Gdx.graphics = graphics(220, 120);
@@ -503,7 +522,8 @@ public class HudWidgetDragControllerTest {
             configure.setAccessible(true);
             configure.invoke(session, new Rectangle(0f, 0f, 100f, 100f));
 
-            HudWidgetsPanel panel = new HudWidgetsPanel(session, documents, runnable -> { });
+            HudWidgetsPanel panel = new HudWidgetsPanel(session, documents, runnable -> {
+            });
             panel.pack();
             panel.setPosition(110f, 0f);
             stage.addActor(panel);
@@ -582,7 +602,8 @@ public class HudWidgetDragControllerTest {
         }
     }
 
-    @Test public void nativeStageDragCreatesOneDirectScrollPaneChildAndCancelsCleanly()
+    @Test
+    public void nativeStageDragCreatesOneDirectScrollPaneChildAndCancelsCleanly()
             throws Exception {
         Graphics previous = Gdx.graphics;
         Gdx.graphics = graphics(220, 120);
@@ -600,7 +621,8 @@ public class HudWidgetDragControllerTest {
             configure.setAccessible(true);
             configure.invoke(session, new Rectangle(0f, 0f, 100f, 100f));
 
-            HudWidgetsPanel panel = new HudWidgetsPanel(session, documents, runnable -> { });
+            HudWidgetsPanel panel = new HudWidgetsPanel(session, documents, runnable -> {
+            });
             panel.pack();
             panel.setPosition(110f, 0f);
             stage.addActor(panel);
@@ -644,7 +666,8 @@ public class HudWidgetDragControllerTest {
         }
     }
 
-    @Test public void nativeStageDragTargetsWindowContentButNeverItsTitle() throws Exception {
+    @Test
+    public void nativeStageDragTargetsWindowContentButNeverItsTitle() throws Exception {
         Graphics previous = Gdx.graphics;
         Gdx.graphics = graphics(220, 120);
         Stage stage = new Stage(new ScreenViewport(), inertBatch());
@@ -670,7 +693,8 @@ public class HudWidgetDragControllerTest {
             assertFalse("authoring suppresses native move", window.isMovable());
             assertFalse("authoring suppresses modal capture", window.isModal());
 
-            HudWidgetsPanel panel = new HudWidgetsPanel(session, documents, runnable -> { });
+            HudWidgetsPanel panel = new HudWidgetsPanel(session, documents, runnable -> {
+            });
             panel.pack();
             panel.setPosition(110f, 0f);
             stage.addActor(panel);
@@ -714,7 +738,8 @@ public class HudWidgetDragControllerTest {
         }
     }
 
-    @Test public void nativeStageDragFindsDialogContentButNotItsTitle() throws Exception {
+    @Test
+    public void nativeStageDragFindsDialogContentButNotItsTitle() throws Exception {
         Graphics previous = Gdx.graphics;
         Gdx.graphics = graphics(220, 120);
         Stage stage = new Stage(new ScreenViewport(), inertBatch());
@@ -742,7 +767,8 @@ public class HudWidgetDragControllerTest {
             Window dialog = (Window) session.materializedHud().actor("dialog");
             assertNotNull(dialog);
             assertFalse(dialog.isModal());
-            HudWidgetsPanel panel = new HudWidgetsPanel(session, documents, runnable -> { });
+            HudWidgetsPanel panel = new HudWidgetsPanel(session, documents, runnable -> {
+            });
             panel.pack();
             panel.setPosition(110f, 0f);
             stage.addActor(panel);
@@ -775,7 +801,8 @@ public class HudWidgetDragControllerTest {
         }
     }
 
-    @Test public void nativeStageDragPrefersVisibleLayoutInsideWindow() throws Exception {
+    @Test
+    public void nativeStageDragPrefersVisibleLayoutInsideWindow() throws Exception {
         Graphics previous = Gdx.graphics;
         Gdx.graphics = graphics(220, 120);
         Stage stage = new Stage(new ScreenViewport(), inertBatch());
@@ -810,7 +837,8 @@ public class HudWidgetDragControllerTest {
                     nestedActor.getWidth() * .5f, nestedActor.getHeight() * .5f));
             assertEquals("nested", session.widgetDropTargetAt(destination.x, destination.y).parentId());
 
-            HudWidgetsPanel panel = new HudWidgetsPanel(session, documents, runnable -> { });
+            HudWidgetsPanel panel = new HudWidgetsPanel(session, documents, runnable -> {
+            });
             panel.pack();
             panel.setPosition(110f, 0f);
             stage.addActor(panel);
@@ -840,7 +868,8 @@ public class HudWidgetDragControllerTest {
         }
     }
 
-    @Test public void nativeStageDragCreatesOneWindowWithUndoRedo() throws Exception {
+    @Test
+    public void nativeStageDragCreatesOneWindowWithUndoRedo() throws Exception {
         Graphics previous = Gdx.graphics;
         Gdx.graphics = graphics(220, 120);
         Stage stage = new Stage(new ScreenViewport(), inertBatch());
@@ -859,7 +888,8 @@ public class HudWidgetDragControllerTest {
             var configure = HudEditorSession.class.getDeclaredMethod("configurePreview", Rectangle.class);
             configure.setAccessible(true);
             configure.invoke(session, new Rectangle(0f, 0f, 100f, 100f));
-            HudWidgetsPanel panel = new HudWidgetsPanel(session, documents, runnable -> { });
+            HudWidgetsPanel panel = new HudWidgetsPanel(session, documents, runnable -> {
+            });
             panel.pack();
             panel.setPosition(110f, 0f);
             stage.addActor(panel);
@@ -910,7 +940,8 @@ public class HudWidgetDragControllerTest {
         }
     }
 
-    @Test public void nativeStageDragCreatesDialogWithOneUndoableEdit() throws Exception {
+    @Test
+    public void nativeStageDragCreatesDialogWithOneUndoableEdit() throws Exception {
         Graphics previous = Gdx.graphics;
         Gdx.graphics = graphics(220, 120);
         Stage stage = new Stage(new ScreenViewport(), inertBatch());
@@ -929,7 +960,8 @@ public class HudWidgetDragControllerTest {
             var configure = HudEditorSession.class.getDeclaredMethod("configurePreview", Rectangle.class);
             configure.setAccessible(true);
             configure.invoke(session, new Rectangle(0f, 0f, 100f, 100f));
-            HudWidgetsPanel panel = new HudWidgetsPanel(session, documents, runnable -> { });
+            HudWidgetsPanel panel = new HudWidgetsPanel(session, documents, runnable -> {
+            });
             panel.pack();
             panel.setPosition(110f, 0f);
             stage.addActor(panel);
@@ -980,7 +1012,8 @@ public class HudWidgetDragControllerTest {
         }
     }
 
-    @Test public void scrolledWindowOnlyTargetsItsVisibleContentAndNestedLayout() throws Exception {
+    @Test
+    public void scrolledWindowOnlyTargetsItsVisibleContentAndNestedLayout() throws Exception {
         HudEditorSession session = null;
         try {
             HudNode paneNode = new HudNode("pane", HudNodeKind.SCROLL_PANE);
@@ -1028,7 +1061,8 @@ public class HudWidgetDragControllerTest {
         }
     }
 
-    @Test public void paddedScrollPanePreselectionRejectsPaddingAndCreatesOnceInContent()
+    @Test
+    public void paddedScrollPanePreselectionRejectsPaddingAndCreatesOnceInContent()
             throws Exception {
         Graphics previous = Gdx.graphics;
         Gdx.graphics = graphics(220, 120);
@@ -1048,7 +1082,8 @@ public class HudWidgetDragControllerTest {
             configure.invoke(session, new Rectangle(0f, 0f, 100f, 100f));
             padScrollPane((ScrollPane) session.materializedHud().actor("pane"));
 
-            HudWidgetsPanel panel = new HudWidgetsPanel(session, documents, runnable -> { });
+            HudWidgetsPanel panel = new HudWidgetsPanel(session, documents, runnable -> {
+            });
             panel.pack();
             panel.setPosition(110f, 0f);
             stage.addActor(panel);
@@ -1097,7 +1132,8 @@ public class HudWidgetDragControllerTest {
         }
     }
 
-    @Test public void nestedPreselectionCannotEscapePaddedScrollPaneContent() throws Exception {
+    @Test
+    public void nestedPreselectionCannotEscapePaddedScrollPaneContent() throws Exception {
         HudEditorSession session = null;
         try {
             HudScreenEditorDocument document = new HudScreenEditorDocument(
@@ -1125,7 +1161,8 @@ public class HudWidgetDragControllerTest {
         }
     }
 
-    @Test public void resolvesNestedLayoutsWithTheirExistingPlacementConventions() throws Exception {
+    @Test
+    public void resolvesNestedLayoutsWithTheirExistingPlacementConventions() throws Exception {
         HudEditorSession session = null;
         try {
             HudScreenEditorDocument document = new HudScreenEditorDocument(

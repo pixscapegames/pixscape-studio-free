@@ -271,12 +271,12 @@ public final class TmxSceneImportService {
     }
 
     void populateImportedWorld(World world,
-            IdentityRegistry identityRegistry, TmxImportPlan plan,
-            Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset,
-            Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset,
-            Map<Integer, Map<Integer, Integer>> animationIdsByTileset,
-            Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer,
-            String sceneTag) {
+                               IdentityRegistry identityRegistry, TmxImportPlan plan,
+                               Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset,
+                               Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset,
+                               Map<Integer, Map<Integer, Integer>> animationIdsByTileset,
+                               Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer,
+                               String sceneTag) {
         int layerIndex = 0;
         Map<Integer, Integer> stableIdsBySourceObjectId = new HashMap<>();
         List<PendingObjectProperties> pendingProperties = new ArrayList<>();
@@ -595,11 +595,11 @@ public final class TmxSceneImportService {
     }
 
     private static TmxObjectCoordinateMapper.Coordinate localPathPoint(TmxScenePlan scene,
-                                                                         TmxObjectPoint point,
-                                                                         float tiledRotationDeg) {
+                                                                       TmxObjectPoint point,
+                                                                       float tiledRotationDeg) {
         return "isometric".equals(scene.orientation())
                 ? TmxObjectCoordinateMapper.localWithTiledRotation(
-                        scene, point.x(), point.y(), tiledRotationDeg)
+                scene, point.x(), point.y(), tiledRotationDeg)
                 : TmxObjectCoordinateMapper.local(scene, point.x(), point.y());
     }
 
@@ -624,8 +624,8 @@ public final class TmxSceneImportService {
      * The translation is rotated with the rectangle so its world-space geometry is unchanged.
      */
     static void centerRectangleTransformFromTiledPivot(TransformComponent transform,
-                                                        float width,
-                                                        float height) {
+                                                       float width,
+                                                       float height) {
         float dx = width * 0.5f;
         float dy = -height * 0.5f;
         float cos = MathUtils.cos(transform.rotationRad);
@@ -713,7 +713,7 @@ public final class TmxSceneImportService {
     }
 
     static TmxObjectAlignment effectiveTileObjectAlignment(TmxObjectAlignment alignment,
-                                                            TmxScenePlan scene) {
+                                                           TmxScenePlan scene) {
         if (alignment != TmxObjectAlignment.UNSPECIFIED) return alignment;
         return "isometric".equals(scene.orientation())
                 ? TmxObjectAlignment.BOTTOM
@@ -943,11 +943,11 @@ public final class TmxSceneImportService {
     }
 
     TmxSceneImportResult failedResult(TmxImportPlanResult planResult,
-                                              String sceneName,
-                                              String sceneFileName,
-                                              String sceneTag,
-                                              RuntimeException failure,
-                                              boolean rollbackSucceeded) {
+                                      String sceneName,
+                                      String sceneFileName,
+                                      String sceneTag,
+                                      RuntimeException failure,
+                                      boolean rollbackSucceeded) {
         return new TmxSceneImportResult(
                 rollbackSucceeded
                         ? TmxSceneImportStatus.FAILED_ROLLED_BACK
@@ -989,12 +989,12 @@ public final class TmxSceneImportService {
     }
 
     record ImportAssetsResult(int importedTilesetCount,
-                                      Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset,
-                                      Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset,
-                                      Map<Integer, Map<Integer, Integer>> animationIdsByTileset,
-                                      Set<Integer> importedTileAssetIds,
-                                      Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer,
-                                      Set<Integer> importedImageAssetIds) {
+                              Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset,
+                              Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset,
+                              Map<Integer, Map<Integer, Integer>> animationIdsByTileset,
+                              Set<Integer> importedTileAssetIds,
+                              Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer,
+                              Set<Integer> importedImageAssetIds) {
         Set<Integer> importedAssetIds() {
             Set<Integer> ids = new HashSet<>(importedTileAssetIds);
             ids.addAll(importedImageAssetIds);

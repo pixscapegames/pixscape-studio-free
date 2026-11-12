@@ -17,7 +17,9 @@ import games.pixscape.runtime.hud.document.HudDocumentValidator;
 import games.pixscape.runtime.hud.document.HudValidationResult;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 
-/** One isolated, native Scene2D HUD instance used only by Studio's interactive test mode. */
+/**
+ * One isolated, native Scene2D HUD instance used only by Studio's interactive test mode.
+ */
 final class HudInteractiveTestSession implements Disposable {
     private final ScreenViewport viewport = new ScreenViewport();
     private final Stage stage;
@@ -90,7 +92,9 @@ final class HudInteractiveTestSession implements Disposable {
         }
     }
 
-    void act(float delta) { if (!disposed) stage.act(delta); }
+    void act(float delta) {
+        if (!disposed) stage.act(delta);
+    }
 
     void draw() {
         if (disposed || x == Integer.MIN_VALUE) return;
@@ -105,7 +109,10 @@ final class HudInteractiveTestSession implements Disposable {
         }
     }
 
-    Stage stage() { return disposed ? null : stage; }
+    Stage stage() {
+        return disposed ? null : stage;
+    }
+
     Actor actor(String nodeId) {
         return disposed || materialized == null ? null : materialized.actor(nodeId);
     }
@@ -119,7 +126,8 @@ final class HudInteractiveTestSession implements Disposable {
                 && bottomY < viewport.getScreenY() + viewport.getScreenHeight();
     }
 
-    @Override public void dispose() {
+    @Override
+    public void dispose() {
         if (disposed) return;
         disposed = true;
         stage.cancelTouchFocus();
@@ -145,7 +153,10 @@ final class HudInteractiveTestSession implements Disposable {
 
     private static void disposeCandidate(Disposable candidate, RuntimeException failure) {
         if (candidate == null) return;
-        try { candidate.dispose(); }
-        catch (RuntimeException cleanupFailure) { failure.addSuppressed(cleanupFailure); }
+        try {
+            candidate.dispose();
+        } catch (RuntimeException cleanupFailure) {
+            failure.addSuppressed(cleanupFailure);
+        }
     }
 }

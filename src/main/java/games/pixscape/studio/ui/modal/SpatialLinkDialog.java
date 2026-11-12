@@ -15,7 +15,9 @@ import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialLinkProposal;
 import games.pixscape.studio.ui.widget.SimpleSelectBox;
 
-/** Native modal authoring preview; cancel/hide only discard detached data. */
+/**
+ * Native modal authoring preview; cancel/hide only discard detached data.
+ */
 public final class SpatialLinkDialog extends StudioDialog {
     private final World world;
     private final HistoryManager history;
@@ -30,14 +32,22 @@ public final class SpatialLinkDialog extends StudioDialog {
     public SpatialLinkDialog(World world, HistoryManager history, SpatialBlockSelectionService selection,
                              int map, int first, int second, boolean unlink) {
         super(unlink ? "Délier" : "Lier - aperçu");
-        this.world = world; this.history = history; this.selection = selection;
-        this.map = map; this.first = first; this.second = second; this.unlink = unlink;
+        this.world = world;
+        this.history = history;
+        this.selection = selection;
+        this.map = map;
+        this.first = first;
+        this.second = second;
+        this.unlink = unlink;
         getContentTable().defaults().pad(5).left();
         if (!unlink) {
             reference.setItems(first, second);
             reference.setSelected(first);
             reference.addListener(new ChangeListener() {
-                @Override public void changed(ChangeEvent event, Actor actor) { refreshProposal(); }
+                @Override
+                public void changed(ChangeEvent event, Actor actor) {
+                    refreshProposal();
+                }
             });
             getContentTable().add(new VisLabel("Fixed reference:"));
             getContentTable().add(reference).row();
@@ -58,7 +68,10 @@ public final class SpatialLinkDialog extends StudioDialog {
     private void refreshProposal() {
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(map, null);
         SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).getSafe(map, null);
-        if (tiled == null || blocks == null) { apply.setDisabled(true); return; }
+        if (tiled == null || blocks == null) {
+            apply.setDisabled(true);
+            return;
+        }
         int fixed = unlink ? second : reference.getSelected();
         int selected = fixed == first ? second : first;
         proposal = SpatialLinkProposal.create(blocks, tiled.data, selected, fixed, unlink, tiled.defaultTileHeight);
@@ -76,7 +89,8 @@ public final class SpatialLinkDialog extends StudioDialog {
         apply.setDisabled(!proposal.valid);
     }
 
-    @Override protected void result(Object result) {
+    @Override
+    protected void result(Object result) {
         if (Boolean.TRUE.equals(result) && proposal != null && proposal.valid) {
             SpatialBlockLinkCommand command = new SpatialBlockLinkCommand(world, history.historyIds(), map, proposal);
             history.execute(command);
@@ -87,10 +101,18 @@ public final class SpatialLinkDialog extends StudioDialog {
         selection.setLinkPreview(null);
     }
 
-    @Override public void hide() { selection.setLinkPreview(null); super.hide(); }
+    @Override
+    public void hide() {
+        selection.setLinkPreview(null);
+        super.hide();
+    }
+
     private static SpatialBlockData find(SpatialBlocksComponent component, int id) {
         for (SpatialBlockData wall : component.blocks) if (wall.id == id) return wall;
         return null;
     }
-    private static int structure(SpatialBlocksComponent component, int id) { return find(component, id).structureId; }
+
+    private static int structure(SpatialBlocksComponent component, int id) {
+        return find(component, id).structureId;
+    }
 }

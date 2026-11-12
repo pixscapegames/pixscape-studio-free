@@ -21,21 +21,31 @@ import games.pixscape.studio.io.StudioFs;
 import java.nio.file.Path;
 import java.util.*;
 
-/** Saved-state, file-only export preparation. Never consumes or publishes Studio live atlases. */
+/**
+ * Saved-state, file-only export preparation. Never consumes or publishes Studio live atlases.
+ */
 public final class SceneHudRuntimeExport {
     private final SceneHudAtlasBuilder builder;
 
-    public SceneHudRuntimeExport() { this(new SceneHudAtlasBuilder()); }
-    SceneHudRuntimeExport(SceneHudAtlasBuilder builder) { this.builder = Objects.requireNonNull(builder); }
+    public SceneHudRuntimeExport() {
+        this(new SceneHudAtlasBuilder());
+    }
 
-    /** UI precondition: export reads saved files for every authored HUD screen. */
+    SceneHudRuntimeExport(SceneHudAtlasBuilder builder) {
+        this.builder = Objects.requireNonNull(builder);
+    }
+
+    /**
+     * UI precondition: export reads saved files for every authored HUD screen.
+     */
     public static void requireSavedDocuments(FileHandle project, ProjectConfig config,
                                              Iterable<String> dirtyScreenIds) {
         var selected = authoredScreenIds(project);
         for (String name : config.getSceneNames()) selected.addAll(SceneHudRoots.collect(config.getSceneMeta(name)));
-        for (String id : dirtyScreenIds) if (selected.contains(HudScreenAssetId.normalize(id)))
-            throw new IllegalStateException("Save selected HUD screen '" + HudScreenAssetId.normalize(id)
-                    + "' before exporting runtime.");
+        for (String id : dirtyScreenIds)
+            if (selected.contains(HudScreenAssetId.normalize(id)))
+                throw new IllegalStateException("Save selected HUD screen '" + HudScreenAssetId.normalize(id)
+                        + "' before exporting runtime.");
     }
 
     private static TreeSet<String> authoredScreenIds(FileHandle project) {
@@ -48,7 +58,9 @@ public final class SceneHudRuntimeExport {
         return ids;
     }
 
-    /** Completes every Scene build before the caller may replace its previous Runtime export. */
+    /**
+     * Completes every Scene build before the caller may replace its previous Runtime export.
+     */
     public PreparedExport prepare(FileHandle project, ProjectConfig config) {
         Objects.requireNonNull(project, "project");
         Objects.requireNonNull(config, "config");
@@ -102,12 +114,13 @@ public final class SceneHudRuntimeExport {
                 writeArtifact(artifacts, paths, asset.documentId,
                         new HudDocumentCodec().write(screen.document()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
             }
-            for (var skin : closure.skinDependencies()) for (var file : skin.files()) {
-                if (file.kind() == SceneHudDependencyClosure.FileKind.SKIN_JSON
-                        || file.kind() == SceneHudDependencyClosure.FileKind.BITMAP_FONT_DESCRIPTOR)
-                    writeArtifact(artifacts, paths, file.projectRelativePath(),
-                            sources.child(file.projectRelativePath()).readBytes());
-            }
+            for (var skin : closure.skinDependencies())
+                for (var file : skin.files()) {
+                    if (file.kind() == SceneHudDependencyClosure.FileKind.SKIN_JSON
+                            || file.kind() == SceneHudDependencyClosure.FileKind.BITMAP_FONT_DESCRIPTOR)
+                        writeArtifact(artifacts, paths, file.projectRelativePath(),
+                                sources.child(file.projectRelativePath()).readBytes());
+                }
             for (var font : closure.fontDependencies()) {
                 writeArtifact(artifacts, paths,
                         HudBitmapFontResource.descriptorId(font.assetId()),
@@ -123,8 +136,11 @@ public final class SceneHudRuntimeExport {
             }
             return new PreparedExport(workspace, List.copyOf(paths));
         } catch (RuntimeException | Error failure) {
-            try { AtomicDirectoryPublication.discardCandidate(workspace); }
-            catch (RuntimeException cleanup) { failure.addSuppressed(cleanup); }
+            try {
+                AtomicDirectoryPublication.discardCandidate(workspace);
+            } catch (RuntimeException cleanup) {
+                failure.addSuppressed(cleanup);
+            }
             throw failure;
         }
     }
@@ -166,7 +182,7 @@ public final class SceneHudRuntimeExport {
     }
 
     private static void requireDrawableSources(FileHandle sources, SceneHudDependencyClosure closure,
-                                                SceneHudPackInputPlan plan) {
+                                               SceneHudPackInputPlan plan) {
         // Source atlases are optional when Skin JSON or generated font/white regions supply a
         // drawable. But silently dropping an atlas needed for an undeclared region is not success.
         var generatedKeys = plan.entries().stream().map(entry -> entry.key().displayName()).toList();
@@ -175,7 +191,8 @@ public final class SceneHudRuntimeExport {
             String skinId = screen.asset().skinId.trim().replace('\\', '/');
             var skin = closure.skinDependencies().stream().filter(value -> value.skinId().equals(skinId))
                     .findFirst().orElseThrow();
-            if (skin.files().stream().anyMatch(file -> file.kind() == SceneHudDependencyClosure.FileKind.SKIN_ATLAS)) continue;
+            if (skin.files().stream().anyMatch(file -> file.kind() == SceneHudDependencyClosure.FileKind.SKIN_ATLAS))
+                continue;
             var document = new HudDocumentValidator().validate(screen.document()).validatedDocument();
             var skinJson = new JsonReader().parse(sources.child(skinId));
             for (var node : document.nodeIndex().values()) {
@@ -189,14 +206,14 @@ public final class SceneHudRuntimeExport {
     private static void requireDrawableSource(String screenId, String fieldPath,
                                               games.pixscape.runtime.hud.document.HudImageData image,
                                               java.util.List<String> generatedKeys, JsonValue skinJson) {
-                if (image == null || image.source != HudImageSource.DRAWABLE
-                        || generatedKeys.contains(image.resourceName)) return;
-                boolean declared = false;
-                for (var section = skinJson.child; section != null; section = section.next)
-                    if (section.isObject() && section.has(image.resourceName)) declared = true;
-                if (!declared) throw new IllegalStateException("Scene HUD root '" + screenId
-                        + "' field '" + fieldPath + "' is missing its source Skin atlas for DRAWABLE '"
-                        + image.resourceName + "'.");
+        if (image == null || image.source != HudImageSource.DRAWABLE
+                || generatedKeys.contains(image.resourceName)) return;
+        boolean declared = false;
+        for (var section = skinJson.child; section != null; section = section.next)
+            if (section.isObject() && section.has(image.resourceName)) declared = true;
+        if (!declared) throw new IllegalStateException("Scene HUD root '" + screenId
+                + "' field '" + fieldPath + "' is missing its source Skin atlas for DRAWABLE '"
+                + image.resourceName + "'.");
     }
 
     private static void writeArtifact(FileHandle artifacts, TreeSet<String> paths, String relative, byte[] bytes) {
@@ -221,16 +238,23 @@ public final class SceneHudRuntimeExport {
         return new FileHandle(target.toFile());
     }
 
-    /** Owns a private completed candidate; only the explicit Runtime artifact set can be copied. */
+    /**
+     * Owns a private completed candidate; only the explicit Runtime artifact set can be copied.
+     */
     public static final class PreparedExport implements AutoCloseable {
         private final FileHandle workspace;
         private final List<String> artifactPaths;
         private boolean closed;
+
         private PreparedExport(FileHandle workspace, List<String> artifactPaths) {
             this.workspace = workspace;
             this.artifactPaths = List.copyOf(artifactPaths);
         }
-        public List<String> artifactPaths() { return artifactPaths; }
+
+        public List<String> artifactPaths() {
+            return artifactPaths;
+        }
+
         public void copyTo(FileHandle runtimeDirectory) {
             if (closed) throw new IllegalStateException("HUD export preparation is closed.");
             for (String path : artifactPaths) {
@@ -239,7 +263,9 @@ public final class SceneHudRuntimeExport {
                 child(workspace.child("artifacts"), path).copyTo(target);
             }
         }
-        @Override public void close() {
+
+        @Override
+        public void close() {
             if (closed) return;
             if (workspace != null) AtomicDirectoryPublication.discardCandidate(workspace);
             closed = true;

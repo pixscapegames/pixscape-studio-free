@@ -19,9 +19,12 @@ import java.nio.file.Files;
 import static org.junit.Assert.*;
 import static org.junit.Assume.assumeTrue;
 
-/** Runs unchanged against the original develop: failure must occur after real Scene loading. */
+/**
+ * Runs unchanged against the original develop: failure must occur after real Scene loading.
+ */
 public class GameObjectSceneLoadGlRegressionTest {
-    @Test public void realSceneLoadPreservesTheActiveAssetWorldAndUnsavedHistory() throws Exception {
+    @Test
+    public void realSceneLoadPreservesTheActiveAssetWorldAndUnsavedHistory() throws Exception {
         assumeTrue("1".equals(System.getenv("PIXSCAPE_DOCUMENT_GL_TEST")));
         String previousHome = System.getProperty("user.home");
         ProjectConfig previousConfig = ProjectConfig.getInstance();
@@ -43,7 +46,9 @@ public class GameObjectSceneLoadGlRegressionTest {
         try (var globals = new StudioGlTestScope()) {
             new Lwjgl3Application(new ApplicationAdapter() {
                 StudioApplicationAdapter studio;
-                @Override public void create() {
+
+                @Override
+                public void create() {
                     try {
                         studio = new StudioApplicationAdapter();
                         studio.create();
@@ -89,12 +94,18 @@ public class GameObjectSceneLoadGlRegressionTest {
                         history.redo();
                         assertEquals("Unsaved car", world.getMapper(PixscapeIdentityComponent.class).get(document.rootEntityId()).name);
                         assertTrue(document.isDirty());
-                    } catch (Throwable ex) { failure[0] = ex; }
-                    finally { Gdx.app.exit(); }
+                    } catch (Throwable ex) {
+                        failure[0] = ex;
+                    } finally {
+                        Gdx.app.exit();
+                    }
                 }
-                @Override public void dispose() {
-                    try { if (studio != null) studio.dispose(); }
-                    catch (Throwable ex) {
+
+                @Override
+                public void dispose() {
+                    try {
+                        if (studio != null) studio.dispose();
+                    } catch (Throwable ex) {
                         if (failure[0] == null) failure[0] = ex;
                         else failure[0].addSuppressed(ex);
                     }

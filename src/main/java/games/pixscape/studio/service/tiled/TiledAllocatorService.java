@@ -32,7 +32,9 @@ public final class TiledAllocatorService {
         comp.data.markAllChunksContentDirty();
     }
 
-    /** Rebuilds authored per-cell animation playback after deep map restoration. */
+    /**
+     * Rebuilds authored per-cell animation playback after deep map restoration.
+     */
     public void synchronizeAnimations(TiledLayerComponent comp) {
         if (comp == null || comp.data == null || animationLookup == null) return;
         comp.ensureSparseTileStorageConsistency();

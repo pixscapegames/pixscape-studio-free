@@ -14,9 +14,11 @@ import java.util.*;
 import static games.pixscape.studio.service.runtimeavailability.SceneHudPackInputPlan.*;
 import static games.pixscape.studio.service.runtimeavailability.SceneHudPackMaterializationManifest.*;
 
-/** Synchronous, file-only Scene HUD build. Caller serializes builds for the same output directory.
+/**
+ * Synchronous, file-only Scene HUD build. Caller serializes builds for the same output directory.
  * Packer placement is physical; the manifest is the only authority for Runtime identity.
- * No editor, Texture, TextureAtlas, export, or async state is retained. */
+ * No editor, Texture, TextureAtlas, export, or async state is retained.
+ */
 public final class SceneHudAtlasBuilder {
     private static final String ATLAS = SceneHudEnvironmentPaths.ATLAS_FILE;
     private static final HudTextureProfile PROFILE = HudTextureProfile.forId(HudTextureProfile.DEFAULT_ID);
@@ -26,23 +28,36 @@ public final class SceneHudAtlasBuilder {
     // Source page/identity/flip facts never belong in generated region custom values.
     private static final Set<String> SOURCE_ONLY = Set.of("page", "name", "flip", "format", "filter", "repeat", "pma");
 
-    @FunctionalInterface interface Packer {
+    @FunctionalInterface
+    interface Packer {
         void pack(FileHandle input, FileHandle output, String name, HudTextureProfile profile);
     }
-    @FunctionalInterface interface DescriptorWriter {
+
+    @FunctionalInterface
+    interface DescriptorWriter {
         void write(FileHandle descriptor, TextureAtlasData generated, SceneHudPackMaterializationManifest manifest);
     }
 
-    /** Paths refer only to published artifacts, never the candidate directory. */
+    /**
+     * Paths refer only to published artifacts, never the candidate directory.
+     */
     public record Result(String atlasDescriptorPath, List<String> pagePaths, int logicalRegionCount) {
-        public Result { pagePaths = List.copyOf(pagePaths); }
-        public int pageCount() { return pagePaths.size(); }
+        public Result {
+            pagePaths = List.copyOf(pagePaths);
+        }
+
+        public int pageCount() {
+            return pagePaths.size();
+        }
     }
 
     private final Packer packer;
     private final DescriptorWriter writer;
 
-    public SceneHudAtlasBuilder() { this(AtlasPackingService::packHud, SceneHudAtlasBuilder::writeDescriptor); }
+    public SceneHudAtlasBuilder() {
+        this(AtlasPackingService::packHud, SceneHudAtlasBuilder::writeDescriptor);
+    }
+
     SceneHudAtlasBuilder(Packer packer, DescriptorWriter writer) {
         this.packer = java.util.Objects.requireNonNull(packer);
         this.writer = java.util.Objects.requireNonNull(writer);
@@ -81,8 +96,9 @@ public final class SceneHudAtlasBuilder {
             primary = failure;
             throw failure;
         } finally {
-            try { AtomicDirectoryPublication.discardCandidate(candidate); }
-            catch (RuntimeException cleanup) {
+            try {
+                AtomicDirectoryPublication.discardCandidate(candidate);
+            } catch (RuntimeException cleanup) {
                 if (primary != null) primary.addSuppressed(cleanup);
                 else throw cleanup;
             }
@@ -96,7 +112,8 @@ public final class SceneHudAtlasBuilder {
         Path outputPath = output.file().toPath().toAbsolutePath().normalize();
         rejectSymlinks(inputPath);
         rejectSymlinks(outputPath);
-        if (!Files.isDirectory(inputPath)) throw new IllegalArgumentException("Materialized HUD input directory is missing.");
+        if (!Files.isDirectory(inputPath))
+            throw new IllegalArgumentException("Materialized HUD input directory is missing.");
         if (inputPath.startsWith(outputPath) || outputPath.startsWith(inputPath))
             throw new IllegalArgumentException("Scene HUD input and output directories must not overlap.");
         if (manifest.entries().isEmpty()) throw new IllegalArgumentException("Scene HUD manifest has no entries.");
@@ -130,12 +147,15 @@ public final class SceneHudAtlasBuilder {
         try (var children = Files.list(inputPath)) {
             if (children.anyMatch(path -> !inputs.containsKey(path.getFileName().toString())))
                 throw new IllegalArgumentException("Materialized HUD directory contains unexpected inputs/configuration.");
-        } catch (IOException failure) { throw new IllegalStateException("Unable to inspect materialized HUD inputs", failure); }
+        } catch (IOException failure) {
+            throw new IllegalStateException("Unable to inspect materialized HUD inputs", failure);
+        }
     }
 
     private static void rejectSymlinks(Path path) {
         for (Path ancestor = path; ancestor != null; ancestor = ancestor.getParent())
-            if (Files.isSymbolicLink(ancestor)) throw new IllegalArgumentException("Scene HUD directory has a symlink: " + ancestor);
+            if (Files.isSymbolicLink(ancestor))
+                throw new IllegalArgumentException("Scene HUD directory has a symlink: " + ancestor);
     }
 
     private static TextureAtlasData parse(FileHandle directory) {
@@ -157,15 +177,17 @@ public final class SceneHudAtlasBuilder {
                 throw new IllegalStateException("Scene HUD requires RGBA8888 straight-alpha pages (pma: false).");
         }
         AtlasPackingService.validateHudPages(data, PROFILE);
-        for (FileHandle file : directory.list()) if (!file.name().equals(ATLAS) && !names.contains(file.name()))
-            throw new IllegalStateException("Unexpected generated HUD artifact: " + file.name());
+        for (FileHandle file : directory.list())
+            if (!file.name().equals(ATLAS) && !names.contains(file.name()))
+                throw new IllegalStateException("Unexpected generated HUD artifact: " + file.name());
     }
 
     private static Map<AtlasKey, TextureAtlasData.Region> regions(TextureAtlasData data) {
         Map<AtlasKey, TextureAtlasData.Region> result = new LinkedHashMap<>();
         for (TextureAtlasData.Region region : data.getRegions()) {
             AtlasKey key = new AtlasKey(region.name, region.index);
-            if (result.putIfAbsent(key, region) != null) throw new IllegalStateException("Duplicate HUD atlas key: " + key);
+            if (result.putIfAbsent(key, region) != null)
+                throw new IllegalStateException("Duplicate HUD atlas key: " + key);
             int physicalWidth = region.rotate ? region.height : region.width;
             int physicalHeight = region.rotate ? region.width : region.height;
             if ((region.degrees != 0 && region.degrees != 90) || region.rotate != (region.degrees == 90)
@@ -178,26 +200,30 @@ public final class SceneHudAtlasBuilder {
     }
 
     private static Map<AtlasKey, TextureAtlasData.Region> validateGenerated(FileHandle directory, TextureAtlasData data,
-                                                                           SceneHudPackMaterializationManifest manifest) {
+                                                                            SceneHudPackMaterializationManifest manifest) {
         validatePages(directory, data);
         Map<AtlasKey, TextureAtlasData.Region> regions = regions(data);
         Set<AtlasKey> expected = new java.util.LinkedHashSet<>();
         for (MaterializedEntry entry : manifest.entries()) {
             expected.add(entry.packerKey());
             TextureAtlasData.Region region = regions.get(entry.packerKey());
-            if (region == null) throw new IllegalStateException("Missing generated HUD packer key: " + entry.packerKey());
+            if (region == null)
+                throw new IllegalStateException("Missing generated HUD packer key: " + entry.packerKey());
             if (region.originalWidth != entry.pixelWidth() || region.originalHeight != entry.pixelHeight()
                     || region.offsetX < 0 || region.offsetY < 0
                     || region.offsetX + region.width > entry.pixelWidth() || region.offsetY + region.height > entry.pixelHeight())
                 throw new IllegalStateException("Generated HUD pixels do not match materialized dimensions: " + entry.packerKey());
         }
-        if (!regions.keySet().equals(expected)) throw new IllegalStateException("Unexpected generated HUD keys: " + regions.keySet());
+        if (!regions.keySet().equals(expected))
+            throw new IllegalStateException("Unexpected generated HUD keys: " + regions.keySet());
         return regions;
     }
 
-    /** Structured LibGDX 1.14.2 writer. Region names and index fields are deliberately separate.
+    /**
+     * Structured LibGDX 1.14.2 writer. Region names and index fields are deliberately separate.
      * split/pad and other 1..4 integer custom values survive; reserved fields cannot shadow placement.
-     * Unsupported custom arity/unsafe names fail rather than silently losing metadata. */
+     * Unsupported custom arity/unsafe names fail rather than silently losing metadata.
+     */
     static void writeDescriptor(FileHandle descriptor, TextureAtlasData generated, SceneHudPackMaterializationManifest manifest) {
         Map<AtlasKey, TextureAtlasData.Region> physical = regions(generated);
         StringBuilder text = new StringBuilder();
@@ -270,7 +296,8 @@ public final class SceneHudAtlasBuilder {
     private static void validateFinal(FileHandle directory, TextureAtlasData data, TextureAtlasData generated,
                                       Map<AtlasKey, TextureAtlasData.Region> physical, SceneHudPackMaterializationManifest manifest) {
         validatePages(directory, data);
-        if (data.getPages().size != generated.getPages().size) throw new IllegalStateException("Final HUD page count changed.");
+        if (data.getPages().size != generated.getPages().size)
+            throw new IllegalStateException("Final HUD page count changed.");
         for (int i = 0; i < data.getPages().size; i++) {
             TextureAtlasData.Page actual = data.getPages().get(i), expected = generated.getPages().get(i);
             if (!actual.name.equals(expected.name) || actual.width != expected.width || actual.height != expected.height
@@ -295,7 +322,8 @@ public final class SceneHudAtlasBuilder {
                     || !customValues(actual).equals(semanticValues(entry.metadata())))
                 throw new IllegalStateException("Final HUD geometry/semantics changed: " + entry.intendedKey());
         }
-        if (!finalRegions.keySet().equals(expected)) throw new IllegalStateException("Unexpected final HUD keys (temporary identity leakage): " + finalRegions.keySet());
+        if (!finalRegions.keySet().equals(expected))
+            throw new IllegalStateException("Unexpected final HUD keys (temporary identity leakage): " + finalRegions.keySet());
         for (BitmapFontMaterialization font : manifest.bitmapFonts()) {
             List<AtlasKey> required = font.requirement().keys();
             if (required.isEmpty() || !font.entries().stream().map(MaterializedEntry::intendedKey).toList().equals(required)
@@ -322,10 +350,13 @@ public final class SceneHudAtlasBuilder {
         Map<String, List<Integer>> values = new TreeMap<>();
         if (region.names != null) for (int i = 0; i < region.names.length; i++) {
             List<Integer> previous = values.putIfAbsent(region.names[i], Arrays.stream(region.values[i]).boxed().toList());
-            if (previous != null) throw new IllegalStateException("Duplicate final HUD custom field: " + region.names[i]);
+            if (previous != null)
+                throw new IllegalStateException("Duplicate final HUD custom field: " + region.names[i]);
         }
         return values;
     }
 
-    private static String absolute(FileHandle file) { return file.file().toPath().toAbsolutePath().normalize().toString().replace('\\', '/'); }
+    private static String absolute(FileHandle file) {
+        return file.file().toPath().toAbsolutePath().normalize().toString().replace('\\', '/');
+    }
 }

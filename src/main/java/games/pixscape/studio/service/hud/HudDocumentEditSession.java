@@ -12,35 +12,47 @@ import java.util.Objects;
  * Live preview resources remain owned by {@link HudEditorSession}.
  */
 public final class HudDocumentEditSession implements AutoCloseable {
-    public enum HistoryNavigation { UNDO, REDO }
+    public enum HistoryNavigation {UNDO, REDO}
+
     public record HistoryNavigationEvent(HistoryNavigation navigation,
-                                         long fromRevision, long toRevision) {}
+                                         long fromRevision, long toRevision) {
+    }
+
     @FunctionalInterface
     public interface Mutation {
-        /** Receives an isolated current-format candidate and returns the candidate to publish. */
+        /**
+         * Receives an isolated current-format candidate and returns the candidate to publish.
+         */
         HudDocumentV1 apply(HudDocumentV1 candidate);
     }
 
     @FunctionalInterface
     public interface ActivePreview {
-        /** Validates current resources, materializes, and installs before model publication. */
+        /**
+         * Validates current resources, materializes, and installs before model publication.
+         */
         void installCandidate(HudScreenAsset candidateAsset, HudDocumentV1 candidate,
                               HudValidationResult structuralValidation);
     }
 
-    /** Observes a successfully published authored document state, after history has advanced. */
+    /**
+     * Observes a successfully published authored document state, after history has advanced.
+     */
     @FunctionalInterface
     public interface AuthoredPublicationListener {
         void authoredDocumentPublished(HudDocumentEditSession session);
     }
 
-    /** Observes a completed undo/redo transition after its document has been published. */
+    /**
+     * Observes a completed undo/redo transition after its document has been published.
+     */
     @FunctionalInterface
     public interface HistoryNavigationListener {
         void historyNavigated(HistoryNavigationEvent event);
     }
 
-    private record State(long revision, String label, String serializedDocument, String skinId) {}
+    private record State(long revision, String label, String serializedDocument, String skinId) {
+    }
 
     private final HudDocumentCodec codec = new HudDocumentCodec();
     private final HudDocumentValidator validator = new HudDocumentValidator();
@@ -66,23 +78,44 @@ public final class HudDocumentEditSession implements AutoCloseable {
         savedRevision = 0L;
     }
 
-    /** Returns defensive metadata so callers cannot mutate persisted state out of band. */
-    public HudScreenAsset asset() { return copyAsset(asset); }
+    /**
+     * Returns defensive metadata so callers cannot mutate persisted state out of band.
+     */
+    public HudScreenAsset asset() {
+        return copyAsset(asset);
+    }
 
-    /** Returns a defensive document snapshot; all changes must use {@link #edit(String, Mutation)}. */
-    public HudDocumentV1 document() { return copy(authoredDocument); }
+    /**
+     * Returns a defensive document snapshot; all changes must use {@link #edit(String, Mutation)}.
+     */
+    public HudDocumentV1 document() {
+        return copy(authoredDocument);
+    }
 
-    public boolean isDirty() { return currentState().revision() != savedRevision; }
-    public boolean canUndo() { return cursor > 0; }
-    public boolean canRedo() { return cursor + 1 < states.size(); }
-    public int historySize() { return Math.max(0, states.size() - 1); }
+    public boolean isDirty() {
+        return currentState().revision() != savedRevision;
+    }
+
+    public boolean canUndo() {
+        return cursor > 0;
+    }
+
+    public boolean canRedo() {
+        return cursor + 1 < states.size();
+    }
+
+    public int historySize() {
+        return Math.max(0, states.size() - 1);
+    }
 
     public void addListener(Runnable listener) {
         ensureOpen();
         listeners.add(Objects.requireNonNull(listener, "listener"));
     }
 
-    /** Adds an observer for authored edit/undo/redo publication only. */
+    /**
+     * Adds an observer for authored edit/undo/redo publication only.
+     */
     public void addAuthoredPublicationListener(AuthoredPublicationListener listener) {
         ensureOpen();
         publicationListeners.add(Objects.requireNonNull(listener, "listener"));
@@ -101,7 +134,9 @@ public final class HudDocumentEditSession implements AutoCloseable {
         historyNavigationListeners.remove(listener);
     }
 
-    /** Binds the one active authoring preview. Inactive documents have no binding or GL ownership. */
+    /**
+     * Binds the one active authoring preview. Inactive documents have no binding or GL ownership.
+     */
     public void bindActivePreview(ActivePreview preview) {
         ensureOpen();
         activePreview = Objects.requireNonNull(preview, "preview");
@@ -151,7 +186,9 @@ public final class HudDocumentEditSession implements AutoCloseable {
         notifyAuthoredPublicationListeners();
     }
 
-    /** Changes the HUD Screen Skin through the same atomic preview and history boundary. */
+    /**
+     * Changes the HUD Screen Skin through the same atomic preview and history boundary.
+     */
     public void editSkin(String label, String skinId) {
         ensureOpen();
         if (label == null || label.isBlank()) throw new IllegalArgumentException("HUD edit label is required.");
@@ -192,13 +229,17 @@ public final class HudDocumentEditSession implements AutoCloseable {
         return moveTo(cursor + 1, HistoryNavigation.REDO);
     }
 
-    /** Stable only within this edit session; useful for UI state coupled to one authored revision. */
+    /**
+     * Stable only within this edit session; useful for UI state coupled to one authored revision.
+     */
     public long currentRevision() {
         ensureOpen();
         return currentState().revision();
     }
 
-    /** Advances the baseline only after persistence has succeeded. */
+    /**
+     * Advances the baseline only after persistence has succeeded.
+     */
     public void markSaved() {
         ensureOpen();
         long previous = savedRevision;
@@ -248,11 +289,18 @@ public final class HudDocumentEditSession implements AutoCloseable {
         if (!result.isValid()) throw new HudEditRejectedException(validationMessage(result));
     }
 
-    private State currentState() { return states.get(cursor); }
-    private String serialize(HudDocumentV1 document) { return codec.write(document); }
+    private State currentState() {
+        return states.get(cursor);
+    }
+
+    private String serialize(HudDocumentV1 document) {
+        return codec.write(document);
+    }
+
     private HudDocumentV1 deserialize(String serialized) {
         return codec.read(serialized);
     }
+
     private HudDocumentV1 copy(HudDocumentV1 document) {
         return codec.read(codec.write(document));
     }
@@ -280,38 +328,45 @@ public final class HudDocumentEditSession implements AutoCloseable {
 
     private void notifyListeners() {
         for (Runnable listener : List.copyOf(listeners)) {
-            try { listener.run(); }
-            catch (RuntimeException failure) {
+            try {
+                listener.run();
+            } catch (RuntimeException failure) {
                 if (com.badlogic.gdx.Gdx.app != null)
                     com.badlogic.gdx.Gdx.app.error("HudDocumentEditSession", "HUD edit observer failed after publication", failure);
             }
         }
     }
+
     private void notifyAuthoredPublicationListeners() {
         for (AuthoredPublicationListener listener : List.copyOf(publicationListeners)) {
-            try { listener.authoredDocumentPublished(this); }
-            catch (RuntimeException failure) {
+            try {
+                listener.authoredDocumentPublished(this);
+            } catch (RuntimeException failure) {
                 if (com.badlogic.gdx.Gdx.app != null)
                     com.badlogic.gdx.Gdx.app.error("HudDocumentEditSession",
                             "HUD authored-publication observer failed after publication", failure);
             }
         }
     }
+
     private void notifyHistoryNavigation(HistoryNavigationEvent event) {
         for (HistoryNavigationListener listener : List.copyOf(historyNavigationListeners)) {
-            try { listener.historyNavigated(event); }
-            catch (RuntimeException failure) {
+            try {
+                listener.historyNavigated(event);
+            } catch (RuntimeException failure) {
                 if (com.badlogic.gdx.Gdx.app != null)
                     com.badlogic.gdx.Gdx.app.error("HudDocumentEditSession",
                             "HUD history-navigation observer failed after publication", failure);
             }
         }
     }
+
     private void ensureOpen() {
         if (closed) throw new IllegalStateException("HUD edit session is closed.");
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         if (closed) return;
         closed = true;
         activePreview = null;

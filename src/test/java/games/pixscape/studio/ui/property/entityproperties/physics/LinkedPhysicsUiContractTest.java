@@ -37,7 +37,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class LinkedPhysicsUiContractTest {
-    @Test public void fixtureDisplayUsesItsOwnMetadataWithoutAnOpenScene() throws Exception {
+    @Test
+    public void fixtureDisplayUsesItsOwnMetadataWithoutAnOpenScene() throws Exception {
         var previous = games.pixscape.studio.configuration.ProjectConfig.getInstance();
         games.pixscape.studio.configuration.ProjectConfig.setInstance(
                 new games.pixscape.studio.configuration.ProjectConfig());
@@ -49,10 +50,13 @@ public class LinkedPhysicsUiContractTest {
             fieldHandle.setAccessible(true);
             var field = (VisValidatableTextField) fieldHandle.get(harness.panel);
             Assert.assertEquals(32f, Float.parseFloat(field.getText()), 0.001f);
-        } finally { games.pixscape.studio.configuration.ProjectConfig.setInstance(previous); }
+        } finally {
+            games.pixscape.studio.configuration.ProjectConfig.setInstance(previous);
+        }
     }
 
-    @Test public void motorJointEditsAndHistoryUseTheBoundWorldAndScale() throws Exception {
+    @Test
+    public void motorJointEditsAndHistoryUseTheBoundWorldAndScale() throws Exception {
         var previous = games.pixscape.studio.configuration.ProjectConfig.getInstance();
         var project = new games.pixscape.studio.configuration.ProjectConfig();
         project.createSceneMeta("Foreign");
@@ -88,6 +92,7 @@ public class LinkedPhysicsUiContractTest {
             games.pixscape.studio.configuration.ProjectConfig.setInstance(previous);
         }
     }
+
     @BeforeClass
     public static void loadVisUiSkin() {
         VisUiTestBootstrap.loadSkin();

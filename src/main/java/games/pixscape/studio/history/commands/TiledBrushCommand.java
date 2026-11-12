@@ -15,7 +15,9 @@ import games.pixscape.studio.service.tiled.TiledMutationPlan;
 import games.pixscape.studio.service.tiled.TiledMutationRejectedException;
 import games.pixscape.studio.service.tiled.TiledSpatialMutationPlanner;
 
-/** One complete canonical tiled gesture; neither redo nor undo assumes prior map mutation. */
+/**
+ * One complete canonical tiled gesture; neither redo nor undo assumes prior map mutation.
+ */
 public final class TiledBrushCommand implements Command {
     private final World world;
     private final HistoryIdRegistry historyIds;
@@ -35,9 +37,20 @@ public final class TiledBrushCommand implements Command {
         this.planner = planner;
     }
 
-    @Override public String label() { return "Brush Tiles"; }
-    @Override public void redo() { apply(true); }
-    @Override public void undo() { apply(false); }
+    @Override
+    public String label() {
+        return "Brush Tiles";
+    }
+
+    @Override
+    public void redo() {
+        apply(true);
+    }
+
+    @Override
+    public void undo() {
+        apply(false);
+    }
 
     private void apply(boolean after) {
         int entityId = historyIds.entityOfHistoryId(layerHistoryId);
@@ -48,8 +61,8 @@ public final class TiledBrushCommand implements Command {
         }
         SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).getSafe(entityId, null);
         TiledSpatialMutationPlanner.Result result =
-                planner.validateAndCommit(entityId, comp.data, blocks, plan, after,comp.lightingDescriptions,
-                        () -> EditTileLightingDescriptionsCommand.validate(world,comp,blocks,comp.lightingDescriptions));
+                planner.validateAndCommit(entityId, comp.data, blocks, plan, after, comp.lightingDescriptions,
+                        () -> EditTileLightingDescriptionsCommand.validate(world, comp, blocks, comp.lightingDescriptions));
         if (!result.accepted()) throw new TiledMutationRejectedException(result.rejection());
 
         ProjectConfig cfg = ProjectConfig.getInstance();

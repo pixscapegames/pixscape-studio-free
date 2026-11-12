@@ -1,6 +1,8 @@
 package games.pixscape.studio.service.tiled;
 
-/** History-time rejection after exact atomic rollback. */
+/**
+ * History-time rejection after exact atomic rollback.
+ */
 public final class TiledMutationRejectedException extends RuntimeException {
     private final TiledSpatialMutationRejection rejection;
 
@@ -10,5 +12,7 @@ public final class TiledMutationRejectedException extends RuntimeException {
         this.rejection = rejection;
     }
 
-    public TiledSpatialMutationRejection rejection() { return rejection; }
+    public TiledSpatialMutationRejection rejection() {
+        return rejection;
+    }
 }

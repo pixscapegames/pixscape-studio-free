@@ -132,24 +132,27 @@ public final class SpatialBlockCommandSupport {
     }
 
     static CommandOutcome validateBlocks(World world, int layerEntityId, Array<SpatialBlockData> snapshot,
-                                          Array<SpatialBlockLink> links) {
+                                         Array<SpatialBlockLink> links) {
         return validateBlocks(world, layerEntityId, snapshot, links, null);
     }
 
     private static CommandOutcome validateBlocks(World world, int layerEntityId, Array<SpatialBlockData> snapshot,
-                                          Array<SpatialBlockLink> links, java.util.function.Consumer<String> refusal) {
+                                                 Array<SpatialBlockLink> links, java.util.function.Consumer<String> refusal) {
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class)
                 .getSafe(layerEntityId, null);
         SpatialStructureCompilation.Result compilation = SpatialStructureCompilation.tryCompile(
                 snapshot, links, tiled != null ? tiled.data : null);
         if (compilation.success()) {
-            SpatialBlocksComponent candidate=new SpatialBlocksComponent();candidate.blocks=snapshot;candidate.links=links;
-            if(tiled!=null&&(tiled.lightingDescriptions.size>0
-                    ||games.pixscape.runtime.render.lighting.MapLightingGeometry.hasSilhouetteCasters(candidate))){
-                try{EditTileLightingDescriptionsCommand.validate(world,tiled,candidate,tiled.lightingDescriptions);}
-                catch(IllegalArgumentException invalid){
-                    if(refusal!=null)refusal.accept(invalid.getMessage());
-                    if(Gdx.app!=null)Gdx.app.error("SpatialBlockCommand",invalid.getMessage());
+            SpatialBlocksComponent candidate = new SpatialBlocksComponent();
+            candidate.blocks = snapshot;
+            candidate.links = links;
+            if (tiled != null && (tiled.lightingDescriptions.size > 0
+                    || games.pixscape.runtime.render.lighting.MapLightingGeometry.hasSilhouetteCasters(candidate))) {
+                try {
+                    EditTileLightingDescriptionsCommand.validate(world, tiled, candidate, tiled.lightingDescriptions);
+                } catch (IllegalArgumentException invalid) {
+                    if (refusal != null) refusal.accept(invalid.getMessage());
+                    if (Gdx.app != null) Gdx.app.error("SpatialBlockCommand", invalid.getMessage());
                     return CommandOutcome.REJECTED;
                 }
             }
@@ -244,13 +247,13 @@ public final class SpatialBlockCommandSupport {
     }
 
     static CommandOutcome replaceAllValidated(World world, int layerEntityId,
-                                               Array<SpatialBlockData> snapshot, Array<SpatialBlockLink> links) {
+                                              Array<SpatialBlockData> snapshot, Array<SpatialBlockLink> links) {
         return replaceAllValidated(world, layerEntityId, snapshot, links, null);
     }
 
     static CommandOutcome replaceAllValidated(World world, int layerEntityId,
-                                               Array<SpatialBlockData> snapshot, Array<SpatialBlockLink> links,
-                                               java.util.function.Consumer<String> refusal) {
+                                              Array<SpatialBlockData> snapshot, Array<SpatialBlockLink> links,
+                                              java.util.function.Consumer<String> refusal) {
         if (validateBlocks(world, layerEntityId, snapshot, links, refusal) != CommandOutcome.APPLIED) {
             return CommandOutcome.REJECTED;
         }
@@ -273,7 +276,8 @@ public final class SpatialBlockCommandSupport {
         if (compiled == null || !compiled.valid) {
             logPhysicsRejection(layerEntityId,
                     "linked body has no valid PhysicsCompiledFixturesComponent");
-            if (refusal != null) refusal.accept("The linked physics body has no valid compiled fixtures. The wall edit was not applied.");
+            if (refusal != null)
+                refusal.accept("The linked physics body has no valid compiled fixtures. The wall edit was not applied.");
             return CommandOutcome.REJECTED;
         }
 

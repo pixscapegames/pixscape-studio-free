@@ -132,9 +132,19 @@ public class HudInspectorViewTest {
                 new HudDocumentCodec().write(document.document()));
         assertEquals(second, reopened.root.children.get(0).node.dialog.resultButtons.get(0).button.id);
     }
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
+
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
+
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
 
     @Test
     public void titlesUseTheConcreteUppercaseSchemaKind() {
@@ -409,7 +419,8 @@ public class HudInspectorViewTest {
         assertNull(node(document.document().root, "first").label.fontAssetId);
     }
 
-    @Test public void labelFontSelectorKeepsStyleFontAndRefreshesFromTheAssetCatalog() throws Exception {
+    @Test
+    public void labelFontSelectorKeepsStyleFontAndRefreshesFromTheAssetCatalog() throws Exception {
         AssetMetaDatabase database = new AssetMetaDatabase();
         EditorDocumentManager manager = new EditorDocumentManager();
         HudScreenEditorDocument document = manager.openHudScreen(labelDocument("hud/main", "Label"));
@@ -437,7 +448,8 @@ public class HudInspectorViewTest {
         assertEquals(0, document.editSession().historySize());
     }
 
-    @Test public void labelFontSelectorRestoresAuthoredChoiceAfterRejectedStyleFont() throws Exception {
+    @Test
+    public void labelFontSelectorRestoresAuthoredChoiceAfterRejectedStyleFont() throws Exception {
         AssetMetaDatabase database = new AssetMetaDatabase();
         AssetMeta firstFont = database.registerIfAbsent(AssetType.FONT, "fonts/First",
                 "orig/fonts/1/first.fnt", AssetMeta.AssetScope.USER);
@@ -497,7 +509,8 @@ public class HudInspectorViewTest {
         assertNull(node(document.document().root, "label-1").label.fontAssetId);
     }
 
-    @Test public void textFieldFontSelectorRecoversAfterRejectedStyleFontRemoval() throws Exception {
+    @Test
+    public void textFieldFontSelectorRecoversAfterRejectedStyleFontRemoval() throws Exception {
         AssetMetaDatabase database = new AssetMetaDatabase();
         AssetMeta firstFont = database.registerIfAbsent(AssetType.FONT, "fonts/First",
                 "orig/fonts/1/first.fnt", AssetMeta.AssetScope.USER);
@@ -887,11 +900,30 @@ public class HudInspectorViewTest {
         HudPanelTestSupport.projectLabelResources(session, null);
         HudPanelTestSupport.projectHistoryNavigation(session, document);
         HudPanelTestSupport.bindResourceValidatingPreview(session, document, new HudResourceCatalog() {
-            @Override public boolean hasRegion(String name) { return "available__a2".equals(name); }
-            @Override public boolean hasDrawable(String name) { return "legacy-drawable".equals(name); }
-            @Override public boolean hasLabelStyle(String name) { return false; }
-            @Override public boolean hasTextButtonStyle(String name) { return false; }
-            @Override public boolean hasBuiltInImageTextButtonStyle() { return true; }
+            @Override
+            public boolean hasRegion(String name) {
+                return "available__a2".equals(name);
+            }
+
+            @Override
+            public boolean hasDrawable(String name) {
+                return "legacy-drawable".equals(name);
+            }
+
+            @Override
+            public boolean hasLabelStyle(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasTextButtonStyle(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasBuiltInImageTextButtonStyle() {
+                return true;
+            }
         });
         HudInspectorView view = new HudInspectorView(session);
         Stage stage = new Stage(new ScreenViewport(), inertBatch());
@@ -1332,11 +1364,30 @@ public class HudInspectorViewTest {
         HudPanelTestSupport.projectLabelResources(session, null);
         HudPanelTestSupport.projectHistoryNavigation(session, document);
         HudResourceCatalog catalog = new HudResourceCatalog() {
-            @Override public boolean hasRegion(String name) { return false; }
-            @Override public boolean hasDrawable(String name) { return false; }
-            @Override public boolean hasLabelStyle(String name) { return false; }
-            @Override public boolean hasTextButtonStyle(String name) { return false; }
-            @Override public boolean hasBuiltInSliderStyle() { return true; }
+            @Override
+            public boolean hasRegion(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasDrawable(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasLabelStyle(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasTextButtonStyle(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasBuiltInSliderStyle() {
+                return true;
+            }
         };
         HudPanelTestSupport.bindResourceValidatingPreview(session, document, catalog);
         HudInspectorView view = new HudInspectorView(session);
@@ -1422,11 +1473,30 @@ public class HudInspectorViewTest {
         HudPanelTestSupport.projectLabelResources(session, null);
         HudPanelTestSupport.projectHistoryNavigation(session, document);
         HudResourceCatalog catalog = new HudResourceCatalog() {
-            @Override public boolean hasRegion(String name) { return false; }
-            @Override public boolean hasDrawable(String name) { return false; }
-            @Override public boolean hasLabelStyle(String name) { return false; }
-            @Override public boolean hasTextButtonStyle(String name) { return false; }
-            @Override public boolean hasBuiltInProgressBarStyle() { return true; }
+            @Override
+            public boolean hasRegion(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasDrawable(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasLabelStyle(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasTextButtonStyle(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasBuiltInProgressBarStyle() {
+                return true;
+            }
         };
         HudPanelTestSupport.bindResourceValidatingPreview(session, document, catalog);
         HudInspectorView view = new HudInspectorView(session);
@@ -1464,11 +1534,28 @@ public class HudInspectorViewTest {
         HudPanelTestSupport.projectHistoryNavigation(session, document);
         boolean[] defaultStyleAvailable = {true};
         HudResourceCatalog catalog = new HudResourceCatalog() {
-            @Override public boolean hasRegion(String name) { return false; }
-            @Override public boolean hasDrawable(String name) { return false; }
-            @Override public boolean hasLabelStyle(String name) { return false; }
-            @Override public boolean hasTextButtonStyle(String name) { return false; }
-            @Override public boolean hasBuiltInScrollPaneStyle() {
+            @Override
+            public boolean hasRegion(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasDrawable(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasLabelStyle(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasTextButtonStyle(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasBuiltInScrollPaneStyle() {
                 return defaultStyleAvailable[0];
             }
         };
@@ -1505,7 +1592,8 @@ public class HudInspectorViewTest {
                 .scrollPane.scrollingDisabledX);
     }
 
-    @Test public void scrollPaneStyleSelectorRejectsStaleChoiceAndClearsTargetedDiagnostic()
+    @Test
+    public void scrollPaneStyleSelectorRejectsStaleChoiceAndClearsTargetedDiagnostic()
             throws Exception {
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
         HudNode pane = new HudNode("pane", HudNodeKind.SCROLL_PANE);
@@ -1522,14 +1610,33 @@ public class HudInspectorViewTest {
         HudPanelTestSupport.projectHistoryNavigation(session, document);
         boolean[] defaultStyleAvailable = {true};
         HudResourceCatalog catalog = new HudResourceCatalog() {
-            @Override public boolean hasRegion(String name) { return false; }
-            @Override public boolean hasDrawable(String name) { return false; }
-            @Override public boolean hasLabelStyle(String name) { return false; }
-            @Override public boolean hasTextButtonStyle(String name) { return false; }
-            @Override public boolean hasBuiltInScrollPaneStyle() {
+            @Override
+            public boolean hasRegion(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasDrawable(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasLabelStyle(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasTextButtonStyle(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasBuiltInScrollPaneStyle() {
                 return defaultStyleAvailable[0];
             }
-            @Override public boolean hasScrollPaneStyle(String name) {
+
+            @Override
+            public boolean hasScrollPaneStyle(String name) {
                 return skin.optional(name, ScrollPane.ScrollPaneStyle.class) != null;
             }
         };
@@ -1575,7 +1682,8 @@ public class HudInspectorViewTest {
         skin.dispose();
     }
 
-    @Test public void tooltipPropertiesAreUndoableAndRestoreAfterStaleStyleRejection()
+    @Test
+    public void tooltipPropertiesAreUndoableAndRestoreAfterStaleStyleRejection()
             throws Exception {
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
         HudScreenEditorDocument document = new HudScreenEditorDocument(
@@ -1590,12 +1698,33 @@ public class HudInspectorViewTest {
         skin.add("valid", new TextTooltip.TextTooltipStyle(style));
         HudPanelTestSupport.projectLabelResources(session, skin);
         HudResourceCatalog catalog = new HudResourceCatalog() {
-            @Override public boolean hasRegion(String name) { return false; }
-            @Override public boolean hasDrawable(String name) { return false; }
-            @Override public boolean hasLabelStyle(String name) { return false; }
-            @Override public boolean hasTextButtonStyle(String name) { return false; }
-            @Override public boolean hasBuiltInTextTooltipStyle() { return true; }
-            @Override public boolean hasTextTooltipStyle(String name, boolean hasFontOverride) {
+            @Override
+            public boolean hasRegion(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasDrawable(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasLabelStyle(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasTextButtonStyle(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasBuiltInTextTooltipStyle() {
+                return true;
+            }
+
+            @Override
+            public boolean hasTextTooltipStyle(String name, boolean hasFontOverride) {
                 return skin.optional(name, TextTooltip.TextTooltipStyle.class) != null;
             }
         };
@@ -1638,7 +1767,8 @@ public class HudInspectorViewTest {
         font.dispose();
     }
 
-    @Test public void windowPropertiesRejectStaleStyleAndKeepHistoryAndDocumentIsolated()
+    @Test
+    public void windowPropertiesRejectStaleStyleAndKeepHistoryAndDocumentIsolated()
             throws Exception {
         HudNode root = new HudNode("window", HudNodeKind.WINDOW);
         root.window = new HudWindowData();
@@ -1653,12 +1783,33 @@ public class HudInspectorViewTest {
         skin.add("valid", new Window.WindowStyle(font, Color.WHITE, null));
         HudPanelTestSupport.projectLabelResources(session, skin);
         HudResourceCatalog catalog = new HudResourceCatalog() {
-            @Override public boolean hasRegion(String name) { return false; }
-            @Override public boolean hasDrawable(String name) { return false; }
-            @Override public boolean hasLabelStyle(String name) { return false; }
-            @Override public boolean hasTextButtonStyle(String name) { return false; }
-            @Override public boolean hasBuiltInWindowStyle() { return true; }
-            @Override public boolean hasWindowStyle(String name, boolean hasFontOverride) {
+            @Override
+            public boolean hasRegion(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasDrawable(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasLabelStyle(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasTextButtonStyle(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasBuiltInWindowStyle() {
+                return true;
+            }
+
+            @Override
+            public boolean hasWindowStyle(String name, boolean hasFontOverride) {
                 return skin.optional(name, Window.WindowStyle.class) != null;
             }
         };
@@ -1704,7 +1855,8 @@ public class HudInspectorViewTest {
         font.dispose();
     }
 
-    @Test public void dialogUsesWindowInspectorAndRestoresRejectedStyle() throws Exception {
+    @Test
+    public void dialogUsesWindowInspectorAndRestoresRejectedStyle() throws Exception {
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
         HudNode dialog = new HudNode("dialog", HudNodeKind.DIALOG);
         dialog.dialog = new HudDialogData();
@@ -1719,12 +1871,33 @@ public class HudInspectorViewTest {
         skin.add("gone", new Window.WindowStyle(font, Color.WHITE, null));
         HudPanelTestSupport.projectLabelResources(session, skin);
         HudResourceCatalog catalog = new HudResourceCatalog() {
-            @Override public boolean hasRegion(String name) { return false; }
-            @Override public boolean hasDrawable(String name) { return false; }
-            @Override public boolean hasLabelStyle(String name) { return false; }
-            @Override public boolean hasTextButtonStyle(String name) { return false; }
-            @Override public boolean hasBuiltInWindowStyle() { return true; }
-            @Override public boolean hasWindowStyle(String name, boolean hasFontOverride) {
+            @Override
+            public boolean hasRegion(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasDrawable(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasLabelStyle(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasTextButtonStyle(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasBuiltInWindowStyle() {
+                return true;
+            }
+
+            @Override
+            public boolean hasWindowStyle(String name, boolean hasFontOverride) {
                 return skin.optional(name, Window.WindowStyle.class) != null;
             }
         };
@@ -1755,7 +1928,8 @@ public class HudInspectorViewTest {
         return document.document().root.children.get(0).node;
     }
 
-    @Test public void buttonInspectorAssociatesDialogAndKeepsUndoRedo() throws Exception {
+    @Test
+    public void buttonInspectorAssociatesDialogAndKeepsUndoRedo() throws Exception {
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
         HudNode dialog = new HudNode("dialog", HudNodeKind.DIALOG);
         dialog.dialog = new HudDialogData();
@@ -1789,7 +1963,8 @@ public class HudInspectorViewTest {
                 .windowActions.get(0).targetId);
     }
 
-    @Test public void commonVisibilityEditsUndoRedoAndReopensWithoutCrossDocumentWrites()
+    @Test
+    public void commonVisibilityEditsUndoRedoAndReopensWithoutCrossDocumentWrites()
             throws Exception {
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
         HudScreenEditorDocument document = new HudScreenEditorDocument(
@@ -1871,10 +2046,11 @@ public class HudInspectorViewTest {
             if (found != null) return found;
         }
         if (root.table != null) for (HudTableRow row : root.table.rows)
-            for (HudTableCell cell : row.cells) if (cell.content != null) {
-                HudNode found = node(cell.content, id);
-                if (found != null) return found;
-            }
+            for (HudTableCell cell : row.cells)
+                if (cell.content != null) {
+                    HudNode found = node(cell.content, id);
+                    if (found != null) return found;
+                }
         return null;
     }
 
@@ -1886,11 +2062,12 @@ public class HudInspectorViewTest {
             if (found != null) return found;
         }
         if (root.table != null) for (HudTableRow row : root.table.rows)
-            for (HudTableCell cell : row.cells) if (cell.content != null) {
-                if (id.equals(cell.content.id)) return HudChild.cell(cell.content, cell.constraints);
-                HudChild found = relation(cell.content, id);
-                if (found != null) return found;
-            }
+            for (HudTableCell cell : row.cells)
+                if (cell.content != null) {
+                    if (id.equals(cell.content.id)) return HudChild.cell(cell.content, cell.constraints);
+                    HudChild found = relation(cell.content, id);
+                    if (found != null) return found;
+                }
         return null;
     }
 
@@ -1959,17 +2136,38 @@ public class HudInspectorViewTest {
             this.secondFontId = secondFontId;
         }
 
-        @Override public boolean hasRegion(String name) { return false; }
-        @Override public boolean hasDrawable(String name) { return false; }
-        @Override public boolean hasLabelStyle(String name) { return "fontless".equals(name); }
-        @Override public boolean hasLabelStyleFont(String name) {
+        @Override
+        public boolean hasRegion(String name) {
+            return false;
+        }
+
+        @Override
+        public boolean hasDrawable(String name) {
+            return false;
+        }
+
+        @Override
+        public boolean hasLabelStyle(String name) {
+            return "fontless".equals(name);
+        }
+
+        @Override
+        public boolean hasLabelStyleFont(String name) {
             return "fontless".equals(name) && styleHasFont;
         }
-        @Override public boolean hasBitmapFont(int assetId) {
+
+        @Override
+        public boolean hasBitmapFont(int assetId) {
             return assetId == firstFontId || assetId == secondFontId;
         }
-        @Override public boolean hasTextButtonStyle(String name) { return false; }
-        @Override public boolean hasTextFieldStyle(String name, boolean hasFontOverride) {
+
+        @Override
+        public boolean hasTextButtonStyle(String name) {
+            return false;
+        }
+
+        @Override
+        public boolean hasTextFieldStyle(String name, boolean hasFontOverride) {
             return "fontless".equals(name) && (hasFontOverride || styleHasFont);
         }
     }

@@ -2,7 +2,9 @@ package games.pixscape.studio.service.tiled;
 
 import java.util.Arrays;
 
-/** Immutable canonical before/after snapshot for one tiled gesture. */
+/**
+ * Immutable canonical before/after snapshot for one tiled gesture.
+ */
 public final class TiledMutationPlan {
     private final int mapEntityId;
     private final int[] gx;
@@ -24,11 +26,31 @@ public final class TiledMutationPlan {
         this.afterFlags = Arrays.copyOf(afterFlags, count);
     }
 
-    public int mapEntityId() { return mapEntityId; }
-    public int size() { return gx.length; }
-    public boolean isEmpty() { return gx.length == 0; }
-    public int gx(int index) { return gx[index]; }
-    public int gy(int index) { return gy[index]; }
-    public int assetId(int index, boolean after) { return after ? afterAssetId[index] : beforeAssetId[index]; }
-    public byte flags(int index, boolean after) { return after ? afterFlags[index] : beforeFlags[index]; }
+    public int mapEntityId() {
+        return mapEntityId;
+    }
+
+    public int size() {
+        return gx.length;
+    }
+
+    public boolean isEmpty() {
+        return gx.length == 0;
+    }
+
+    public int gx(int index) {
+        return gx[index];
+    }
+
+    public int gy(int index) {
+        return gy[index];
+    }
+
+    public int assetId(int index, boolean after) {
+        return after ? afterAssetId[index] : beforeAssetId[index];
+    }
+
+    public byte flags(int index, boolean after) {
+        return after ? afterFlags[index] : beforeFlags[index];
+    }
 }

@@ -15,7 +15,9 @@ import games.pixscape.runtime.hierarchy.WorldTransformState;
 import games.pixscape.runtime.system.GameObjectCompositionSystem;
 import games.pixscape.runtime.system.GameObjectHierarchySystem;
 
-/** Builds exact descendant bounds in a selected Game Object root's local coordinate system. */
+/**
+ * Builds exact descendant bounds in a selected Game Object root's local coordinate system.
+ */
 public final class GameObjectGizmoGeometry {
     private final ComponentMapper<GameObjectComponent> gameObjects;
     private final ComponentMapper<OrientedBoundsComponent> orientedBounds;
@@ -37,7 +39,9 @@ public final class GameObjectGizmoGeometry {
         composition = world.getSystem(GameObjectCompositionSystem.class);
     }
 
-    /** Writes BL, BR, TR and TL in world space, preserving the selected root's orientation. */
+    /**
+     * Writes BL, BR, TR and TL in world space, preserving the selected root's orientation.
+     */
     public boolean writeWorldCorners(
             int rootEntityId, float fallbackHalfWorld, float[] out8) {
         if (out8 == null || out8.length < 8 || hierarchy == null) return false;
@@ -50,7 +54,9 @@ public final class GameObjectGizmoGeometry {
         return true;
     }
 
-    /** Writes local minX, minY, maxX and maxY from exact rendered descendant corners. */
+    /**
+     * Writes local minX, minY, maxX and maxY from exact rendered descendant corners.
+     */
     public boolean writeLocalBounds(int rootEntityId, float[] out4) {
         if (out4 == null || out4.length < 4 || hierarchy == null || composition == null) {
             return false;

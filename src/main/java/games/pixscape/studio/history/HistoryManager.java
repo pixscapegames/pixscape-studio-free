@@ -41,31 +41,47 @@ public final class HistoryManager {
     private int activeLightCount;
     private boolean confirmedLegacyCreation;
 
-    /** Ask before a creation reserves persistent identities. The retry publishes one command. */
-    public boolean prepareLightCreation(int additional,Runnable retry) {
-        if(confirmedLegacyCreation || lightingScene==null || !lightingScene.lightingEnabled || !lightingScene.forwardLighting
-                || additional<=0 || historyIds.activeLightCount(lightingWorld)+additional<=1)return true;
-        if(confirmLegacy==null)throw new IllegalStateException("Forward rendering supports at most one active light. Switch to Legacy to activate another light.");
-        long revision=mutationRevision;
-        confirmLegacy.accept(()->{
-            if(mutationRevision!=revision)return;
-            confirmedLegacyCreation=true;
-            try {retry.run();}finally{confirmedLegacyCreation=false;}
+    /**
+     * Ask before a creation reserves persistent identities. The retry publishes one command.
+     */
+    public boolean prepareLightCreation(int additional, Runnable retry) {
+        if (confirmedLegacyCreation || lightingScene == null || !lightingScene.lightingEnabled || !lightingScene.forwardLighting
+                || additional <= 0 || historyIds.activeLightCount(lightingWorld) + additional <= 1) return true;
+        if (confirmLegacy == null)
+            throw new IllegalStateException("Forward rendering supports at most one active light. Switch to Legacy to activate another light.");
+        long revision = mutationRevision;
+        confirmLegacy.accept(() -> {
+            if (mutationRevision != revision) return;
+            confirmedLegacyCreation = true;
+            try {
+                retry.run();
+            } finally {
+                confirmedLegacyCreation = false;
+            }
         });
         return false;
     }
 
-    /** Per-document command boundary, including prepared graph creation and light activation. */
-    public void configureSceneLighting(com.artemis.World world,games.pixscape.studio.configuration.SceneMeta scene,
+    /**
+     * Per-document command boundary, including prepared graph creation and light activation.
+     */
+    public void configureSceneLighting(com.artemis.World world, games.pixscape.studio.configuration.SceneMeta scene,
                                        Consumer<Runnable> confirmation) {
-        lightingWorld=world;lightingScene=scene;confirmLegacy=confirmation;refreshSceneLighting();
+        lightingWorld = world;
+        lightingScene = scene;
+        confirmLegacy = confirmation;
+        refreshSceneLighting();
     }
-    public int activeLightCount() { return activeLightCount; }
+
+    public int activeLightCount() {
+        return activeLightCount;
+    }
+
     public void refreshSceneLighting() {
-        if(lightingWorld==null || lightingScene==null)return;
-        activeLightCount=historyIds.activeLightCount(lightingWorld);
+        if (lightingWorld == null || lightingScene == null) return;
+        activeLightCount = historyIds.activeLightCount(lightingWorld);
         games.pixscape.studio.event.EventFlow.i().publish(new games.pixscape.studio.event.EventFlow.SceneRendererChanged(
-                lightingScene,games.pixscape.studio.event.EventFlow.tag(this)));
+                lightingScene, games.pixscape.studio.event.EventFlow.tag(this)));
     }
 
     private int opDepth = 0;
@@ -73,8 +89,12 @@ public final class HistoryManager {
     private int savedCursor = 0;
     private long mutationRevision;
 
-    /** Applied mutations only; independent of stack position, grouping and saved state. */
-    public long getMutationRevision() { return mutationRevision; }
+    /**
+     * Applied mutations only; independent of stack position, grouping and saved state.
+     */
+    public long getMutationRevision() {
+        return mutationRevision;
+    }
 
     // Commande en cours de capture (drag gizmo, etc.)
     private Command capturing = null;
@@ -182,21 +202,22 @@ public final class HistoryManager {
      */
     public void execute(Command c) {
         if (c == null) return;
-        if(confirmedLegacyCreation){
-            confirmedLegacyCreation=false;
-            c=new CompositeCommand(c.label(),java.util.Arrays.asList(
-                    new games.pixscape.studio.history.commands.SetSceneRendererCommand(lightingWorld,historyIds,lightingScene,false),c));
+        if (confirmedLegacyCreation) {
+            confirmedLegacyCreation = false;
+            c = new CompositeCommand(c.label(), java.util.Arrays.asList(
+                    new games.pixscape.studio.history.commands.SetSceneRendererCommand(lightingWorld, historyIds, lightingScene, false), c));
         }
-        if(lightingScene!=null && lightingScene.lightingEnabled && lightingScene.forwardLighting && !c.selectsLegacyBeforeLights() && c.additionalActiveLights()>0
-                && historyIds.activeLightCount(lightingWorld)+c.additionalActiveLights()>1){
-            if(confirmLegacy==null)throw new IllegalStateException("Forward rendering supports at most one active light. Switch to Legacy to activate another light.");
-            long revision=mutationRevision;
-            Command requested=c;
-            confirmLegacy.accept(()->{
+        if (lightingScene != null && lightingScene.lightingEnabled && lightingScene.forwardLighting && !c.selectsLegacyBeforeLights() && c.additionalActiveLights() > 0
+                && historyIds.activeLightCount(lightingWorld) + c.additionalActiveLights() > 1) {
+            if (confirmLegacy == null)
+                throw new IllegalStateException("Forward rendering supports at most one active light. Switch to Legacy to activate another light.");
+            long revision = mutationRevision;
+            Command requested = c;
+            confirmLegacy.accept(() -> {
                 // A modal confirmation never replays an intent against a different document state.
-                if(mutationRevision!=revision)return;
-                execute(new CompositeCommand(requested.label(),java.util.Arrays.asList(
-                        new games.pixscape.studio.history.commands.SetSceneRendererCommand(lightingWorld,historyIds,lightingScene,false),requested)));
+                if (mutationRevision != revision) return;
+                execute(new CompositeCommand(requested.label(), java.util.Arrays.asList(
+                        new games.pixscape.studio.history.commands.SetSceneRendererCommand(lightingWorld, historyIds, lightingScene, false), requested)));
             });
             return;
         }

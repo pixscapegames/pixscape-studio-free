@@ -10,7 +10,9 @@ import games.pixscape.studio.service.hud.HudEditorSession;
 
 import java.util.Objects;
 
-/** Routes HUD TEST input through the native Stage while Studio owns its panels and overlays. */
+/**
+ * Routes HUD TEST input through the native Stage while Studio owns its panels and overlays.
+ */
 public final class HudTestInputRouter extends InputAdapter {
     private final HudEditorSession session;
     private final Stage studioStage;
@@ -21,28 +23,32 @@ public final class HudTestInputRouter extends InputAdapter {
         this.studioStage = Objects.requireNonNull(studioStage, "studioStage");
     }
 
-    @Override public boolean keyDown(int keycode) {
+    @Override
+    public boolean keyDown(int keycode) {
         Stage stage = session.testStage();
         if (stage == null || studioStage.getKeyboardFocus() != null) return false;
         stage.keyDown(keycode);
         return true;
     }
 
-    @Override public boolean keyUp(int keycode) {
+    @Override
+    public boolean keyUp(int keycode) {
         Stage stage = session.testStage();
         if (stage == null || studioStage.getKeyboardFocus() != null) return false;
         stage.keyUp(keycode);
         return true;
     }
 
-    @Override public boolean keyTyped(char character) {
+    @Override
+    public boolean keyTyped(char character) {
         Stage stage = session.testStage();
         if (stage == null || studioStage.getKeyboardFocus() != null) return false;
         stage.keyTyped(character);
         return true;
     }
 
-    @Override public boolean touchDown(int screenX, int screenY, int pointer, int button) {
+    @Override
+    public boolean touchDown(int screenX, int screenY, int pointer, int button) {
         Stage stage = session.testStage();
         if (stage == null) return false;
         if (!canStartAt(screenX, screenY)) {
@@ -56,7 +62,8 @@ public final class HudTestInputRouter extends InputAdapter {
         return true; // Even empty HUD canvas belongs to TEST, not the editor.
     }
 
-    @Override public boolean touchDragged(int screenX, int screenY, int pointer) {
+    @Override
+    public boolean touchDragged(int screenX, int screenY, int pointer) {
         Stage stage = session.testStage();
         if (stage == null) return false;
         boolean handled = stage.touchDragged(screenX, screenY, pointer);
@@ -65,7 +72,8 @@ public final class HudTestInputRouter extends InputAdapter {
         return handled;
     }
 
-    @Override public boolean touchUp(int screenX, int screenY, int pointer, int button) {
+    @Override
+    public boolean touchUp(int screenX, int screenY, int pointer, int button) {
         Stage stage = session.testStage();
         if (stage == null) return false;
         boolean handled = stage.touchUp(screenX, screenY, pointer, button);
@@ -74,13 +82,15 @@ public final class HudTestInputRouter extends InputAdapter {
         return handled;
     }
 
-    @Override public boolean touchCancelled(int screenX, int screenY, int pointer, int button) {
+    @Override
+    public boolean touchCancelled(int screenX, int screenY, int pointer, int button) {
         Stage stage = session.testStage();
         if (stage != null) stage.touchCancelled(screenX, screenY, pointer, button);
         return false; // Studio must cancel any independent touch focus it owns as well.
     }
 
-    @Override public boolean mouseMoved(int screenX, int screenY) {
+    @Override
+    public boolean mouseMoved(int screenX, int screenY) {
         Stage stage = session.testStage();
         if (stage == null) return false;
         if (!canStartAt(screenX, screenY)) {
@@ -91,7 +101,8 @@ public final class HudTestInputRouter extends InputAdapter {
         return stage.mouseMoved(screenX, screenY);
     }
 
-    @Override public boolean scrolled(float amountX, float amountY) {
+    @Override
+    public boolean scrolled(float amountX, float amountY) {
         Stage stage = session.testStage();
         if (stage == null || studioStage.getScrollFocus() != null) return false;
         if (Gdx.input != null && !canStartAt(Gdx.input.getX(), Gdx.input.getY())) return false;

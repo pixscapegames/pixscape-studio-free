@@ -4,9 +4,12 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.PixmapIO;
 
-/** Writes the neutral Stage-5A preview used until hierarchy-aware preview instantiation exists. */
+/**
+ * Writes the neutral Stage-5A preview used until hierarchy-aware preview instantiation exists.
+ */
 public final class GameObjectPreviewWriter {
-    private GameObjectPreviewWriter() { }
+    private GameObjectPreviewWriter() {
+    }
 
     public static void writePlaceholder(FileHandle outFile) {
         if (outFile == null) throw new IllegalArgumentException("outFile is null.");

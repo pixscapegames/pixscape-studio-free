@@ -28,7 +28,9 @@ public final class GameObjectHierarchyCommandSupport {
         requireReparentCandidate(world, identities, childEntityId, parentEntityId);
     }
 
-    /** Validates the prospective final relationship without temporarily detaching a member. */
+    /**
+     * Validates the prospective final relationship without temporarily detaching a member.
+     */
     static void requireReparentCandidate(
             World world, IdentityRegistry identities, int childEntityId, int parentEntityId) {
         requireReparentCandidate(world, identities, childEntityId, parentEntityId,
@@ -123,7 +125,9 @@ public final class GameObjectHierarchyCommandSupport {
         return copy;
     }
 
-    /** Validates the current Game Object frames above a prospective or existing Physics Body. */
+    /**
+     * Validates the current Game Object frames above a prospective or existing Physics Body.
+     */
     static void requirePhysicsAncestry(
             World world, IdentityRegistry identities, int entityId) {
         int current = entityId;
@@ -146,7 +150,9 @@ public final class GameObjectHierarchyCommandSupport {
         throw new IllegalArgumentException("Hierarchy depth limit exceeded.");
     }
 
-    /** Cold attachment validation over current children; returns Physics presence. */
+    /**
+     * Cold attachment validation over current children; returns Physics presence.
+     */
     static boolean validateCurrentSubtree(World world, IdentityRegistry identities, int entityId,
                                           IntMap<IntArray> childrenByParent) {
         IntSet visited = new IntSet();
@@ -183,7 +189,9 @@ public final class GameObjectHierarchyCommandSupport {
         return containsPhysics;
     }
 
-    /** Returns whether a strict hierarchy descendant, not the entity itself, has Physics. */
+    /**
+     * Returns whether a strict hierarchy descendant, not the entity itself, has Physics.
+     */
     static boolean hasPhysicsDescendant(
             World world, IdentityRegistry identities, int entityId) {
         GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
@@ -218,7 +226,9 @@ public final class GameObjectHierarchyCommandSupport {
                 || (scaleX == 1f && scaleY == 1f);
     }
 
-    /** True only for a Game Object frame strictly above a Physics descendant. */
+    /**
+     * True only for a Game Object frame strictly above a Physics descendant.
+     */
     public static boolean isPhysicsAncestorScaleLocked(World world, int entityId) {
         return world != null && entityId >= 0
                 && world.getMapper(GameObjectComponent.class).has(entityId)

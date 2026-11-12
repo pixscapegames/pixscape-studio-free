@@ -52,7 +52,8 @@ public class AddTiledMapCommandTest {
         assertEquals(1, layers.count());
     }
 
-    @After public void tearDown() {
+    @After
+    public void tearDown() {
         ProjectConfig.setInstance(null);
         world.dispose();
     }
@@ -354,12 +355,17 @@ public class AddTiledMapCommandTest {
         var blocks = world.getMapper(games.pixscape.runtime.component.spatial.SpatialBlocksComponent.class).create(map);
         var block = new games.pixscape.runtime.spatial.SpatialBlockData();
         block.id = blocks.allocateNextSpatialBlockId();
-        block.x = 2; block.y = 3; block.width = 1; block.depth = 1;
-        block.beginAuthoredLinkedTileRefs(); block.addLinkedTileRef(2, 3, 404);
+        block.x = 2;
+        block.y = 3;
+        block.width = 1;
+        block.depth = 1;
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(2, 3, 404);
         blocks.blocks.add(block);
         var physics = new games.pixscape.runtime.service.PhysicsService(world, null, ProjectConfig.getInstance().getCurrentSceneMeta());
         var shape = new games.pixscape.runtime.physics.PhysicsShapeData();
-        shape.physicsShapeId = physics.allocateNewPhysicsShapeId(); shape.spatialBlockId = block.id;
+        shape.physicsShapeId = physics.allocateNewPhysicsShapeId();
+        shape.spatialBlockId = block.id;
         world.getMapper(games.pixscape.runtime.component.physics.PhysicsShapesComponent.class).create(map).shapes.add(shape);
         world.getMapper(PhysicsBodyComponent.class).create(map).type = PhysicsBodyComponent.STATIC;
         int stable = stableId(map);
@@ -382,7 +388,8 @@ public class AddTiledMapCommandTest {
             assertTrue(world.getMapper(games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent.class).get(restored).valid);
             history.redo();
         }
-        history.undo(); world.process();
+        history.undo();
+        world.process();
         assertEquals(1, mapCount());
     }
 

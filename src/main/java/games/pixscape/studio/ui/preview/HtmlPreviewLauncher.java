@@ -66,8 +66,8 @@ public final class HtmlPreviewLauncher {
 
             String url = "http://127.0.0.1:" + server.getAddress().getPort()
                     + "/";
-            Boolean override=games.pixscape.studio.configuration.EditorSettings.forwardLightingOverride();
-            if(override!=null)url+="?lighting="+(override?"forward":"legacy");
+            Boolean override = games.pixscape.studio.configuration.EditorSettings.forwardLightingOverride();
+            if (override != null) url += "?lighting=" + (override ? "forward" : "legacy");
             Gdx.app.log("HtmlPreviewLauncher", "HTML preview running at " + url);
             if (onOpened != null) onOpened.run();
             Gdx.net.openURI(url);
@@ -113,7 +113,9 @@ public final class HtmlPreviewLauncher {
         writeManifestAtomically(manifest, entries);
     }
 
-    /** Test helper for a materialized assets tree. Preview launches use the routed overload above. */
+    /**
+     * Test helper for a materialized assets tree. Preview launches use the routed overload above.
+     */
     static void writeAssetsManifest(Path assetsRoot) throws IOException {
         Map<String, ManifestEntry> entries = new HashMap<>();
         addTree(entries, assetsRoot, "", false);

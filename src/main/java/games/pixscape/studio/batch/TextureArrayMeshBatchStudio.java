@@ -292,7 +292,8 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         prepareDrawState(s);
 
         if (uEntityParamsLoc >= 0) {
-            if (parameterTexture == null) throw new IllegalStateException("Parameter texture was not created with a GL30 context");
+            if (parameterTexture == null)
+                throw new IllegalStateException("Parameter texture was not created with a GL30 context");
             parameterTexture.upload(parameterRows);
         }
 
@@ -303,8 +304,10 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
             s.drawCalls++;
             s.flushedQuads += flushedQuadCount;
             s.flushedVertices += flushedVertexCount;
-            s.bufferUploads++;s.bufferUploadBytes+=(long)flushedVertexCount*VERT_STRIDE*4;
-            s.uploadedVertices+=flushedVertexCount;s.drawnIndices+=(long)flushedQuadCount*6;
+            s.bufferUploads++;
+            s.bufferUploadBytes += (long) flushedVertexCount * VERT_STRIDE * 4;
+            s.uploadedVertices += flushedVertexCount;
+            s.drawnIndices += (long) flushedQuadCount * 6;
         }
 
         vertCount = 0;
@@ -450,8 +453,10 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         verts[o++] = colorPacked;
         verts[o++] = fl;
         verts[o++] = paramId;
-        verts[o++] = Math.min(u,u2);verts[o++] = Math.min(v,v2);
-        verts[o++] = Math.max(u,u2);verts[o++] = Math.max(v,v2);
+        verts[o++] = Math.min(u, u2);
+        verts[o++] = Math.min(v, v2);
+        verts[o++] = Math.max(u, u2);
+        verts[o++] = Math.max(v, v2);
 
         // TL
         verts[o++] = x2;
@@ -461,8 +466,10 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         verts[o++] = colorPacked;
         verts[o++] = fl;
         verts[o++] = paramId;
-        verts[o++] = Math.min(u,u2);verts[o++] = Math.min(v,v2);
-        verts[o++] = Math.max(u,u2);verts[o++] = Math.max(v,v2);
+        verts[o++] = Math.min(u, u2);
+        verts[o++] = Math.min(v, v2);
+        verts[o++] = Math.max(u, u2);
+        verts[o++] = Math.max(v, v2);
 
         // TR
         verts[o++] = x3;
@@ -472,8 +479,10 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         verts[o++] = colorPacked;
         verts[o++] = fl;
         verts[o++] = paramId;
-        verts[o++] = Math.min(u,u2);verts[o++] = Math.min(v,v2);
-        verts[o++] = Math.max(u,u2);verts[o++] = Math.max(v,v2);
+        verts[o++] = Math.min(u, u2);
+        verts[o++] = Math.min(v, v2);
+        verts[o++] = Math.max(u, u2);
+        verts[o++] = Math.max(v, v2);
 
         // BR
         verts[o++] = x4;
@@ -483,8 +492,10 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         verts[o++] = colorPacked;
         verts[o++] = fl;
         verts[o++] = paramId;
-        verts[o++] = Math.min(u,u2);verts[o++] = Math.min(v,v2);
-        verts[o++] = Math.max(u,u2);verts[o++] = Math.max(v,v2);
+        verts[o++] = Math.min(u, u2);
+        verts[o++] = Math.min(v, v2);
+        verts[o++] = Math.max(u, u2);
+        verts[o++] = Math.max(v, v2);
 
         vertCount += 4;
         quadCount += 1;

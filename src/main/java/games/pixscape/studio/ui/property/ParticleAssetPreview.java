@@ -18,7 +18,9 @@ import games.pixscape.studio.ui.widget.SimpleFloatSlider;
 
 import java.util.Locale;
 
-/** Inspector-only simulation. No scene effect, atlas texture, or authored parameter is borrowed or changed. */
+/**
+ * Inspector-only simulation. No scene effect, atlas texture, or authored parameter is borrowed or changed.
+ */
 final class ParticleAssetPreview extends VisTable {
     private static final double STEP = 0.01;
     private static final float MAX_FRAME_DELTA = 0.05f;
@@ -64,7 +66,10 @@ final class ParticleAssetPreview extends VisTable {
         VisTextButton restart = new VisTextButton("Restart");
         restart.setName("particlePreviewRestart");
         restart.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) { restart(); }
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                restart();
+            }
         });
         add(restart).left().row();
         VisLabel hint = new VisLabel("Preview only");
@@ -72,17 +77,24 @@ final class ParticleAssetPreview extends VisTable {
         add(hint).growX().left().row();
     }
 
-    float speed() { return speed; }
+    float speed() {
+        return speed;
+    }
+
     // The bundled UI font has no multiplication-sign glyph.
-    private String multiplier() { return String.format(Locale.ROOT, "%.2fx", speed); }
+    private String multiplier() {
+        return String.format(Locale.ROOT, "%.2fx", speed);
+    }
 
     void restart() {
         effect.reset(false);
         remainder = 0;
     }
 
-    /** Fixed integer-millisecond steps avoid the emitter's fractional-delta motion/lifetime mismatch.
-     * Slow frames discard elapsed time beyond 50 ms; no catch-up backlog survives hiding or a stall. */
+    /**
+     * Fixed integer-millisecond steps avoid the emitter's fractional-delta motion/lifetime mismatch.
+     * Slow frames discard elapsed time beyond 50 ms; no catch-up backlog survives hiding or a stall.
+     */
     void advance(float delta) {
         if (disposed || speed == 0 || !Float.isFinite(delta) || delta <= 0) return;
         remainder += Math.min(delta, MAX_FRAME_DELTA) * (double) speed;
@@ -91,8 +103,10 @@ final class ParticleAssetPreview extends VisTable {
         remainder = Math.max(0, remainder - steps * STEP);
     }
 
-    /** One bounded load-time sample fixes the camera for the entire preview, including Restart.
-     * Long-delayed or unusually expansive effects may extend beyond this three-second framing sample. */
+    /**
+     * One bounded load-time sample fixes the camera for the entire preview, including Restart.
+     * Long-delayed or unusually expansive effects may extend beyond this three-second framing sample.
+     */
     private void prepareFraming() {
         BoundingBox bounds = new BoundingBox();
         bounds.ext(-32, -32, 0).ext(32, 32, 0);
@@ -121,7 +135,8 @@ final class ParticleAssetPreview extends VisTable {
         private final Matrix4 previewTransform = new Matrix4();
         private boolean drawn;
 
-        @Override public void act(float delta) {
+        @Override
+        public void act(float delta) {
             super.act(delta);
             boolean visible = getStage() != null;
             for (Actor actor = this; actor != null && visible; actor = actor.getParent()) visible = actor.isVisible();
@@ -129,12 +144,14 @@ final class ParticleAssetPreview extends VisTable {
             drawn = false;
         }
 
-        @Override protected void setStage(Stage stage) {
+        @Override
+        protected void setStage(Stage stage) {
             drawn = false;
             super.setStage(stage);
         }
 
-        @Override public void draw(Batch batch, float parentAlpha) {
+        @Override
+        public void draw(Batch batch, float parentAlpha) {
             if (disposed || getWidth() <= 0 || getHeight() <= 0) return;
             batch.flush();
             if (!clipBegin()) return;
@@ -163,19 +180,23 @@ final class ParticleAssetPreview extends VisTable {
         }
     }
 
-    /** Directory loading owns every returned texture. Track allocations immediately, including partial
-     * loads; dispose each once even when several emitters reuse a sprite. Never call the base disposer. */
+    /**
+     * Directory loading owns every returned texture. Track allocations immediately, including partial
+     * loads; dispose each once even when several emitters reuse a sprite. Never call the base disposer.
+     */
     private static final class OwnedEffect extends ParticleEffect {
         private final Array<Texture> textures = new Array<>();
 
-        @Override protected Texture loadTexture(FileHandle file) {
+        @Override
+        protected Texture loadTexture(FileHandle file) {
             if (!file.exists()) throw new IllegalArgumentException("Particle image is missing: " + file.name());
             Texture texture = super.loadTexture(file);
             textures.add(texture);
             return texture;
         }
 
-        @Override public void dispose() {
+        @Override
+        public void dispose() {
             for (int i = 0; i < textures.size; i++) textures.get(i).dispose();
             textures.clear();
         }

@@ -49,7 +49,9 @@ public final class AssetNode {
     public int assetId = -1;
     public int tileAnimationId = -1;
 
-    /** Present only when this user-visible node is backed by AssetMeta. */
+    /**
+     * Present only when this user-visible node is backed by AssetMeta.
+     */
     public AssetDisplayInfo assetInfo;
 
     public TextureAtlas.AtlasRegion region; // used only for REGION

@@ -25,7 +25,9 @@ import games.pixscape.studio.ui.widget.DockSplitPane;
 
 import static org.junit.Assert.*;
 
-/** Opt-in real GLFW lifecycle assertions against the production docking composition. */
+/**
+ * Opt-in real GLFW lifecycle assertions against the production docking composition.
+ */
 public final class DockWindowsNativeCheck extends ApplicationAdapter {
     private final boolean autoClose;
     private final ObjectMap<DockablePanel, Lwjgl3Window> windows = new ObjectMap<>();
@@ -42,7 +44,9 @@ public final class DockWindowsNativeCheck extends ApplicationAdapter {
     private String armed;
     private boolean gestureAction;
 
-    private DockWindowsNativeCheck(boolean autoClose) { this.autoClose = autoClose; }
+    private DockWindowsNativeCheck(boolean autoClose) {
+        this.autoClose = autoClose;
+    }
 
     public static void main(String[] args) {
         DockWindowsNativeCheck check = new DockWindowsNativeCheck(args.length > 0 && args[0].equals("--auto-close"));
@@ -51,7 +55,8 @@ public final class DockWindowsNativeCheck extends ApplicationAdapter {
         config.setWindowedMode(1100, 760);
         config.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.GL32, 3, 2);
         new Lwjgl3Application(check, config) {
-            @Override public Lwjgl3Window newWindow(ApplicationListener listener, Lwjgl3WindowConfiguration cfg) {
+            @Override
+            public Lwjgl3Window newWindow(ApplicationListener listener, Lwjgl3WindowConfiguration cfg) {
                 cfg.setWindowPosition(check.openingPanel == check.f.properties ? 60 : 470, 130);
                 Lwjgl3Window window = super.newWindow(listener, cfg);
                 check.windows.put(check.openingPanel, window);
@@ -60,15 +65,20 @@ public final class DockWindowsNativeCheck extends ApplicationAdapter {
         };
     }
 
-    @Override public void create() {
+    @Override
+    public void create() {
         VisUI.load(new Skin(Gdx.files.internal("assets/ui/skin/uiskin.json")));
         stage = new StudioStage(new ScreenViewport());
         Gdx.input.setInputProcessor(stage);
-        try { f = DockingTestFixture.create(); }
-        catch (Exception e) { throw new RuntimeException(e); }
+        try {
+            f = DockingTestFixture.create();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         f.manager.setRulersVisible(false); // The fixture has no world camera or ruler renderer.
-        ((Lwjgl3Graphics)Gdx.graphics).getWindow().setWindowListener(new Lwjgl3WindowAdapter() {
-            @Override public void focusLost() {
+        ((Lwjgl3Graphics) Gdx.graphics).getWindow().setWindowListener(new Lwjgl3WindowAdapter() {
+            @Override
+            public void focusLost() {
                 f.manager.cancelResize();
                 System.out.println("OS focus lost: separator gestures cancelled");
             }
@@ -80,8 +90,14 @@ public final class DockWindowsNativeCheck extends ApplicationAdapter {
         status = new VisLabel("Running native lifecycle assertions...");
         root.add(status).growX().row();
         VisTable buttons = new VisTable();
-        button(buttons, "Float both", () -> { undock(f.properties); undock(f.layers); });
-        button(buttons, "Dock A LEFT", () -> { f.manager.hide(f.items); f.manager.dock(f.properties, DockSlot.LEFT); });
+        button(buttons, "Float both", () -> {
+            undock(f.properties);
+            undock(f.layers);
+        });
+        button(buttons, "Dock A LEFT", () -> {
+            f.manager.hide(f.items);
+            f.manager.dock(f.properties, DockSlot.LEFT);
+        });
         button(buttons, "Hide assets", () -> f.manager.hide(f.assets));
         button(buttons, "Hide B", () -> f.manager.hide(f.layers));
         button(buttons, "Reopen B", () -> undock(f.layers));
@@ -103,11 +119,14 @@ public final class DockWindowsNativeCheck extends ApplicationAdapter {
         stage.addActor(root);
         // Test-only observer: the actual mouse press/drag and resize listener remain native.
         stage.addListener(new InputListener() {
-            @Override public boolean touchDown(InputEvent e, float x, float y, int pointer, int button) {
+            @Override
+            public boolean touchDown(InputEvent e, float x, float y, int pointer, int button) {
                 gestureAction = armed != null && e.getTarget() instanceof DockSplitPane;
                 return gestureAction;
             }
-            @Override public void touchDragged(InputEvent e, float x, float y, int pointer) {
+
+            @Override
+            public void touchDragged(InputEvent e, float x, float y, int pointer) {
                 if (!gestureAction) return;
                 gestureAction = false;
                 String action = armed;
@@ -115,12 +134,16 @@ public final class DockWindowsNativeCheck extends ApplicationAdapter {
                 switch (action) {
                     case "Resize" -> Gdx.graphics.setWindowedMode(Gdx.graphics.getWidth() == 1100 ? 1000 : 1100, 760);
                     case "Cancel" -> f.manager.cancelResize();
-                    case "OS focus" -> { if (windows.size > 0) windows.values().next().focusWindow(); }
+                    case "OS focus" -> {
+                        if (windows.size > 0) windows.values().next().focusWindow();
+                    }
                 }
                 status.setText(action + " during held-button drag; release and try another drag.");
                 System.out.println("Executed during native held-button drag: " + action);
             }
-            @Override public boolean keyDown(InputEvent e, int key) {
+
+            @Override
+            public boolean keyDown(InputEvent e, int key) {
                 if (key == com.badlogic.gdx.Input.Keys.ESCAPE) f.manager.cancelResize();
                 return false;
             }
@@ -130,19 +153,25 @@ public final class DockWindowsNativeCheck extends ApplicationAdapter {
     private static void button(VisTable table, String text, Runnable action) {
         VisTextButton button = new VisTextButton(text);
         button.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent e, Actor actor) { action.run(); }
+            @Override
+            public void changed(ChangeEvent e, Actor actor) {
+                action.run();
+            }
         });
         table.add(button).pad(3);
     }
 
     private void undock(DockablePanel panel) {
         openingPanel = panel;
-        try { f.manager.undock(panel); }
-        finally { openingPanel = null; }
+        try {
+            f.manager.undock(panel);
+        } finally {
+            openingPanel = null;
+        }
     }
 
     private GenericWindow window(DockablePanel panel) {
-        return (GenericWindow)windows.get(panel).getListener();
+        return (GenericWindow) windows.get(panel).getListener();
     }
 
     private boolean ready(DockablePanel panel) {
@@ -161,16 +190,21 @@ public final class DockWindowsNativeCheck extends ApplicationAdapter {
                         resizeByDrag(f.splits[i], i < 2);
                         ratios[i] = f.splits[i].getSplit();
                     }
-                    assertDocked(a, f.rightTop); assertDocked(b, f.rightBottom);
-                    undock(f.properties); undock(f.layers);
+                    assertDocked(a, f.rightTop);
+                    assertDocked(b, f.rightBottom);
+                    undock(f.properties);
+                    undock(f.layers);
                 }
                 case 1 -> {
                     if (!ready(f.properties) || !ready(f.layers)) return;
-                    assertFloating(a); assertFloating(b);
+                    assertFloating(a);
+                    assertFloating(b);
                     f.manager.hide(f.assets);
-                    assertFloating(a); assertFloating(b);
+                    assertFloating(a);
+                    assertFloating(b);
                     f.manager.hide(f.layers);
-                    assertFloating(a); b.assertInsidePanel();
+                    assertFloating(a);
+                    b.assertInsidePanel();
                 }
                 case 2 -> {
                     f.manager.hide(f.items);
@@ -200,7 +234,8 @@ public final class DockWindowsNativeCheck extends ApplicationAdapter {
             }
             case 41 -> {
                 if (f.layers.isVisible()) return;
-                a.assertInsidePanel(); b.assertInsidePanel();
+                a.assertInsidePanel();
+                b.assertInsidePanel();
                 assertDocked(a, f.rightTop);
                 undock(f.layers);
             }
@@ -211,7 +246,7 @@ public final class DockWindowsNativeCheck extends ApplicationAdapter {
                 assertDocked(b, f.bottom);
                 // Dispose old native stages only after ownership has moved to the main Stage.
                 for (Lwjgl3Window w : windows.values()) {
-                    ((GenericWindowListener)w.getWindowListener()).forceClose();
+                    ((GenericWindowListener) w.getWindowListener()).forceClose();
                     assertTrue(w.getWindowListener().closeRequested());
                     w.closeWindow();
                 }
@@ -219,7 +254,7 @@ public final class DockWindowsNativeCheck extends ApplicationAdapter {
             case 43 -> {
                 assertDocked(a, f.rightTop);
                 assertDocked(b, f.bottom);
-                for (Lwjgl3Window w : windows.values()) assertFalse(((GenericWindow)w.getListener()).containsPanel());
+                for (Lwjgl3Window w : windows.values()) assertFalse(((GenericWindow) w.getListener()).containsPanel());
                 assertAllContent();
                 System.out.println("PASS: 10 native resize/dock/undock cycles, simultaneous windows, other-panel hides, close callback, cross-slot redock and stale-window disposal; ratios, content identity/text/toggle, positive visible bounds and hit targets retained.");
                 status.setText("PASS - 10 native cycles + close callback/dispose. Use buttons to inspect manually.");
@@ -265,6 +300,7 @@ public final class DockWindowsNativeCheck extends ApplicationAdapter {
         assertEquals(0, DockingTestFixture.countIdentity(stage.getRoot(), probe.field));
         assertNoStaleOwners(probe);
     }
+
     private void assertDocked(Probe probe, VisTable slot) {
         assertSame(slot, probe.panel.getParent());
         assertSame(stage, probe.field.getStage());
@@ -274,28 +310,46 @@ public final class DockWindowsNativeCheck extends ApplicationAdapter {
         assertEquals(1, DockingTestFixture.countIdentity(slot, probe.field));
         assertNoStaleOwners(probe);
     }
+
     private void assertNoStaleOwners(Probe probe) {
         for (Stage oldStage : oldStages) {
             assertEquals(oldStage == probe.field.getStage() ? 1 : 0,
                     DockingTestFixture.countIdentity(oldStage.getRoot(), probe.field));
         }
     }
+
     private void assertAllContent() {
-        a.assertInsidePanel(); b.assertInsidePanel();
+        a.assertInsidePanel();
+        b.assertInsidePanel();
         if (a.field.getStage() != null) a.assertUsable();
         if (b.field.getStage() != null) b.assertUsable();
-        assertNoStaleOwners(a); assertNoStaleOwners(b);
+        assertNoStaleOwners(a);
+        assertNoStaleOwners(b);
     }
 
-    @Override public void render() {
-        if (running) { status.setText("Running native lifecycle step " + step); advance(); }
+    @Override
+    public void render() {
+        if (running) {
+            status.setText("Running native lifecycle step " + step);
+            advance();
+        }
         Gdx.gl.glClearColor(.12f, .14f, .18f, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
         stage.act(Gdx.graphics.getDeltaTime());
         stage.draw();
     }
-    @Override public void resize(int w, int h) { if (stage != null) stage.getViewport().update(w, h, true); }
-    @Override public void dispose() { f.close(); stage.dispose(); VisUI.dispose(); }
+
+    @Override
+    public void resize(int w, int h) {
+        if (stage != null) stage.getViewport().update(w, h, true);
+    }
+
+    @Override
+    public void dispose() {
+        f.close();
+        stage.dispose();
+        VisUI.dispose();
+    }
 
     private static final class Probe {
         final DockablePanel panel;
@@ -304,8 +358,11 @@ public final class DockWindowsNativeCheck extends ApplicationAdapter {
         final VisCheckBox toggle = new VisCheckBox("Retained state");
         final String text;
         final boolean checked;
+
         Probe(DockablePanel panel, String text, boolean checked) {
-            this.panel = panel; this.text = text; this.checked = checked;
+            this.panel = panel;
+            this.text = text;
+            this.checked = checked;
             field = new VisTextField(text);
             toggle.setChecked(checked);
             content.add(new VisLabel(text)).growX().row();
@@ -313,6 +370,7 @@ public final class DockWindowsNativeCheck extends ApplicationAdapter {
             content.add(toggle).growX();
             panel.add(content).grow();
         }
+
         void assertInsidePanel() {
             assertSame(panel, content.getParent());
             assertSame(content, field.getParent());
@@ -326,6 +384,7 @@ public final class DockWindowsNativeCheck extends ApplicationAdapter {
                 assertEquals(1, DockingTestFixture.countIdentity(panel.getStage().getRoot(), field));
             }
         }
+
         void assertUsable() {
             Stage owner = field.getStage();
             assertNotNull(owner);

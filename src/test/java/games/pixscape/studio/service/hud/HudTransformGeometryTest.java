@@ -8,7 +8,8 @@ import static org.junit.Assert.assertNull;
 public class HudTransformGeometryTest {
     private static final float EPSILON = 0.001f;
 
-    @Test public void resizeKeepsTheOppositeEdgeFixedForEveryHandle() {
+    @Test
+    public void resizeKeepsTheOppositeEdgeFixedForEveryHandle() {
         HudTransformGeometry.Bounds initial = new HudTransformGeometry.Bounds(10f, 20f, 30f, 40f);
 
         assertBounds(new HudTransformGeometry.Bounds(10f, 20f, 35f, 40f),
@@ -23,7 +24,8 @@ public class HudTransformGeometryTest {
                 HudTransformGeometry.resize(initial, HudTransformHandle.SW, 3f, 4f));
     }
 
-    @Test public void resizeClampsAtAPositiveMinimumWithoutMovingTheFixedEdge() {
+    @Test
+    public void resizeClampsAtAPositiveMinimumWithoutMovingTheFixedEdge() {
         HudTransformGeometry.Bounds initial = new HudTransformGeometry.Bounds(10f, 20f, 30f, 40f);
 
         assertBounds(new HudTransformGeometry.Bounds(39f, 20f, 1f, 40f),
@@ -32,7 +34,8 @@ public class HudTransformGeometryTest {
                 HudTransformGeometry.resize(initial, HudTransformHandle.N, 0f, -100f));
     }
 
-    @Test public void cornerResizesCombineAxesAndPreserveFractionalCoordinates() {
+    @Test
+    public void cornerResizesCombineAxesAndPreserveFractionalCoordinates() {
         HudTransformGeometry.Bounds initial = new HudTransformGeometry.Bounds(10.5f, 20.25f, 30.5f, 40.75f);
 
         assertBounds(new HudTransformGeometry.Bounds(12.5f, 20.25f, 28.5f, 45.75f),
@@ -47,7 +50,8 @@ public class HudTransformGeometryTest {
                 HudTransformGeometry.move(initial, 7.25f, -3.75f));
     }
 
-    @Test public void handleHitTestingUsesAllEightCentersAndCornersWinOverlap() {
+    @Test
+    public void handleHitTestingUsesAllEightCentersAndCornersWinOverlap() {
         HudTransformGeometry.Bounds bounds = new HudTransformGeometry.Bounds(10f, 20f, 30f, 40f);
         float size = 8f;
 

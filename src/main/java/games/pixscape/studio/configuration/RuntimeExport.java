@@ -74,13 +74,13 @@ public final class RuntimeExport {
         }
 
         validateContentLayerInputs(studioCfg, studioProjectDir);
-        FileHandle catalog=studioProjectDir.child(StudioFs.FILE_ASSETS_JSON);
-        if(catalog.exists()){
-            AssetMetaDatabase db=AssetMetaDatabase.load(catalog);
-            for(ObjectMap.Entry<String,SceneMeta> entry:studioCfg.getScenesMap()){
-                String tag=studioCfg.canonicalSceneTag(entry.key);
-                if(tag!=null && studioProjectDir.child(StudioFs.DIR_ATLASES).child(tag+".atlas").exists())
-                    games.pixscape.studio.service.atlas.AtlasStudioService.prepareSceneNormals(studioProjectDir,tag,null,db);
+        FileHandle catalog = studioProjectDir.child(StudioFs.FILE_ASSETS_JSON);
+        if (catalog.exists()) {
+            AssetMetaDatabase db = AssetMetaDatabase.load(catalog);
+            for (ObjectMap.Entry<String, SceneMeta> entry : studioCfg.getScenesMap()) {
+                String tag = studioCfg.canonicalSceneTag(entry.key);
+                if (tag != null && studioProjectDir.child(StudioFs.DIR_ATLASES).child(tag + ".atlas").exists())
+                    games.pixscape.studio.service.atlas.AtlasStudioService.prepareSceneNormals(studioProjectDir, tag, null, db);
             }
         }
 
@@ -108,7 +108,7 @@ public final class RuntimeExport {
                 FileHandle file = studioProjectDir.child(StudioFs.DIR_SCENES)
                         .child(RuntimeFs.filenameOnly(scene.file));
                 if (file.exists()) {
-                    games.pixscape.runtime.loading.SceneLoader.validateMapLightingConvention(file.readString("UTF-8"),file.path());
+                    games.pixscape.runtime.loading.SceneLoader.validateMapLightingConvention(file.readString("UTF-8"), file.path());
                     ContentLayerValidator.validateSerializedScene(file.readString("UTF-8"),
                             "Scene '" + file.path() + "'");
                 }
@@ -124,8 +124,8 @@ public final class RuntimeExport {
     }
 
     private static RuntimeConfig exportPrepared(ProjectConfig studioCfg, FileHandle studioProjectDir,
-                                                 FileHandle runtimeDir, FileHandle target,
-                                                 SceneHudRuntimeExport.PreparedExport hud) {
+                                                FileHandle runtimeDir, FileHandle target,
+                                                SceneHudRuntimeExport.PreparedExport hud) {
 
         // 1) RuntimeConfig
         RuntimeConfig out = new RuntimeConfig();
@@ -372,17 +372,17 @@ public final class RuntimeExport {
 
         for (int i = 0; i < assetDb.size(); i++) {
             AssetMeta meta = assetDb.assetAt(i);
-                if (!(meta instanceof AnimationAssetMeta animation)) {
-                    continue;
-                }
-                if (animation.id() <= 0) {
-                    continue;
-                }
-                if (runtimeAnimationAssetIds == null || !runtimeAnimationAssetIds.contains(animation.id())) {
-                    continue;
-                }
+            if (!(meta instanceof AnimationAssetMeta animation)) {
+                continue;
+            }
+            if (animation.id() <= 0) {
+                continue;
+            }
+            if (runtimeAnimationAssetIds == null || !runtimeAnimationAssetIds.contains(animation.id())) {
+                continue;
+            }
 
-                animations.addChild(animationJson(animation));
+            animations.addChild(animationJson(animation));
         }
 
         root.addChild("animations", animations);
@@ -459,7 +459,8 @@ public final class RuntimeExport {
                     if (tile.normalSourceRelPath == null) continue;
                     FileHandle source = assetsFile.parent().child(tile.normalSourceRelPath);
                     FileHandle color = assetsFile.parent().child(tile.sourceRelPath());
-                    if (!source.exists()) throw new GdxRuntimeException("Tile normal resource is missing: " + tile.id());
+                    if (!source.exists())
+                        throw new GdxRuntimeException("Tile normal resource is missing: " + tile.id());
                     // Exact source dimensions remain independent of atlas trim, rotation, padding and aliases.
                     try {
                         var normalPixels = javax.imageio.ImageIO.read(source.file());
@@ -468,7 +469,9 @@ public final class RuntimeExport {
                                 || normalPixels.getWidth() != colorPixels.getWidth()
                                 || normalPixels.getHeight() != colorPixels.getHeight())
                             throw new GdxRuntimeException("Tile normal dimensions are invalid: " + tile.id());
-                    } catch (java.io.IOException failure) { throw new GdxRuntimeException("Cannot validate tile normal", failure); }
+                    } catch (java.io.IOException failure) {
+                        throw new GdxRuntimeException("Cannot validate tile normal", failure);
+                    }
                     String relative = "normals/" + tile.id() + ".png";
                     source.copyTo(runtimeFile.parent().child(relative));
                     JsonValue normal = new JsonValue(JsonValue.ValueType.object);
@@ -699,10 +702,10 @@ public final class RuntimeExport {
     }
 
     private static void collectRuntimeSceneTileAssetIds(FileHandle runtimeScenesDir,
-                                                       RuntimeConfig runtimeCfg,
-                                                       IntSet out,
-                                                       TileAnimationsMetaDatabase tileAnimationsDb,
-                                                       AssetMetaDatabase assetDb) {
+                                                        RuntimeConfig runtimeCfg,
+                                                        IntSet out,
+                                                        TileAnimationsMetaDatabase tileAnimationsDb,
+                                                        AssetMetaDatabase assetDb) {
         if (runtimeScenesDir == null || runtimeCfg == null || runtimeCfg.scenes == null || runtimeCfg.scenes.size == 0) {
             return;
         }

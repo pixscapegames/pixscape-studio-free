@@ -2,7 +2,9 @@ package games.pixscape.studio.service.entitygraph;
 
 import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
 
-/** Authored-Physics queries for immutable entity graphs. */
+/**
+ * Authored-Physics queries for immutable entity graphs.
+ */
 public final class EntityGraphPhysicsSupport {
 
     private EntityGraphPhysicsSupport() {

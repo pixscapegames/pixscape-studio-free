@@ -1,6 +1,8 @@
 package games.pixscape.studio.asset;
 
-/** BitmapFont descriptor asset; page dependencies remain relative to sourceRelPath. */
+/**
+ * BitmapFont descriptor asset; page dependencies remain relative to sourceRelPath.
+ */
 public final class FontAssetMeta extends AssetMeta {
     public FontAssetMeta() {
         super(AssetType.FONT);

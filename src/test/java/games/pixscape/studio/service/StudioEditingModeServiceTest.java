@@ -183,14 +183,28 @@ public class StudioEditingModeServiceTest {
         final boolean[] allowEntry = {false};
         final int[] exits = {0};
         service.bindHudTestModeController(new StudioEditingModeService.HudTestModeController() {
-            @Override public boolean canEnter() { return true; }
-            @Override public boolean enter() {
+            @Override
+            public boolean canEnter() {
+                return true;
+            }
+
+            @Override
+            public boolean enter() {
                 if (!allowEntry[0]) return false;
                 active[0] = true;
                 return true;
             }
-            @Override public void exit() { active[0] = false; exits[0]++; }
-            @Override public boolean isActive() { return active[0]; }
+
+            @Override
+            public void exit() {
+                active[0] = false;
+                exits[0]++;
+            }
+
+            @Override
+            public boolean isActive() {
+                return active[0];
+            }
         });
         service.activateHudDocument(1);
 

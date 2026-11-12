@@ -18,7 +18,8 @@ public class CurrentSceneSaveDecisionGuardTest {
         CurrentSceneSaveDecisionGuard.request(
                 false, "title", "message", continuations::incrementAndGet, null, null,
                 (title, message, save, dontSave, cancel) -> dialogs.incrementAndGet(),
-                (success, failure) -> { }
+                (success, failure) -> {
+                }
         );
 
         assertEquals(1, continuations.get());
@@ -69,7 +70,8 @@ public class CurrentSceneSaveDecisionGuardTest {
         CurrentSceneSaveDecisionGuard.request(
                 true, "title", "message", continuations::incrementAndGet, cancels::incrementAndGet, null,
                 (title, message, save, dontSave, cancel) -> cancel.run(),
-                (success, failure) -> { }
+                (success, failure) -> {
+                }
         );
 
         assertEquals(0, continuations.get());

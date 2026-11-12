@@ -41,7 +41,8 @@ public class StudioApplicationAdapterPreviewRecoveryContractTest {
         config.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.GL30, 3, 3);
         try (var globals = new StudioGlTestScope()) {
             new Lwjgl3Application(new ApplicationAdapter() {
-                @Override public void create() {
+                @Override
+                public void create() {
                     Texture texture = null;
                     AtlasRuntimeService.TextureArrayBundle bundle = null;
                     HudBatch hud = null;
@@ -78,7 +79,10 @@ public class StudioApplicationAdapterPreviewRecoveryContractTest {
                         if (hud != null) hud.dispose();
                         if (world != null) world.dispose();
                         if (bundle != null) bundle.textureArray.dispose();
-                        if (texture != null) { TextureRegistry.release(texture); texture.dispose(); }
+                        if (texture != null) {
+                            TextureRegistry.release(texture);
+                            texture.dispose();
+                        }
                         InternalTextures.dispose();
                         TextureRegistry.clear();
                         ShaderRegistry.disposeAll();

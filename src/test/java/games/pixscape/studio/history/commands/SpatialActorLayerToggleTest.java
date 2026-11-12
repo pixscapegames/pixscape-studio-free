@@ -178,7 +178,7 @@ public class SpatialActorLayerToggleTest {
             index.layerIndex = layerIndex;
             SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(entity);
             height.altitude = 2.5f;
-            games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height,7f);
+            games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height, 7f);
             PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(entity);
             body.gravityScale = 0f;
             PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).create(entity);

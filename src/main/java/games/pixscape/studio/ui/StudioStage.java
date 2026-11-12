@@ -3,7 +3,9 @@ package games.pixscape.studio.ui;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.utils.viewport.Viewport;
 
-/** Scene2D stage compatible with the Studio GL3 context. */
+/**
+ * Scene2D stage compatible with the Studio GL3 context.
+ */
 public final class StudioStage extends Stage {
 
     private final StudioSpriteBatch batch;

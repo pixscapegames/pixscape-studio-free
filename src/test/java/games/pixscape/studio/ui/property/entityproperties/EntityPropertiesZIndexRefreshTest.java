@@ -12,10 +12,14 @@ import static org.junit.Assert.assertEquals;
 
 public class EntityPropertiesZIndexRefreshTest {
     @BeforeClass
-    public static void loadVisUi() { VisUiTestBootstrap.loadSkin(); }
+    public static void loadVisUi() {
+        VisUiTestBootstrap.loadSkin();
+    }
 
     @AfterClass
-    public static void unloadVisUi() { VisUiTestBootstrap.unloadSkin(); }
+    public static void unloadVisUi() {
+        VisUiTestBootstrap.unloadSkin();
+    }
 
     @Test
     public void refreshZIndexReadsCurrentEcsValueWithoutRebinding() {

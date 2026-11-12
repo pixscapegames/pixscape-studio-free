@@ -23,7 +23,8 @@ public final class VisUiTestBootstrap {
         if (refCount++ > 0) return;
 
         if (app == null) {
-            app = new HeadlessApplication(new ApplicationAdapter() {}, new HeadlessApplicationConfiguration());
+            app = new HeadlessApplication(new ApplicationAdapter() {
+            }, new HeadlessApplicationConfiguration());
         }
 
         if (Gdx.graphics == null) {

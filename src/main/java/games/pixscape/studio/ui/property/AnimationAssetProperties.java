@@ -23,7 +23,9 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
-/** Read-only asset inspection. Clip selection and playback belong exclusively to this view. */
+/**
+ * Read-only asset inspection. Clip selection and playback belong exclusively to this view.
+ */
 public final class AnimationAssetProperties extends VisTable {
     private final Supplier<AssetMetaDatabase> databaseSource;
     private final Function<String, Array<Texture>> frameLoader;
@@ -84,7 +86,8 @@ public final class AnimationAssetProperties extends VisTable {
         details.add(clips).colspan(2).growX().row();
         add(section).growX().row();
         configure.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 refreshIfChanged();
                 if (animation != null) editClips.accept(assetId);
             }
@@ -105,7 +108,9 @@ public final class AnimationAssetProperties extends VisTable {
         selectedClip = null;
     }
 
-    /** O(1) check at the Inspector's post-ECS refresh boundary; no per-frame source scans. */
+    /**
+     * O(1) check at the Inspector's post-ECS refresh boundary; no per-frame source scans.
+     */
     public void refreshIfChanged() {
         AssetMetaDatabase next = databaseSource.get();
         var meta = next != null ? next.findById(assetId) : null;
@@ -191,7 +196,8 @@ public final class AnimationAssetProperties extends VisTable {
         frames = new Array<>();
     }
 
-    @Override protected void setStage(Stage stage) {
+    @Override
+    protected void setStage(Stage stage) {
         if (stage == null) stopPreview();
         super.setStage(stage);
         if (stage != null && animation != null && previewHolder.getChildren().isEmpty()) refresh();

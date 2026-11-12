@@ -33,14 +33,16 @@ public final class SceneAtlasLoaderService {
         FileHandle atlasesRoot = projectDir.child(StudioFs.DIR_ATLASES);
         atlasesRoot.mkdirs();
 
-        AtlasStudioService.repackImportedScenes(cfg,projectDir,java.util.Set.of(canonicalTag),()->{},()->{},
+        AtlasStudioService.repackImportedScenes(cfg, projectDir, java.util.Set.of(canonicalTag), () -> {
+                }, () -> {
+                },
                 SceneAtlasLoaderService::packSceneAtlasToDirectory);
     }
 
     public static SceneAtlasCoverage.Validation packSceneAtlasToDirectory(ProjectConfig cfg,
-                                                 String canonicalTag,
-                                                 FileHandle projectDir,
-                                                 FileHandle outputDir) {
+                                                                          String canonicalTag,
+                                                                          FileHandle projectDir,
+                                                                          FileHandle outputDir) {
         if (cfg != null && canonicalTag != null && cfg.getSceneMeta(canonicalTag) != null) {
             String remapped = cfg.canonicalSceneTag(canonicalTag);
             if (remapped != null && !remapped.equals(canonicalTag)) {
@@ -67,8 +69,8 @@ public final class SceneAtlasLoaderService {
             SceneAtlasCoverage.Validation validation = packWithInputSnapshot(
                     inputDir, outputDir.child(canonicalTag + ".atlas"), canonicalTag,
                     () -> {
-                        AtlasPackingService.packScene(inputDir,outputDir,packedTag);
-                        NormalAtlasPackingService.pack(inputDir,outputDir,packedTag);
+                        AtlasPackingService.packScene(inputDir, outputDir, packedTag);
+                        NormalAtlasPackingService.pack(inputDir, outputDir, packedTag);
                     });
             Gdx.app.log("SceneAtlasLoader", "Scene atlas packed: scene=" + canonicalTag);
             return validation;

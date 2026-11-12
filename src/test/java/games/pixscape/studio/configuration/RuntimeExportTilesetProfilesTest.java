@@ -22,7 +22,8 @@ import static org.junit.Assert.*;
 public class RuntimeExportTilesetProfilesTest {
     private static final String TILESET_PROFILES_JSON = "tileset-profiles.json";
 
-    @Rule public TemporaryFolder temp = new TemporaryFolder();
+    @Rule
+    public TemporaryFolder temp = new TemporaryFolder();
 
     @Test
     public void exportIdentifiesSceneAndCatalogProblemForPaintedTile() throws Exception {

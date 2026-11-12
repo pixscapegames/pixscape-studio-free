@@ -10,7 +10,9 @@ import games.pixscape.studio.document.OpenEditorDocument;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Immutable Studio-thread snapshot used only by Scene-local HUD preparation workers. */
+/**
+ * Immutable Studio-thread snapshot used only by Scene-local HUD preparation workers.
+ */
 public record SceneHudScreenSnapshot(String screenId, HudScreenAsset asset, HudDocumentV1 document) {
     public SceneHudScreenSnapshot {
         screenId = HudScreenAssetId.normalize(screenId);
@@ -18,8 +20,15 @@ public record SceneHudScreenSnapshot(String screenId, HudScreenAsset asset, HudD
         document = copyDocument(document);
     }
 
-    @Override public HudScreenAsset asset() { return copyAsset(asset); }
-    @Override public HudDocumentV1 document() { return copyDocument(document); }
+    @Override
+    public HudScreenAsset asset() {
+        return copyAsset(asset);
+    }
+
+    @Override
+    public HudDocumentV1 document() {
+        return copyDocument(document);
+    }
 
     public static List<SceneHudScreenSnapshot> snapshotOpen(List<OpenEditorDocument> documents) {
         List<SceneHudScreenSnapshot> result = new ArrayList<>();

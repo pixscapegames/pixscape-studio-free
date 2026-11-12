@@ -12,7 +12,9 @@ import games.pixscape.studio.service.entitygraph.CurrentGameObjectRelations;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 
-/** Atomically detaches one member into top-level world space without recreating it. */
+/**
+ * Atomically detaches one member into top-level world space without recreating it.
+ */
 public final class RemoveEntityFromGameObjectCommand implements Command {
     private final World world;
     private final HistoryIdRegistry historyIds;
@@ -69,7 +71,10 @@ public final class RemoveEntityFromGameObjectCommand implements Command {
         afterZ = requestedZ;
     }
 
-    @Override public String label() { return "Remove Entity from Game Object"; }
+    @Override
+    public String label() {
+        return "Remove Entity from Game Object";
+    }
 
     @Override
     public void redo() {

@@ -8,7 +8,9 @@ import games.pixscape.studio.history.HistoryManager;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-/** One scene-owned value, shared by every light inspector and restored by history. */
+/**
+ * One scene-owned value, shared by every light inspector and restored by history.
+ */
 public final class SetSceneLightingCommand implements Command, OutcomeAwareCommand, HistoryManager.SupportsNoop {
     private final World world;
     private final SceneMeta scene;
@@ -26,13 +28,40 @@ public final class SetSceneLightingCommand implements Command, OutcomeAwareComma
         this.markSaveRequired = markSaveRequired;
     }
 
-    @Override public String label() { return "Enable lighting"; }
-    @Override public boolean isNoop() { return before == after; }
-    @Override public void redo() { redoOutcome(); }
-    @Override public void undo() { undoOutcome(); }
-    @Override public CommandOutcome executeOutcome() { return apply(after); }
-    @Override public CommandOutcome redoOutcome() { return apply(after); }
-    @Override public CommandOutcome undoOutcome() { return apply(before); }
+    @Override
+    public String label() {
+        return "Enable lighting";
+    }
+
+    @Override
+    public boolean isNoop() {
+        return before == after;
+    }
+
+    @Override
+    public void redo() {
+        redoOutcome();
+    }
+
+    @Override
+    public void undo() {
+        undoOutcome();
+    }
+
+    @Override
+    public CommandOutcome executeOutcome() {
+        return apply(after);
+    }
+
+    @Override
+    public CommandOutcome redoOutcome() {
+        return apply(after);
+    }
+
+    @Override
+    public CommandOutcome undoOutcome() {
+        return apply(before);
+    }
 
     private CommandOutcome apply(boolean enabled) {
         if (scene.lightingEnabled == enabled) return CommandOutcome.NO_CHANGE;

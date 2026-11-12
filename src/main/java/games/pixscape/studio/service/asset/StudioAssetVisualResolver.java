@@ -67,16 +67,22 @@ public final class StudioAssetVisualResolver {
     private static final class StaleImportedAtlas {
         final TextureAtlas atlas;
         final com.badlogic.gdx.utils.IntSet assetIds = new com.badlogic.gdx.utils.IntSet();
-        StaleImportedAtlas(TextureAtlas atlas) { this.atlas = atlas; }
+
+        StaleImportedAtlas(TextureAtlas atlas) {
+            this.atlas = atlas;
+        }
     }
 
-    /** Existing atlas pixels remain stale until that tag receives a new atlas instance. */
+    /**
+     * Existing atlas pixels remain stale until that tag receives a new atlas instance.
+     */
     public void invalidateImportedPixels(java.util.Set<Integer> changedIds) {
         for (String tag : atlasRuntimeService.listTags()) {
             TextureAtlas atlas = atlasRuntimeService.getAtlas(tag);
             StaleImportedAtlas stale = staleImportAtlases.get(tag);
             if (stale == null || stale.atlas != atlas) {
-                stale = new StaleImportedAtlas(atlas); staleImportAtlases.put(tag, stale);
+                stale = new StaleImportedAtlas(atlas);
+                staleImportAtlases.put(tag, stale);
             }
             AtlasVisualBucket bucket = atlasBuckets.get(tag);
             for (int id : changedIds) {
@@ -86,6 +92,7 @@ public final class StudioAssetVisualResolver {
         }
         standaloneByAssetId.clear();
     }
+
     private final IntMap<StandaloneVisualEntry> standaloneByAssetId = new IntMap<>();
 
     private IntFunction<AssetMeta> assetMetaLookup;
@@ -186,7 +193,8 @@ public final class StudioAssetVisualResolver {
         if (!isBlank(atlasTag)) {
             atlasBuckets.remove(atlasTag);
             StaleImportedAtlas stale = staleImportAtlases.get(atlasTag);
-            if (stale != null && stale.atlas != atlasRuntimeService.getAtlas(atlasTag)) staleImportAtlases.remove(atlasTag);
+            if (stale != null && stale.atlas != atlasRuntimeService.getAtlas(atlasTag))
+                staleImportAtlases.remove(atlasTag);
         }
     }
 

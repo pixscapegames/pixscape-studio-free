@@ -13,7 +13,9 @@ import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Derives top-level Studio z order for one layer without mutating the world. */
+/**
+ * Derives top-level Studio z order for one layer without mutating the world.
+ */
 public final class LayerLogicalOrderService {
     private final World world;
     private final ComponentMapper<EntityIndexComponent> indexes;
@@ -27,7 +29,9 @@ public final class LayerLogicalOrderService {
         members = world.getMapper(GameObjectMemberComponent.class);
     }
 
-    public LayerOrder derive(int layerIndex) { return derive(layerIndex, null); }
+    public LayerOrder derive(int layerIndex) {
+        return derive(layerIndex, null);
+    }
 
     public LayerOrder derive(int layerIndex, IntArray additionalEntityIds) {
         // Cold Studio query: current identity/component state, never published membership.
@@ -67,9 +71,17 @@ public final class LayerLogicalOrderService {
             this.items = items;
         }
 
-        public int layerIndex() { return layerIndex; }
-        public List<LogicalItem> items() { return List.copyOf(items); }
-        public IntArray flattenedTopToBottom() { return flatten(items); }
+        public int layerIndex() {
+            return layerIndex;
+        }
+
+        public List<LogicalItem> items() {
+            return List.copyOf(items);
+        }
+
+        public IntArray flattenedTopToBottom() {
+            return flatten(items);
+        }
 
         private static IntArray flatten(List<LogicalItem> ordered) {
             IntArray result = new IntArray(ordered.size());
@@ -81,10 +93,18 @@ public final class LayerLogicalOrderService {
     public static final class LogicalItem {
         private final int entityId;
         private final int effectiveZ;
+
         private LogicalItem(int entityId, int effectiveZ) {
-            this.entityId = entityId; this.effectiveZ = effectiveZ;
+            this.entityId = entityId;
+            this.effectiveZ = effectiveZ;
         }
-        public int entityId() { return entityId; }
-        public IntArray members() { return new IntArray(new int[]{entityId}); }
+
+        public int entityId() {
+            return entityId;
+        }
+
+        public IntArray members() {
+            return new IntArray(new int[]{entityId});
+        }
     }
 }

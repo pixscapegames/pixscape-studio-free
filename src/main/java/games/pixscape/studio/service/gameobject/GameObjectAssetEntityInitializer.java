@@ -10,7 +10,9 @@ import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.history.initializer.Initializer;
 
-/** History-safe initializer for the authored state outside the generic snapshot model. */
+/**
+ * History-safe initializer for the authored state outside the generic snapshot model.
+ */
 final class GameObjectAssetEntityInitializer implements Initializer {
     private final World world;
     private final GenericEntityInitializer generic;
@@ -42,12 +44,15 @@ final class GameObjectAssetEntityInitializer implements Initializer {
         this.coneLight = copy(data.coneLight);
     }
 
-    @Override public int activeLightCount() {
+    @Override
+    public int activeLightCount() {
         return games.pixscape.runtime.render.lighting.ActiveLights.isActive(generic.isVisible(),
-                pointLight!=null,pointLight!=null&&pointLight.enabled,coneLight!=null,coneLight!=null&&coneLight.enabled)?1:0;
+                pointLight != null, pointLight != null && pointLight.enabled, coneLight != null, coneLight != null && coneLight.enabled) ? 1 : 0;
     }
 
-    GenericEntityInitializer generic() { return generic; }
+    GenericEntityInitializer generic() {
+        return generic;
+    }
 
     @Override
     public void syncFrom(int entityId) {
@@ -93,11 +98,15 @@ final class GameObjectAssetEntityInitializer implements Initializer {
     }
 
     @Override
-    public String label() { return "Game Object Entity"; }
+    public String label() {
+        return "Game Object Entity";
+    }
 
     private static GameObjectAsset.RepeatData repeat(boolean x, boolean y) {
         GameObjectAsset.RepeatData result = new GameObjectAsset.RepeatData();
-        result.repeatX = x; result.repeatY = y; return result;
+        result.repeatX = x;
+        result.repeatY = y;
+        return result;
     }
 
     private static GameObjectAsset.RepeatData copy(GameObjectAsset.RepeatData value) {
@@ -107,63 +116,102 @@ final class GameObjectAssetEntityInitializer implements Initializer {
     private static GameObjectAsset.PointLightData copy(GameObjectAsset.PointLightData value) {
         if (value == null) return null;
         GameObjectAsset.PointLightData result = new GameObjectAsset.PointLightData();
-        result.r = value.r; result.g = value.g; result.b = value.b;
-        result.intensity = value.intensity; result.radius = value.radius;
-        result.falloff = value.falloff; result.enabled = value.enabled;
-        result.height=value.height;result.shadowQuality=value.shadowQuality;result.shadowResolution=value.shadowResolution;
+        result.r = value.r;
+        result.g = value.g;
+        result.b = value.b;
+        result.intensity = value.intensity;
+        result.radius = value.radius;
+        result.falloff = value.falloff;
+        result.enabled = value.enabled;
+        result.height = value.height;
+        result.shadowQuality = value.shadowQuality;
+        result.shadowResolution = value.shadowResolution;
         return result;
     }
 
     private static GameObjectAsset.PointLightData copy(PointLightComponent value) {
         if (value == null) return null;
         GameObjectAsset.PointLightData result = new GameObjectAsset.PointLightData();
-        result.r = value.r; result.g = value.g; result.b = value.b;
-        result.intensity = value.intensity; result.radius = value.radius;
-        result.falloff = value.falloff; result.enabled = value.enabled;
-        result.height=value.height;result.shadowQuality=value.shadowQuality;result.shadowResolution=value.shadowResolution;
+        result.r = value.r;
+        result.g = value.g;
+        result.b = value.b;
+        result.intensity = value.intensity;
+        result.radius = value.radius;
+        result.falloff = value.falloff;
+        result.enabled = value.enabled;
+        result.height = value.height;
+        result.shadowQuality = value.shadowQuality;
+        result.shadowResolution = value.shadowResolution;
         return result;
     }
 
     private static void apply(PointLightComponent target, GameObjectAsset.PointLightData value) {
-        target.r = value.r; target.g = value.g; target.b = value.b;
-        target.intensity = value.intensity; target.radius = value.radius;
-        target.falloff = value.falloff; target.enabled = value.enabled;
-        target.height=value.height;target.shadowQuality=value.shadowQuality;target.shadowResolution=value.shadowResolution;
+        target.r = value.r;
+        target.g = value.g;
+        target.b = value.b;
+        target.intensity = value.intensity;
+        target.radius = value.radius;
+        target.falloff = value.falloff;
+        target.enabled = value.enabled;
+        target.height = value.height;
+        target.shadowQuality = value.shadowQuality;
+        target.shadowResolution = value.shadowResolution;
     }
 
     private static GameObjectAsset.ConeLightData copy(GameObjectAsset.ConeLightData value) {
         if (value == null) return null;
         GameObjectAsset.ConeLightData result = new GameObjectAsset.ConeLightData();
-        result.r = value.r; result.g = value.g; result.b = value.b;
-        result.intensity = value.intensity; result.radius = value.radius;
-        result.coneAngleDeg = value.coneAngleDeg; result.rotationDeg = value.rotationDeg;
+        result.r = value.r;
+        result.g = value.g;
+        result.b = value.b;
+        result.intensity = value.intensity;
+        result.radius = value.radius;
+        result.coneAngleDeg = value.coneAngleDeg;
+        result.rotationDeg = value.rotationDeg;
         result.inclinationDeg = value.inclinationDeg;
-        result.softness = value.softness; result.falloff = value.falloff;
+        result.softness = value.softness;
+        result.falloff = value.falloff;
         result.enabled = value.enabled;
-        result.height=value.height;result.shadowQuality=value.shadowQuality;result.shadowResolution=value.shadowResolution;
+        result.height = value.height;
+        result.shadowQuality = value.shadowQuality;
+        result.shadowResolution = value.shadowResolution;
         return result;
     }
 
     private static GameObjectAsset.ConeLightData copy(ConeLightComponent value) {
         if (value == null) return null;
         GameObjectAsset.ConeLightData result = new GameObjectAsset.ConeLightData();
-        result.r = value.r; result.g = value.g; result.b = value.b;
-        result.intensity = value.intensity; result.radius = value.radius;
-        result.coneAngleDeg = value.coneAngleDeg; result.rotationDeg = value.rotationDeg;
+        result.r = value.r;
+        result.g = value.g;
+        result.b = value.b;
+        result.intensity = value.intensity;
+        result.radius = value.radius;
+        result.coneAngleDeg = value.coneAngleDeg;
+        result.rotationDeg = value.rotationDeg;
         result.inclinationDeg = value.inclinationDeg;
-        result.softness = value.softness; result.falloff = value.falloff;
+        result.softness = value.softness;
+        result.falloff = value.falloff;
         result.enabled = value.enabled;
-        result.height=value.height;result.shadowQuality=value.shadowQuality;result.shadowResolution=value.shadowResolution;
+        result.height = value.height;
+        result.shadowQuality = value.shadowQuality;
+        result.shadowResolution = value.shadowResolution;
         return result;
     }
 
     private static void apply(ConeLightComponent target, GameObjectAsset.ConeLightData value) {
-        target.r = value.r; target.g = value.g; target.b = value.b;
-        target.intensity = value.intensity; target.radius = value.radius;
-        target.coneAngleDeg = value.coneAngleDeg; target.rotationDeg = value.rotationDeg;
+        target.r = value.r;
+        target.g = value.g;
+        target.b = value.b;
+        target.intensity = value.intensity;
+        target.radius = value.radius;
+        target.coneAngleDeg = value.coneAngleDeg;
+        target.rotationDeg = value.rotationDeg;
         target.inclinationDeg = value.inclinationDeg;
-        target.softness = value.softness; target.falloff = value.falloff;
+        target.softness = value.softness;
+        target.falloff = value.falloff;
         target.enabled = value.enabled;
-        target.height=value.height;target.shadowQuality=value.shadowQuality;target.shadowResolution=value.shadowResolution;
+        target.height = value.height;
+        target.shadowQuality = value.shadowQuality;
+        target.shadowResolution = value.shadowResolution;
     }
 }

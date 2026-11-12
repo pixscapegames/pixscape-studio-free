@@ -11,7 +11,9 @@ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import games.pixscape.studio.ui.StudioStage;
 
-/** Minimal Scene2D presentation used until the preview scene reaches READY. */
+/**
+ * Minimal Scene2D presentation used until the preview scene reaches READY.
+ */
 final class PreviewLoadingUi {
     private static final float BAR_HEIGHT = 10f;
 
@@ -20,15 +22,17 @@ final class PreviewLoadingUi {
     private final ProgressBar progressBar;
     private com.badlogic.gdx.graphics.g2d.BitmapFont errorFont;
 
-    void showFailure(String message){
+    void showFailure(String message) {
         progressBar.setVisible(false);
-        if(errorFont==null)errorFont=new com.badlogic.gdx.graphics.g2d.BitmapFont();
-        com.badlogic.gdx.scenes.scene2d.ui.Label label=new com.badlogic.gdx.scenes.scene2d.ui.Label(
-                "Preview paused\n\n"+message+"\n\nCorrect the scene in Studio, then reopen Preview.",
-                new com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle(errorFont,Color.WHITE));
+        if (errorFont == null) errorFont = new com.badlogic.gdx.graphics.g2d.BitmapFont();
+        com.badlogic.gdx.scenes.scene2d.ui.Label label = new com.badlogic.gdx.scenes.scene2d.ui.Label(
+                "Preview paused\n\n" + message + "\n\nCorrect the scene in Studio, then reopen Preview.",
+                new com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle(errorFont, Color.WHITE));
         label.setWrap(true);
-        com.badlogic.gdx.scenes.scene2d.ui.Table table=new com.badlogic.gdx.scenes.scene2d.ui.Table();
-        table.setFillParent(true);table.add(label).width(520).pad(24);stage.addActor(table);
+        com.badlogic.gdx.scenes.scene2d.ui.Table table = new com.badlogic.gdx.scenes.scene2d.ui.Table();
+        table.setFillParent(true);
+        table.add(label).width(520).pad(24);
+        stage.addActor(table);
     }
 
     PreviewLoadingUi() {
@@ -71,7 +75,7 @@ final class PreviewLoadingUi {
     }
 
     void dispose() {
-        if(errorFont!=null)errorFont.dispose();
+        if (errorFont != null) errorFont.dispose();
         stage.dispose();
         texture.dispose();
     }

@@ -1,8 +1,10 @@
 package games.pixscape.studio.ui.preview;
 
-/** State machine for one child Preview process; callers still verify the session identity externally. */
+/**
+ * State machine for one child Preview process; callers still verify the session identity externally.
+ */
 final class PreviewSessionLifecycle {
-    enum State { STARTING, LOADING, READY, CLOSING, FAILED }
+    enum State {STARTING, LOADING, READY, CLOSING, FAILED}
 
     private State state = State.STARTING;
 

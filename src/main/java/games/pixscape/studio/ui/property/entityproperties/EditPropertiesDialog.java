@@ -50,7 +50,9 @@ public final class EditPropertiesDialog extends StudioDialog {
         this(title, source, context, onApply, false);
     }
 
-    /** Tile definitions edit scalar/color values; imported references and classes stay intact. */
+    /**
+     * Tile definitions edit scalar/color values; imported references and classes stay intact.
+     */
     public EditPropertiesDialog(String title, PropertySet source, Consumer<PropertySet> onApply, boolean tileDefinition) {
         this(title, source, null, onApply, tileDefinition);
     }
@@ -265,8 +267,10 @@ public final class EditPropertiesDialog extends StudioDialog {
             preservedValue = readOnly ? value.copy() : null;
             nameField = new VisTextField(name != null ? name : "");
             if (readOnly) typeBox.setItems(type);
-            else if (tileDefinition) typeBox.setItems(PropertyType.STRING, PropertyType.BOOLEAN, PropertyType.INTEGER, PropertyType.FLOAT, PropertyType.COLOR);
-            else typeBox.setItems(PropertyType.STRING, PropertyType.BOOLEAN, PropertyType.INTEGER, PropertyType.FLOAT, PropertyType.COLOR, PropertyType.OBJECT, PropertyType.CLASS);
+            else if (tileDefinition)
+                typeBox.setItems(PropertyType.STRING, PropertyType.BOOLEAN, PropertyType.INTEGER, PropertyType.FLOAT, PropertyType.COLOR);
+            else
+                typeBox.setItems(PropertyType.STRING, PropertyType.BOOLEAN, PropertyType.INTEGER, PropertyType.FLOAT, PropertyType.COLOR, PropertyType.OBJECT, PropertyType.CLASS);
             typeBox.setSelected(type != null ? type : PropertyType.STRING);
             objectBox.setItems(objectChoices);
             loadValue(value);

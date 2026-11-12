@@ -19,7 +19,9 @@ import org.junit.Test;
 
 import java.util.*;
 
-/** Regression coverage for particle history transitions that intentionally omit structural flushes. */
+/**
+ * Regression coverage for particle history transitions that intentionally omit structural flushes.
+ */
 public class ParticleHistoryIdentityNoFlushTest {
     private static final int STRESS_CYCLES = Integer.getInteger(
             "pixscape.test.particleHistoryStressCycles", 500);

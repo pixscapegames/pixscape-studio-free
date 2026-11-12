@@ -19,14 +19,18 @@ import org.junit.rules.TemporaryFolder;
 import static org.junit.Assert.*;
 
 public class BitmapFontAssetImportServiceTest {
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
 
-    @BeforeClass public static void bootGdx() {
-        if (Gdx.files == null) new HeadlessApplication(new ApplicationAdapter() {},
+    @BeforeClass
+    public static void bootGdx() {
+        if (Gdx.files == null) new HeadlessApplication(new ApplicationAdapter() {
+        },
                 new HeadlessApplicationConfiguration());
     }
 
-    @Test public void importsMultipageBundleAndPersistsStableIdentity() throws Exception {
+    @Test
+    public void importsMultipageBundleAndPersistsStableIdentity() throws Exception {
         FileHandle external = new FileHandle(temporary.newFolder("external"));
         writePng(external.child("page0.png"));
         writePng(external.child("nested/page1.png"));
@@ -48,7 +52,8 @@ public class BitmapFontAssetImportServiceTest {
                 + "/nested/page1.png").exists());
     }
 
-    @Test public void missingPageDoesNotPublishAssetOrBundle() throws Exception {
+    @Test
+    public void missingPageDoesNotPublishAssetOrBundle() throws Exception {
         FileHandle external = new FileHandle(temporary.newFolder("external-missing"));
         FileHandle descriptor = external.child("broken.fnt");
         descriptor.writeString(descriptor("missing.png"), false, "UTF-8");
@@ -64,7 +69,8 @@ public class BitmapFontAssetImportServiceTest {
         assertTrue(!root.exists() || root.list().length == 0);
     }
 
-    @Test public void homonymousDescriptorsBecomeDistinctAssetsWithoutOverwrite() throws Exception {
+    @Test
+    public void homonymousDescriptorsBecomeDistinctAssetsWithoutOverwrite() throws Exception {
         FileHandle firstRoot = new FileHandle(temporary.newFolder("first"));
         FileHandle secondRoot = new FileHandle(temporary.newFolder("second"));
         writePng(firstRoot.child("page.png"));
@@ -84,7 +90,8 @@ public class BitmapFontAssetImportServiceTest {
         assertTrue(project.child(second.sourceRelPath()).exists());
     }
 
-    @Test public void explicitReimportPreservesAssetIdentityAndReplacesTheWholeBundle() throws Exception {
+    @Test
+    public void explicitReimportPreservesAssetIdentityAndReplacesTheWholeBundle() throws Exception {
         FileHandle firstRoot = new FileHandle(temporary.newFolder("reimport-first"));
         writePng(firstRoot.child("old.png"));
         firstRoot.child("font.fnt").writeString(descriptor("old.png"), false, "UTF-8");
@@ -114,7 +121,8 @@ public class BitmapFontAssetImportServiceTest {
                 restored.sourceRelPath());
     }
 
-    @Test public void invalidReimportKeepsThePublishedBundleAndCatalogEntry() throws Exception {
+    @Test
+    public void invalidReimportKeepsThePublishedBundleAndCatalogEntry() throws Exception {
         FileHandle firstRoot = new FileHandle(temporary.newFolder("stable-first"));
         writePng(firstRoot.child("old.png"));
         firstRoot.child("font.fnt").writeString(descriptor("old.png"), false, "UTF-8");
@@ -152,8 +160,9 @@ public class BitmapFontAssetImportServiceTest {
         StringBuilder out = new StringBuilder("info face=\"test\" size=16 bold=0 italic=0 charset=\"\" unicode=0 stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=1,1\n")
                 .append("common lineHeight=16 base=12 scaleW=2 scaleH=2 pages=")
                 .append(pages.length).append(" packed=0\n");
-        for (int i = 0; i < pages.length; i++) out.append("page id=").append(i)
-                .append(" file=\"").append(pages[i]).append("\"\n");
+        for (int i = 0; i < pages.length; i++)
+            out.append("page id=").append(i)
+                    .append(" file=\"").append(pages[i]).append("\"\n");
         out.append("chars count=1\nchar id=65 x=0 y=0 width=1 height=1 xoffset=0 yoffset=0 xadvance=1 page=0 chnl=0\n");
         return out.toString();
     }

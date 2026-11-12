@@ -26,12 +26,12 @@ public class JointInternalIdFormattingTest {
         setField(properties, JointProperties.class, "world", world);
         setField(properties, JointProperties.class, "mIdentity", world.getMapper(PixscapeIdentityComponent.class));
 
-        String formatted = (String) invoke(properties, JointProperties.class, "formatInternalId", new Class[] {int.class}, bodyEid);
+        String formatted = (String) invoke(properties, JointProperties.class, "formatInternalId", new Class[]{int.class}, bodyEid);
         Assert.assertEquals("7001", formatted);
         Assert.assertNotEquals(String.valueOf(bodyEid), formatted);
 
         int missingIdentityEid = world.create();
-        String missing = (String) invoke(properties, JointProperties.class, "formatInternalId", new Class[] {int.class}, missingIdentityEid);
+        String missing = (String) invoke(properties, JointProperties.class, "formatInternalId", new Class[]{int.class}, missingIdentityEid);
         Assert.assertEquals("-", missing);
     }
 
@@ -56,13 +56,13 @@ public class JointInternalIdFormattingTest {
         setField(panel, GearJointPropertiesPanel.class, "mIdentity", world.getMapper(PixscapeIdentityComponent.class));
         setField(panel, GearJointPropertiesPanel.class, "mGear", world.getMapper(PhysicsGearJointComponent.class));
 
-        String formatted = (String) invoke(panel, GearJointPropertiesPanel.class, "formatJointRef", new Class[] {int.class}, sourceJoint);
+        String formatted = (String) invoke(panel, GearJointPropertiesPanel.class, "formatJointRef", new Class[]{int.class}, sourceJoint);
         Assert.assertEquals("REVOLUTE #99123", formatted);
         Assert.assertFalse(formatted.contains("#" + sourceJoint));
 
         int noIdentityJoint = world.create();
         world.getMapper(PhysicsJointComponent.class).create(noIdentityJoint).type = PhysicsJointComponent.TYPE_PRISMATIC;
-        String missing = (String) invoke(panel, GearJointPropertiesPanel.class, "formatJointRef", new Class[] {int.class}, noIdentityJoint);
+        String missing = (String) invoke(panel, GearJointPropertiesPanel.class, "formatJointRef", new Class[]{int.class}, noIdentityJoint);
         Assert.assertEquals("-", missing);
     }
 

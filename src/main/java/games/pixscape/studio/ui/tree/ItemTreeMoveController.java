@@ -16,9 +16,13 @@ import games.pixscape.studio.ui.main.StudioApplicationAdapter;
 
 import java.util.*;
 
-/** Items-only gesture ownership. Business compatibility and normalization belong to preparation. */
+/**
+ * Items-only gesture ownership. Business compatibility and normalization belong to preparation.
+ */
 final class ItemTreeMoveController {
-    private record Target(EntityNode parent, EntityNode anchor, boolean after) {}
+    private record Target(EntityNode parent, EntityNode anchor, boolean after) {
+    }
+
     private final StudioApplicationAdapter app;
     private final ItemMoveTree tree;
     private final VisScrollPane scroll;
@@ -35,37 +39,57 @@ final class ItemTreeMoveController {
     private float lastX = Float.NaN, lastY, lastScroll;
     private float viewportWidth, viewportHeight;
     private final InputListener escape = new InputListener() {
-        @Override public boolean keyDown(InputEvent event, int keycode) {
+        @Override
+        public boolean keyDown(InputEvent event, int keycode) {
             if (document == null || keycode != Input.Keys.ESCAPE) return false;
-            cancel(); event.stop(); return true;
+            cancel();
+            event.stop();
+            return true;
         }
     };
 
     ItemTreeMoveController(StudioApplicationAdapter app, ItemMoveTree tree, VisScrollPane scroll, VisLabel feedback) {
-        this.app = app; this.tree = tree; this.scroll = scroll; this.feedback = feedback;
+        this.app = app;
+        this.tree = tree;
+        this.scroll = scroll;
+        this.feedback = feedback;
         tree.addCaptureListener(new DragListener() {
-            { setTapSquareSize(4); }
-            @Override public boolean touchDown(InputEvent event, float x, float y, int p, int button) {
+            {
+                setTapSquareSize(4);
+            }
+
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y, int p, int button) {
                 pressed = tree.getNodeAt(y);
                 if (p != 0 || button != Input.Buttons.LEFT || !movable(pressed)
                         || x < pressed.getActor().getX() || !(app.getEditorDocumentManager().activeDocument() instanceof SceneEditorDocument)
                         || !app.getCanvas().getStudioEditingModeService().allowsWorldEditingActions()) return false;
-                for (Actor a = event.getTarget(); a != null && a != tree; a = a.getParent()) if (a instanceof Button) return false;
+                for (Actor a = event.getTarget(); a != null && a != tree; a = a.getParent())
+                    if (a instanceof Button) return false;
                 return super.touchDown(event, x, y, p, button);
             }
-            @Override public void dragStart(InputEvent event, float x, float y, int p) {
+
+            @Override
+            public void dragStart(InputEvent event, float x, float y, int p) {
                 // Tree selection is committed by ClickListener on release, not at press.
                 // Cancel all its click activations, including a later cancelled drag.
                 for (var listener : tree.getListeners()) if (listener instanceof ClickListener click) click.cancel();
                 start();
             }
-            @Override public void drag(InputEvent event, float x, float y, int p) {
-                pointer.set(event.getStageX(), event.getStageY()); update(0);
+
+            @Override
+            public void drag(InputEvent event, float x, float y, int p) {
+                pointer.set(event.getStageX(), event.getStageY());
+                update(0);
             }
-            @Override public void dragStop(InputEvent event, float x, float y, int p) {
+
+            @Override
+            public void dragStop(InputEvent event, float x, float y, int p) {
                 if (document == null) return;
-                pointer.set(event.getStageX(), event.getStageY()); update(0);
-                var plan = prepared; var owner = document;
+                pointer.set(event.getStageX(), event.getStageY());
+                update(0);
+                var plan = prepared;
+                var owner = document;
                 boolean apply = !event.isTouchFocusCancel() && valid() && plan != null;
                 ItemTreeMoveController.this.cancel();
                 // Refuse a stale projection, never replace it with an unseen result at release.
@@ -77,27 +101,34 @@ final class ItemTreeMoveController {
     private static boolean movable(EntityNode node) {
         return node != null && (node.isEntityNode() || node.isTiledMapNode());
     }
+
     private void start() {
         cancel();
         if (!(app.getEditorDocumentManager().activeDocument() instanceof SceneEditorDocument scene)) return;
         feedbackHeight(18);
-        document = scene; stage = tree.getStage();
-        viewportWidth = scroll.getWidth(); viewportHeight = scroll.getHeight();
-        revision = scene.context().historyManager().getMutationRevision(); generation = scene.context().generation();
+        document = scene;
+        stage = tree.getStage();
+        viewportWidth = scroll.getWidth();
+        viewportHeight = scroll.getHeight();
+        revision = scene.context().historyManager().getMutationRevision();
+        generation = scene.context().generation();
         var ids = scene.context().identityRegistry();
         List<Integer> selected = new ArrayList<>();
         if (tree.getSelection().contains(pressed)) {
-            for (EntityNode node : tree.getSelection()) if (movable(node)) selected.add(ids.getStableId(node.getEntityId()));
+            for (EntityNode node : tree.getSelection())
+                if (movable(node)) selected.add(ids.getStableId(node.getEntityId()));
         } else selected.add(ids.getStableId(pressed.getEntityId()));
         sources = List.copyOf(selected);
         for (EntityNode node : tree.getRootNodes()) index(node);
         stage.addCaptureListener(escape);
     }
+
     private void index(EntityNode node) {
         if (node.isEntityNode() || node.isTiledMapNode() || node.isLayerNode())
             nodes.put(document.context().identityRegistry().getStableId(node.getEntityId()), node);
         for (Object child : node.getChildren()) index((EntityNode) child);
     }
+
     private boolean valid() {
         if (document == null || document.isClosed() || document.context().isDisposed()
                 || document != app.getEditorDocumentManager().activeDocument() || tree.getStage() != stage
@@ -108,24 +139,37 @@ final class ItemTreeMoveController {
         for (Actor a = tree; a != null; a = a.getParent()) if (!a.isVisible()) return false;
         return true;
     }
+
     void cancel() {
         if (stage != null) stage.removeCaptureListener(escape);
-        tree.preview(null); feedback.setText("");
-        prepared = null; document = null; stage = null; target = null; sources = null;
+        tree.preview(null);
+        feedback.setText("");
+        prepared = null;
+        document = null;
+        stage = null;
+        target = null;
+        sources = null;
         nodes.clear();
         lastX = Float.NaN;
         feedbackHeight(0);
     }
+
     private void feedbackHeight(float height) {
         if (!(feedback.getParent() instanceof VisTable parent)) return;
         var cell = parent.getCell(feedback);
         if (cell.getPrefHeight() == height) return;
         cell.height(height);
-        parent.invalidateHierarchy(); parent.validate(); scroll.validate();
+        parent.invalidateHierarchy();
+        parent.validate();
+        scroll.validate();
     }
+
     void update(float delta) {
         if (document == null) return;
-        if (!valid()) { cancel(); return; }
+        if (!valid()) {
+            cancel();
+            return;
+        }
         scroll.validate();
         Actor hit = stage.hit(pointer.x, pointer.y, true);
         scroll.stageToLocalCoordinates(local.set(pointer));
@@ -133,25 +177,35 @@ final class ItemTreeMoveController {
         float height = scroll.getScrollHeight();
         if (hit == null || !(hit == scroll || hit.isDescendantOf(scroll)) || local.x < 0
                 || local.x >= scroll.getScrollWidth() || local.y < bottom || local.y > bottom + height) {
-            target = null; prepared = null; tree.preview(null); feedback.setText(""); lastX = Float.NaN; return;
+            target = null;
+            prepared = null;
+            tree.preview(null);
+            feedback.setText("");
+            lastX = Float.NaN;
+            return;
         }
         float edge = Math.min(28, height / 3), y = local.y - bottom;
         float speed = y < edge ? 1 - y / edge : y > height - edge ? -(y - height + edge) / edge : 0;
         if (speed != 0 && delta > 0) {
             scroll.setScrollY(scroll.getScrollY() + speed * 240 * Math.min(delta, .05f));
-            scroll.updateVisualScroll(); scroll.layout();
+            scroll.updateVisualScroll();
+            scroll.layout();
         }
         // Projection changes must not retarget a stationary pointer. Edge scrolling still
         // invalidates this hit test; history/context validity is checked above on every act.
         if (pointer.x == lastX && pointer.y == lastY && scroll.getVisualScrollY() == lastScroll) return;
-        lastX = pointer.x; lastY = pointer.y; lastScroll = scroll.getVisualScrollY();
+        lastX = pointer.x;
+        lastY = pointer.y;
+        lastScroll = scroll.getVisualScrollY();
         tree.stageToLocalCoordinates(local.set(pointer));
-        EntityNode node = null; float fraction = 0, hitTop = 0;
+        EntityNode node = null;
+        float fraction = 0, hitTop = 0;
         if (tree.preview() != null) {
             var row = tree.previewRowAt(local.y);
             if (row != null) {
                 if (row.ghost()) return; // The whole reserved ghost area denotes the same destination.
-                node = row.node(); fraction = (row.top() - local.y) / row.height();
+                node = row.node();
+                fraction = (row.top() - local.y) / row.height();
                 hitTop = row.top();
             }
         } else {
@@ -163,7 +217,10 @@ final class ItemTreeMoveController {
         }
         if (node == null || !(node.isLayerNode() || node.isEntityNode() || node.isTiledMapNode())) {
             if (prepared != null) hideGhosts();
-            prepared = null; target = null; feedback.setText("Drop on an item or layer"); return;
+            prepared = null;
+            target = null;
+            feedback.setText("Drop on an item or layer");
+            return;
         }
         boolean inside = node.isLayerNode() || (fraction >= .25f && fraction <= .75f
                 && document.context().world().getMapper(GameObjectComponent.class).has(node.getEntityId()));
@@ -174,24 +231,32 @@ final class ItemTreeMoveController {
         var result = prepare(next);
         if (!result.accepted()) {
             if (prepared != null) hideGhosts();
-            prepared = null; feedback.setText(result.refusal()); return;
+            prepared = null;
+            feedback.setText(result.refusal());
+            return;
         }
         prepared = result.move();
         feedback.setText(inside ? "Inside " + node.getLabel().getText() : (next.after ? "After " : "Before ") + node.getLabel().getText());
         float hitStageY = tree.localToStageCoordinates(local.set(0, hitTop)).y;
         // Explicit center hover opens the destination immediately; no delayed task can outlive a drag.
-        next.parent.setExpanded(true); tree.invalidate(); tree.validate(); scroll.layout();
+        next.parent.setExpanded(true);
+        tree.invalidate();
+        tree.validate();
+        scroll.layout();
         lastScroll = scroll.getVisualScrollY();
         showPreview(node, hitStageY);
     }
+
     private void hideGhosts() {
         // A refusal removes feedback, not the coordinate system used by the next input event.
         // Retain the displayed rows and their positions until another destination or panel exit.
         if (tree.preview() != null) tree.preview(tree.preview().stream().filter(row -> !row.ghost()).toList());
     }
+
     private ItemMovePreparation.Result prepare(Target target) {
         if (target.parent == null) return new ItemMovePreparation.Result(null, "Drop inside a layer");
-        var context = document.context(); var ids = context.identityRegistry();
+        var context = document.context();
+        var ids = context.identityRegistry();
         int parent = target.parent.isLayerNode() ? 0 : ids.getStableId(target.parent.getEntityId());
         int layer = target.parent.isLayerNode() ? target.parent.getEntityId() : context.layerService().getEffectiveLayerEntity(target.parent.getEntityId());
         var destination = new ItemMovePreparation.Destination(document, ids.getStableId(layer), parent, 0);
@@ -202,12 +267,16 @@ final class ItemTreeMoveController {
         Set<Integer> moving = new HashSet<>(first.move().sources());
         int anchor = ids.getStableId(target.anchor.getEntityId()), slot = 0;
         for (int id : order.before()) {
-            if (id == anchor) { if (target.after && !moving.contains(id)) slot++; break; }
+            if (id == anchor) {
+                if (target.after && !moving.contains(id)) slot++;
+                break;
+            }
             if (!moving.contains(id)) slot++;
         }
         return slot == 0 ? first : ItemMovePreparation.prepare(document, sources,
                 new ItemMovePreparation.Destination(document, destination.layerStableId(), parent, slot));
     }
+
     private void showPreview(EntityNode hit, float hitStageY) {
         List<ItemMoveTree.Row> rows = new ArrayList<>();
         Set<Integer> moving = new HashSet<>(prepared.sources());
@@ -232,17 +301,23 @@ final class ItemTreeMoveController {
         // content extent: scrolling stays bounded and every remaining row stays reachable.
         top += Math.max(contentBottom - bottom, Math.min(0, desiredTop - anchorTop));
         List<ItemMoveTree.Row> positioned = new ArrayList<>();
-        for (var row : rows) { positioned.add(new ItemMoveTree.Row(row.node(), row.depth(), row.ghost(), top, row.height())); top -= row.height(); }
+        for (var row : rows) {
+            positioned.add(new ItemMoveTree.Row(row.node(), row.depth(), row.ghost(), top, row.height()));
+            top -= row.height();
+        }
         tree.preview(List.copyOf(positioned));
     }
+
     private void project(EntityNode node, int depth, Set<Integer> moving, EntityNode parent, EntityNode anchor, List<ItemMoveTree.Row> rows) {
         int stable = document.context().identityRegistry().getStableId(node.getEntityId());
         if ((node.isEntityNode() || node.isTiledMapNode()) && moving.contains(stable)) return;
         if (node == anchor) ghosts(depth, rows);
         rows.add(new ItemMoveTree.Row(node, depth, false, 0, node.getActor().getHeight() + tree.getYSpacing()));
-        if (node.isExpanded()) for (Object child : node.getChildren()) project((EntityNode) child, depth + 1, moving, parent, anchor, rows);
+        if (node.isExpanded()) for (Object child : node.getChildren())
+            project((EntityNode) child, depth + 1, moving, parent, anchor, rows);
         if (node == parent && anchor == null) ghosts(depth + 1, rows);
     }
+
     private void ghosts(int depth, List<ItemMoveTree.Row> rows) {
         for (int id : prepared.sources()) {
             EntityNode node = nodes.get(id);

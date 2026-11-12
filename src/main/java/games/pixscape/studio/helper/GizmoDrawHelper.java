@@ -85,7 +85,9 @@ public final class GizmoDrawHelper {
         drawRotateHandle(ctx, obb);
     }
 
-    /** Draws BL, BR, TR and TL quad edges with one round handle per corner. */
+    /**
+     * Draws BL, BR, TR and TL quad edges with one round handle per corner.
+     */
     public static void drawQuadEditGizmo(StudioDrawContext ctx, float[] quad) {
         float lineWorld = thicknessPx * ctx.wpp();
         ctx.drawer.setColor(EditorOverlayPalette.HANDLE_COLOR);

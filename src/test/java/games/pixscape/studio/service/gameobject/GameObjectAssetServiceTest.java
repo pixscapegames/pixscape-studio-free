@@ -34,28 +34,56 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class GameObjectAssetServiceTest {
-    @Rule public TemporaryFolder temp = new TemporaryFolder();
+    @Rule
+    public TemporaryFolder temp = new TemporaryFolder();
 
-    @Test public void lightAssetInsertionIsConfirmedBeforeReservingSceneIds()throws Exception {
-        World source=new World(new WorldConfiguration()),target=new World(new WorldConfiguration());
+    @Test
+    public void lightAssetInsertionIsConfirmedBeforeReservingSceneIds() throws Exception {
+        World source = new World(new WorldConfiguration()), target = new World(new WorldConfiguration());
         try {
-            int root=entity(source,10,-1,true,0,0),child=entity(source,11,10,false,0,1);
-            source.getMapper(PointLightComponent.class).create(child);source.process();
-            FileHandle file=new FileHandle(temp.getRoot()).child("lamp.gameobject");
-            new GameObjectAssetService(source).saveGameObject(file,new EntityGraphCaptureService(source).captureForGameObject(new IntArray(new int[]{root})));
-            int layer=target.create();target.getMapper(LayerComponent.class).create(layer).layerIndex=3;target.getMapper(LayerMetaComponent.class).create(layer);
-            int existing=entity(target,50,-1,false,0,0);target.getMapper(ConeLightComponent.class).create(existing);target.process();
-            var meta=new games.pixscape.studio.configuration.SceneMeta();meta.nextEntityStableId=1000;meta.forwardLighting=true;
-            IdentityRegistry identities=new IdentityRegistry();identities.bind(target,meta);identities.rebuild();
-            HistoryManager history=new HistoryManager(16);history.historyIds().ensureForEntity(existing);Runnable[] accept={null};
-            history.configureSceneLighting(target,meta,action->accept[0]=action);
-            GameObjectAssetService service=new GameObjectAssetService(target,history,identities,null,null);
-            Assert.assertEquals(0,service.instantiateGameObject(file,"lamp",3,0,0).createdIds().size);
-            Assert.assertEquals(1000,meta.nextEntityStableId);Assert.assertEquals(0,history.getCursor());Assert.assertNotNull(accept[0]);
-            accept[0].run();target.process();Assert.assertFalse(meta.forwardLighting);Assert.assertEquals(2,history.historyIds().activeLightCount(target));
-            history.undo();target.process();Assert.assertTrue(meta.forwardLighting);Assert.assertEquals(1,history.historyIds().activeLightCount(target));
-            history.redo();target.process();Assert.assertFalse(meta.forwardLighting);Assert.assertEquals(2,history.historyIds().activeLightCount(target));
-        } finally {source.dispose();target.dispose();games.pixscape.studio.event.EventFlow.i().discardPending();}
+            int root = entity(source, 10, -1, true, 0, 0), child = entity(source, 11, 10, false, 0, 1);
+            source.getMapper(PointLightComponent.class).create(child);
+            source.process();
+            FileHandle file = new FileHandle(temp.getRoot()).child("lamp.gameobject");
+            new GameObjectAssetService(source).saveGameObject(file, new EntityGraphCaptureService(source).captureForGameObject(new IntArray(new int[]{root})));
+            int layer = target.create();
+            target.getMapper(LayerComponent.class).create(layer).layerIndex = 3;
+            target.getMapper(LayerMetaComponent.class).create(layer);
+            int existing = entity(target, 50, -1, false, 0, 0);
+            target.getMapper(ConeLightComponent.class).create(existing);
+            target.process();
+            var meta = new games.pixscape.studio.configuration.SceneMeta();
+            meta.nextEntityStableId = 1000;
+            meta.forwardLighting = true;
+            IdentityRegistry identities = new IdentityRegistry();
+            identities.bind(target, meta);
+            identities.rebuild();
+            HistoryManager history = new HistoryManager(16);
+            history.historyIds().ensureForEntity(existing);
+            Runnable[] accept = {null};
+            history.configureSceneLighting(target, meta, action -> accept[0] = action);
+            GameObjectAssetService service = new GameObjectAssetService(target, history, identities, null, null);
+            Assert.assertEquals(0, service.instantiateGameObject(file, "lamp", 3, 0, 0).createdIds().size);
+            Assert.assertEquals(1000, meta.nextEntityStableId);
+            Assert.assertEquals(0, history.getCursor());
+            Assert.assertNotNull(accept[0]);
+            accept[0].run();
+            target.process();
+            Assert.assertFalse(meta.forwardLighting);
+            Assert.assertEquals(2, history.historyIds().activeLightCount(target));
+            history.undo();
+            target.process();
+            Assert.assertTrue(meta.forwardLighting);
+            Assert.assertEquals(1, history.historyIds().activeLightCount(target));
+            history.redo();
+            target.process();
+            Assert.assertFalse(meta.forwardLighting);
+            Assert.assertEquals(2, history.historyIds().activeLightCount(target));
+        } finally {
+            source.dispose();
+            target.dispose();
+            games.pixscape.studio.event.EventFlow.i().discardPending();
+        }
     }
 
     @Test
@@ -658,7 +686,8 @@ public class GameObjectAssetServiceTest {
     @Test
     public void classifiesSelectionOnceAndNormalizesSelectedGameObjectDescendants() {
         World world = new World(new WorldConfiguration());
-        var meta = new SceneMetaRuntime(); meta.nextEntityStableId = 100;
+        var meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 100;
         new IdentityRegistry().bind(world, meta);
         int root = entity(world, 1, -1, true, 0f, 0);
         int child = entity(world, 2, 1, false, 2f, 0);
@@ -692,7 +721,8 @@ public class GameObjectAssetServiceTest {
     @Test
     public void classifiesMultipleGameObjectRootsAsConversion() {
         World world = new World(new WorldConfiguration());
-        var meta = new SceneMetaRuntime(); meta.nextEntityStableId = 100;
+        var meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 100;
         new IdentityRegistry().bind(world, meta);
         int first = entity(world, 1, -1, true, 0f, 0);
         int second = entity(world, 2, -1, true, 4f, 1);

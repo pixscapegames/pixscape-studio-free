@@ -42,7 +42,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class ClipboardServiceFlowTest {
-    @Test public void sceneMetadataEventsPreserveClipboardButProjectReplacementClearsIt() throws Exception {
+    @Test
+    public void sceneMetadataEventsPreserveClipboardButProjectReplacementClearsIt() throws Exception {
         Harness h = new Harness();
         try {
             int source = createEntity(h.world, 13f, 17f, 0);
@@ -56,7 +57,9 @@ public class ClipboardServiceFlowTest {
             ProjectConfig.setInstance(new ProjectConfig());
             Assert.assertFalse(h.clipboard.hasContent());
             Assert.assertFalse(h.clipboard.paste());
-        } finally { h.world.dispose(); }
+        } finally {
+            h.world.dispose();
+        }
     }
 
     @Test
@@ -561,7 +564,7 @@ public class ClipboardServiceFlowTest {
         int source = physicalEntity(h.world, 0, true);
         SpatialHeightComponent height = h.world.getMapper(SpatialHeightComponent.class).create(source);
         height.altitude = 4f;
-        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height,2f);
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height, 2f);
         h.selection.selectOnly(source);
         Assert.assertTrue(h.clipboard.copySelection());
         h.selection.setActivelayerId(spatialLayer);

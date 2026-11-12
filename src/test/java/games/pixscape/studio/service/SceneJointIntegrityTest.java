@@ -28,9 +28,11 @@ import java.io.ByteArrayOutputStream;
 import static org.junit.Assert.*;
 
 public class SceneJointIntegrityTest {
-    @Rule public TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public TemporaryFolder temporary = new TemporaryFolder();
 
-    @Test public void saveRejectsOrphanBeforeReplacingFileOrMutatingWorld() throws Exception {
+    @Test
+    public void saveRejectsOrphanBeforeReplacingFileOrMutatingWorld() throws Exception {
         try (Fixture f = new Fixture()) {
             f.layers.addLayerTop("Existing");
             int a = f.body(), b = f.body(), joint = f.joint(a, b);
@@ -48,7 +50,8 @@ public class SceneJointIntegrityTest {
         }
     }
 
-    @Test public void loadRejectsOrphanBeforeClearingExistingScene() throws Exception {
+    @Test
+    public void loadRejectsOrphanBeforeClearingExistingScene() throws Exception {
         FileHandle file = file("orphan.json");
         SceneMeta meta;
         try (Fixture source = new Fixture()) {
@@ -75,11 +78,13 @@ public class SceneJointIntegrityTest {
         }
     }
 
-    @Test public void jointFreeSceneRemainsJointFreeThroughActivationLayersHistoryAndReload() throws Exception {
+    @Test
+    public void jointFreeSceneRemainsJointFreeThroughActivationLayersHistoryAndReload() throws Exception {
         exerciseLayers(false);
     }
 
-    @Test public void realJointIsDeletedRestoredAndRemappedAcrossHistoryAndReload() throws Exception {
+    @Test
+    public void realJointIsDeletedRestoredAndRemappedAcrossHistoryAndReload() throws Exception {
         exerciseLayers(true);
     }
 
@@ -103,7 +108,8 @@ public class SceneJointIntegrityTest {
         int initialCount = withJoint ? 1 : 0;
         try (Fixture f = new Fixture(meta)) {
             // Leave an occupied ECS ID so serialized IDs cannot be treated as stable IDs.
-            f.world.create(); f.world.process();
+            f.world.create();
+            f.world.process();
             ProjectConfig config = new ProjectConfig();
             new ResolvedSceneActivationPipeline(f.world, null, null, f.history,
                     (cfg, tag, dir) -> assertJoints(f.world, initialCount, f.all()),
@@ -111,28 +117,32 @@ public class SceneJointIntegrityTest {
                         SaveFileFormat loaded = SceneLoader.loadScene(world, input, clear, loadedMeta);
                         assertJoints(world, initialCount, loaded.entities);
                     }).activate(new ResolvedSceneActivationPipeline.ResolvedSceneTarget(
-                            config, meta, file, file.parent(), "Joint regression", "Scene", "scene"));
+                    config, meta, file, file.parent(), "Joint regression", "Scene", "scene"));
             f.identities.rebuild();
             assertJoints(f.world, initialCount, f.all());
             assertEquals(2, f.layers.count());
             for (int i = 0; i < 3; i++) {
                 f.layers.count();
                 f.history.execute(new CreateLayerCommand(f.layers, 1, "Temporary", null));
-                f.world.process(); assertJoints(f.world, initialCount, f.all());
+                f.world.process();
+                assertJoints(f.world, initialCount, f.all());
             }
             for (int i = 0; i < 3; i++) {
                 f.history.execute(new DeleteLayerCommand(f.layers, f.layers.getLayerEntity(1), null));
-                f.world.process(); assertJoints(f.world, initialCount, f.all());
+                f.world.process();
+                assertJoints(f.world, initialCount, f.all());
             }
             f.history.execute(new DeleteLayerCommand(f.layers, f.layers.getLayerEntity(0), null));
             for (int cycle = 0; cycle < 3; cycle++) {
-                f.world.process(); assertJoints(f.world, 0, f.all());
+                f.world.process();
+                assertJoints(f.world, 0, f.all());
                 if (cycle == 0) {
                     SceneService.saveScene(f.world, file, false);
                     try (Fixture deleted = new Fixture(meta)) {
                         SaveFileFormat loaded = SceneLoader.loadScene(deleted.world, file, false, meta);
                         assertJoints(deleted.world, 0, loaded.entities);
-                        deleted.world.process(); deleted.identities.rebuild();
+                        deleted.world.process();
+                        deleted.identities.rebuild();
                         assertEquals(-1, deleted.identities.findByStableId(aStable));
                         assertTrue(deleted.identities.findByStableId(bStable) >= 0);
                     }
@@ -143,7 +153,8 @@ public class SceneJointIntegrityTest {
                 IntBag restored = new IntBag();
                 if (withJoint) restored.add(f.identities.findByStableId(jointStable));
                 assertJoints(f.world, initialCount, restored);
-                f.world.process(); assertJoints(f.world, initialCount, f.all());
+                f.world.process();
+                assertJoints(f.world, initialCount, f.all());
                 if (withJoint) {
                     PhysicsJointComponent joint = f.world.getMapper(PhysicsJointComponent.class)
                             .get(f.identities.findByStableId(jointStable));
@@ -152,14 +163,18 @@ public class SceneJointIntegrityTest {
                 }
                 f.history.redo();
             }
-            f.history.undo(); f.world.process();
+            f.history.undo();
+            f.world.process();
             SceneService.saveScene(f.world, file, false);
         }
         try (Fixture reloaded = new Fixture(meta)) {
-            reloaded.world.create(); reloaded.world.create(); reloaded.world.process();
+            reloaded.world.create();
+            reloaded.world.create();
+            reloaded.world.process();
             SaveFileFormat loaded = SceneLoader.loadScene(reloaded.world, file, false, meta);
             assertJoints(reloaded.world, initialCount, loaded.entities);
-            reloaded.world.process(); reloaded.identities.rebuild();
+            reloaded.world.process();
+            reloaded.identities.rebuild();
             assertJoints(reloaded.world, initialCount, reloaded.all());
             assertTrue(reloaded.identities.findByStableId(aStable) >= 0);
             assertTrue(reloaded.identities.findByStableId(bStable) >= 0);
@@ -199,27 +214,43 @@ public class SceneJointIntegrityTest {
         final IdentityRegistry identities = new IdentityRegistry();
         final SceneMeta meta;
         final LayerService layers;
-        Fixture() { this(new SceneMeta()); }
+
+        Fixture() {
+            this(new SceneMeta());
+        }
+
         Fixture(SceneMeta meta) {
-            this.meta = meta; meta.physicsEnabled = true;
+            this.meta = meta;
+            meta.physicsEnabled = true;
             identities.bind(world, meta);
             layers = new LayerService(world, null, history.historyIds(), identities);
         }
+
         int body() {
             int entity = world.create();
             world.getMapper(PhysicsBodyComponent.class).create(entity);
             identities.ensureStableId(entity);
             return entity;
         }
+
         int joint(int a, int b) {
             int entity = world.create();
             PhysicsJointComponent joint = world.getMapper(PhysicsJointComponent.class).create(entity);
-            joint.aEid = a; joint.bEid = b;
+            joint.aEid = a;
+            joint.bEid = b;
             world.getMapper(PhysicsDistanceJointComponent.class).create(entity);
             identities.ensureStableId(entity);
             return entity;
         }
-        IntBag all() { return world.getAspectSubscriptionManager().get(Aspect.all()).getEntities(); }
-        @Override public void close() { identities.bind(null, null); world.dispose(); }
+
+        IntBag all() {
+            return world.getAspectSubscriptionManager().get(Aspect.all()).getEntities();
+        }
+
+        @Override
+        public void close() {
+            identities.bind(null, null);
+            world.dispose();
+        }
     }
 }

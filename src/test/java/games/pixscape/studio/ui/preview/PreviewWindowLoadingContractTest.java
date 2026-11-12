@@ -39,7 +39,7 @@ public class PreviewWindowLoadingContractTest {
 
     private static String source() throws Exception {
         return Files.readString(Path.of(
-                "src/main/java/games/pixscape/studio/ui/preview/PreviewWindow.java"),
+                        "src/main/java/games/pixscape/studio/ui/preview/PreviewWindow.java"),
                 StandardCharsets.UTF_8);
     }
 

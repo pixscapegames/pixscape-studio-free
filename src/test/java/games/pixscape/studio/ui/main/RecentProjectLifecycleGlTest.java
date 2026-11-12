@@ -38,9 +38,12 @@ import java.util.function.Consumer;
 import static org.junit.Assert.*;
 import static org.junit.Assume.assumeTrue;
 
-/** Real desktop UI and project lifecycle, isolated from the user's projects and settings. */
+/**
+ * Real desktop UI and project lifecycle, isolated from the user's projects and settings.
+ */
 public class RecentProjectLifecycleGlTest {
-    @Test public void startupAndAssetDeselectionNeedNoProjectOrCatalog() throws Exception {
+    @Test
+    public void startupAndAssetDeselectionNeedNoProjectOrCatalog() throws Exception {
         withStudio((studio, root) -> {
             assertEmpty(studio);
             assertNull(field(studio.getSceneService(), "assetMetaDatabase"));
@@ -53,7 +56,8 @@ public class RecentProjectLifecycleGlTest {
         });
     }
 
-    @Test public void closingLastDocumentPreservesProjectAndTileUndoHistory() throws Exception {
+    @Test
+    public void closingLastDocumentPreservesProjectAndTileUndoHistory() throws Exception {
         withStudio((studio, root) -> {
             FileHandle first = project(studio, root.child("first"), "First");
             openProject(studio.getSceneService(), first);
@@ -96,7 +100,8 @@ public class RecentProjectLifecycleGlTest {
         });
     }
 
-    @Test public void gameObjectsCrossUnloadAndOnlyShowTheNextProject() throws Exception {
+    @Test
+    public void gameObjectsCrossUnloadAndOnlyShowTheNextProject() throws Exception {
         withStudio((studio, root) -> {
             FileHandle first = project(studio, root.child("first"), "First");
             FileHandle next = project(studio, root.child("next"), "Next");
@@ -117,7 +122,8 @@ public class RecentProjectLifecycleGlTest {
         });
     }
 
-    @Test public void noDiscardsChangesAndReleasesProjectInspection() throws Exception {
+    @Test
+    public void noDiscardsChangesAndReleasesProjectInspection() throws Exception {
         withStudio((studio, root) -> {
             FileHandle first = project(studio, root.child("first"), "First");
             FileHandle next = project(studio, root.child("next"), "Next");
@@ -166,7 +172,8 @@ public class RecentProjectLifecycleGlTest {
         });
     }
 
-    @Test public void failedOpenShowsTheLoadErrorAndAllowsRetry() throws Exception {
+    @Test
+    public void failedOpenShowsTheLoadErrorAndAllowsRetry() throws Exception {
         withStudio((studio, root) -> {
             FileHandle first = project(studio, root.child("first"), "First");
             FileHandle broken = project(studio, root.child("broken"), "Broken");
@@ -201,7 +208,8 @@ public class RecentProjectLifecycleGlTest {
         });
     }
 
-    @FunctionalInterface private interface Scenario {
+    @FunctionalInterface
+    private interface Scenario {
         void run(StudioApplicationAdapter studio, FileHandle root) throws Exception;
     }
 
@@ -224,10 +232,13 @@ public class RecentProjectLifecycleGlTest {
             org.lwjgl.glfw.GLFW.nglfwSetErrorCallback(0L);
             new Lwjgl3Application(new ApplicationAdapter() {
                 StudioApplicationAdapter studio;
-                @Override public void create() {
+
+                @Override
+                public void create() {
                     try {
                         studio = new StudioApplicationAdapter() {
-                            @Override public void saveActiveDocumentWithProgress(Runnable ok, Consumer<Throwable> error) {
+                            @Override
+                            public void saveActiveDocumentWithProgress(Runnable ok, Consumer<Throwable> error) {
                                 fail("No must never invoke saving");
                             }
                         };
@@ -237,18 +248,26 @@ public class RecentProjectLifecycleGlTest {
                         Gdx.app.exit();
                     }
                 }
-                @Override public void render() {
+
+                @Override
+                public void render() {
                     if (failure[0] != null) return;
                     try {
                         studio.render();
                         scenario.run(studio, root);
                         studio.render();
-                    } catch (Throwable ex) { failure[0] = ex; }
-                    finally { Gdx.app.exit(); }
+                    } catch (Throwable ex) {
+                        failure[0] = ex;
+                    } finally {
+                        Gdx.app.exit();
+                    }
                 }
-                @Override public void dispose() {
-                    try { if (studio != null) studio.dispose(); }
-                    catch (Throwable ex) {
+
+                @Override
+                public void dispose() {
+                    try {
+                        if (studio != null) studio.dispose();
+                    } catch (Throwable ex) {
                         if (failure[0] == null) failure[0] = ex;
                         else failure[0].addSuppressed(ex);
                     }
@@ -286,7 +305,8 @@ public class RecentProjectLifecycleGlTest {
     }
 
     private record InspectedContext(games.pixscape.studio.scene.SceneEditorContext context,
-            com.artemis.World world, games.pixscape.studio.service.SelectionService selection) { }
+                                    com.artemis.World world, games.pixscape.studio.service.SelectionService selection) {
+    }
 
     private static InspectedContext inspectedContext(StudioApplicationAdapter studio) {
         var context = studio.getSceneEditorContext();
@@ -440,7 +460,9 @@ public class RecentProjectLifecycleGlTest {
                 var field = type.getDeclaredField(name);
                 field.setAccessible(true);
                 return field.get(object);
-            } catch (NoSuchFieldException missing) { type = type.getSuperclass(); }
+            } catch (NoSuchFieldException missing) {
+                type = type.getSuperclass();
+            }
         }
         throw new NoSuchFieldException(name);
     }

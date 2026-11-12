@@ -16,9 +16,11 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class BitmapFontReimportFlowContractTest {
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
 
-    @Test public void projectGuardAcceptsOnlyTheCapturedProjectDirectory() throws Exception {
+    @Test
+    public void projectGuardAcceptsOnlyTheCapturedProjectDirectory() throws Exception {
         FileHandle original = new FileHandle(temporary.newFolder("original"));
         FileHandle other = new FileHandle(temporary.newFolder("other"));
 
@@ -27,9 +29,10 @@ public class BitmapFontReimportFlowContractTest {
                 () -> SceneService.requireSameProject(original, other));
     }
 
-    @Test public void fontContextActionUsesExplicitReimportWithCapturedAssetAndProject() throws Exception {
+    @Test
+    public void fontContextActionUsesExplicitReimportWithCapturedAssetAndProject() throws Exception {
         String source = Files.readString(Path.of(
-                "src/main/java/games/pixscape/studio/ui/asset/AssetsThumbsView.java"),
+                        "src/main/java/games/pixscape/studio/ui/asset/AssetsThumbsView.java"),
                 StandardCharsets.UTF_8);
         String menu = methodBody(source, "private void showAssetContextMenu(");
         String chooser = methodBody(source, "private void showReimportFontChooser(");
@@ -43,9 +46,10 @@ public class BitmapFontReimportFlowContractTest {
         assertFalse(chooser.contains("importNew("));
     }
 
-    @Test public void skinContextActionAlsoCapturesAssetSourceAndProject() throws Exception {
+    @Test
+    public void skinContextActionAlsoCapturesAssetSourceAndProject() throws Exception {
         String source = Files.readString(Path.of(
-                "src/main/java/games/pixscape/studio/ui/asset/AssetsThumbsView.java"),
+                        "src/main/java/games/pixscape/studio/ui/asset/AssetsThumbsView.java"),
                 StandardCharsets.UTF_8);
         String chooser = methodBody(source, "private void showReimportSkinChooser(");
         assertTrue(chooser.contains("int assetId = node.assetId"));
@@ -54,9 +58,10 @@ public class BitmapFontReimportFlowContractTest {
         assertTrue(chooser.contains("assetId, sourceRelPath, projectDir, files.first()"));
     }
 
-    @Test public void successfulReimportPublishesCatalogThenTargetsHudUsage() throws Exception {
+    @Test
+    public void successfulReimportPublishesCatalogThenTargetsHudUsage() throws Exception {
         String source = Files.readString(Path.of(
-                "src/main/java/games/pixscape/studio/service/SceneService.java"),
+                        "src/main/java/games/pixscape/studio/service/SceneService.java"),
                 StandardCharsets.UTF_8);
         String body = methodBody(source, "public void reimportBitmapFontAsset(");
 
@@ -71,9 +76,10 @@ public class BitmapFontReimportFlowContractTest {
         assertTrue(body.contains("!Objects.equals(original.sourceRelPath(), expectedSourceRelPath)"));
     }
 
-    @Test public void skinReimportChecksCapturedContextBeforePublishingOrInvalidating() throws Exception {
+    @Test
+    public void skinReimportChecksCapturedContextBeforePublishingOrInvalidating() throws Exception {
         String source = Files.readString(Path.of(
-                "src/main/java/games/pixscape/studio/service/SceneService.java"),
+                        "src/main/java/games/pixscape/studio/service/SceneService.java"),
                 StandardCharsets.UTF_8);
         String body = methodBody(source, "public void reimportScene2dSkinAsset(");
         assertOrdered(body,
@@ -85,7 +91,8 @@ public class BitmapFontReimportFlowContractTest {
                 ".invalidateReimportedSkin(original.sourceRelPath())");
     }
 
-    @Test public void authoringReloadIsLimitedToTheActiveUsedHud() {
+    @Test
+    public void authoringReloadIsLimitedToTheActiveUsedHud() {
         var impact = new SceneHudRuntimePreparationService.ReimportImpact(
                 Set.of("hud/used"), Set.of("hud/uncertain"), Set.of("sceneA"), Set.of());
         AtomicInteger reloads = new AtomicInteger(), stale = new AtomicInteger();

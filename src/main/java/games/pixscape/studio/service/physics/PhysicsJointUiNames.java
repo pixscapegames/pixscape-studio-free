@@ -2,7 +2,9 @@ package games.pixscape.studio.service.physics;
 
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 
-/** Shared Studio display names for authored physics-joint types. */
+/**
+ * Shared Studio display names for authored physics-joint types.
+ */
 public final class PhysicsJointUiNames {
     private PhysicsJointUiNames() {
     }

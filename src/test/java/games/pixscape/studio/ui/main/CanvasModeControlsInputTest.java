@@ -27,10 +27,18 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class CanvasModeControlsInputTest {
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
 
-    @Test public void hudSurfaceFollowsDockCenterWithZeroOneOrTwoRightPanels()
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
+
+    @Test
+    public void hudSurfaceFollowsDockCenterWithZeroOneOrTwoRightPanels()
             throws Exception {
         try (DockingTestFixture fixture = DockingTestFixture.create()) {
             fixture.studioStage.getViewport().update(1200, 800, true);
@@ -83,7 +91,8 @@ public class CanvasModeControlsInputTest {
         return hud.width;
     }
 
-    @Test public void layoutKeepsIndicatorNaturalAndRemovesHudActionOutsideHud() throws Exception {
+    @Test
+    public void layoutKeepsIndicatorNaturalAndRemovesHudActionOutsideHud() throws Exception {
         EventFlow.i().flush();
         try (DockingTestFixture fixture = DockingTestFixture.create()) {
             StudioEditingModeService modes = modeService(fixture);
@@ -116,7 +125,8 @@ public class CanvasModeControlsInputTest {
         }
     }
 
-    @Test public void productionCenterLayersRouteStageClickToStableButtonBothWays()
+    @Test
+    public void productionCenterLayersRouteStageClickToStableButtonBothWays()
             throws Exception {
         EventFlow.i().flush();
         try (DockingTestFixture fixture = DockingTestFixture.create()) {
@@ -196,7 +206,8 @@ public class CanvasModeControlsInputTest {
         }
     }
 
-    @Test public void rulerOverlayRebuildReusesTheSameButtonAndRestoresItsHitPriority()
+    @Test
+    public void rulerOverlayRebuildReusesTheSameButtonAndRestoresItsHitPriority()
             throws Exception {
         EventFlow.i().flush();
         try (DockingTestFixture fixture = DockingTestFixture.create()) {
@@ -223,7 +234,8 @@ public class CanvasModeControlsInputTest {
         }
     }
 
-    @Test public void worldEditorReceivesNoInputInTestAndResumesInEdit() throws Exception {
+    @Test
+    public void worldEditorReceivesNoInputInTestAndResumesInEdit() throws Exception {
         try (DockingTestFixture fixture = DockingTestFixture.create()) {
             fixture.studioStage.getViewport().update(16, 16, true);
             fixture.floatingStage.getViewport().update(16, 16, true);
@@ -231,8 +243,9 @@ public class CanvasModeControlsInputTest {
             editor.setBounds(0f, 0f, 16f, 16f);
             int[] editorDowns = {0};
             editor.addListener(new InputListener() {
-                @Override public boolean touchDown(InputEvent event, float x, float y,
-                                                   int pointer, int button) {
+                @Override
+                public boolean touchDown(InputEvent event, float x, float y,
+                                         int pointer, int button) {
                     editorDowns[0]++;
                     return true;
                 }
@@ -288,9 +301,28 @@ public class CanvasModeControlsInputTest {
         private boolean active;
         private int entries;
         private int exits;
-        @Override public boolean canEnter() { return true; }
-        @Override public boolean enter() { active = true; entries++; return true; }
-        @Override public void exit() { active = false; exits++; }
-        @Override public boolean isActive() { return active; }
+
+        @Override
+        public boolean canEnter() {
+            return true;
+        }
+
+        @Override
+        public boolean enter() {
+            active = true;
+            entries++;
+            return true;
+        }
+
+        @Override
+        public void exit() {
+            active = false;
+            exits++;
+        }
+
+        @Override
+        public boolean isActive() {
+            return active;
+        }
     }
 }

@@ -20,7 +20,9 @@ import games.pixscape.studio.ui.tree.StudioTreeUiSupport;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-/** Persistent native tree projection of the active HUD in the Studio Items area. */
+/**
+ * Persistent native tree projection of the active HUD in the Studio Items area.
+ */
 public final class HudHierarchyPanel extends VisTable {
     private final HudEditorSession session;
     private final Consumer<Runnable> deferUi;
@@ -53,7 +55,8 @@ public final class HudHierarchyPanel extends VisTable {
         addCaptureListener(testModeGate());
         tree.setIndentSpacing(25f);
         tree.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 if (suppressTreeSelectionEvents) return;
                 HudTreeNode selected = tree.getSelectedNode();
                 if (tree.getStage() != null) tree.getStage().setKeyboardFocus(tree);
@@ -65,8 +68,9 @@ public final class HudHierarchyPanel extends VisTable {
             private int contextPointer = -1;
             private HudTreeNode contextNode;
 
-            @Override public boolean touchDown(InputEvent event, float x, float y,
-                                               int pointer, int button) {
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y,
+                                     int pointer, int button) {
                 Stage stage = event.getStage();
                 if (stage != null && (button == Input.Buttons.LEFT || button == Input.Buttons.RIGHT)) {
                     stage.setKeyboardFocus(tree);
@@ -95,8 +99,9 @@ public final class HudHierarchyPanel extends VisTable {
                 return true;
             }
 
-            @Override public void touchUp(InputEvent event, float x, float y,
-                                          int pointer, int button) {
+            @Override
+            public void touchUp(InputEvent event, float x, float y,
+                                int pointer, int button) {
                 if (button != Input.Buttons.RIGHT || pointer != contextPointer) return;
                 HudTreeNode node = contextNode;
                 contextPointer = -1;
@@ -117,12 +122,14 @@ public final class HudHierarchyPanel extends VisTable {
 
         session.addListener(this::requestSessionRefresh);
         documentManager.addListener(new EditorDocumentManager.Listener() {
-            @Override public void documentActivated(OpenEditorDocument previous,
-                                                     OpenEditorDocument current) {
+            @Override
+            public void documentActivated(OpenEditorDocument previous,
+                                          OpenEditorDocument current) {
                 requestRefresh();
             }
 
-            @Override public void documentTitleChanged(OpenEditorDocument document) {
+            @Override
+            public void documentTitleChanged(OpenEditorDocument document) {
                 if (document == documentManager.activeDocument()) requestRefresh();
             }
         });
@@ -131,19 +138,24 @@ public final class HudHierarchyPanel extends VisTable {
 
     private InputListener testModeGate() {
         return new InputListener() {
-            @Override public boolean touchDown(InputEvent event, float x, float y,
-                                               int pointer, int button) {
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y,
+                                     int pointer, int button) {
                 if (!session.isTestMode()) return false;
                 event.stop();
                 return true;
             }
-            @Override public boolean keyDown(InputEvent event, int keycode) {
+
+            @Override
+            public boolean keyDown(InputEvent event, int keycode) {
                 if (!session.isTestMode()) return false;
                 event.stop();
                 return true;
             }
-            @Override public boolean scrolled(InputEvent event, float x, float y,
-                                              float amountX, float amountY) {
+
+            @Override
+            public boolean scrolled(InputEvent event, float x, float y,
+                                    float amountX, float amountY) {
                 return session.isTestMode();
             }
         };
@@ -293,10 +305,21 @@ public final class HudHierarchyPanel extends VisTable {
         }
     }
 
-    HudVisTree tree() { return tree; }
-    VisScrollPane scroller() { return scroller; }
-    int projectionCount() { return projectionCount; }
-    boolean refreshPending() { return refreshPending; }
+    HudVisTree tree() {
+        return tree;
+    }
+
+    VisScrollPane scroller() {
+        return scroller;
+    }
+
+    int projectionCount() {
+        return projectionCount;
+    }
+
+    boolean refreshPending() {
+        return refreshPending;
+    }
 
     public boolean ownsKeyboardFocus(Actor focus) {
         for (Actor actor = focus; actor != null; actor = actor.getParent()) {

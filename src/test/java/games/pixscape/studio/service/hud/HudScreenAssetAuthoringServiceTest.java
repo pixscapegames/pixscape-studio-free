@@ -15,12 +15,15 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class HudScreenAssetAuthoringServiceTest {
-    @BeforeClass public static void bootGdx() {
-        if (Gdx.app == null) new HeadlessApplication(new ApplicationAdapter() {},
+    @BeforeClass
+    public static void bootGdx() {
+        if (Gdx.app == null) new HeadlessApplication(new ApplicationAdapter() {
+        },
                 new HeadlessApplicationConfiguration());
     }
 
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
     private final HudScreenAssetAuthoringService service = new HudScreenAssetAuthoringService();
 
     @Test

@@ -40,12 +40,15 @@ import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
-/** Scene HUD association followed by World rows from {@link LayerService#getLayerUIs()}. */
+/**
+ * Scene HUD association followed by World rows from {@link LayerService#getLayerUIs()}.
+ */
 public class LayersPanel extends DockablePanel {
 
-    enum EntryKind { HUD, WORLD }
+    enum EntryKind {HUD, WORLD}
 
-    record PanelEntry(EntryKind kind, String hudScreenId, LayerUI worldLayer) {}
+    record PanelEntry(EntryKind kind, String hudScreenId, LayerUI worldLayer) {
+    }
 
     private final StudioApplicationAdapter app;
     private final Consumer<Runnable> deferUi;
@@ -68,7 +71,8 @@ public class LayersPanel extends DockablePanel {
     private final Vector2 dragPointer = new Vector2(), localPointer = new Vector2();
     private Stage dragStage;
     private final InputListener cancelDragKey = new InputListener() {
-        @Override public boolean keyDown(InputEvent event, int keycode) {
+        @Override
+        public boolean keyDown(InputEvent event, int keycode) {
             if (movingRow == null || keycode != Input.Keys.ESCAPE) return false;
             cancelMove();
             event.stop();
@@ -532,13 +536,18 @@ public class LayersPanel extends DockablePanel {
                 false, app.isSceneHudCompositionVisible(sceneContext.sceneIdentity()), false);
         row.setLayerControlsVisible(true, false);
         row.setListener(new LayerRow.Listener() {
-            @Override public void onVisibleChanged(LayerRow row, boolean visible) {
+            @Override
+            public void onVisibleChanged(LayerRow row, boolean visible) {
                 if (!editingModeService.allowsWorldEditingActions()) return;
                 app.setSceneHudCompositionVisible(sceneContext.sceneIdentity(), visible);
             }
-            @Override public void onLockedChanged(LayerRow row, boolean locked) {}
 
-            @Override public void onRowClicked(LayerRow row) {
+            @Override
+            public void onLockedChanged(LayerRow row, boolean locked) {
+            }
+
+            @Override
+            public void onRowClicked(LayerRow row) {
                 if (!editingModeService.allowsWorldEditingActions()) return;
                 selectedEntryKind = EntryKind.HUD;
                 selectedHudScreenId = hudScreenId;
@@ -552,7 +561,8 @@ public class LayersPanel extends DockablePanel {
                 refreshActionAvailability();
             }
 
-            @Override public void onRowDoubleClicked(LayerRow row) {
+            @Override
+            public void onRowDoubleClicked(LayerRow row) {
                 if (!editingModeService.allowsWorldEditingActions()) return;
                 openSelectedHudIfCurrent(selectedEntryKind, selectedHudScreenId,
                         currentHudScreenId(), app::openHudScreen);
@@ -563,16 +573,20 @@ public class LayersPanel extends DockablePanel {
 
     private void installReorder(LayerRow row, LayerUI ui) {
         row.addCaptureListener(new DragListener() {
-            { setTapSquareSize(4); } // Same threshold as the tile animation sequence.
+            {
+                setTapSquareSize(4);
+            } // Same threshold as the tile animation sequence.
 
-            @Override public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
                 return button == Input.Buttons.LEFT && pointer == 0 && !dirty
                         && editingModeService.allowsWorldEditingActions()
                         && row.isDragHandle(event.getTarget())
                         && super.touchDown(event, x, y, pointer, button);
             }
 
-            @Override public void dragStart(InputEvent event, float x, float y, int pointer) {
+            @Override
+            public void dragStart(InputEvent event, float x, float y, int pointer) {
                 row.cancelActivation(); // Including cancelled drags: release must never become a click.
                 if (dirty || row.getParent() != listTable || !editingModeService.allowsWorldEditingActions()) return;
                 cancelMove();
@@ -590,13 +604,15 @@ public class LayersPanel extends DockablePanel {
                 updateMove(0);
             }
 
-            @Override public void drag(InputEvent event, float x, float y, int pointer) {
+            @Override
+            public void drag(InputEvent event, float x, float y, int pointer) {
                 if (movingRow != row) return;
                 dragPointer.set(event.getStageX(), event.getStageY());
                 updateMove(0);
             }
 
-            @Override public void dragStop(InputEvent event, float x, float y, int pointer) {
+            @Override
+            public void dragStop(InputEvent event, float x, float y, int pointer) {
                 if (movingRow != row) return;
                 dragPointer.set(event.getStageX(), event.getStageY());
                 updateMove(0);
@@ -623,7 +639,9 @@ public class LayersPanel extends DockablePanel {
         return true;
     }
 
-    /** Cold release validation also covers mutations whose queued notifications have not flushed yet. */
+    /**
+     * Cold release validation also covers mutations whose queued notifications have not flushed yet.
+     */
     private boolean orderUnchanged() {
         if (movingOrder.length != layerService.count()) return false;
         for (int i = 0; i < movingOrder.length; i++) if (movingOrder[i] != layerService.getLayerEntity(i)) return false;
@@ -631,7 +649,10 @@ public class LayersPanel extends DockablePanel {
     }
 
     private void updateMove(float delta) {
-        if (!moveContextValid()) { cancelMove(); return; }
+        if (!moveContextValid()) {
+            cancelMove();
+            return;
+        }
         scroller.validate();
         Actor hit = dragStage.hit(dragPointer.x, dragPointer.y, true);
         scroller.stageToLocalCoordinates(localPointer.set(dragPointer));
@@ -672,12 +693,14 @@ public class LayersPanel extends DockablePanel {
         destination = -1;
     }
 
-    @Override public void act(float delta) {
+    @Override
+    public void act(float delta) {
         super.act(delta);
         if (movingRow != null) updateMove(delta);
     }
 
-    @Override protected void setStage(Stage stage) {
+    @Override
+    protected void setStage(Stage stage) {
         if (stage != getStage()) cancelMove();
         super.setStage(stage);
     }

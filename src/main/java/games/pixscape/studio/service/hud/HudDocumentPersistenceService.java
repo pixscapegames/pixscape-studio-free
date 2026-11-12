@@ -18,17 +18,24 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-/** Loads and atomically persists the authored state of one HUD editor document. */
+/**
+ * Loads and atomically persists the authored state of one HUD editor document.
+ */
 public final class HudDocumentPersistenceService {
     @FunctionalInterface
-    interface AtomicWriter { void write(FileHandle target, String content); }
+    interface AtomicWriter {
+        void write(FileHandle target, String content);
+    }
 
-    public record Loaded(HudScreenAsset asset, HudDocumentV1 document) {}
+    public record Loaded(HudScreenAsset asset, HudDocumentV1 document) {
+    }
 
     private final HudScreenAssetLoader assetLoader;
     private final HudDocumentCodec codec;
     private final AtomicWriter writer;
-    /** Shared by normal save and generated-metadata publication, even across service instances. */
+    /**
+     * Shared by normal save and generated-metadata publication, even across service instances.
+     */
     private static final Object PUBLICATION_LOCK = new Object();
 
     public HudDocumentPersistenceService() {

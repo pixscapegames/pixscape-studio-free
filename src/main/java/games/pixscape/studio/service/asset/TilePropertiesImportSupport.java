@@ -6,9 +6,12 @@ import games.pixscape.studio.asset.TileAssetMeta;
 
 import java.util.Map;
 
-/** Publishes parsed definition metadata using the importer's explicit local-ID mapping. */
+/**
+ * Publishes parsed definition metadata using the importer's explicit local-ID mapping.
+ */
 public final class TilePropertiesImportSupport {
-    private TilePropertiesImportSupport() { }
+    private TilePropertiesImportSupport() {
+    }
 
     public static void apply(AssetMetaDatabase database, Map<Integer, Integer> assetIds,
                              Map<Integer, PropertySet> properties) {

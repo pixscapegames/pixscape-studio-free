@@ -80,12 +80,15 @@ public final class EditAnimationCommand implements Command, HistoryManager.Suppo
     private final IntConsumer refreshPreview;
     private final Runnable markSaveRequired;
     private final boolean noop;
-    private final games.pixscape.runtime.spatial.ActorSpatialRectangles rectanglesBefore,rectanglesAfter;
+    private final games.pixscape.runtime.spatial.ActorSpatialRectangles rectanglesBefore, rectanglesAfter;
 
-    /** Cold preparation for newly attached animation assets; never called on frame changes. */
+    /**
+     * Cold preparation for newly attached animation assets; never called on frame changes.
+     */
     public EditAnimationCommand withShadowRectangleClips(int asset, Iterable<String> clips) {
-        if(rectanglesAfter!=null)for(String clip:clips)
-            if(rectanglesAfter.get(asset,clip)==null)rectanglesAfter.put(asset,clip,new games.pixscape.runtime.spatial.ActorSpatialRectangleData());
+        if (rectanglesAfter != null) for (String clip : clips)
+            if (rectanglesAfter.get(asset, clip) == null)
+                rectanglesAfter.put(asset, clip, new games.pixscape.runtime.spatial.ActorSpatialRectangleData());
         return this;
     }
 
@@ -97,11 +100,11 @@ public final class EditAnimationCommand implements Command, HistoryManager.Suppo
                                 IntConsumer refreshPreview,
                                 Runnable markSaveRequired) {
         this.world = world;
-        var spatial=world==null?null:world.getMapper(games.pixscape.runtime.component.spatial.SpatialHeightComponent.class).getSafe(entityId,null);
-        rectanglesBefore=spatial==null || spatial.rectangles==null?null:spatial.rectangles.copy();
-        rectanglesAfter=rectanglesBefore==null?null:rectanglesBefore.copy();
-        if(rectanglesAfter!=null && after!=null && rectanglesAfter.get(after.activeAssetId,after.currentClip)==null)
-            rectanglesAfter.put(after.activeAssetId,after.currentClip,new games.pixscape.runtime.spatial.ActorSpatialRectangleData());
+        var spatial = world == null ? null : world.getMapper(games.pixscape.runtime.component.spatial.SpatialHeightComponent.class).getSafe(entityId, null);
+        rectanglesBefore = spatial == null || spatial.rectangles == null ? null : spatial.rectangles.copy();
+        rectanglesAfter = rectanglesBefore == null ? null : rectanglesBefore.copy();
+        if (rectanglesAfter != null && after != null && rectanglesAfter.get(after.activeAssetId, after.currentClip) == null)
+            rectanglesAfter.put(after.activeAssetId, after.currentClip, new games.pixscape.runtime.spatial.ActorSpatialRectangleData());
         this.historyIds = historyIds;
         this.entityHistoryId = historyIds != null ? historyIds.ensureForEntity(entityId) : -1L;
         this.before = before != null ? before.copy() : new Snapshot();
@@ -154,9 +157,9 @@ public final class EditAnimationCommand implements Command, HistoryManager.Suppo
         animation.loop = snapshot.loop;
         animation.stateTime = snapshot.stateTime;
         animation.frame = snapshot.frame;
-        var spatial=world.getMapper(games.pixscape.runtime.component.spatial.SpatialHeightComponent.class).getSafe(entityId,null);
-        var rectangles=snapshot==before?rectanglesBefore:rectanglesAfter;
-        if(spatial!=null && rectangles!=null)spatial.rectangles=rectangles.copy();
+        var spatial = world.getMapper(games.pixscape.runtime.component.spatial.SpatialHeightComponent.class).getSafe(entityId, null);
+        var rectangles = snapshot == before ? rectanglesBefore : rectanglesAfter;
+        if (spatial != null && rectangles != null) spatial.rectangles = rectangles.copy();
 
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
         if (dirty != null) dirty.mark(entityId, DirtyBits.MATERIAL);

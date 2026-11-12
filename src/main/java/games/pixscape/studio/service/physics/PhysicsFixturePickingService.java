@@ -8,7 +8,9 @@ import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.service.PhysicsService;
 
-/** Picks compiled fixture geometry while returning source-shape provenance. */
+/**
+ * Picks compiled fixture geometry while returning source-shape provenance.
+ */
 public final class PhysicsFixturePickingService {
 
     public static final class PickResult {

@@ -2,7 +2,9 @@ package games.pixscape.studio.helper;
 
 import games.pixscape.runtime.component.TransformComponent;
 
-/** Shared allocation-free transform math for generic authored local vertices. */
+/**
+ * Shared allocation-free transform math for generic authored local vertices.
+ */
 public final class AuthoredGeometryTransform {
     private AuthoredGeometryTransform() {
     }

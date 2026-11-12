@@ -17,10 +17,12 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.zip.Deflater;
 
-/** Pure CPU/file preparation. Does not pack, load textures or publish any live atlas.
- * Callers must serialize materializations to the same generated output directory. */
+/**
+ * Pure CPU/file preparation. Does not pack, load textures or publish any live atlas.
+ * Callers must serialize materializations to the same generated output directory.
+ */
 public final class SceneHudPackInputMaterializer {
-    private static final byte[] PNG_SIGNATURE = {(byte)137, 80, 78, 71, 13, 10, 26, 10};
+    private static final byte[] PNG_SIGNATURE = {(byte) 137, 80, 78, 71, 13, 10, 26, 10};
 
     public SceneHudPackMaterializationManifest materialize(
             FileHandle projectDirectory, FileHandle outputDirectory, SceneHudPackInputPlan plan) {
@@ -61,8 +63,9 @@ public final class SceneHudPackInputMaterializer {
             failure = invalid;
             throw invalid;
         } finally {
-            try { AtomicDirectoryPublication.discardCandidate(candidate); }
-            catch (RuntimeException cleanup) {
+            try {
+                AtomicDirectoryPublication.discardCandidate(candidate);
+            } catch (RuntimeException cleanup) {
                 if (failure != null) failure.addSuppressed(cleanup);
                 else throw cleanup;
             }
@@ -70,7 +73,7 @@ public final class SceneHudPackInputMaterializer {
     }
 
     private static MaterializedEntry materializeEntry(FileHandle project, FileHandle output,
-                                                       String path, String stem, AtlasEntry entry) {
+                                                      String path, String stem, AtlasEntry entry) {
         int width;
         int height;
         boolean normalized = false;
@@ -81,7 +84,9 @@ public final class SceneHudPackInputMaterializer {
                 white.setBlending(Pixmap.Blending.None);
                 white.drawPixel(0, 0, 0xffffffff);
                 write(output, white);
-            } finally { white.dispose(); }
+            } finally {
+                white.dispose();
+            }
             width = height = 1;
             semantic = new SemanticMetadata(1, 1, 0, 0, Map.of());
         } else if (entry.materialKind() == MaterialKind.INTERNAL_BUILT_IN_LABEL_FONT) {
@@ -91,7 +96,9 @@ public final class SceneHudPackInputMaterializer {
                 width = pixels.getWidth();
                 height = pixels.getHeight();
                 write(output, pixels);
-            } finally { pixels.dispose(); }
+            } finally {
+                pixels.dispose();
+            }
             semantic = new SemanticMetadata(width, height, 0, 0, Map.of());
         } else {
             FileHandle source = project.child(entry.sourcePath());
@@ -119,18 +126,23 @@ public final class SceneHudPackInputMaterializer {
                         games.pixscape.studio.io.AtlasRegionPixels.copy(pixels, crop,
                                 region.left(), region.top(), width, height, region.rotate(), 0, 0);
                         write(output, crop);
-                    } finally { crop.dispose(); }
+                    } finally {
+                        crop.dispose();
+                    }
                     semantic = new SemanticMetadata(region.originalWidth(), region.originalHeight(),
                             region.offsetX(), region.offsetY(), region.values());
                 }
-            } finally { pixels.dispose(); }
+            } finally {
+                pixels.dispose();
+            }
         }
         return new MaterializedEntry(path, new AtlasKey(stem, AtlasKey.UNINDEXED), entry,
                 width, height, normalized, semantic);
     }
 
     private static void validateRegion(AtlasRegionMetadata region, Pixmap page) {
-        if (region.flip()) throw new IllegalArgumentException("Flipped source atlas plans are unsupported; project with flip=false.");
+        if (region.flip())
+            throw new IllegalArgumentException("Flipped source atlas plans are unsupported; project with flip=false.");
         if ((region.degrees() != 0 && region.degrees() != 90) || region.rotate() != (region.degrees() == 90))
             throw new IllegalArgumentException("Unsupported or inconsistent source rotation: " + region.degrees());
         int packedWidth = region.rotate() ? region.height() : region.width();
@@ -162,6 +174,7 @@ public final class SceneHudPackInputMaterializer {
                     + HudBuiltInLabelStyle.FONT_PAGE + ".", failure);
         }
     }
+
     private static void write(FileHandle output, Pixmap pixels) {
         PixmapIO.writePNG(output, pixels, Deflater.DEFAULT_COMPRESSION, false);
     }
@@ -172,7 +185,8 @@ public final class SceneHudPackInputMaterializer {
         try {
             Path base = project.file().toPath().toRealPath();
             if (!Files.isDirectory(base)) throw new IllegalArgumentException("Project directory is missing.");
-            if (base.startsWith(target)) throw new IllegalArgumentException("Output cannot replace the project or its ancestors.");
+            if (base.startsWith(target))
+                throw new IllegalArgumentException("Output cannot replace the project or its ancestors.");
             List<String> sources = new ArrayList<>();
             for (AtlasEntry entry : plan.entries()) {
                 if (entry.sourcePath() != null) sources.add(entry.sourcePath());
@@ -182,13 +196,15 @@ public final class SceneHudPackInputMaterializer {
                 }
                 for (ProjectionProvenance provenance : entry.provenance()) {
                     if (provenance.skinAtlasPath() != null) sources.add(provenance.skinAtlasPath());
-                    if (provenance.bitmapFontDescriptorPath() != null) sources.add(provenance.bitmapFontDescriptorPath());
+                    if (provenance.bitmapFontDescriptorPath() != null)
+                        sources.add(provenance.bitmapFontDescriptorPath());
                 }
             }
             for (BitmapFontProjection font : plan.bitmapFonts()) sources.add(font.descriptorPath());
             for (String source : sources) {
                 Path relative = Path.of(source);
-                if (relative.isAbsolute()) throw new IllegalArgumentException("Source must be project-relative: " + source);
+                if (relative.isAbsolute())
+                    throw new IllegalArgumentException("Source must be project-relative: " + source);
                 Path lexical = base.resolve(relative).normalize();
                 if (!lexical.startsWith(base) || lexical.startsWith(target))
                     throw new IllegalArgumentException("Unsafe source/output overlap: " + source);
@@ -199,6 +215,8 @@ public final class SceneHudPackInputMaterializer {
                         throw new IllegalArgumentException("Source escapes project or overlaps output: " + source);
                 }
             }
-        } catch (IOException failure) { throw new IllegalArgumentException("Cannot validate materialization paths.", failure); }
+        } catch (IOException failure) {
+            throw new IllegalArgumentException("Cannot validate materialization paths.", failure);
+        }
     }
 }

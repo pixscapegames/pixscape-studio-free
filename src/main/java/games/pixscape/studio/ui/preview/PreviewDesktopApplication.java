@@ -13,7 +13,9 @@ import java.util.Map;
 import static com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration.GLEmulation.GL32;
 import static games.pixscape.studio.PixscapeStudioApplication.STUDIO_TITLE;
 
-/** Desktop Preview entry point. It intentionally owns a separate JVM and LibGDX event loop. */
+/**
+ * Desktop Preview entry point. It intentionally owns a separate JVM and LibGDX event loop.
+ */
 public final class PreviewDesktopApplication {
     private PreviewDesktopApplication() {
     }

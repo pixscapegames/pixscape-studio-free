@@ -1,6 +1,8 @@
 package games.pixscape.studio.asset;
 
-/** Studio-authored clip definition owned by an {@link AnimationAssetMeta}. */
+/**
+ * Studio-authored clip definition owned by an {@link AnimationAssetMeta}.
+ */
 public final class AnimationClipMeta {
     public int start;
     public int end;

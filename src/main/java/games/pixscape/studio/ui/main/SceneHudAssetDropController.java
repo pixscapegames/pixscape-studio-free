@@ -9,7 +9,9 @@ import games.pixscape.studio.ui.asset.dnd.DragPayload;
 
 import java.util.Objects;
 
-/** Captures and revalidates the Scene destination for a shared HUD Screen drag. */
+/**
+ * Captures and revalidates the Scene destination for a shared HUD Screen drag.
+ */
 final class SceneHudAssetDropController {
     private final SceneHudAssociationService associations;
     private final EditorDocumentManager documents;

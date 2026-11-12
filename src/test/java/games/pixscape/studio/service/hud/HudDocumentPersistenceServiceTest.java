@@ -17,10 +17,13 @@ import org.junit.rules.TemporaryFolder;
 import static org.junit.Assert.*;
 
 public class HudDocumentPersistenceServiceTest {
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
 
-    @BeforeClass public static void bootGdx() {
-        if (Gdx.files == null) new HeadlessApplication(new ApplicationAdapter() {},
+    @BeforeClass
+    public static void bootGdx() {
+        if (Gdx.files == null) new HeadlessApplication(new ApplicationAdapter() {
+        },
                 new HeadlessApplicationConfiguration());
     }
 
@@ -125,7 +128,9 @@ public class HudDocumentPersistenceServiceTest {
         });
         HudDocumentPersistenceService persistence = new HudDocumentPersistenceService(
                 new HudScreenAssetLoader(), new HudDocumentCodec(),
-                (target, content) -> { throw new IllegalStateException("disk full"); });
+                (target, content) -> {
+                    throw new IllegalStateException("disk full");
+                });
         try {
             persistence.save(root, session);
             fail("Expected write failure");
@@ -220,7 +225,8 @@ public class HudDocumentPersistenceServiceTest {
         return new HudDocumentV1(root);
     }
 
-    @Test public void existingPairRollsBackEitherFailedReplacementAndRetrySucceeds() throws Exception {
+    @Test
+    public void existingPairRollsBackEitherFailedReplacementAndRetrySucceeds() throws Exception {
         for (int failAt : new int[]{1, 2}) {
             var root = Gdx.files.absolute(temporary.newFolder().getAbsolutePath());
             root.child("hud/main.hudscreen").writeString("""
@@ -232,15 +238,23 @@ public class HudDocumentPersistenceServiceTest {
             byte[] oldDocument = root.child("hud/main.json").readBytes();
             var loaded = new HudDocumentPersistenceService().load(root, "main");
             var editor = new HudScreenEditorDocument("hud/main", "Main", loaded.asset(), loaded.document());
-            editor.editSession().edit("Resize", candidate -> { candidate.root.actor.width = 99f; return candidate; });
+            editor.editSession().edit("Resize", candidate -> {
+                candidate.root.actor.width = 99f;
+                return candidate;
+            });
             var calls = new java.util.concurrent.atomic.AtomicInteger();
             var failing = new HudDocumentPersistenceService(new HudScreenAssetLoader(), new HudDocumentCodec(),
                     (target, content) -> {
                         games.pixscape.studio.io.StudioIO.writeUtf8Atomic(target, content);
-                        if (calls.incrementAndGet() == failAt) throw new IllegalStateException("injected publication failure");
+                        if (calls.incrementAndGet() == failAt)
+                            throw new IllegalStateException("injected publication failure");
                     });
-            try { failing.save(root, editor); fail("Expected injected failure"); }
-            catch (IllegalStateException expected) { assertTrue(expected.getMessage().contains("injected")); }
+            try {
+                failing.save(root, editor);
+                fail("Expected injected failure");
+            } catch (IllegalStateException expected) {
+                assertTrue(expected.getMessage().contains("injected"));
+            }
             assertArrayEquals(oldDocument, root.child("hud/main.json").readBytes());
             assertArrayEquals(oldAsset, root.child("hud/main.hudscreen").readBytes());
             assertFalse(root.child("hud/main.json.bak").exists());

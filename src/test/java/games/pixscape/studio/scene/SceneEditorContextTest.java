@@ -55,9 +55,20 @@ public class SceneEditorContextTest {
                 "scene/main", new StudioEditingModeService());
         AtomicInteger value = new AtomicInteger();
         Command command = new Command() {
-            @Override public String label() { return "increment"; }
-            @Override public void redo() { value.incrementAndGet(); }
-            @Override public void undo() { value.decrementAndGet(); }
+            @Override
+            public String label() {
+                return "increment";
+            }
+
+            @Override
+            public void redo() {
+                value.incrementAndGet();
+            }
+
+            @Override
+            public void undo() {
+                value.decrementAndGet();
+            }
         };
 
         context.historyManager().execute(command);
@@ -198,9 +209,18 @@ public class SceneEditorContextTest {
 
     private static Command noopCommand() {
         return new Command() {
-            @Override public String label() { return "test"; }
-            @Override public void redo() { }
-            @Override public void undo() { }
+            @Override
+            public String label() {
+                return "test";
+            }
+
+            @Override
+            public void redo() {
+            }
+
+            @Override
+            public void undo() {
+            }
         };
     }
 }

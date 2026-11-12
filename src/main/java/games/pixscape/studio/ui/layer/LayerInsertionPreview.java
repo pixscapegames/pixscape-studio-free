@@ -4,7 +4,8 @@ import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.widget.VisTable;
 
-/** Local vertical insertion presentation. No layer indices, services or history mutations.
+/**
+ * Local vertical insertion presentation. No layer indices, services or history mutations.
  * Like the animation grid, sources stay attached to preserve Scene2D touch focus.
  * The original table cells keep the scroll extent constant throughout the gesture.
  */
@@ -13,7 +14,10 @@ final class LayerInsertionPreview extends VisTable {
     private LayerRow source, ghost, hud;
     private int insertion = -1;
 
-    LayerInsertionPreview() { super(false); top().pad(5).left(); }
+    LayerInsertionPreview() {
+        super(false);
+        top().pad(5).left();
+    }
 
     void addRow(LayerRow row, boolean fixed) {
         add(row).growX().padBottom(fixed ? 6 : 2).row();
@@ -50,7 +54,9 @@ final class LayerInsertionPreview extends VisTable {
         invalidate();
     }
 
-    /** Inverse of the displayed layout: the entire ghost maps to the same reduced gap. */
+    /**
+     * Inverse of the displayed layout: the entire ghost maps to the same reduced gap.
+     */
     int insertionAt(float y, LayerRow moving) {
         validate();
         if (hud != null && y >= hud.getY()) return -1;
@@ -64,7 +70,8 @@ final class LayerInsertionPreview extends VisTable {
         return gap;
     }
 
-    @Override public void layout() {
+    @Override
+    public void layout() {
         super.layout();
         if (source == null || rows.isEmpty()) return;
         float top = rows.first().getTop();

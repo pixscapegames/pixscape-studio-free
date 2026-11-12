@@ -16,11 +16,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.*;
 
 public class HudScreenDeletionServiceTest {
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
 
-    @Test public void deletesUnusedDescriptorAndItsActualDocumentButKeepsSharedResources() throws Exception {
+    @Test
+    public void deletesUnusedDescriptorAndItsActualDocumentButKeepsSharedResources() throws Exception {
         Fixture fixture = fixture();
-        fixture.root.child("orig/images/shared.png").writeBytes(new byte[] {1, 2, 3}, false);
+        fixture.root.child("orig/images/shared.png").writeBytes(new byte[]{1, 2, 3}, false);
 
         HudScreenDeletionService.DeletionResult result = fixture.service.delete(
                 fixture.root, fixture.configuration, "hud/status");
@@ -34,7 +36,8 @@ public class HudScreenDeletionServiceTest {
         assertTrue(fixture.root.child("orig/images/shared.png").exists());
     }
 
-    @Test public void blocksHudAssociatedWithClosedPersistedSceneAndReportsItsAssociation() throws Exception {
+    @Test
+    public void blocksHudAssociatedWithClosedPersistedSceneAndReportsItsAssociation() throws Exception {
         Fixture fixture = fixture();
         fixture.configuration.getSceneMeta("Closed Scene").defaultHudScreenId = "hud\\status";
         save(fixture);
@@ -50,7 +53,8 @@ public class HudScreenDeletionServiceTest {
         assertTrue(fixture.root.child("hud/status.hudscreen").exists());
     }
 
-    @Test public void blocksLiveUnsavedAdditionAndPersistedReferenceRemovedOnlyInMemory() throws Exception {
+    @Test
+    public void blocksLiveUnsavedAdditionAndPersistedReferenceRemovedOnlyInMemory() throws Exception {
         Fixture fixture = fixture();
         fixture.configuration.getSceneMeta("Open Scene").defaultHudScreenId = "hud/status";
         assertTrue(fixture.service.inspectUsage(fixture.root, fixture.configuration, "hud/status").used());
@@ -66,7 +70,8 @@ public class HudScreenDeletionServiceTest {
         assertEquals("Closed Scene", usage.references().get(0).sceneName());
     }
 
-    @Test public void reportsAllUsingScenesWithoutDuplicatesAcrossLiveAndPersistedMetadata() throws Exception {
+    @Test
+    public void reportsAllUsingScenesWithoutDuplicatesAcrossLiveAndPersistedMetadata() throws Exception {
         Fixture fixture = fixture();
         fixture.configuration.getSceneMeta("Closed Scene").defaultHudScreenId = "hud/status";
         fixture.configuration.getSceneMeta("Open Scene").defaultHudScreenId = "hud/status";
@@ -80,7 +85,8 @@ public class HudScreenDeletionServiceTest {
         assertEquals("Open Scene", usage.references().get(1).sceneName());
     }
 
-    @Test public void preservesSharedHudDocumentWhenAnotherDescriptorUsesIt() throws Exception {
+    @Test
+    public void preservesSharedHudDocumentWhenAnotherDescriptorUsesIt() throws Exception {
         Fixture fixture = fixture();
         fixture.root.child("hud/other.hudscreen").writeString(
                 fixture.root.child("hud/status.hudscreen").readString("UTF-8"), false, "UTF-8");
@@ -94,7 +100,8 @@ public class HudScreenDeletionServiceTest {
         assertTrue(fixture.root.child("hud/other.hudscreen").exists());
     }
 
-    @Test public void rollsBackDescriptorWhenDocumentStagingFails() throws Exception {
+    @Test
+    public void rollsBackDescriptorWhenDocumentStagingFails() throws Exception {
         Fixture fixture = fixture();
         AtomicInteger moves = new AtomicInteger();
         HudScreenDeletionService failing = new HudScreenDeletionService(new HudScreenAssetLoader(),
@@ -111,7 +118,8 @@ public class HudScreenDeletionServiceTest {
         assertTrue(fixture.root.child("hud/status.json").exists());
     }
 
-    @Test public void succeedsWhenSecondTemporaryFileCleanupFailsAfterAllMoves() throws Exception {
+    @Test
+    public void succeedsWhenSecondTemporaryFileCleanupFailsAfterAllMoves() throws Exception {
         Fixture fixture = fixture();
         AtomicInteger cleanupAttempts = new AtomicInteger();
         HudScreenDeletionService service = new HudScreenDeletionService(new HudScreenAssetLoader(),
@@ -136,7 +144,8 @@ public class HudScreenDeletionServiceTest {
         assertEquals(0, HudScreenAssetBrowser.scan(fixture.root).size);
     }
 
-    @Test public void continuesTemporaryCleanupAfterFirstFailure() throws Exception {
+    @Test
+    public void continuesTemporaryCleanupAfterFirstFailure() throws Exception {
         Fixture fixture = fixture();
         AtomicInteger cleanupAttempts = new AtomicInteger();
         HudScreenDeletionService service = new HudScreenDeletionService(new HudScreenAssetLoader(),
@@ -160,7 +169,8 @@ public class HudScreenDeletionServiceTest {
         assertEquals(0, HudScreenAssetBrowser.scan(fixture.root).size);
     }
 
-    @Test public void blocksDeletionWhenPersistedSceneMetadataCannotBeRead() throws Exception {
+    @Test
+    public void blocksDeletionWhenPersistedSceneMetadataCannotBeRead() throws Exception {
         Fixture fixture = fixture();
         fixture.root.child("project.json").writeString("{ not valid JSON", false, "UTF-8");
 
@@ -191,5 +201,6 @@ public class HudScreenDeletionServiceTest {
         ProjectConfig.ProjectIO.saveProject(fixture.configuration, fixture.root.child("project.json"));
     }
 
-    private record Fixture(FileHandle root, ProjectConfig configuration, HudScreenDeletionService service) {}
+    private record Fixture(FileHandle root, ProjectConfig configuration, HudScreenDeletionService service) {
+    }
 }

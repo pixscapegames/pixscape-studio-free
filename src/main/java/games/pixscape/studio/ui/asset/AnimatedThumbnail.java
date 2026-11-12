@@ -25,7 +25,9 @@ public final class AnimatedThumbnail extends Actor {
         this(frames, fps, 0, Math.max(0, frames.size - 1), false);
     }
 
-    /** Borrows textures; the shared cache remains their owner. Supports reversed clip ranges. */
+    /**
+     * Borrows textures; the shared cache remains their owner. Supports reversed clip ranges.
+     */
     public AnimatedThumbnail(Array<Texture> frames, float fps, int start, int end, boolean flipX) {
         this.frames = frames;
         this.fps = fps > 0f ? fps : 12f;
@@ -41,7 +43,9 @@ public final class AnimatedThumbnail extends Actor {
         this.scaling = scaling;
     }
 
-    /** Variable durations preserve each occurrence, including repeated textures. */
+    /**
+     * Variable durations preserve each occurrence, including repeated textures.
+     */
     public AnimatedThumbnail(Array<Texture> frames, int[] durationsMs) {
         this(frames, 12f);
         if (durationsMs.length != frames.size) throw new IllegalArgumentException("Frame/duration count mismatch.");
@@ -50,7 +54,8 @@ public final class AnimatedThumbnail extends Actor {
         for (int i = 0; i < durationsMs.length; i++) {
             if (durationsMs[i] <= 0 || (long) total + durationsMs[i] > Integer.MAX_VALUE)
                 throw new IllegalArgumentException("Invalid frame duration.");
-            total += durationsMs[i]; frameEndsMs[i] = total;
+            total += durationsMs[i];
+            frameEndsMs[i] = total;
         }
     }
 

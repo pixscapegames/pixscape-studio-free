@@ -16,7 +16,9 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 
-/** Removes authored physics while preserving the owning entity. */
+/**
+ * Removes authored physics while preserving the owning entity.
+ */
 public final class RemovePhysicsBodyCommand
         implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
     private final World world;
@@ -54,7 +56,7 @@ public final class RemovePhysicsBodyCommand
 
         PhysicsBodyComponent body = world != null && bodyEntityId >= 0
                 ? world.getMapper(PhysicsBodyComponent.class)
-                        .getSafe(bodyEntityId, null)
+                .getSafe(bodyEntityId, null)
                 : null;
         boolean valid = world != null
                 && historyIds != null
@@ -89,11 +91,11 @@ public final class RemovePhysicsBodyCommand
 
         IntArray jointIds = valid && linkedRemovalAllowed
                 ? physicsService.collectJointsAffectedByBodyRemoval(
-                        bodyEntityId, new IntArray(false, 8))
+                bodyEntityId, new IntArray(false, 8))
                 : new IntArray();
         this.jointDeleteCommand = valid && linkedRemovalAllowed
                 ? new DeleteEntitiesCommand(
-                        world, historyIds, jointIds, this::markRestoredJointDirty)
+                world, historyIds, jointIds, this::markRestoredJointDirty)
                 : null;
         this.noop = !valid || !linkedRemovalAllowed || bodyHistoryId <= 0L;
     }
@@ -158,10 +160,10 @@ public final class RemovePhysicsBodyCommand
         }
         PreparedPhysicsBodyCandidate prepared = containsLinkedShape
                 ? PhysicsService.prepareBodyCandidate(
-                        world,
-                        entityId,
-                        candidate,
-                        FixtureCommandSupport.requireCurrentPixelsPerMeter())
+                world,
+                entityId,
+                candidate,
+                FixtureCommandSupport.requireCurrentPixelsPerMeter())
                 : PhysicsService.prepareBodyCandidate(candidate);
         PhysicsShapesComponent shapes =
                 world.getMapper(PhysicsShapesComponent.class).has(entityId)

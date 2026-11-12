@@ -136,8 +136,17 @@ final class HudPanelTestSupport {
 
     static final class DeferredUi {
         private final ArrayDeque<Runnable> queue = new ArrayDeque<>();
-        void post(Runnable runnable) { queue.add(runnable); }
-        int size() { return queue.size(); }
-        void runAll() { while (!queue.isEmpty()) queue.remove().run(); }
+
+        void post(Runnable runnable) {
+            queue.add(runnable);
+        }
+
+        int size() {
+            return queue.size();
+        }
+
+        void runAll() {
+            while (!queue.isEmpty()) queue.remove().run();
+        }
     }
 }

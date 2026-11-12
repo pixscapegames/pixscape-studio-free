@@ -5,9 +5,11 @@ import com.kotcrab.vis.ui.widget.VisTree;
 import games.pixscape.runtime.hud.document.HudNodeKind;
 import games.pixscape.studio.ui.tree.StudioTreeRow;
 
-/** One native tree entry; rows and result headings are derived presentation only. */
+/**
+ * One native tree entry; rows and result headings are derived presentation only.
+ */
 public final class HudTreeNode extends VisTree.Node {
-    public enum Type { WIDGET, CELL, ROW, RESULTS }
+    public enum Type {WIDGET, CELL, ROW, RESULTS}
 
     private final Type type;
     private final String nodeId;
@@ -47,10 +49,27 @@ public final class HudTreeNode extends VisTree.Node {
         setSelectable(type == Type.WIDGET || type == Type.CELL);
     }
 
-    public Type type() { return type; }
-    public String nodeId() { return nodeId; }
-    public String cellId() { return cellId; }
-    public String rowAnchorCellId() { return rowAnchorCellId; }
-    public HudNodeKind kind() { return kind; }
-    public VisLabel label() { return row.label(); }
+    public Type type() {
+        return type;
+    }
+
+    public String nodeId() {
+        return nodeId;
+    }
+
+    public String cellId() {
+        return cellId;
+    }
+
+    public String rowAnchorCellId() {
+        return rowAnchorCellId;
+    }
+
+    public HudNodeKind kind() {
+        return kind;
+    }
+
+    public VisLabel label() {
+        return row.label();
+    }
 }

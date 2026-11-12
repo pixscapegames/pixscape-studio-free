@@ -4,7 +4,9 @@ import games.pixscape.runtime.spatial.SpatialConstraintInvariantException;
 import games.pixscape.runtime.spatial.SpatialTileOrderInvariantException;
 import games.pixscape.runtime.spatial.SpatialTileSyncInvariantException;
 
-/** Keeps a Spatial V3 invariant failure inside the scene preview while leaving the Studio shell alive. */
+/**
+ * Keeps a Spatial V3 invariant failure inside the scene preview while leaving the Studio shell alive.
+ */
 final class SpatialPreviewInvariantBoundary {
     interface FrameProcessor {
         void processFrame();
@@ -19,14 +21,25 @@ final class SpatialPreviewInvariantBoundary {
     private long editRevision;
     private int resourceRevision;
 
-    /** Also used by existing entity-change notifications for transient preview restoration. */
-    void invalidate() { blocked=false;blockedScene=null; }
+    /**
+     * Also used by existing entity-change notifications for transient preview restoration.
+     */
+    void invalidate() {
+        blocked = false;
+        blockedScene = null;
+    }
 
-    /** Retry only after an authoring operation or successful resource publication. */
-    void prepare(String scene,long edits,int resources){
+    /**
+     * Retry only after an authoring operation or successful resource publication.
+     */
+    void prepare(String scene, long edits, int resources) {
         prepare(scene);
-        if(edits!=editRevision||resources!=resourceRevision){blocked=false;blockedScene=null;}
-        editRevision=edits;resourceRevision=resources;
+        if (edits != editRevision || resources != resourceRevision) {
+            blocked = false;
+            blockedScene = null;
+        }
+        editRevision = edits;
+        resourceRevision = resources;
     }
 
     void prepare(String scene) {
@@ -43,7 +56,8 @@ final class SpatialPreviewInvariantBoundary {
             processor.processFrame();
             return true;
         } catch (SpatialConstraintInvariantException | SpatialTileOrderInvariantException
-                 | SpatialTileSyncInvariantException | games.pixscape.runtime.render.lighting.LightingAdmissionException failure) {
+                 | SpatialTileSyncInvariantException |
+                 games.pixscape.runtime.render.lighting.LightingAdmissionException failure) {
             blocked = true;
             blockedScene = scene;
             listener.onSpatialInvariantFailure(failure);

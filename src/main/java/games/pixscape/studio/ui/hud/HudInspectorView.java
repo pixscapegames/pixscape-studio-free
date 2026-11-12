@@ -26,7 +26,9 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-/** Editable HUD-node Properties view backed exclusively by the HUD document edit session. */
+/**
+ * Editable HUD-node Properties view backed exclusively by the HUD document edit session.
+ */
 public final class HudInspectorView extends VisTable {
     private static final float PROPERTY_CELL_PAD = 5f;
 
@@ -74,19 +76,24 @@ public final class HudInspectorView extends VisTable {
         top().left();
         defaults().left().top().pad(PROPERTY_CELL_PAD);
         addCaptureListener(new InputListener() {
-            @Override public boolean touchDown(InputEvent event, float x, float y,
-                                               int pointer, int button) {
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y,
+                                     int pointer, int button) {
                 if (!session.isTestMode()) return false;
                 event.stop();
                 return true;
             }
-            @Override public boolean keyDown(InputEvent event, int keycode) {
+
+            @Override
+            public boolean keyDown(InputEvent event, int keycode) {
                 if (!session.isTestMode()) return false;
                 event.stop();
                 return true;
             }
-            @Override public boolean scrolled(InputEvent event, float x, float y,
-                                              float amountX, float amountY) {
+
+            @Override
+            public boolean scrolled(InputEvent event, float x, float y,
+                                    float amountX, float amountY) {
                 return session.isTestMode();
             }
         });
@@ -174,7 +181,8 @@ public final class HudInspectorView extends VisTable {
             }
         }
         box.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 if (refreshing || !Objects.equals(originScreenId, session.screenId())) return;
                 Choice<SkinChoice> selected = box.getSelected();
                 if (selected == null) return;
@@ -288,7 +296,8 @@ public final class HudInspectorView extends VisTable {
         check.setName("hudVisible");
         check.setChecked(visible);
         check.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 if (refreshing || !isCurrentTarget(screenId, nodeId)) return;
                 visibilityDiagnostic = null;
                 try {
@@ -329,7 +338,8 @@ public final class HudInspectorView extends VisTable {
         enabled.setName("hudTooltipEnabled");
         enabled.setChecked(node.tooltip != null);
         enabled.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 applyTooltipEdit(screenId, nodeId, "hudTooltipEnabled",
                         "Toggle HUD tooltip", current -> current.tooltip =
                                 enabled.isChecked() ? new HudTooltipData() : null);
@@ -345,7 +355,7 @@ public final class HudInspectorView extends VisTable {
         textField.setName("hudTooltipText");
         textField.setPrefRows(3);
         textField.bind(nodeValue(nodeId, current -> current.tooltip == null
-                        ? null : current.tooltip.text), value ->
+                ? null : current.tooltip.text), value ->
                 applyTooltipEdit(screenId, nodeId, "hudTooltipText", "Edit HUD tooltip text",
                         current -> requireTooltip(current).text = value));
         installTextAreaLifecycle(textField);
@@ -372,7 +382,8 @@ public final class HudInspectorView extends VisTable {
             if (Objects.equals(option.value.styleName(), node.tooltip.styleName)) styleBox.setSelected(option);
         }
         styleBox.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 if (refreshing || !isCurrentTarget(screenId, nodeId)) return;
                 Choice<LabelStyleOption> selected = styleBox.getSelected();
                 if (selected != null) applyTooltipEdit(screenId, nodeId, "hudTooltipStyle",
@@ -404,7 +415,8 @@ public final class HudInspectorView extends VisTable {
             if (Objects.equals(option.value.assetId(), authoredFontId)) fontBox.setSelected(option);
         }
         fontBox.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 if (refreshing || !isCurrentTarget(screenId, nodeId)) return;
                 Choice<HudEditorSession.FontResourceOption> selected = fontBox.getSelected();
                 if (selected != null) applyTooltipEdit(screenId, nodeId, "hudTooltipFont",
@@ -482,7 +494,9 @@ public final class HudInspectorView extends VisTable {
                 value -> edit(nodeId, (node, relation) -> relation.free.offsetY = value), 0, finite());
     }
 
-    /** Presents the same native Cell constraint controls for an explicit, possibly empty cell. */
+    /**
+     * Presents the same native Cell constraint controls for an explicit, possibly empty cell.
+     */
     private void addSelectedCellProperties(HudTableCell cell) {
         String cellId = cell.id;
         addReadOnly("Cell ID", cellId);
@@ -559,13 +573,22 @@ public final class HudInspectorView extends VisTable {
         addPadding(padLeft, padRight, padTop, padBottom);
         addCellChecks("Fill", "hudFillX", "hudFillY", cellId,
                 current -> current.constraints.fillX, current -> current.constraints.fillY,
-                (current, x, y) -> { current.constraints.fillX = x; current.constraints.fillY = y; });
+                (current, x, y) -> {
+                    current.constraints.fillX = x;
+                    current.constraints.fillY = y;
+                });
         addCellChecks("Expand", "hudExpandX", "hudExpandY", cellId,
                 current -> current.constraints.expandX, current -> current.constraints.expandY,
-                (current, x, y) -> { current.constraints.expandX = x; current.constraints.expandY = y; });
+                (current, x, y) -> {
+                    current.constraints.expandX = x;
+                    current.constraints.expandY = y;
+                });
         addCellChecks("Uniform", "hudUniformX", "hudUniformY", cellId,
                 current -> current.constraints.uniformX, current -> current.constraints.uniformY,
-                (current, x, y) -> { current.constraints.uniformX = x; current.constraints.uniformY = y; });
+                (current, x, y) -> {
+                    current.constraints.uniformX = x;
+                    current.constraints.uniformY = y;
+                });
         addCellChoice("Horizontal align", "hudHorizontalAlign", cellId,
                 current -> current.constraints.horizontalAlign, HudHorizontalAlign.values(),
                 HudInspectorView::enumLabel,
@@ -733,7 +756,9 @@ public final class HudInspectorView extends VisTable {
         if (node.textButton != null) {
             addMultilineText("Text", "hudTextField", nodeId,
                     nodeValue(nodeId, current -> current.textButton.text),
-                    value -> { if (isCurrentTarget(nodeId)) session.editSelectedTextButtonText(value); });
+                    value -> {
+                        if (isCurrentTarget(nodeId)) session.editSelectedTextButtonText(value);
+                    });
             List<LabelStyleOption> styles = new java.util.ArrayList<>();
             styles.add(new LabelStyleOption(null, "Default"));
             for (String style : session.textButtonStyleNames(
@@ -778,7 +803,9 @@ public final class HudInspectorView extends VisTable {
         if (node.imageTextButton != null) {
             addMultilineText("Text", "hudImageTextButtonText", nodeId,
                     nodeValue(nodeId, current -> current.imageTextButton.text),
-                    value -> { if (isCurrentTarget(nodeId)) session.editSelectedImageTextButtonText(value); });
+                    value -> {
+                        if (isCurrentTarget(nodeId)) session.editSelectedImageTextButtonText(value);
+                    });
             List<LabelStyleOption> styles = new java.util.ArrayList<>();
             styles.add(new LabelStyleOption(null, "Default"));
             for (String style : session.imageTextButtonStyleNames(
@@ -948,7 +975,8 @@ public final class HudInspectorView extends VisTable {
             if (Objects.equals(option.value.assetId(), authoredFontId)) fontBox.setSelected(option);
         }
         fontBox.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 if (refreshing || !isCurrentTarget(screenId, nodeId)) return;
                 Choice<HudEditorSession.FontResourceOption> selected = fontBox.getSelected();
                 if (selected != null) applyWindowEdit(screenId, nodeId, "Edit HUD Window title font",
@@ -1120,7 +1148,8 @@ public final class HudInspectorView extends VisTable {
         }
         String screenId = session.screenId();
         box.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 if (refreshing || !isCurrentTarget(screenId, nodeId)) return;
                 Choice<HudEditorSession.FontResourceOption> selected = box.getSelected();
                 if (selected == null) return;
@@ -1190,7 +1219,8 @@ public final class HudInspectorView extends VisTable {
                 text -> renameSelectBoxItem(screenId, nodeId, text));
         installTextLifecycle(value);
         items.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 value.commit();
                 String selected = items.getSelected();
                 HudNode current = selectBoxNode(nodeId);
@@ -1201,7 +1231,8 @@ public final class HudInspectorView extends VisTable {
             }
         });
         items.addListener(new InputListener() {
-            @Override public boolean keyDown(InputEvent event, int keycode) {
+            @Override
+            public boolean keyDown(InputEvent event, int keycode) {
                 if (keycode == Input.Keys.DEL || keycode == Input.Keys.FORWARD_DEL) {
                     event.stop();
                     return true;
@@ -1227,7 +1258,10 @@ public final class HudInspectorView extends VisTable {
         remove.setDisabled(activeIndex < 0);
         up.setDisabled(activeIndex <= 0);
         down.setDisabled(activeIndex < 0 || activeIndex + 1 >= node.selectBox.items.size());
-        actions.addActor(add); actions.addActor(remove); actions.addActor(up); actions.addActor(down);
+        actions.addActor(add);
+        actions.addActor(remove);
+        actions.addActor(up);
+        actions.addActor(down);
         editor.add(actions).left().row();
         add.addListener(change(() -> addSelectBoxItem(screenId, nodeId)));
         remove.addListener(change(() -> removeSelectBoxItem(screenId, nodeId)));
@@ -1248,7 +1282,8 @@ public final class HudInspectorView extends VisTable {
         selected.setItems(node.selectBox.items.toArray(new String[node.selectBox.items.size()]));
         if (node.selectBox.selectedIndex >= 0) selected.setSelectedIndex(node.selectBox.selectedIndex);
         selected.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 if (refreshing || !isCurrentTarget(nodeId)) return;
                 int index = node.selectBox.items.indexOf(selected.getSelected());
                 edit(nodeId, (current, ignored) -> current.selectBox.selectedIndex = index);
@@ -1306,14 +1341,16 @@ public final class HudInspectorView extends VisTable {
         });
         installTextLifecycle(value);
         items.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 value.commit();
                 listEditorIndex = items.getSelectedIndex();
                 value.refresh();
             }
         });
         items.addListener(new InputListener() {
-            @Override public boolean keyDown(InputEvent event, int keycode) {
+            @Override
+            public boolean keyDown(InputEvent event, int keycode) {
                 if (keycode == Input.Keys.DEL || keycode == Input.Keys.FORWARD_DEL) {
                     event.stop();
                     return true;
@@ -1339,7 +1376,10 @@ public final class HudInspectorView extends VisTable {
         remove.setDisabled(listEditorIndex < 0);
         up.setDisabled(listEditorIndex <= 0);
         down.setDisabled(listEditorIndex < 0 || listEditorIndex + 1 >= values.size());
-        actions.addActor(add); actions.addActor(remove); actions.addActor(up); actions.addActor(down);
+        actions.addActor(add);
+        actions.addActor(remove);
+        actions.addActor(up);
+        actions.addActor(down);
         editor.add(actions).left().row();
         add.addListener(change(() -> {
             if (!isCurrentTarget(screenId, nodeId)) return;
@@ -1377,7 +1417,8 @@ public final class HudInspectorView extends VisTable {
         selected.setItems(choices);
         selected.setSelectedIndex(node.list.selectedIndex + offset);
         selected.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 if (refreshing || !isCurrentTarget(screenId, nodeId)) return;
                 int index = selected.getSelectedIndex() - offset;
                 edit(nodeId, (current, ignored) -> current.list.selectedIndex = index);
@@ -1389,7 +1430,8 @@ public final class HudInspectorView extends VisTable {
         required.setName("hudListRequired");
         required.setChecked(node.list.required);
         required.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 if (refreshing || !isCurrentTarget(screenId, nodeId)) return;
                 edit(nodeId, (current, ignored) -> {
                     current.list.required = required.isChecked();
@@ -1433,7 +1475,9 @@ public final class HudInspectorView extends VisTable {
     private void addCheckBoxProperties(String nodeId, HudNode node) {
         addMultilineText("Text", "hudCheckBoxText", nodeId,
                 nodeValue(nodeId, current -> current.checkBox.text),
-                value -> { if (isCurrentTarget(nodeId)) session.editSelectedCheckBoxText(value); });
+                value -> {
+                    if (isCurrentTarget(nodeId)) session.editSelectedCheckBoxText(value);
+                });
         List<LabelStyleOption> styles = new java.util.ArrayList<>();
         styles.add(new LabelStyleOption(null, "Default"));
         for (String style : session.checkBoxStyleNames(node.checkBox.fontAssetId != null)) {
@@ -1805,7 +1849,8 @@ public final class HudInspectorView extends VisTable {
         }
         String screenId = session.screenId();
         box.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 if (refreshing || !isCurrentTarget(screenId, nodeId)) return;
                 Choice<HudEditorSession.ImageResourceOption> selected = box.getSelected();
                 if (selected == null) return;
@@ -1881,9 +1926,9 @@ public final class HudInspectorView extends VisTable {
     }
 
     private SimpleFloatField cellNumberField(String name, String cellId,
-                                              Function<HudTableCell, Float> reader,
-                                              BiConsumer<HudTableCell, Float> writer,
-                                              int digits, Predicate<Float> validator) {
+                                             Function<HudTableCell, Float> reader,
+                                             BiConsumer<HudTableCell, Float> writer,
+                                             int digits, Predicate<Float> validator) {
         SimpleFloatField field = new SimpleFloatField().withFractionDigits(digits);
         field.validateCommitWith(value -> value != null && validator.test(value));
         field.setName(name);
@@ -1899,9 +1944,11 @@ public final class HudInspectorView extends VisTable {
                                Function<HudTableCell, Boolean> xReader,
                                Function<HudTableCell, Boolean> yReader,
                                CellPairBooleanWriter writer) {
-        VisCheckBox x = new VisCheckBox("X:"); x.setName(xName);
+        VisCheckBox x = new VisCheckBox("X:");
+        x.setName(xName);
         x.setChecked(Boolean.TRUE.equals(cellValue(cellId, xReader).get()));
-        VisCheckBox y = new VisCheckBox("Y:"); y.setName(yName);
+        VisCheckBox y = new VisCheckBox("Y:");
+        y.setName(yName);
         y.setChecked(Boolean.TRUE.equals(cellValue(cellId, yReader).get()));
         String tooltip = switch (label) {
             case "Expand" -> "Assigns a share of extra space to the row or column.";
@@ -1914,14 +1961,19 @@ public final class HudInspectorView extends VisTable {
             new Tooltip.Builder(tooltip).target(y).build();
         }
         ChangeListener listener = new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 if (refreshing || !isCurrentCell(cellId)) return;
                 session.editSelectedCell("Edit HUD cell property",
                         current -> writer.write(current, x.isChecked(), y.isChecked()));
             }
         };
-        x.addListener(listener); y.addListener(listener);
-        VisTable row = new VisTable(); row.defaults().left().padRight(6f); row.add(x); row.add(y);
+        x.addListener(listener);
+        y.addListener(listener);
+        VisTable row = new VisTable();
+        row.defaults().left().padRight(6f);
+        row.add(x);
+        row.add(y);
         addFormLabel(label);
         add(row).padLeft(CommonLayout.PAD_LEFT_SUBMENU).left().row();
     }
@@ -1937,9 +1989,14 @@ public final class HudInspectorView extends VisTable {
         }
         box.setItems(choices);
         E current = cellValue(cellId, reader).get();
-        for (Choice<E> choice : choices) if (choice.value.equals(current)) { box.setSelected(choice); break; }
+        for (Choice<E> choice : choices)
+            if (choice.value.equals(current)) {
+                box.setSelected(choice);
+                break;
+            }
         box.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 if (refreshing || !isCurrentCell(cellId)) return;
                 Choice<E> selected = box.getSelected();
                 if (selected != null) session.editSelectedCell("Edit HUD cell property",
@@ -1966,12 +2023,14 @@ public final class HudInspectorView extends VisTable {
     }
 
     private SimpleFloatField bindNumberField(SimpleFloatField field, String name, String nodeId,
-                                              Supplier<Float> reader,
-                                              java.util.function.Consumer<Float> writer,
-                                              Predicate<Float> validator) {
+                                             Supplier<Float> reader,
+                                             java.util.function.Consumer<Float> writer,
+                                             Predicate<Float> validator) {
         field.validateCommitWith(value -> value != null && validator.test(value));
         field.setName(name);
-        field.bind(reader, value -> { if (isCurrentTarget(nodeId)) writer.accept(value); });
+        field.bind(reader, value -> {
+            if (isCurrentTarget(nodeId)) writer.accept(value);
+        });
         installNumericLifecycle(field);
         return field;
     }
@@ -1981,7 +2040,9 @@ public final class HudInspectorView extends VisTable {
         SimpleTextField field = new SimpleTextField();
         String screenId = session.screenId();
         field.setName(name);
-        field.bind(reader, value -> { if (isCurrentTarget(screenId, nodeId)) writer.accept(value); });
+        field.bind(reader, value -> {
+            if (isCurrentTarget(screenId, nodeId)) writer.accept(value);
+        });
         installTextLifecycle(field);
         addFormLabel(label);
         add(field).growX().left().row();
@@ -2030,12 +2091,18 @@ public final class HudInspectorView extends VisTable {
         VisSelectBox<Choice<E>> box = new VisSelectBox<>();
         box.setName(name);
         @SuppressWarnings("unchecked") Choice<E>[] choices = new Choice[values.length];
-        for (int index = 0; index < values.length; index++) choices[index] = new Choice<>(values[index], labels.apply(values[index]));
+        for (int index = 0; index < values.length; index++)
+            choices[index] = new Choice<>(values[index], labels.apply(values[index]));
         box.setItems(choices);
         E current = reader.get();
-        for (Choice<E> choice : choices) if (choice.value.equals(current)) { box.setSelected(choice); break; }
+        for (Choice<E> choice : choices)
+            if (choice.value.equals(current)) {
+                box.setSelected(choice);
+                break;
+            }
         box.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 if (refreshing || !isCurrentTarget(nodeId)) return;
                 Choice<E> selected = box.getSelected();
                 if (selected != null) edit(nodeId, (node, relation) -> writer.write(node, relation, selected.value));
@@ -2057,10 +2124,14 @@ public final class HudInspectorView extends VisTable {
         box.setItems(choices);
         E current = reader.get();
         for (Choice<E> choice : choices) {
-            if (choice.value.equals(current)) { box.setSelected(choice); break; }
+            if (choice.value.equals(current)) {
+                box.setSelected(choice);
+                break;
+            }
         }
         box.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 if (refreshing || !isCurrentTarget(nodeId)) return;
                 Choice<E> selected = box.getSelected();
                 if (selected != null) writer.accept(selected.value);
@@ -2075,7 +2146,8 @@ public final class HudInspectorView extends VisTable {
         check.setName(name);
         check.setChecked(Boolean.TRUE.equals(reader.get()));
         check.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 if (refreshing || !isCurrentTarget(nodeId)) return;
                 edit(nodeId, (node, relation) -> writer.write(node, relation, check.isChecked()));
             }
@@ -2090,7 +2162,8 @@ public final class HudInspectorView extends VisTable {
         check.setName(name);
         check.setChecked(Boolean.TRUE.equals(reader.get()));
         check.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 if (refreshing || !isCurrentTarget(nodeId)) return;
                 writer.accept(check.isChecked());
             }
@@ -2114,7 +2187,8 @@ public final class HudInspectorView extends VisTable {
         padding.defaults().left();
         padding.add(labeled("Left", left)).padRight(6f).padBottom(PROPERTY_CELL_PAD * 2f);
         padding.add(labeled("Right", right)).padBottom(PROPERTY_CELL_PAD * 2f).row();
-        padding.add(labeled("Top", top)); padding.add(labeled("Bottom", bottom));
+        padding.add(labeled("Top", top));
+        padding.add(labeled("Bottom", bottom));
         addFormLabel("Padding").top();
         add(padding).padLeft(CommonLayout.PAD_LEFT_SUBMENU).growX().left().row();
     }
@@ -2128,7 +2202,8 @@ public final class HudInspectorView extends VisTable {
 
     private VisLabel addReadOnly(String label, String value) {
         addFormLabel(label);
-        VisLabel display = new VisLabel(text(value)); display.setWrap(true);
+        VisLabel display = new VisLabel(text(value));
+        display.setWrap(true);
         add(display).growX().left().row();
         return display;
     }
@@ -2137,18 +2212,23 @@ public final class HudInspectorView extends VisTable {
         return add(new VisLabel(formLabel(label))).minWidth(CommonLayout.LABEL_WIDTH).left();
     }
 
-    private void addPropertySeparator() { add(new Separator()).growX().colspan(2).padTop(5f).padBottom(5f).row(); }
+    private void addPropertySeparator() {
+        add(new Separator()).growX().colspan(2).padTop(5f).padBottom(5f).row();
+    }
 
     private void addError() {
         if (session.status() != HudEditorSession.Status.ERROR) return;
         addPropertySeparator();
-        VisLabel error = new VisLabel(session.errorMessage()); error.setWrap(true); error.setColor(1f, .55f, .55f, 1f);
+        VisLabel error = new VisLabel(session.errorMessage());
+        error.setWrap(true);
+        error.setColor(1f, .55f, .55f, 1f);
         add(error).growX().colspan(2).padTop(6f).row();
     }
 
     private void installNumericLifecycle(SimpleFloatField field) {
         field.addListener(new InputListener() {
-            @Override public boolean keyDown(InputEvent event, int keycode) {
+            @Override
+            public boolean keyDown(InputEvent event, int keycode) {
                 if (keycode != Input.Keys.ESCAPE) return false;
                 field.refresh();
                 if (field.getStage() != null) field.getStage().setKeyboardFocus(null);
@@ -2157,7 +2237,8 @@ public final class HudInspectorView extends VisTable {
             }
         });
         field.addListener(new FocusListener() {
-            @Override public void keyboardFocusChanged(FocusEvent event, Actor actor, boolean focused) {
+            @Override
+            public void keyboardFocusChanged(FocusEvent event, Actor actor, boolean focused) {
                 if (!focused && !refreshing) field.commit();
             }
         });
@@ -2165,7 +2246,8 @@ public final class HudInspectorView extends VisTable {
 
     private void installTextLifecycle(SimpleTextField field) {
         field.addListener(new InputListener() {
-            @Override public boolean keyDown(InputEvent event, int keycode) {
+            @Override
+            public boolean keyDown(InputEvent event, int keycode) {
                 if (keycode != Input.Keys.ESCAPE) return false;
                 field.rollback();
                 if (field.getStage() != null) field.getStage().setKeyboardFocus(null);
@@ -2174,7 +2256,8 @@ public final class HudInspectorView extends VisTable {
             }
         });
         field.addListener(new FocusListener() {
-            @Override public void keyboardFocusChanged(FocusEvent event, Actor actor, boolean focused) {
+            @Override
+            public void keyboardFocusChanged(FocusEvent event, Actor actor, boolean focused) {
                 if (!focused && !refreshing) field.commit();
             }
         });
@@ -2182,7 +2265,8 @@ public final class HudInspectorView extends VisTable {
 
     private void installTextAreaLifecycle(SimpleTextArea field) {
         field.addListener(new InputListener() {
-            @Override public boolean keyDown(InputEvent event, int keycode) {
+            @Override
+            public boolean keyDown(InputEvent event, int keycode) {
                 if (keycode != Input.Keys.ESCAPE) return false;
                 field.rollback();
                 if (field.getStage() != null) field.getStage().setKeyboardFocus(null);
@@ -2191,53 +2275,93 @@ public final class HudInspectorView extends VisTable {
             }
         });
         field.addListener(new FocusListener() {
-            @Override public void keyboardFocusChanged(FocusEvent event, Actor actor, boolean focused) {
+            @Override
+            public void keyboardFocusChanged(FocusEvent event, Actor actor, boolean focused) {
                 if (!focused && !refreshing) field.commit();
             }
         });
     }
 
-    private boolean isCurrentTarget(String nodeId) { return nodeId != null && nodeId.equals(session.selectedNodeId()); }
-    private boolean isCurrentCell(String cellId) { return cellId != null && cellId.equals(session.selectedCellId()); }
+    private boolean isCurrentTarget(String nodeId) {
+        return nodeId != null && nodeId.equals(session.selectedNodeId());
+    }
+
+    private boolean isCurrentCell(String cellId) {
+        return cellId != null && cellId.equals(session.selectedCellId());
+    }
+
     private boolean isCurrentTarget(String screenId, String nodeId) {
         return Objects.equals(screenId, session.screenId()) && isCurrentTarget(nodeId);
     }
+
     private void edit(String nodeId, BiConsumer<HudNode, HudChild> mutation) {
         if (isCurrentTarget(nodeId)) session.editSelectedNode("Edit HUD node property", mutation);
     }
+
     private <T> Supplier<T> nodeValue(String nodeId, Function<HudNode, T> reader) {
-        return () -> { HudNode node = HudLayoutAuthoring.node(session.document(), nodeId); return node != null ? reader.apply(node) : null; };
+        return () -> {
+            HudNode node = HudLayoutAuthoring.node(session.document(), nodeId);
+            return node != null ? reader.apply(node) : null;
+        };
     }
+
     private <T> Supplier<T> relationValue(String nodeId, Function<HudChild, T> reader) {
-        return () -> { HudChild relation = HudLayoutAuthoring.childRelation(session.document(), nodeId); return relation != null ? reader.apply(relation) : null; };
+        return () -> {
+            HudChild relation = HudLayoutAuthoring.childRelation(session.document(), nodeId);
+            return relation != null ? reader.apply(relation) : null;
+        };
     }
+
     private <T> Supplier<T> cellValue(String cellId, Function<HudTableCell, T> reader) {
         return () -> {
             HudTableCell cell = HudLayoutAuthoring.cell(session.document(), cellId);
             return cell != null ? reader.apply(cell) : null;
         };
     }
-    private static Predicate<Float> nonNegative() { return value -> value != null && value >= 0f; }
-    private static Predicate<Float> finite() { return value -> value != null && Float.isFinite(value); }
-    private static Predicate<Float> within(float minimum, float maximum) { return value -> value != null && value >= minimum && value <= maximum; }
-    private static String formLabel(String label) { return label.endsWith(":") ? label : label + ":"; }
-    private static String text(String value) { return value == null || value.isBlank() ? "—" : value; }
+
+    private static Predicate<Float> nonNegative() {
+        return value -> value != null && value >= 0f;
+    }
+
+    private static Predicate<Float> finite() {
+        return value -> value != null && Float.isFinite(value);
+    }
+
+    private static Predicate<Float> within(float minimum, float maximum) {
+        return value -> value != null && value >= minimum && value <= maximum;
+    }
+
+    private static String formLabel(String label) {
+        return label.endsWith(":") ? label : label + ":";
+    }
+
+    private static String text(String value) {
+        return value == null || value.isBlank() ? "—" : value;
+    }
+
     private static LabelStyleOption labelStyleOption(String styleName) {
         return styleName == null || styleName.isBlank()
                 ? new LabelStyleOption(null, "Default")
                 : new LabelStyleOption(styleName, styleName);
     }
+
     private static String enumLabel(Enum<?> value) {
         String name = value.name().toLowerCase().replace('_', ' ');
         return Character.toUpperCase(name.charAt(0)) + name.substring(1);
     }
+
     private static ChangeListener change(Runnable action) {
         return new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) { action.run(); }
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                action.run();
+            }
         };
     }
 
-    /** Ephemeral inspector state; authored selection remains in {@link HudNode#selectBox}. */
+    /**
+     * Ephemeral inspector state; authored selection remains in {@link HudNode#selectBox}.
+     */
     private static final class SelectBoxItemsEditorState {
         private String screenId;
         private String nodeId;
@@ -2286,19 +2410,47 @@ public final class HudInspectorView extends VisTable {
             return matches(screenId, nodeId) && diagnostic != null && !diagnostic.isBlank();
         }
 
-        String diagnostic() { return diagnostic; }
+        String diagnostic() {
+            return diagnostic;
+        }
 
         private boolean matches(String screenId, String nodeId) {
             return Objects.equals(this.screenId, screenId) && Objects.equals(this.nodeId, nodeId);
         }
     }
 
-    private record Choice<E>(E value, String label) { @Override public String toString() { return label; } }
-    private record SkinChoice(Integer assetId, String skinId, String label, boolean missing) { }
-    private record LabelStyleOption(String styleName, String label) { }
-    private enum CellDimension { MIN_WIDTH, MIN_HEIGHT, PREF_WIDTH, PREF_HEIGHT }
-    @FunctionalInterface private interface ChoiceWriter<E> { void write(HudNode node, HudChild relation, E selected); }
-    @FunctionalInterface private interface BooleanWriter { void write(HudNode node, HudChild relation, boolean checked); }
-    @FunctionalInterface private interface CellPairBooleanWriter { void write(HudTableCell cell, boolean x, boolean y); }
-    @FunctionalInterface private interface CellChoiceWriter<E> { void write(HudTableCell cell, E selected); }
+    private record Choice<E>(E value, String label) {
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
+    private record SkinChoice(Integer assetId, String skinId, String label, boolean missing) {
+    }
+
+    private record LabelStyleOption(String styleName, String label) {
+    }
+
+    private enum CellDimension {MIN_WIDTH, MIN_HEIGHT, PREF_WIDTH, PREF_HEIGHT}
+
+    @FunctionalInterface
+    private interface ChoiceWriter<E> {
+        void write(HudNode node, HudChild relation, E selected);
+    }
+
+    @FunctionalInterface
+    private interface BooleanWriter {
+        void write(HudNode node, HudChild relation, boolean checked);
+    }
+
+    @FunctionalInterface
+    private interface CellPairBooleanWriter {
+        void write(HudTableCell cell, boolean x, boolean y);
+    }
+
+    @FunctionalInterface
+    private interface CellChoiceWriter<E> {
+        void write(HudTableCell cell, E selected);
+    }
 }

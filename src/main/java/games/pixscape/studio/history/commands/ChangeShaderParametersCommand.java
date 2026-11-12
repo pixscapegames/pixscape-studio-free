@@ -7,7 +7,9 @@ import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.component.ShaderParamsComponent;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 
-/** One undoable entity parameter edit, including component creation/removal. */
+/**
+ * One undoable entity parameter edit, including component creation/removal.
+ */
 public final class ChangeShaderParametersCommand implements Command {
     private final World world;
     private final int entityId;
@@ -28,9 +30,20 @@ public final class ChangeShaderParametersCommand implements Command {
         this.after = copy(after);
     }
 
-    @Override public void redo() { apply(after, after.size > 0); }
-    @Override public void undo() { apply(before, hadComponent); }
-    @Override public String label() { return "Change shader parameters"; }
+    @Override
+    public void redo() {
+        apply(after, after.size > 0);
+    }
+
+    @Override
+    public void undo() {
+        apply(before, hadComponent);
+    }
+
+    @Override
+    public String label() {
+        return "Change shader parameters";
+    }
 
     private void apply(Array<ShaderFloatParam> values, boolean keepComponent) {
         if (!world.getEntityManager().isActive(entityId)) return;

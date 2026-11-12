@@ -10,16 +10,19 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
-/** Builds the local, non-recursive HUD navigation targets for the current materialization. */
+/**
+ * Builds the local, non-recursive HUD navigation targets for the current materialization.
+ */
 final class HudSelectionOverlayProjection {
-    private HudSelectionOverlayProjection() {}
+    private HudSelectionOverlayProjection() {
+    }
 
     static List<HudSelectionTarget> from(HudDocumentV1 document,
-                                          Map<String, Actor> actorsByNodeId,
-                                          Map<String, Cell<?>> cellsById,
-                                          String selectedNodeId,
-                                          String selectedCellId,
-                                          Actor overlay) {
+                                         Map<String, Actor> actorsByNodeId,
+                                         Map<String, Cell<?>> cellsById,
+                                         String selectedNodeId,
+                                         String selectedCellId,
+                                         Actor overlay) {
         if (document == null || document.root == null || actorsByNodeId == null || overlay == null) {
             return List.of();
         }
@@ -86,7 +89,7 @@ final class HudSelectionOverlayProjection {
     }
 
     private static HudSelectionTarget actorTarget(String nodeId, Actor actor,
-                                                   Actor overlay, boolean selected) {
+                                                  Actor overlay, boolean selected) {
         Rectangle bounds = HudOverlayGeometry.visibleActorBoundsInOverlay(actor, overlay, new Rectangle());
         return HudSelectionTarget.from(nodeId, HudSelectionTarget.Type.ACTOR, bounds, selected);
     }
@@ -151,10 +154,11 @@ final class HudSelectionOverlayProjection {
                 if (nested != null) return nested;
             }
         }
-        if (node.children != null) for (HudChild child : node.children) if (child != null) {
-            HudTableCell nested = findCell(child.node, cellId);
-            if (nested != null) return nested;
-        }
+        if (node.children != null) for (HudChild child : node.children)
+            if (child != null) {
+                HudTableCell nested = findCell(child.node, cellId);
+                if (nested != null) return nested;
+            }
         return null;
     }
 
@@ -176,5 +180,6 @@ final class HudSelectionOverlayProjection {
         return children;
     }
 
-    private record Candidate(HudSelectionTarget target, Actor actor) {}
+    private record Candidate(HudSelectionTarget target, Actor actor) {
+    }
 }

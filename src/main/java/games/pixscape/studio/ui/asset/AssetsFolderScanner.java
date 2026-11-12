@@ -104,7 +104,9 @@ public final class AssetsFolderScanner {
         return out;
     }
 
-    /** Normal maps are associated resources, not independent paintable tile assets. */
+    /**
+     * Normal maps are associated resources, not independent paintable tile assets.
+     */
     static void appendNormalMaps(AssetMetaDatabase db, String folderPath, Array<AssetNode> out) {
         String prefix = StudioFs.DIR_ORIG_TILES + "/";
         String directory = folderPath == null || folderPath.isEmpty() ? "" : folderPath + "/";

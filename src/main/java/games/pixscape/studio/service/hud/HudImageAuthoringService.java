@@ -13,7 +13,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-/** Performs immediate Image authoring; Runtime preparation is observed separately. */
+/**
+ * Performs immediate Image authoring; Runtime preparation is observed separately.
+ */
 public final class HudImageAuthoringService implements AutoCloseable {
     private final Supplier<FileHandle> projectDir;
     private final Supplier<AssetMetaDatabase> assetDatabase;
@@ -30,21 +32,27 @@ public final class HudImageAuthoringService implements AutoCloseable {
         this.preview = Objects.requireNonNull(preview, "preview");
     }
 
-    public void addListener(Runnable listener) { listeners.add(Objects.requireNonNull(listener, "listener")); }
+    public void addListener(Runnable listener) {
+        listeners.add(Objects.requireNonNull(listener, "listener"));
+    }
 
     public boolean canAdd(AssetNode selectedAsset) {
         if (!canAddContext(preview.selectedNodeId())) return false;
         try {
             return HudImageAssetRef.fromSelected(
                     selectedAsset, assetDatabase.get(), projectDir.get()) != null;
-        } catch (RuntimeException invalid) { return false; }
+        } catch (RuntimeException invalid) {
+            return false;
+        }
     }
 
     public boolean canAdd(int assetId, String parentId) {
         if (!canAddContext(parentId)) return false;
         try {
             return HudImageAssetRef.fromAssetId(assetId, assetDatabase.get(), projectDir.get()) != null;
-        } catch (RuntimeException invalid) { return false; }
+        } catch (RuntimeException invalid) {
+            return false;
+        }
     }
 
     public boolean canAssignImageButton(int assetId, String nodeId) {
@@ -55,7 +63,9 @@ public final class HudImageAuthoringService implements AutoCloseable {
         if (node == null || (node.imageButton == null && node.imageTextButton == null)) return false;
         try {
             return HudImageAssetRef.fromAssetId(assetId, assetDatabase.get(), projectDir.get()) != null;
-        } catch (RuntimeException invalid) { return false; }
+        } catch (RuntimeException invalid) {
+            return false;
+        }
     }
 
     private boolean canAddContext(String parentId) {
@@ -65,20 +75,26 @@ public final class HudImageAuthoringService implements AutoCloseable {
                 && HudLayoutAuthoring.canAddChild(active.document(), parentId);
     }
 
-    /** Publishes the authored Image now; the document-publication observer prepares Runtime later. */
+    /**
+     * Publishes the authored Image now; the document-publication observer prepares Runtime later.
+     */
     public String add(AssetNode selectedAsset) {
         if (!canAdd(selectedAsset)) return null;
         return add(selectedAsset != null ? selectedAsset.assetId : -1,
                 preview.selectedNodeId(), null, activeDocument());
     }
 
-    /** DnD entry point; capturedDocument prevents a release from crossing an activation change. */
+    /**
+     * DnD entry point; capturedDocument prevents a release from crossing an activation change.
+     */
     public String add(int assetId, String parentId, HudFreePlacement placement,
                       HudScreenEditorDocument capturedDocument) {
         return add(assetId, new HudEditorSession.ImageDropTarget(parentId, placement), capturedDocument);
     }
 
-    /** DnD entry point carrying the resolved parent-local placement and supported source size. */
+    /**
+     * DnD entry point carrying the resolved parent-local placement and supported source size.
+     */
     public String add(int assetId, HudEditorSession.ImageDropTarget dropTarget,
                       HudScreenEditorDocument capturedDocument) {
         if (dropTarget == null) return null;
@@ -104,16 +120,18 @@ public final class HudImageAuthoringService implements AutoCloseable {
         return imageId;
     }
 
-    /** Applies an Image drag to the native ImageButton imageUp state without changing selection. */
+    /**
+     * Applies an Image drag to the native ImageButton imageUp state without changing selection.
+     */
     public boolean assignImageButton(int assetId, String nodeId, HudScreenEditorDocument capturedDocument) {
         if (activeDocument() != capturedDocument || !canAssignImageButton(assetId, nodeId)) return false;
         HudImageAssetRef image = HudImageAssetRef.fromAssetId(assetId, assetDatabase.get(), projectDir.get());
         var node = HudLayoutAuthoring.node(capturedDocument.document(), nodeId);
         boolean changed = node != null && node.imageTextButton != null
                 ? preview.editImageTextButtonImage(nodeId, HudEditorSession.ImageButtonImageSlot.UP,
-                        image.resourceName())
+                image.resourceName())
                 : preview.editImageButtonImage(nodeId, HudEditorSession.ImageButtonImageSlot.UP,
-                        image.resourceName());
+                image.resourceName());
         if (!changed) return false;
         changed();
         return true;
@@ -121,8 +139,9 @@ public final class HudImageAuthoringService implements AutoCloseable {
 
     private void changed() {
         for (Runnable listener : List.copyOf(listeners)) {
-            try { listener.run(); }
-            catch (RuntimeException failure) {
+            try {
+                listener.run();
+            } catch (RuntimeException failure) {
                 if (com.badlogic.gdx.Gdx.app != null)
                     com.badlogic.gdx.Gdx.app.error("HudImageAuthoring", "HUD authoring status observer failed", failure);
             }
@@ -133,7 +152,8 @@ public final class HudImageAuthoringService implements AutoCloseable {
         return documentManager.activeDocument() instanceof HudScreenEditorDocument hud ? hud : null;
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         closed = true;
         listeners.clear();
     }

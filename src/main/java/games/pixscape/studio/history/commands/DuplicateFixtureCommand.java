@@ -34,14 +34,14 @@ public final class DuplicateFixtureCommand implements Command, HistoryManager.Su
         this.delegate = noop
                 ? null
                 : new AddFixtureCommand(
-                        world,
-                        historyIds,
-                        physicsSelectionService,
-                        physicsService,
-                        bodyEntityId,
-                        duplicate,
-                        sourceIndex + 1
-                );
+                world,
+                historyIds,
+                physicsSelectionService,
+                physicsService,
+                bodyEntityId,
+                duplicate,
+                sourceIndex + 1
+        );
     }
 
     @Override

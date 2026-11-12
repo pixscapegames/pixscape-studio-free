@@ -8,7 +8,8 @@ import static games.pixscape.studio.service.hud.HudLayoutAuthoring.StructureActi
 import static org.junit.Assert.*;
 
 public class HudTableStructureAuthoringTest {
-    @Test public void windowAndDialogContentTablesUseTheSameStructuralCommands() {
+    @Test
+    public void windowAndDialogContentTablesUseTheSameStructuralCommands() {
         for (HudNodeKind kind : new HudNodeKind[]{HudNodeKind.WINDOW, HudNodeKind.DIALOG}) {
             HudNode root = new HudNode("root", HudNodeKind.GROUP);
             HudNode owner = new HudNode("owner", kind);
@@ -27,7 +28,9 @@ public class HudTableStructureAuthoringTest {
             valid(document);
         }
     }
-    @Test public void minimumAndMaximumGridDimensionsDisableStructuralCommands() {
+
+    @Test
+    public void minimumAndMaximumGridDimensionsDisableStructuralCommands() {
         HudDocumentV1 single = grid(1, 1);
         String cell = single.root.table.rows.get(0).cells.get(0).id;
         assertNotNull(HudLayoutAuthoring.structureRejection(single, DELETE_ROW, cell, cell));
@@ -41,7 +44,9 @@ public class HudTableStructureAuthoringTest {
         assertNotNull(HudLayoutAuthoring.structureRejection(maxColumns, INSERT_COLUMN_AFTER,
                 columnCell, columnCell));
     }
-    @Test public void rowInsertionUsesNewMinimaAndDeletionNeverLosesContent() {
+
+    @Test
+    public void rowInsertionUsesNewMinimaAndDeletionNeverLosesContent() {
         HudDocumentV1 document = grid(2, 2);
         HudTableLayout table = document.root.table;
         HudTableCell original = table.rows.get(0).cells.get(0);
@@ -69,7 +74,8 @@ public class HudTableStructureAuthoringTest {
         valid(document);
     }
 
-    @Test public void columnInsertionAndDeletionRespectDifferentSpansAtomically() {
+    @Test
+    public void columnInsertionAndDeletionRespectDifferentSpansAtomically() {
         HudDocumentV1 document = grid(2, 3);
         HudTableLayout table = document.root.table;
         HudTableCell left = table.rows.get(0).cells.get(0);
@@ -108,7 +114,8 @@ public class HudTableStructureAuthoringTest {
         valid(document);
     }
 
-    @Test public void mergeAndSplitPreserveAnchorConstraintsAndSingleWidget() {
+    @Test
+    public void mergeAndSplitPreserveAnchorConstraintsAndSingleWidget() {
         HudDocumentV1 document = grid(1, 4);
         HudTableLayout table = document.root.table;
         HudTableCell first = table.rows.get(0).cells.get(0);
@@ -140,7 +147,8 @@ public class HudTableStructureAuthoringTest {
                 table.rows.get(0).cells.get(0).id, table.rows.get(0).cells.get(1).id));
     }
 
-    @Test public void mergeOfAlreadyMergedCellsAddsTheirSpansWithoutChangingColumns() {
+    @Test
+    public void mergeOfAlreadyMergedCellsAddsTheirSpansWithoutChangingColumns() {
         HudDocumentV1 document = grid(1, 4);
         HudTableLayout table = document.root.table;
         HudTableCell left = table.rows.get(0).cells.get(0);
@@ -158,7 +166,8 @@ public class HudTableStructureAuthoringTest {
         valid(document);
     }
 
-    @Test public void editSessionUndoRedoAndCodecRestoreExactStructure() {
+    @Test
+    public void editSessionUndoRedoAndCodecRestoreExactStructure() {
         HudDocumentV1 document = grid(1, 2);
         String firstId = document.root.table.rows.get(0).cells.get(0).id;
         String secondId = document.root.table.rows.get(0).cells.get(1).id;

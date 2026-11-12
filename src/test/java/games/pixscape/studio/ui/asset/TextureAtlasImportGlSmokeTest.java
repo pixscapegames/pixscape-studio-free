@@ -27,9 +27,12 @@ import java.util.Set;
 import static org.junit.Assert.*;
 import static org.junit.Assume.assumeTrue;
 
-/** Opt-in real Studio import/preview/export check; uses only a disposable project and preferences. */
+/**
+ * Opt-in real Studio import/preview/export check; uses only a disposable project and preferences.
+ */
 public class TextureAtlasImportGlSmokeTest {
-    @Test public void importsDaemonDirectThroughDialogPreviewsReloadsAndExportsWithExistingRuntime() throws Exception {
+    @Test
+    public void importsDaemonDirectThroughDialogPreviewsReloadsAndExportsWithExistingRuntime() throws Exception {
         assumeTrue("1".equals(System.getenv("PIXSCAPE_ATLAS_IMPORT_GL_TEST")));
         String source = System.getenv("PIXSCAPE_TEST_ATLAS");
         assumeTrue(source != null && !source.isBlank());
@@ -37,26 +40,33 @@ public class TextureAtlasImportGlSmokeTest {
         ProjectConfig original = ProjectConfig.getInstance();
         String home = System.getProperty("user.home");
         ProjectConfig cfg = new ProjectConfig();
-        cfg.projectDirectoryPath = root.path(); cfg.projectFileName = "test.json";
+        cfg.projectDirectoryPath = root.path();
+        cfg.projectFileName = "test.json";
         cfg.createSceneMeta("Main");
         root.child("scenes/scene1.json").writeString("{}", false);
         System.setProperty("user.home", root.child("home").path());
         ProjectConfig.setInstance(cfg);
         Throwable[] failure = {null};
         var gl = new Lwjgl3ApplicationConfiguration();
-        gl.setTitle("Texture atlas import regression"); gl.setWindowedMode(1100, 850);
-        gl.setInitialVisible(false); gl.disableAudio(true);
+        gl.setTitle("Texture atlas import regression");
+        gl.setWindowedMode(1100, 850);
+        gl.setInitialVisible(false);
+        gl.disableAudio(true);
         gl.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.GL30, 3, 2);
         try (var globals = new StudioGlTestScope()) {
             new Lwjgl3Application(new ApplicationAdapter() {
                 StudioApplicationAdapter studio;
-                @Override public void create() {
+
+                @Override
+                public void create() {
                     try {
-                        studio = new StudioApplicationAdapter(); studio.create();
+                        studio = new StudioApplicationAdapter();
+                        studio.create();
                         AssetMetaDatabase db = new AssetMetaDatabase();
                         db.save(root.child(StudioFs.FILE_ASSETS_JSON));
                         var field = SceneService.class.getDeclaredField("assetMetaDatabase");
-                        field.setAccessible(true); field.set(studio.getSceneService(), db);
+                        field.setAccessible(true);
+                        field.set(studio.getSceneService(), db);
                         ImportDialog dialog = new ImportDialog(studio, studio.getSceneService()::importAssets, null);
                         dialog.show(studio.getUiStage());
                         assertTrue(dialog.onOsFilesDropped(new String[]{source}));
@@ -66,13 +76,19 @@ public class TextureAtlasImportGlSmokeTest {
                         // The ordinary Image and grid Sprite sheet paths remain usable in the same project.
                         FileHandle image = root.child("external/ordinary.png");
                         Pixmap pixels = new Pixmap(4, 2, Pixmap.Format.RGBA8888);
-                        try { pixels.setColor(0xabcdef80); pixels.fill(); PixmapIO.writePNG(image, pixels); }
-                        finally { pixels.dispose(); }
+                        try {
+                            pixels.setColor(0xabcdef80);
+                            pixels.fill();
+                            PixmapIO.writePNG(image, pixels);
+                        } finally {
+                            pixels.dispose();
+                        }
                         image.copyTo(image.sibling("sheet.png"));
                         var imageItem = new ImportDialog.ImportItem(image);
                         var sheetItem = new ImportDialog.ImportItem(image.sibling("sheet.png"));
                         sheetItem.type = ImportDialog.ImportType.SPRITESHEET;
-                        sheetItem.tileWidth = 2; sheetItem.tileHeight = 2;
+                        sheetItem.tileWidth = 2;
+                        sheetItem.tileHeight = 2;
                         studio.getSceneService().importAssets(new Array<>(new ImportDialog.ImportItem[]{imageItem, sheetItem}));
                         assertEquals(13, db.size());
                         assertEquals(AssetType.IMAGE, db.findByLogicalPath("images/ordinary").type());
@@ -90,7 +106,8 @@ public class TextureAtlasImportGlSmokeTest {
                                 assertTrue(visual.texture().getTextureObjectHandle() > 0);
                                 assertTrue(visual.pixelWidth() > 0);
                             }
-                            if (asset instanceof AnimationAssetMeta) cfg.getCurrentSceneMeta().runtimeAvailability.animationAssetIds.add(asset.id());
+                            if (asset instanceof AnimationAssetMeta)
+                                cfg.getCurrentSceneMeta().runtimeAvailability.animationAssetIds.add(asset.id());
                             else cfg.getCurrentSceneMeta().runtimeAvailability.spriteAssetIds.add(asset.id());
                         }
                         // One existing scene packing operation for all imported assets.
@@ -100,10 +117,13 @@ public class TextureAtlasImportGlSmokeTest {
                         try {
                             sourcePaths = inputs.collectRequiredAtlasInputPathsForScene(cfg, world,
                                     cfg.getCurrentSceneMeta(), loaded, new TileAnimationsMetaDatabase());
-                        } finally { world.dispose(); }
+                        } finally {
+                            world.dispose();
+                        }
                         assertEquals(27, sourcePaths.size()); // 24 atlas frames, 2 grid frames and 1 image.
                         studio.getCanvas().getAtlasService().repackImportedScenes(cfg, root, Set.of("scene1"),
-                                () -> inputs.syncSceneAtlasInput(cfg, "scene1", root, sourcePaths), () -> { });
+                                () -> inputs.syncSceneAtlasInput(cfg, "scene1", root, sourcePaths), () -> {
+                                });
                         FileHandle destination = root.child("export");
                         RuntimeExport.exportRuntime(cfg, root, destination);
                         FileHandle runtimeRoot = destination.child(RuntimeExport.RUNTIME_DIR_NAME);
@@ -119,16 +139,26 @@ public class TextureAtlasImportGlSmokeTest {
                                 assertNotNull(asset.logicalPath(), binding);
                                 assertEquals(asset instanceof AnimationAssetMeta a ? a.frameCount : 1, binding.regionCount());
                             }
-                        } finally { runtimeAtlas.unloadAll(); }
+                        } finally {
+                            runtimeAtlas.unloadAll();
+                        }
                         assertFalse(runtimeRoot.child("atlases/input").exists());
                         assertFalse(runtimeRoot.child("atlases/.tmp").exists());
-                    } catch (Throwable error) { failure[0] = error; }
-                    finally { Gdx.app.exit(); }
+                    } catch (Throwable error) {
+                        failure[0] = error;
+                    } finally {
+                        Gdx.app.exit();
+                    }
                 }
-                @Override public void dispose() { if (studio != null) studio.dispose(); }
+
+                @Override
+                public void dispose() {
+                    if (studio != null) studio.dispose();
+                }
             }, gl);
         } finally {
-            ProjectConfig.setInstance(original); System.setProperty("user.home", home);
+            ProjectConfig.setInstance(original);
+            System.setProperty("user.home", home);
         }
         if (failure[0] != null) throw new AssertionError("Texture atlas Studio integration failed", failure[0]);
     }

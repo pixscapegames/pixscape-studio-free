@@ -9,7 +9,9 @@ import java.nio.file.Path;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-/** Focused wiring checks for multi-Scene document activation. */
+/**
+ * Focused wiring checks for multi-Scene document activation.
+ */
 public class EditorDocumentLifecycleContractTest {
     @Test
     public void sceneLoadingPublishesACompleteCandidateWithoutReplacingOpenScenes() throws Exception {

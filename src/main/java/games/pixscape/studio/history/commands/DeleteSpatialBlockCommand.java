@@ -14,7 +14,9 @@ import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialStructureTopology;
 
-/** Atomic full-layer authored-wall snapshot command for deletion and structure splits. */
+/**
+ * Atomic full-layer authored-wall snapshot command for deletion and structure splits.
+ */
 public final class DeleteSpatialBlockCommand implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
     private final World world;
     private final HistoryIdRegistry historyIds;
@@ -66,8 +68,15 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
                 ? CommandOutcome.NO_CHANGE : CommandOutcome.APPLIED;
     }
 
-    @Override public String label() { return "Delete Spatial Wall"; }
-    @Override public boolean isNoop() { return initialOutcome != CommandOutcome.APPLIED; }
+    @Override
+    public String label() {
+        return "Delete Spatial Wall";
+    }
+
+    @Override
+    public boolean isNoop() {
+        return initialOutcome != CommandOutcome.APPLIED;
+    }
 
     @Override
     public void redo() {

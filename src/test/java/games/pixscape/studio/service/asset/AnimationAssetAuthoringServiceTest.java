@@ -89,7 +89,7 @@ public class AnimationAssetAuthoringServiceTest {
             AssetMetaDatabase database, FileHandle assetsFile) {
         return new AnimationAssetAuthoringService(
                 () -> database, () -> assetsFile, ignored -> {
-                });
+        });
     }
 
     private static AnimationAssetMeta animation(AssetMetaDatabase database, float fps) {

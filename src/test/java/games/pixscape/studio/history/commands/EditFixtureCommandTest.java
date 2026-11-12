@@ -184,7 +184,7 @@ public class EditFixtureCommandTest {
         EditFixtureCommand command = harness.newEdit(cmd -> {
             cmd.geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
             cmd.geometry.polygonVertexCount = 4;
-            cmd.geometry.polygonVertices = new float[] {
+            cmd.geometry.polygonVertices = new float[]{
                     -1f, -1f,
                     1f, -1f,
                     1f, 1f,
@@ -193,7 +193,7 @@ public class EditFixtureCommandTest {
         }, true);
 
         command.redo();
-        assertPolygon(harness.fixture(), 4, new float[] {
+        assertPolygon(harness.fixture(), 4, new float[]{
                 -1f, -1f,
                 1f, -1f,
                 1f, 1f,
@@ -206,7 +206,7 @@ public class EditFixtureCommandTest {
 
         command.redo();
         Assert.assertEquals(PhysicsGeometryData.SHAPE_POLYGON, harness.fixture().geometry.shapeType);
-        assertPolygon(harness.fixture(), 4, new float[] {
+        assertPolygon(harness.fixture(), 4, new float[]{
                 -1f, -1f,
                 1f, -1f,
                 1f, 1f,
@@ -221,7 +221,7 @@ public class EditFixtureCommandTest {
         EditFixtureCommand toPolygon = harness.newEdit(cmd -> {
             cmd.geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
             cmd.geometry.polygonVertexCount = 3;
-            cmd.geometry.polygonVertices = new float[] {
+            cmd.geometry.polygonVertices = new float[]{
                     0f, 0f,
                     1f, 0f,
                     0f, 1f
@@ -231,7 +231,7 @@ public class EditFixtureCommandTest {
 
         EditFixtureCommand replace = harness.newEdit(cmd -> {
             cmd.geometry.polygonVertexCount = 4;
-            cmd.geometry.polygonVertices = new float[] {
+            cmd.geometry.polygonVertices = new float[]{
                     -0.5f, -0.5f,
                     0.8f, -0.4f,
                     1.2f, 0.7f,
@@ -240,7 +240,7 @@ public class EditFixtureCommandTest {
         }, true);
 
         replace.redo();
-        assertPolygon(harness.fixture(), 4, new float[] {
+        assertPolygon(harness.fixture(), 4, new float[]{
                 -0.5f, -0.5f,
                 0.8f, -0.4f,
                 1.2f, 0.7f,
@@ -248,14 +248,14 @@ public class EditFixtureCommandTest {
         });
 
         replace.undo();
-        assertPolygon(harness.fixture(), 3, new float[] {
+        assertPolygon(harness.fixture(), 3, new float[]{
                 0f, 0f,
                 1f, 0f,
                 0f, 1f
         });
 
         replace.redo();
-        assertPolygon(harness.fixture(), 4, new float[] {
+        assertPolygon(harness.fixture(), 4, new float[]{
                 -0.5f, -0.5f,
                 0.8f, -0.4f,
                 1.2f, 0.7f,

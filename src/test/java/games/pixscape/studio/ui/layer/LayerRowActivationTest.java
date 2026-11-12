@@ -19,10 +19,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.*;
 
 public class LayerRowActivationTest {
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
 
-    @Test public void singleClickSelectsAndSecondClickOpensThroughScene2dInput() {
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
+
+    @Test
+    public void singleClickSelectsAndSecondClickOpensThroughScene2dInput() {
         Stage stage = new Stage(new ScreenViewport(), inertBatch());
         AtomicInteger selections = new AtomicInteger();
         AtomicInteger opens = new AtomicInteger();
@@ -32,15 +40,22 @@ public class LayerRowActivationTest {
             LayerRow row = new LayerRow();
             row.setBounds(0f, 50f, 200f, 50f);
             row.setListener(new LayerRow.Listener() {
-                @Override public void onVisibleChanged(LayerRow row, boolean visible) {}
-                @Override public void onLockedChanged(LayerRow row, boolean locked) {}
+                @Override
+                public void onVisibleChanged(LayerRow row, boolean visible) {
+                }
 
-                @Override public void onRowClicked(LayerRow row) {
+                @Override
+                public void onLockedChanged(LayerRow row, boolean locked) {
+                }
+
+                @Override
+                public void onRowClicked(LayerRow row) {
                     selected.set(true);
                     selections.incrementAndGet();
                 }
 
-                @Override public void onRowDoubleClicked(LayerRow row) {
+                @Override
+                public void onRowDoubleClicked(LayerRow row) {
                     assertTrue(selected.get());
                     opens.incrementAndGet();
                 }
@@ -70,7 +85,8 @@ public class LayerRowActivationTest {
         }
     }
 
-    @Test public void hudControlsCanShowVisibilityWithoutShowingLock() {
+    @Test
+    public void hudControlsCanShowVisibilityWithoutShowingLock() {
         LayerRow row = new LayerRow();
         row.setLayerControlsVisible(true, false);
 

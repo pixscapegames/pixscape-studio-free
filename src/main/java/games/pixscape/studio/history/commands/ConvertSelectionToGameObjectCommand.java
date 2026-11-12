@@ -19,9 +19,12 @@ import games.pixscape.studio.service.zorder.LayerLogicalOrderService;
 import java.util.ArrayList;
 import java.util.List;
 
-/** One history operation that wraps existing top-level scene items in a real Game Object root. */
+/**
+ * One history operation that wraps existing top-level scene items in a real Game Object root.
+ */
 public final class ConvertSelectionToGameObjectCommand implements Command {
-    private record IndexSnapshot(long historyId, int layer, int z) { }
+    private record IndexSnapshot(long historyId, int layer, int z) {
+    }
 
     private static final class MemberSnapshot {
         private final long historyId;
@@ -93,9 +96,13 @@ public final class ConvertSelectionToGameObjectCommand implements Command {
             if (!contains(selectedTopToBottom, item.entityId())) desiredTopToBottom.add(item.entityId());
         }
         TransformComponent rootWorld = new TransformComponent();
-        rootWorld.x = rootX; rootWorld.y = rootY;
-        rootWorld.originX = rootOriginX; rootWorld.originY = rootOriginY;
-        rootWorld.scaleX = 1f; rootWorld.scaleY = 1f; rootWorld.rotationRad = 0f;
+        rootWorld.x = rootX;
+        rootWorld.y = rootY;
+        rootWorld.originX = rootOriginX;
+        rootWorld.originY = rootOriginY;
+        rootWorld.scaleX = 1f;
+        rootWorld.scaleY = 1f;
+        rootWorld.rotationRad = 0f;
         rootWorld.refreshCaches();
         ComponentMapper<TransformComponent> transforms = world.getMapper(TransformComponent.class);
         ComponentMapper<PixscapeIdentityComponent> identityMapper = world.getMapper(PixscapeIdentityComponent.class);
@@ -114,7 +121,10 @@ public final class ConvertSelectionToGameObjectCommand implements Command {
         }
     }
 
-    @Override public String label() { return "Convert Selection to Game Object"; }
+    @Override
+    public String label() {
+        return "Convert Selection to Game Object";
+    }
 
     @Override
     public void redo() {
@@ -205,7 +215,8 @@ public final class ConvertSelectionToGameObjectCommand implements Command {
             world.getMapper(GameObjectMemberComponent.class).remove(entityId);
             apply(world.getMapper(TransformComponent.class).get(entityId), snapshot.beforeWorld);
             EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).get(entityId);
-            index.layerIndex = snapshot.layer; index.zIndex = snapshot.globalZ;
+            index.layerIndex = snapshot.layer;
+            index.zIndex = snapshot.globalZ;
         }
         if (root >= 0 && world.getEntityManager().isActive(root)) createRoot.undo();
         restoreOriginalOrder();
@@ -263,9 +274,13 @@ public final class ConvertSelectionToGameObjectCommand implements Command {
     }
 
     private static void apply(TransformComponent target, TransformComponent source) {
-        target.x = source.x; target.y = source.y; target.rotationRad = source.rotationRad;
-        target.scaleX = source.scaleX; target.scaleY = source.scaleY;
-        target.originX = source.originX; target.originY = source.originY;
+        target.x = source.x;
+        target.y = source.y;
+        target.rotationRad = source.rotationRad;
+        target.scaleX = source.scaleX;
+        target.scaleY = source.scaleY;
+        target.originX = source.originX;
+        target.originY = source.originY;
         target.refreshCaches();
     }
 }

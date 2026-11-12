@@ -4,9 +4,12 @@ import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.studio.service.property.PropertyReferenceMapper;
 
-/** Converts internal Scene OBJECT stable IDs into graph-local source IDs. */
+/**
+ * Converts internal Scene OBJECT stable IDs into graph-local source IDs.
+ */
 final class ClipboardPropertyReferenceNormalizer {
-    private ClipboardPropertyReferenceNormalizer() { }
+    private ClipboardPropertyReferenceNormalizer() {
+    }
 
     static PropertySet normalize(PropertySet source, IntMap<Integer> stableToSource) {
         return PropertyReferenceMapper.remap(source, stableId -> {

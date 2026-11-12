@@ -14,12 +14,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Cold project-open upgrade of byte-identifiable supplied Material sources only. */
+/**
+ * Cold project-open upgrade of byte-identifiable supplied Material sources only.
+ */
 public final class BundledMaterialUpgrade {
     private static final String[] NAMES = {"glow_pulse", "outline_soft", "wave_uv"};
     private static final String[] VARIANTS = {"desktop-gl30", "es3-webgl2"};
     private static final Map<String, String> KNOWN = knownSources();
-    private BundledMaterialUpgrade() { }
+
+    private BundledMaterialUpgrade() {
+    }
 
     private static Map<String, String> knownSources() {
         Map<String, String> known = new LinkedHashMap<>();
@@ -58,7 +62,8 @@ public final class BundledMaterialUpgrade {
                 FileHandle target = root.child("examples/material/" + name);
                 writes.put(target.child("shader.json"), supplied.child("shader.json").readBytes());
                 writes.put(target.child("surface.glsl"), supplied.child("surface.glsl").readBytes());
-                for (String variant : VARIANTS) writes.put(root.child("examples/material/" + variant + "/" + name + ".frag"), null);
+                for (String variant : VARIANTS)
+                    writes.put(root.child("examples/material/" + variant + "/" + name + ".frag"), null);
                 JsonValue next = new JsonReader().parse(presets.toJson(JsonWriter.OutputType.json));
                 next.remove(name);
                 writes.put(presetsFile, next.toJson(JsonWriter.OutputType.json).getBytes(StandardCharsets.UTF_8));
@@ -74,7 +79,8 @@ public final class BundledMaterialUpgrade {
             if (!dir.isDirectory() || !dir.child("shader.json").exists()
                     || dir.child("surface.glsl").exists() || dir.child("mask.glsl").exists()) continue;
             JsonValue metadata = new JsonReader().parse(dir.child("shader.json"));
-            if (!"MATERIAL".equalsIgnoreCase(metadata.getString("kind", "MATERIAL")) || metadata.has("contract") || !"TEXTURE_ARRAY".equals(metadata.getString("mode", "TEXTURE_ARRAY"))) continue;
+            if (!"MATERIAL".equalsIgnoreCase(metadata.getString("kind", "MATERIAL")) || metadata.has("contract") || !"TEXTURE_ARRAY".equals(metadata.getString("mode", "TEXTURE_ARRAY")))
+                continue;
             for (String name : NAMES) {
                 FileHandle supplied = Gdx.files.internal("shaders/examples/material/" + name);
                 JsonValue replacement = new JsonReader().parse(supplied.child("shader.json"));
@@ -106,7 +112,8 @@ public final class BundledMaterialUpgrade {
             for (String file : files) known &= matches(from.child(file), "examples/surface/" + name + "/" + file);
             if (!known) continue;
             Map<FileHandle, byte[]> writes = new LinkedHashMap<>();
-            for (String file : files) writes.put(to.child(file), Gdx.files.internal("shaders/examples/material/" + name + "/" + file).readBytes());
+            for (String file : files)
+                writes.put(to.child(file), Gdx.files.internal("shaders/examples/material/" + name + "/" + file).readBytes());
             for (String file : files) writes.put(from.child(file), null);
             publish(writes);
             from.delete(); // It contained exactly the verified files removed above.
@@ -120,12 +127,14 @@ public final class BundledMaterialUpgrade {
         }
         return true;
     }
+
     private static boolean matchesStructured(FileHandle dir, String name) {
         for (String variant : VARIANTS)
             if (!matches(dir.child(variant + ".frag"), "examples/material/" + variant + "/" + name + ".frag")
                     || !matches(dir.child(variant + ".vert"), "core/" + variant + "/texture-array.vert")) return false;
         return true;
     }
+
     private static boolean matchesDependencies(FileHandle root, FileHandle local) {
         for (String include : new String[]{"pixscape_common.glsl", "pixscape_entity_params.glsl"}) {
             String key = "includes/" + include;
@@ -142,6 +151,7 @@ public final class BundledMaterialUpgrade {
         }
         return true;
     }
+
     private static boolean equalParameters(JsonValue a, JsonValue b) {
         if (a == null || b == null || !a.isObject() || a.size != b.size) return false;
         JsonValue x = a.child, y = b.child;
@@ -149,16 +159,21 @@ public final class BundledMaterialUpgrade {
             if (!x.name.equals(y.name) || !x.isNumber() || Float.compare(x.asFloat(), y.asFloat()) != 0) return false;
         return true;
     }
+
     private static boolean matches(FileHandle file, String key) {
         if (!file.exists() || file.isDirectory()) return false;
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(file.readString("UTF-8")
                     .replace("\r\n", "\n").getBytes(StandardCharsets.UTF_8));
             StringBuilder hex = new StringBuilder(64);
-            for (byte value : digest) hex.append(Character.forDigit((value >>> 4) & 15, 16)).append(Character.forDigit(value & 15, 16));
+            for (byte value : digest)
+                hex.append(Character.forDigit((value >>> 4) & 15, 16)).append(Character.forDigit(value & 15, 16));
             return hex.toString().equals(KNOWN.get(key));
-        } catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
     }
+
     private static void publish(Map<FileHandle, byte[]> writes) {
         Map<FileHandle, byte[]> before = new LinkedHashMap<>();
         List<FileHandle> newParents = new ArrayList<>();
@@ -173,15 +188,22 @@ public final class BundledMaterialUpgrade {
             for (Map.Entry<FileHandle, byte[]> entry : writes.entrySet())
                 if (entry.getValue() != null) entry.getKey().writeBytes(entry.getValue(), false);
             for (Map.Entry<FileHandle, byte[]> entry : writes.entrySet())
-                if (entry.getValue() == null && !entry.getKey().delete()) throw new IllegalStateException("Cannot remove obsolete supplied shader: " + entry.getKey());
+                if (entry.getValue() == null && !entry.getKey().delete())
+                    throw new IllegalStateException("Cannot remove obsolete supplied shader: " + entry.getKey());
         } catch (RuntimeException failure) {
-            for (Map.Entry<FileHandle, byte[]> entry : before.entrySet()) try {
-                if (entry.getValue() == null) entry.getKey().delete();
-                else entry.getKey().writeBytes(entry.getValue(), false);
-            } catch (RuntimeException rollback) { failure.addSuppressed(rollback); }
-            for (FileHandle parent : newParents) try {
-                if (parent.isDirectory() && parent.list().length == 0) parent.delete();
-            } catch (RuntimeException rollback) { failure.addSuppressed(rollback); }
+            for (Map.Entry<FileHandle, byte[]> entry : before.entrySet())
+                try {
+                    if (entry.getValue() == null) entry.getKey().delete();
+                    else entry.getKey().writeBytes(entry.getValue(), false);
+                } catch (RuntimeException rollback) {
+                    failure.addSuppressed(rollback);
+                }
+            for (FileHandle parent : newParents)
+                try {
+                    if (parent.isDirectory() && parent.list().length == 0) parent.delete();
+                } catch (RuntimeException rollback) {
+                    failure.addSuppressed(rollback);
+                }
             throw failure;
         }
     }

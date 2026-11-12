@@ -1,6 +1,7 @@
 package games.pixscape.studio.helper;
 
 import games.pixscape.studio.configuration.EditorSettings;
+
 public final class StudioHomeBootstrap {
 
     private StudioHomeBootstrap() {

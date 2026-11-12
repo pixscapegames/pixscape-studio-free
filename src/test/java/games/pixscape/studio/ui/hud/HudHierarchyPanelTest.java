@@ -30,11 +30,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.*;
 
 public class HudHierarchyPanelTest {
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
 
-    @Test public void createdAndReopenedRootCellSelectsFromItemsAndCanvasStage() throws Exception {
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
+
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
+
+    @Test
+    public void createdAndReopenedRootCellSelectsFromItemsAndCanvasStage() throws Exception {
         var project = Gdx.files.absolute(temporary.getRoot().getAbsolutePath());
         String id = new HudScreenAssetAuthoringService().create(project, "stage-cells");
         var persistence = new HudDocumentPersistenceService();
@@ -289,11 +299,14 @@ public class HudHierarchyPanelTest {
             stage.addActor(fixture.panel());
             layout(fixture.panel(), 190f, 130f);
             stage.getRoot().addCaptureListener(new InputListener() {
-                @Override public boolean keyDown(InputEvent event, int keycode) {
+                @Override
+                public boolean keyDown(InputEvent event, int keycode) {
                     if (keycode == Input.Keys.SHIFT_LEFT) shift.set(true);
                     return false;
                 }
-                @Override public boolean keyUp(InputEvent event, int keycode) {
+
+                @Override
+                public boolean keyUp(InputEvent event, int keycode) {
                     if (keycode == Input.Keys.SHIFT_LEFT) shift.set(false);
                     return false;
                 }
@@ -443,7 +456,8 @@ public class HudHierarchyPanelTest {
             stage.addActor(fixture.panel());
             layout(fixture.panel(), 300f, 350f);
             stage.getRoot().addCaptureListener(new InputListener() {
-                @Override public boolean keyDown(InputEvent event, int keycode) {
+                @Override
+                public boolean keyDown(InputEvent event, int keycode) {
                     if (keycode == Input.Keys.SHIFT_LEFT) shift.set(true);
                     return false;
                 }
@@ -590,7 +604,8 @@ public class HudHierarchyPanelTest {
             fixture.panel().tree().validate();
             fixture.panel().scroller().layout();
             stage.getRoot().addCaptureListener(new InputListener() {
-                @Override public boolean keyDown(InputEvent event, int keycode) {
+                @Override
+                public boolean keyDown(InputEvent event, int keycode) {
                     if (keycode != Input.Keys.DEL || !fixture.panel().ownsKeyboardFocus(
                             event.getStage().getKeyboardFocus())) return false;
                     if (!fixture.session().deleteSelectedNode()) return false;
@@ -827,10 +842,11 @@ public class HudHierarchyPanelTest {
             if (found != null) return found;
         }
         if (node.table != null) for (var row : node.table.rows)
-            for (var cell : row.cells) if (cell.content != null) {
-                HudNode found = find(cell.content, nodeId);
-                if (found != null) return found;
-            }
+            for (var cell : row.cells)
+                if (cell.content != null) {
+                    HudNode found = find(cell.content, nodeId);
+                    if (found != null) return found;
+                }
         return null;
     }
 
@@ -863,5 +879,6 @@ public class HudHierarchyPanelTest {
 
     private record Fixture(EditorDocumentManager manager, HudScreenEditorDocument document,
                            HudEditorSession session, HudHierarchyPanel panel,
-                           HudPanelTestSupport.DeferredUi deferred) {}
+                           HudPanelTestSupport.DeferredUi deferred) {
+    }
 }

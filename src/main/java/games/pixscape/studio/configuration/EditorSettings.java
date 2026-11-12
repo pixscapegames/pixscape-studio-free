@@ -9,14 +9,18 @@ import java.util.ArrayList;
 
 public final class EditorSettings {
     public int msaaSamples = 8;
-    /** Optional process override for Preview only; Scene owns the persisted selection. */
+
+    /**
+     * Optional process override for Preview only; Scene owns the persisted selection.
+     */
     public static Boolean forwardLightingOverride() {
-        String mode=System.getProperty("pixscape.lighting");
-        if(mode==null)return null;
-        if("forward".equalsIgnoreCase(mode))return true;
-        if("legacy".equalsIgnoreCase(mode))return false;
+        String mode = System.getProperty("pixscape.lighting");
+        if (mode == null) return null;
+        if ("forward".equalsIgnoreCase(mode)) return true;
+        if ("legacy".equalsIgnoreCase(mode)) return false;
         throw new IllegalArgumentException("pixscape.lighting must be forward or legacy");
     }
+
     public boolean autoRepackAtlases = true;
     public String lastProjectPath;
     public ArrayList<String> recentProjectPaths = new ArrayList<>();

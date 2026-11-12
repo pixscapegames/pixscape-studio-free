@@ -123,7 +123,7 @@ public class SceneServiceSaveAtlasRepackSkipTest {
                 repeat: none
                 grass
                   rotate: false
-
+                
                 scene-2.png
                 size: 2048,2048
                 format: RGBA8888

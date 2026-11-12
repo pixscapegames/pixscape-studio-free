@@ -103,7 +103,7 @@ public class EntityProperties extends VisTable {
 
         transformPanel = new TransformPanel(ctx);
         materialPanel = new MaterialPanel(ctx);
-        lightingPanel = new LightingPanel(ctx,false);
+        lightingPanel = new LightingPanel(ctx, false);
         animationPanel = new AnimationPanel(ctx);
         particleFxPanel = new ParticleFxPanel(ctx);
         repeatablePanel = new RepeatablePanel(ctx);
@@ -326,7 +326,7 @@ public class EntityProperties extends VisTable {
     }
 
     private void updateSectionsVisibility() {
-        lightingSection.setApplicable(currentEntityId>=0 && ctx.world.getMapper(RenderMaterialComponent.class).has(currentEntityId)
+        lightingSection.setApplicable(currentEntityId >= 0 && ctx.world.getMapper(RenderMaterialComponent.class).has(currentEntityId)
                 && !ctx.world.getMapper(ParticleEmitterComponent.class).has(currentEntityId));
         if (currentEntityId < 0) return;
 

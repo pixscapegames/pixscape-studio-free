@@ -8,7 +8,9 @@ import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialStructureCompiler;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
-/** Studio-owned transactional cache for compiled Spatial V3 structure envelopes. */
+/**
+ * Studio-owned transactional cache for compiled Spatial V3 structure envelopes.
+ */
 public final class SpatialStructureGeometryCache {
     private static final SynchronizeResult UNCHANGED = new SynchronizeResult(true, false, null);
 
@@ -23,9 +25,17 @@ public final class SpatialStructureGeometryCache {
             this.diagnostic = diagnostic;
         }
 
-        public boolean success() { return success; }
-        public boolean published() { return published; }
-        public String diagnostic() { return diagnostic; }
+        public boolean success() {
+            return success;
+        }
+
+        public boolean published() {
+            return published;
+        }
+
+        public String diagnostic() {
+            return diagnostic;
+        }
     }
 
     private Array<Entry> entries = new Array<>(Entry[]::new);
@@ -104,12 +114,29 @@ public final class SpatialStructureGeometryCache {
         lastDiagnostic = null;
     }
 
-    public int structureCount() { return entries.size; }
-    public CompiledSpatialStructure structure(int index) { return entries.get(index).compiled; }
-    public int compilationCount() { return compilationCount; }
-    public int publishedRevision() { return publishedRevision; }
-    public int failureCount() { return failureCount; }
-    public String lastDiagnostic() { return lastDiagnostic; }
+    public int structureCount() {
+        return entries.size;
+    }
+
+    public CompiledSpatialStructure structure(int index) {
+        return entries.get(index).compiled;
+    }
+
+    public int compilationCount() {
+        return compilationCount;
+    }
+
+    public int publishedRevision() {
+        return publishedRevision;
+    }
+
+    public int failureCount() {
+        return failureCount;
+    }
+
+    public String lastDiagnostic() {
+        return lastDiagnostic;
+    }
 
     private boolean isPublishedSnapshotCurrent(int requestedLayerEntityId,
                                                SpatialBlocksComponent component,
@@ -268,14 +295,17 @@ public final class SpatialStructureGeometryCache {
         final Array<SpatialBlockData> snapshots = new Array<>(SpatialBlockData[]::new);
         CompiledSpatialStructure compiled;
 
-        Entry(int structureId) { this.structureId = structureId; }
+        Entry(int structureId) {
+            this.structureId = structureId;
+        }
 
         boolean matches(SpatialBlocksComponent component) {
             if (component != null) {
                 if (links.size != component.links.size) return false;
                 for (int i = 0; i < links.size; i++) {
                     games.pixscape.runtime.spatial.SpatialBlockLink a = links.get(i), b = component.links.get(i);
-                    if (a.firstBlockId != b.firstBlockId || a.secondBlockId != b.secondBlockId || a.firstFace != b.firstFace || a.secondFace != b.secondFace) return false;
+                    if (a.firstBlockId != b.firstBlockId || a.secondBlockId != b.secondBlockId || a.firstFace != b.firstFace || a.secondFace != b.secondFace)
+                        return false;
                 }
             }
             int polygonVertexCount = count(component, structureId);

@@ -19,7 +19,8 @@ public class GameObjectBrowserServiceTest {
     public static void bootGdx() {
         if (Gdx.app == null) {
             HeadlessApplicationConfiguration cfg = new HeadlessApplicationConfiguration();
-            new HeadlessApplication(new com.badlogic.gdx.ApplicationAdapter() {}, cfg);
+            new HeadlessApplication(new com.badlogic.gdx.ApplicationAdapter() {
+            }, cfg);
             Gdx.graphics = new MockGraphics();
             Gdx.input = new MockInput();
         }

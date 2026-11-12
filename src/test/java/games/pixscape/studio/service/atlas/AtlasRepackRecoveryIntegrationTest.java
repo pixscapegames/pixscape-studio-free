@@ -21,14 +21,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.*;
 
 public class AtlasRepackRecoveryIntegrationTest {
-    @Rule public TemporaryFolder temporaryFolder = new TemporaryFolder();
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
-    @BeforeClass public static void app() {
-        if (Gdx.app == null) new HeadlessApplication(new ApplicationAdapter() {},
+    @BeforeClass
+    public static void app() {
+        if (Gdx.app == null) new HeadlessApplication(new ApplicationAdapter() {
+        },
                 new HeadlessApplicationConfiguration());
     }
 
-    @Test public void failedSameNamePixelChangeRepacksAfterRestartThenSkips() throws Exception {
+    @Test
+    public void failedSameNamePixelChangeRepacksAfterRestartThenSkips() throws Exception {
         ProjectConfig previous = ProjectConfig.getInstance();
         FileHandle project = new FileHandle(temporaryFolder.newFolder("project"));
         FileHandle source = project.child("images/A.png");

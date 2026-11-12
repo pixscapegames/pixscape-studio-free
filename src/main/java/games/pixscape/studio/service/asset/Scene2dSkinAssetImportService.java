@@ -20,7 +20,9 @@ import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.runtimeavailability.SceneHudDependencyClosure;
 import games.pixscape.studio.service.runtimeavailability.SceneHudDependencyCollector;
 
-/** Validates and atomically imports one native Scene2D Skin bundle. */
+/**
+ * Validates and atomically imports one native Scene2D Skin bundle.
+ */
 public final class Scene2dSkinAssetImportService {
     private final AssetMetaDatabase database;
 
@@ -222,5 +224,6 @@ public final class Scene2dSkinAssetImportService {
     }
 
     private record SkinBundle(FileHandle root,
-                              SceneHudDependencyClosure.SkinDependency dependency) { }
+                              SceneHudDependencyClosure.SkinDependency dependency) {
+    }
 }

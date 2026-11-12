@@ -129,16 +129,19 @@ public class BottomMenuBar extends VisTable {
             refreshSelectBox();
         });
         app.getEditorDocumentManager().addListener(new EditorDocumentManager.Listener() {
-            @Override public void documentOpened(OpenEditorDocument document) {
+            @Override
+            public void documentOpened(OpenEditorDocument document) {
                 if (document.type() == EditorDocumentType.SCENE) refreshSelectBox();
             }
 
-            @Override public void documentActivated(OpenEditorDocument previous,
-                                                     OpenEditorDocument current) {
+            @Override
+            public void documentActivated(OpenEditorDocument previous,
+                                          OpenEditorDocument current) {
                 refreshSelectBox();
             }
 
-            @Override public void documentClosed(OpenEditorDocument document) {
+            @Override
+            public void documentClosed(OpenEditorDocument document) {
                 if (document.type() == EditorDocumentType.SCENE) refreshSelectBox();
             }
         });

@@ -13,14 +13,16 @@ import org.junit.rules.TemporaryFolder;
 import static org.junit.Assert.assertEquals;
 
 public class TileNormalMapBrowserTest {
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
 
     private static TileAssetMeta tile(AssetMetaDatabase db, String name) {
         return (TileAssetMeta) db.registerIfAbsent(AssetType.TILE, "tiles/test/" + name,
                 "orig/tiles/test/" + name + ".png", AssetMeta.AssetScope.USER);
     }
 
-    @Test public void savedAssociationSuppliesPreviewResourceWithoutCreatingAnAsset() throws Exception {
+    @Test
+    public void savedAssociationSuppliesPreviewResourceWithoutCreatingAnAsset() throws Exception {
         AssetMetaDatabase db = new AssetMetaDatabase();
         TileAssetMeta tile = tile(db, "wall");
         tile.normalSourceRelPath = "orig/tiles/test/normals/wall.png";
@@ -36,7 +38,8 @@ public class TileNormalMapBrowserTest {
         assertEquals(-1, AssetsPanel.tileAssetIdForSelection(normal));
     }
 
-    @Test public void associationChangesAreReadAgainOnRefresh() {
+    @Test
+    public void associationChangesAreReadAgainOnRefresh() {
         AssetMetaDatabase db = new AssetMetaDatabase();
         TileAssetMeta tile = tile(db, "wall");
         Array<AssetNode> nodes = new Array<>();
@@ -55,7 +58,8 @@ public class TileNormalMapBrowserTest {
         assertEquals(0, nodes.size);
     }
 
-    @Test public void missingSourceRemainsVisibleAndSharedAssociationsAreDeduplicated() {
+    @Test
+    public void missingSourceRemainsVisibleAndSharedAssociationsAreDeduplicated() {
         AssetMetaDatabase db = new AssetMetaDatabase();
         tile(db, "wall").normalSourceRelPath = "orig/tiles/test/normals/missing.png";
         tile(db, "other").normalSourceRelPath = "orig/tiles/test/normals/missing.png";
@@ -65,7 +69,8 @@ public class TileNormalMapBrowserTest {
         assertEquals("missing.png", nodes.first().name);
     }
 
-    @Test public void directoryBoundariesExcludeOtherTilesets() {
+    @Test
+    public void directoryBoundariesExcludeOtherTilesets() {
         AssetMetaDatabase db = new AssetMetaDatabase();
         tile(db, "wall").normalSourceRelPath = "orig/tiles/test/normals/wall.png";
         tile(db, "other").normalSourceRelPath = "orig/tiles/test/normals-other/wall.png";

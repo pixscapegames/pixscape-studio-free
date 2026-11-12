@@ -13,7 +13,9 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-/** One detached, cold menu proposal. Reference geometry is never part of the solver variables. */
+/**
+ * One detached, cold menu proposal. Reference geometry is never part of the solver variables.
+ */
 public final class SpatialLinkProposal {
     public final SpatialBlocksComponent before;
     public final SpatialBlocksComponent after;
@@ -29,9 +31,17 @@ public final class SpatialLinkProposal {
     private final Array<CompiledSpatialStructure> previewStructures = new Array<>(CompiledSpatialStructure.class);
     private final Set<Integer> replacedStructures = new HashSet<>();
 
-    public int previewStructureCount() { return previewStructures.size; }
-    public CompiledSpatialStructure previewStructure(int index) { return previewStructures.get(index); }
-    public boolean replacesStructure(int id) { return replacedStructures.contains(id); }
+    public int previewStructureCount() {
+        return previewStructures.size;
+    }
+
+    public CompiledSpatialStructure previewStructure(int index) {
+        return previewStructures.get(index);
+    }
+
+    public boolean replacesStructure(int id) {
+        return replacedStructures.contains(id);
+    }
 
     private SpatialLinkProposal(SpatialBlocksComponent source, TiledMapLayerData map, int selectedId, int referenceId, boolean unlink, float defaultHeight) {
         before = copy(source);
@@ -43,8 +53,11 @@ public final class SpatialLinkProposal {
         this.beforeDefaultHeight = defaultHeight;
         this.map = map;
         String error;
-        try { error = solve(); }
-        catch (IllegalArgumentException failure) { error = failure.getMessage(); }
+        try {
+            error = solve();
+        } catch (IllegalArgumentException failure) {
+            error = failure.getMessage();
+        }
         valid = error == null;
         diagnostic = error;
     }
@@ -63,7 +76,7 @@ public final class SpatialLinkProposal {
             for (SpatialBlockData wall : proposal.after.blocks)
                 if (proposal.affected.contains(wall.id) || proposal.reference.contains(wall.id))
                     adaptedStructures.add(wall.structureId);
-            for (int i=0;i<compilation.structureCount();i++)
+            for (int i = 0; i < compilation.structureCount(); i++)
                 if (adaptedStructures.contains(compilation.structure(i).structureId()))
                     proposal.previewStructures.add(compilation.structure(i));
         }
@@ -71,16 +84,27 @@ public final class SpatialLinkProposal {
     }
 
     private SpatialLinkProposal(SpatialLinkProposal proposal, String error) {
-        before = proposal.before; after = proposal.after;
-        selectedId = proposal.selectedId; referenceId = proposal.referenceId; unlink = proposal.unlink;
-        defaultHeight = proposal.defaultHeight; affected.addAll(proposal.affected); reference.addAll(proposal.reference);
-        beforeDefaultHeight = proposal.beforeDefaultHeight; map = proposal.map;
-        valid = false; diagnostic = error;
+        before = proposal.before;
+        after = proposal.after;
+        selectedId = proposal.selectedId;
+        referenceId = proposal.referenceId;
+        unlink = proposal.unlink;
+        defaultHeight = proposal.defaultHeight;
+        affected.addAll(proposal.affected);
+        reference.addAll(proposal.reference);
+        beforeDefaultHeight = proposal.beforeDefaultHeight;
+        map = proposal.map;
+        valid = false;
+        diagnostic = error;
     }
 
-    private SpatialLinkProposal failed(String error) { return new SpatialLinkProposal(this, error); }
+    private SpatialLinkProposal failed(String error) {
+        return new SpatialLinkProposal(this, error);
+    }
 
-    /** One cached menu-equivalent preview per stable contact; physical publication runs on release. */
+    /**
+     * One cached menu-equivalent preview per stable contact; physical publication runs on release.
+     */
     static SpatialLinkProposal gesture(SpatialBlocksComponent original, SpatialBlocksComponent contact,
                                        TiledMapLayerData map, int selected, int fixed, float height) {
         SpatialLinkProposal result = fixed > 0
@@ -90,24 +114,43 @@ public final class SpatialLinkProposal {
     }
 
     private SpatialLinkProposal(SpatialBlocksComponent original, SpatialLinkProposal result) {
-        before=copy(original); after=result.after; map=result.map;
-        selectedId=result.selectedId;referenceId=result.referenceId;unlink=false;
-        valid=result.valid;diagnostic=result.diagnostic;beforeDefaultHeight=result.beforeDefaultHeight;
-        defaultHeight=result.defaultHeight;affected.addAll(result.affected);reference.addAll(result.reference);
-        previewStructures.addAll(result.previewStructures);replacedStructures.addAll(result.replacedStructures);
+        before = copy(original);
+        after = result.after;
+        map = result.map;
+        selectedId = result.selectedId;
+        referenceId = result.referenceId;
+        unlink = false;
+        valid = result.valid;
+        diagnostic = result.diagnostic;
+        beforeDefaultHeight = result.beforeDefaultHeight;
+        defaultHeight = result.defaultHeight;
+        affected.addAll(result.affected);
+        reference.addAll(result.reference);
+        previewStructures.addAll(result.previewStructures);
+        replacedStructures.addAll(result.replacedStructures);
     }
 
     private SpatialLinkProposal(SpatialBlocksComponent original, SpatialBlocksComponent contact,
                                 TiledMapLayerData map, int selected, float height) {
-        before=copy(original);after=copy(contact);this.map=map;selectedId=selected;referenceId=0;unlink=false;
-        valid=true;diagnostic=null;beforeDefaultHeight=height;defaultHeight=height;
+        before = copy(original);
+        after = copy(contact);
+        this.map = map;
+        selectedId = selected;
+        referenceId = 0;
+        unlink = false;
+        valid = true;
+        diagnostic = null;
+        beforeDefaultHeight = height;
+        defaultHeight = height;
     }
 
-    /** Exact edit snapshot, with no lateral or vertical link created. */
+    /**
+     * Exact edit snapshot, with no lateral or vertical link created.
+     */
     public static SpatialLinkProposal editSnapshot(SpatialBlocksComponent original, SpatialBlocksComponent edited,
                                                    TiledMapLayerData map, int selected, float beforeHeight, float height) {
-        SpatialLinkProposal result=new SpatialLinkProposal(original,edited,map,selected,beforeHeight);
-        result.defaultHeight=height;
+        SpatialLinkProposal result = new SpatialLinkProposal(original, edited, map, selected, beforeHeight);
+        result.defaultHeight = height;
         return result;
     }
 
@@ -120,27 +163,29 @@ public final class SpatialLinkProposal {
     }
 
     public String describe() {
-        StringBuilder text=new StringBuilder();
-        text.append(valid ? "Lier ready.\n" : "Lier refused: "+diagnostic+"\n");
+        StringBuilder text = new StringBuilder();
+        text.append(valid ? "Lier ready.\n" : "Lier refused: " + diagnostic + "\n");
         text.append("Fixed reference: ").append(reference).append("\nAdapted ensemble: ").append(affected).append('\n');
-        IntMap<SpatialBlockData> previous=index(before);
-        for(SpatialBlockData wall:after.blocks) if(affected.contains(wall.id)) {
-            SpatialBlockData old=previous.get(wall.id);
-            text.append('#').append(wall.id).append(" H ").append(old.height).append(" to ").append(wall.height)
-                    .append(" W/D ").append(old.width).append('/').append(old.depth).append(" to ")
-                    .append(wall.width).append('/').append(wall.depth)
-                    .append("\nX ").append(old.x).append("..").append(old.x+old.width).append(" to ")
-                    .append(wall.x).append("..").append(wall.x+wall.width)
-                    .append("; Y ").append(old.y).append("..").append(old.y+old.depth).append(" to ")
-                    .append(wall.y).append("..").append(wall.y+wall.depth).append('\n');
-        }
+        IntMap<SpatialBlockData> previous = index(before);
+        for (SpatialBlockData wall : after.blocks)
+            if (affected.contains(wall.id)) {
+                SpatialBlockData old = previous.get(wall.id);
+                text.append('#').append(wall.id).append(" H ").append(old.height).append(" to ").append(wall.height)
+                        .append(" W/D ").append(old.width).append('/').append(old.depth).append(" to ")
+                        .append(wall.width).append('/').append(wall.depth)
+                        .append("\nX ").append(old.x).append("..").append(old.x + old.width).append(" to ")
+                        .append(wall.x).append("..").append(wall.x + wall.width)
+                        .append("; Y ").append(old.y).append("..").append(old.y + old.depth).append(" to ")
+                        .append(wall.y).append("..").append(wall.y + wall.depth).append('\n');
+            }
         return text.append("Default height: ").append(beforeDefaultHeight).append(" to ").append(defaultHeight).toString();
     }
 
     private String solve() {
         IntMap<SpatialBlockData> old = index(before), next = index(after);
         SpatialBlockData selected = old.get(selectedId), fixed = old.get(referenceId);
-        if (selected == null || fixed == null || selectedId == referenceId) return "Select two volumes in the same map.";
+        if (selected == null || fixed == null || selectedId == referenceId)
+            return "Select two volumes in the same map.";
         SpatialBlockLinks.validate(before.blocks, before.links);
         for (SpatialBlockData wall : before.blocks) {
             if (wall.structureId == selected.structureId) affected.add(wall.id);
@@ -153,9 +198,11 @@ public final class SpatialLinkProposal {
             return normalize(null);
         }
         if (edgeIndex(after.links, selectedId, referenceId) >= 0) return "These volumes already have a voluntary link.";
-        if (Float.compare(selected.altitude, fixed.altitude) != 0) return "Different base altitudes: Lier does not change altitude.";
+        if (Float.compare(selected.altitude, fixed.altitude) != 0)
+            return "Different base altitudes: Lier does not change altitude.";
         int face = SpatialBlockLinks.contactFace(selected, fixed);
-        if (face < 0 || face == 0 && !SpatialBlockLinks.overlap(selected, fixed)) return "No unambiguous lateral contact between these volumes.";
+        if (face < 0 || face == 0 && !SpatialBlockLinks.overlap(selected, fixed))
+            return "No unambiguous lateral contact between these volumes.";
         if (square(selected) || square(fixed)) return "Square volumes have no unambiguous wall orientation.";
         boolean sameEnsemble = selected.structureId == fixed.structureId;
         if (!sameEnsemble) {
@@ -186,15 +233,19 @@ public final class SpatialLinkProposal {
         String normalized = normalize(fixed.structureId);
         if (normalized != null) return normalized;
         // Recheck all original internal contacts, their coincident corner faces, and accidental overlaps.
-        for (int i = 0; i < before.blocks.size; i++) for (int j = i + 1; j < before.blocks.size; j++) {
-            SpatialBlockData a = before.blocks.get(i), b = before.blocks.get(j), na = next.get(a.id), nb = next.get(b.id);
-            boolean connectedBefore = connected(a, b, before.links);
-            if (connectedBefore && !connected(na, nb, after.links)) return "A previous junction would be broken: " + a.id + " / " + b.id + ".";
-            if (connectedBefore && !cornersPreserved(a, b, na, nb)) return "Corner faces would lose alignment: " + a.id + " / " + b.id + ".";
-            if (a.structureId != b.structureId && !((affected.contains(a.id) && reference.contains(b.id))
-                    || (affected.contains(b.id) && reference.contains(a.id))) && !SpatialBlockLinks.overlap(a, b)
-                    && SpatialBlockLinks.overlap(na, nb)) return "Adaptation would connect another ensemble: " + a.id + " / " + b.id + ".";
-        }
+        for (int i = 0; i < before.blocks.size; i++)
+            for (int j = i + 1; j < before.blocks.size; j++) {
+                SpatialBlockData a = before.blocks.get(i), b = before.blocks.get(j), na = next.get(a.id), nb = next.get(b.id);
+                boolean connectedBefore = connected(a, b, before.links);
+                if (connectedBefore && !connected(na, nb, after.links))
+                    return "A previous junction would be broken: " + a.id + " / " + b.id + ".";
+                if (connectedBefore && !cornersPreserved(a, b, na, nb))
+                    return "Corner faces would lose alignment: " + a.id + " / " + b.id + ".";
+                if (a.structureId != b.structureId && !((affected.contains(a.id) && reference.contains(b.id))
+                        || (affected.contains(b.id) && reference.contains(a.id))) && !SpatialBlockLinks.overlap(a, b)
+                        && SpatialBlockLinks.overlap(na, nb))
+                    return "Adaptation would connect another ensemble: " + a.id + " / " + b.id + ".";
+            }
         return null;
     }
 
@@ -205,7 +256,8 @@ public final class SpatialLinkProposal {
         if (referenceStructure != null) {
             SpatialBlockData seed = index(after).get(referenceId);
             int merged = seed.structureId;
-            for (SpatialBlockData wall : after.blocks) if (wall.structureId == merged) wall.structureId = referenceStructure;
+            for (SpatialBlockData wall : after.blocks)
+                if (wall.structureId == merged) wall.structureId = referenceStructure;
             SpatialStructureTopology.Plan validation = SpatialStructureTopology.validate(after, map);
             if (!validation.valid) return validation.error;
         }
@@ -213,9 +265,12 @@ public final class SpatialLinkProposal {
     }
 
     private static boolean cornersPreserved(SpatialBlockData a, SpatialBlockData b, SpatialBlockData na, SpatialBlockData nb) {
-        for (int axis = 1; axis <= 4; axis *= 4) for (int f : new int[]{axis, axis * 2}) for (int g : new int[]{axis, axis * 2})
-            if (near(SpatialBlockLinks.coordinate(a, f), SpatialBlockLinks.coordinate(b, g))
-                    && !near(SpatialBlockLinks.coordinate(na, f), SpatialBlockLinks.coordinate(nb, g))) return false;
+        for (int axis = 1; axis <= 4; axis *= 4)
+            for (int f : new int[]{axis, axis * 2})
+                for (int g : new int[]{axis, axis * 2})
+                    if (near(SpatialBlockLinks.coordinate(a, f), SpatialBlockLinks.coordinate(b, g))
+                            && !near(SpatialBlockLinks.coordinate(na, f), SpatialBlockLinks.coordinate(nb, g)))
+                        return false;
         return true;
     }
 
@@ -229,16 +284,38 @@ public final class SpatialLinkProposal {
         for (SpatialBlockData wall : component.blocks) result.put(wall.id, wall);
         return result;
     }
+
     private static boolean connected(SpatialBlockData a, SpatialBlockData b, Array<SpatialBlockLink> links) {
         return SpatialBlockLinks.overlap(a, b) || edgeIndex(links, a.id, b.id) >= 0;
     }
-    private static boolean horizontal(SpatialBlockData wall) { return SpatialWallAttachments.determineAxis(wall) == SpatialWallAttachments.Axis.HORIZONTAL; }
-    private static boolean square(SpatialBlockData wall) { return near(wall.width, wall.depth); }
-    private static float thickness(SpatialBlockData wall) { return horizontal(wall) ? wall.depth : wall.width; }
-    private static float transverse(SpatialBlockData wall) { return horizontal(wall) ? wall.y : wall.x; }
-    private static void setBand(SpatialBlockData wall, float origin, float thickness) {
-        if (horizontal(wall)) { wall.y = origin; wall.depth = thickness; }
-        else { wall.x = origin; wall.width = thickness; }
+
+    private static boolean horizontal(SpatialBlockData wall) {
+        return SpatialWallAttachments.determineAxis(wall) == SpatialWallAttachments.Axis.HORIZONTAL;
     }
-    private static boolean near(float a, float b) { return SpatialBlockLinks.near(a, b); }
+
+    private static boolean square(SpatialBlockData wall) {
+        return near(wall.width, wall.depth);
+    }
+
+    private static float thickness(SpatialBlockData wall) {
+        return horizontal(wall) ? wall.depth : wall.width;
+    }
+
+    private static float transverse(SpatialBlockData wall) {
+        return horizontal(wall) ? wall.y : wall.x;
+    }
+
+    private static void setBand(SpatialBlockData wall, float origin, float thickness) {
+        if (horizontal(wall)) {
+            wall.y = origin;
+            wall.depth = thickness;
+        } else {
+            wall.x = origin;
+            wall.width = thickness;
+        }
+    }
+
+    private static boolean near(float a, float b) {
+        return SpatialBlockLinks.near(a, b);
+    }
 }

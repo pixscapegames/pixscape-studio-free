@@ -22,31 +22,44 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-/** Demand-driven Scene-local Runtime preparation, beside (not through) the legacy profile bridge.
+/**
+ * Demand-driven Scene-local Runtime preparation, beside (not through) the legacy profile bridge.
  * All public lifecycle/invalidation/update calls belong to the creating Studio thread. This
  * enforces snapshot ownership and serializes live publication, including generation validation.
- * Workers for unrelated Scenes run independently and access only captured data/source files. */
+ * Workers for unrelated Scenes run independently and access only captured data/source files.
+ */
 public final class SceneHudRuntimePreparationService implements AutoCloseable {
-    private record ProjectIdentity(String root, long epoch) {}
+    private record ProjectIdentity(String root, long epoch) {
+    }
+
     // A detached, private database clone is read-only after handoff. JSON cloning happens on Studio,
     // not concurrently in workers through AssetMetaDatabase's shared Json serializer.
     private record Snapshot(List<String> roots, List<SceneHudScreenSnapshot> screens, AssetMetaDatabase database) {
-        Snapshot { roots = List.copyOf(roots); screens = List.copyOf(screens); }
+        Snapshot {
+            roots = List.copyOf(roots);
+            screens = List.copyOf(screens);
+        }
+
         SceneHudScreenSnapshot screen(String id) {
             for (var screen : screens) if (screen.screenId().equals(id)) return screen;
             return null;
         }
+
         Snapshot withScreen(SceneHudScreenSnapshot updated) {
             List<SceneHudScreenSnapshot> next = new ArrayList<>(screens);
-            for (int i = 0; i < next.size(); i++) if (next.get(i).screenId().equals(updated.screenId())) {
-                next.set(i, updated);
-                return new Snapshot(roots, next, database);
-            }
+            for (int i = 0; i < next.size(); i++)
+                if (next.get(i).screenId().equals(updated.screenId())) {
+                    next.set(i, updated);
+                    return new Snapshot(roots, next, database);
+                }
             throw new IllegalArgumentException("HUD is not selected by this Scene: " + updated.screenId());
         }
     }
+
     private record Request(ProjectIdentity project, String sceneTag, long generation, Snapshot snapshot,
-                           SceneHudDependencyClosure closure) {}
+                           SceneHudDependencyClosure closure) {
+    }
+
     private static final class SceneWork {
         volatile Request request;
         AsyncAtlasRepackCoordinator<PreparedSceneHudEnvironment> coordinator;
@@ -76,10 +89,13 @@ public final class SceneHudRuntimePreparationService implements AutoCloseable {
     private final Map<HudScreenEditorDocument, HudDocumentEditSession.AuthoredPublicationListener> listeners =
             new IdentityHashMap<>();
     private final EditorDocumentManager.Listener lifecycle = new EditorDocumentManager.Listener() {
-        @Override public void documentOpened(OpenEditorDocument document) {
+        @Override
+        public void documentOpened(OpenEditorDocument document) {
             if (document instanceof HudScreenEditorDocument hud) attach(hud); // No reachability/request.
         }
-        @Override public void documentClosed(OpenEditorDocument document) {
+
+        @Override
+        public void documentClosed(OpenEditorDocument document) {
             if (document instanceof HudScreenEditorDocument hud) {
                 detach(hud);
                 // A discarded selected override changes authoritative input back to disk.
@@ -102,11 +118,11 @@ public final class SceneHudRuntimePreparationService implements AutoCloseable {
     }
 
     SceneHudRuntimePreparationService(Supplier<FileHandle> projectDir, Supplier<ProjectConfig> configuration,
-                                     Supplier<AssetMetaDatabase> database, EditorDocumentManager documents,
-                                     HudDocumentPersistenceService persistence, SceneHudAtlasBuilder builder,
-                                     AtomicDirectoryPublication.Publisher publisher,
-                                     Function<AsyncAtlasRepackCoordinator.PackRunner<PreparedSceneHudEnvironment>,
-                                             AsyncAtlasRepackCoordinator<PreparedSceneHudEnvironment>> coordinatorFactory) {
+                                      Supplier<AssetMetaDatabase> database, EditorDocumentManager documents,
+                                      HudDocumentPersistenceService persistence, SceneHudAtlasBuilder builder,
+                                      AtomicDirectoryPublication.Publisher publisher,
+                                      Function<AsyncAtlasRepackCoordinator.PackRunner<PreparedSceneHudEnvironment>,
+                                              AsyncAtlasRepackCoordinator<PreparedSceneHudEnvironment>> coordinatorFactory) {
         // The canonical project identity is captured by bindProject(), which is the project
         // lifecycle boundary. Keep the supplier argument for the existing construction contract,
         // but do not resolve it from the frame/update path.
@@ -121,9 +137,14 @@ public final class SceneHudRuntimePreparationService implements AutoCloseable {
         documents.addListener(lifecycle);
     }
 
-    public void setErrorHandler(Consumer<RuntimeException> handler) { checkThread(); onError = Objects.requireNonNull(handler); }
+    public void setErrorHandler(Consumer<RuntimeException> handler) {
+        checkThread();
+        onError = Objects.requireNonNull(handler);
+    }
 
-    /** No eager build on binding/opening a project. Even the same root receives a fresh epoch. */
+    /**
+     * No eager build on binding/opening a project. Even the same root receives a fresh epoch.
+     */
     public void bindProject(FileHandle root) {
         checkThread();
         if (closed) return;
@@ -132,7 +153,9 @@ public final class SceneHudRuntimePreparationService implements AutoCloseable {
         for (var document : documents.documents()) if (document instanceof HudScreenEditorDocument hud) attach(hud);
     }
 
-    /** Call before old documents/configuration are cleared. Late completions retain only old private paths. */
+    /**
+     * Call before old documents/configuration are cleared. Late completions retain only old private paths.
+     */
     public void onProjectChanging() {
         checkThread();
         project = null; // Block requests before detach/disposal callbacks.
@@ -144,7 +167,9 @@ public final class SceneHudRuntimePreparationService implements AutoCloseable {
         scenes.clear();
     }
 
-    /** Reusable metadata/dependency invalidation seam; tag comes from ProjectConfig.canonicalSceneTagFor. */
+    /**
+     * Reusable metadata/dependency invalidation seam; tag comes from ProjectConfig.canonicalSceneTagFor.
+     */
     public void invalidateScene(String sceneTag) {
         invalidateSceneResolved(sceneTag);
     }
@@ -160,7 +185,10 @@ public final class SceneHudRuntimePreparationService implements AutoCloseable {
             SceneWork work = scenes.computeIfAbsent(tag, ignored -> createWork());
             requestIfPhysicalInputsChanged(tag, work, snapshot);
             return true;
-        } catch (RuntimeException failure) { report(failure); return false; }
+        } catch (RuntimeException failure) {
+            report(failure);
+            return false;
+        }
     }
 
     private void requestIfPhysicalInputsChanged(String tag, SceneWork work, Snapshot snapshot) {
@@ -203,61 +231,86 @@ public final class SceneHudRuntimePreparationService implements AutoCloseable {
         return descriptor.exists() && !descriptor.isDirectory();
     }
 
-    /** Requests the current Scene HUD snapshot unless that Scene already has work in flight. */
+    /**
+     * Requests the current Scene HUD snapshot unless that Scene already has work in flight.
+     */
     public void ensureSceneRequested(String sceneTag) {
         checkThread();
         if (!currentProject()) return;
         String tag;
-        try { tag = SceneHudEnvironmentPaths.sceneTag(sceneTag); }
-        catch (RuntimeException failure) { report(failure); return; }
+        try {
+            tag = SceneHudEnvironmentPaths.sceneTag(sceneTag);
+        } catch (RuntimeException failure) {
+            report(failure);
+            return;
+        }
         SceneWork work = scenes.get(tag);
         if (work != null && (work.request != null || work.publishedGeneration > 0L)) return;
         invalidateScene(tag);
     }
 
-    /** Last generation successfully published for this Scene, or zero before first publication. */
+    /**
+     * Last generation successfully published for this Scene, or zero before first publication.
+     */
     public long publishedGeneration(String sceneTag) {
         checkThread();
         if (!currentProject()) return 0L;
         String tag;
-        try { tag = SceneHudEnvironmentPaths.sceneTag(sceneTag); }
-        catch (RuntimeException failure) { return 0L; }
+        try {
+            tag = SceneHudEnvironmentPaths.sceneTag(sceneTag);
+        } catch (RuntimeException failure) {
+            return 0L;
+        }
         SceneWork work = scenes.get(tag);
         return work == null ? 0L : work.publishedGeneration;
     }
 
-    /** Revision of the composition that can use the currently published Scene HUD atlas. */
+    /**
+     * Revision of the composition that can use the currently published Scene HUD atlas.
+     */
     public long compositionGeneration(String sceneTag) {
         checkThread();
         if (!currentProject()) return 0L;
         String tag;
-        try { tag = SceneHudEnvironmentPaths.sceneTag(sceneTag); }
-        catch (RuntimeException failure) { return 0L; }
+        try {
+            tag = SceneHudEnvironmentPaths.sceneTag(sceneTag);
+        } catch (RuntimeException failure) {
+            return 0L;
+        }
         SceneWork work = scenes.get(tag);
         return work == null || work.publishedGeneration == 0L ? 0L
                 : Objects.equals(work.currentPackKey, work.publishedPackKey)
                 ? work.compositionRevision : work.publishedCompositionRevision;
     }
 
-    /** Resource revision usable with the published atlas; authored-only edits leave it intact. */
+    /**
+     * Resource revision usable with the published atlas; authored-only edits leave it intact.
+     */
     public long resourceGeneration(String sceneTag) {
         checkThread();
         if (!currentProject()) return 0L;
         String tag;
-        try { tag = SceneHudEnvironmentPaths.sceneTag(sceneTag); }
-        catch (RuntimeException failure) { return 0L; }
+        try {
+            tag = SceneHudEnvironmentPaths.sceneTag(sceneTag);
+        } catch (RuntimeException failure) {
+            return 0L;
+        }
         SceneWork work = scenes.get(tag);
         return work == null || work.publishedGeneration == 0L ? 0L
                 : Objects.equals(work.currentPackKey, work.publishedPackKey)
                 ? work.resourceRevision : work.publishedResourceRevision;
     }
 
-    /** Initially O(number of Scenes), direct/default roots only. Open membership is never a root. */
+    /**
+     * Initially O(number of Scenes), direct/default roots only. Open membership is never a root.
+     */
     public void invalidateHudScreen(String screenId) {
         invalidateHudScreen(screenId, null);
     }
 
-    /** A reimport affects Scene roots through Runtime usage, but active authoring also loads an associated Skin. */
+    /**
+     * A reimport affects Scene roots through Runtime usage, but active authoring also loads an associated Skin.
+     */
     public record ReimportImpact(Set<String> openScreensToReload, Set<String> uncertainOpenScreens,
                                  Set<String> invalidatedScenes, Set<String> uncertainScenes) {
         public ReimportImpact {
@@ -273,10 +326,12 @@ public final class SceneHudRuntimePreparationService implements AutoCloseable {
             return fontAssetId != null ? usage.fontAssetIds().contains(fontAssetId)
                     : skinId.equals(usage.runtimeSkinId());
         }
+
         boolean authoringUses(SceneHudDependencyCollector.HudUsage usage) {
             return fontAssetId != null ? usage.fontAssetIds().contains(fontAssetId)
                     : skinId.equals(usage.authoringSkinId());
         }
+
         boolean runtimeUses(SceneHudDependencyClosure closure) {
             return fontAssetId != null
                     ? closure.fontDependencies().stream().anyMatch(font -> font.assetId() == fontAssetId)
@@ -304,19 +359,20 @@ public final class SceneHudRuntimePreparationService implements AutoCloseable {
         Map<String, SceneHudDependencyCollector.HudUsage> resolved = new LinkedHashMap<>();
         Map<String, RuntimeException> failures = new LinkedHashMap<>();
         Set<String> reload = new LinkedHashSet<>(), uncertainOpen = new LinkedHashSet<>();
-        for (var document : documents.documents()) if (document instanceof HudScreenEditorDocument hud) {
-            try {
-                SceneHudScreenSnapshot snapshot = new SceneHudScreenSnapshot(hud.screenId(), hud.asset(), hud.document());
-                open.put(hud.screenId(), snapshot);
-                var usage = collector.inspectUsage(snapshot);
-                resolved.put(hud.screenId(), usage);
-                if (target.authoringUses(usage)) reload.add(hud.screenId());
-            } catch (RuntimeException failure) {
-                failures.put(hud.screenId(), failure);
-                uncertainOpen.add(hud.screenId());
-                report(failure);
+        for (var document : documents.documents())
+            if (document instanceof HudScreenEditorDocument hud) {
+                try {
+                    SceneHudScreenSnapshot snapshot = new SceneHudScreenSnapshot(hud.screenId(), hud.asset(), hud.document());
+                    open.put(hud.screenId(), snapshot);
+                    var usage = collector.inspectUsage(snapshot);
+                    resolved.put(hud.screenId(), usage);
+                    if (target.authoringUses(usage)) reload.add(hud.screenId());
+                } catch (RuntimeException failure) {
+                    failures.put(hud.screenId(), failure);
+                    uncertainOpen.add(hud.screenId());
+                    report(failure);
+                }
             }
-        }
         Set<String> invalidated = new LinkedHashSet<>(), uncertainScenes = new LinkedHashSet<>();
         ProjectConfig cfg = configuration.get();
         for (String name : cfg.getSceneNames()) {
@@ -353,7 +409,7 @@ public final class SceneHudRuntimePreparationService implements AutoCloseable {
     }
 
     private static SceneHudDependencyClosure reusableUsageClosure(SceneWork work, List<String> roots,
-            Map<String, SceneHudScreenSnapshot> open, SceneHudDependencyCollector collector) {
+                                                                  Map<String, SceneHudScreenSnapshot> open, SceneHudDependencyCollector collector) {
         if (work == null || work.currentClosure == null || work.currentSnapshot == null
                 || !work.currentSnapshot.roots.equals(roots)) return null;
         for (String id : roots) {
@@ -367,8 +423,12 @@ public final class SceneHudRuntimePreparationService implements AutoCloseable {
         checkThread();
         if (!currentProject()) return;
         String canonicalId;
-        try { canonicalId = HudScreenAssetId.normalize(screenId); }
-        catch (RuntimeException failure) { report(failure); return; }
+        try {
+            canonicalId = HudScreenAssetId.normalize(screenId);
+        } catch (RuntimeException failure) {
+            report(failure);
+            return;
+        }
         ProjectConfig cfg = configuration.get();
         for (String name : cfg.getSceneNames()) {
             SceneMeta scene = cfg.getSceneMeta(name);
@@ -377,7 +437,9 @@ public final class SceneHudRuntimePreparationService implements AutoCloseable {
                     String tag = cfg.canonicalSceneTagFor(scene);
                     if (authored == null || !reuseResolvedReferences(tag, authored)) invalidateScene(tag);
                 }
-            } catch (RuntimeException failure) { report(failure); }
+            } catch (RuntimeException failure) {
+                report(failure);
+            }
         }
     }
 
@@ -464,8 +526,11 @@ public final class SceneHudRuntimePreparationService implements AutoCloseable {
             primary = failure;
             throw failure;
         } finally {
-            if (primary != null) try { payload(request, "", "", workspace, atlas, null).close(); }
-            catch (RuntimeException cleanup) { primary.addSuppressed(cleanup); }
+            if (primary != null) try {
+                payload(request, "", "", workspace, atlas, null).close();
+            } catch (RuntimeException cleanup) {
+                primary.addSuppressed(cleanup);
+            }
         }
     }
 
@@ -476,13 +541,17 @@ public final class SceneHudRuntimePreparationService implements AutoCloseable {
     }
 
     private void apply(SceneWork work, PreparedSceneHudEnvironment payload) {
-        if (!currentProject() || payload.projectEpoch != project.epoch || !payload.projectRoot.equals(project.root)) return;
+        if (!currentProject() || payload.projectEpoch != project.epoch || !payload.projectRoot.equals(project.root))
+            return;
         Request consumed = work.request;
         if (consumed == null || work.coordinator.currentGeneration() != payload.generation
                 || consumed.generation != payload.generation || !consumed.project.equals(project)
                 || !consumed.sceneTag.equals(payload.sceneTag)) return;
         SceneMeta scene = findScene(payload.sceneTag);
-        if (scene == null) { clearRequestIfCurrent(work, consumed); return; }
+        if (scene == null) {
+            clearRequestIfCurrent(work, consumed);
+            return;
+        }
         Snapshot current = capture(scene);
         FileHandle root = new FileHandle(project.root);
         var closure = new SceneHudDependencyCollector().collect(root,
@@ -533,8 +602,12 @@ public final class SceneHudRuntimePreparationService implements AutoCloseable {
         List<SceneHudScreenSnapshot> selected = new ArrayList<>();
         for (String root : roots) {
             HudScreenEditorDocument open = null;
-            for (var document : documents.documents()) if (document instanceof HudScreenEditorDocument hud
-                    && hud.screenId().equals(root)) { open = hud; break; }
+            for (var document : documents.documents())
+                if (document instanceof HudScreenEditorDocument hud
+                        && hud.screenId().equals(root)) {
+                    open = hud;
+                    break;
+                }
             if (open != null) selected.add(new SceneHudScreenSnapshot(root, open.asset(), open.document()));
             else {
                 var saved = persistence.load(new FileHandle(project.root), root);
@@ -568,34 +641,57 @@ public final class SceneHudRuntimePreparationService implements AutoCloseable {
         hud.editSession().addAuthoredPublicationListener(listener);
         listeners.put(hud, listener);
     }
+
     private void detach(HudScreenEditorDocument hud) {
         var listener = listeners.remove(hud);
         if (listener != null) hud.editSession().removeAuthoredPublicationListener(listener);
     }
+
     /**
      * Project identity is a session invariant. All supported project changes call
      * onProjectChanging() before configuration/documents change and bindProject() once the new
      * root is authoritative. bindProject() canonicalizes after clearing the old session, so a
      * canonicalization failure cannot leave an old identity active.
      */
-    private boolean currentProject() { return !closed && project != null; }
+    private boolean currentProject() {
+        return !closed && project != null;
+    }
+
     private static String canonicalRoot(FileHandle root) {
-        try { return Objects.requireNonNull(root).file().getCanonicalPath(); }
-        catch (IOException failure) { throw new IllegalStateException("Unable to identify Scene HUD project", failure); }
+        try {
+            return Objects.requireNonNull(root).file().getCanonicalPath();
+        } catch (IOException failure) {
+            throw new IllegalStateException("Unable to identify Scene HUD project", failure);
+        }
     }
+
     private void checkThread() {
-        if (Thread.currentThread() != studioThread) throw new IllegalStateException("Scene HUD service requires the Studio thread");
+        if (Thread.currentThread() != studioThread)
+            throw new IllegalStateException("Scene HUD service requires the Studio thread");
     }
+
     private void report(RuntimeException failure) {
-        try { onError.accept(failure); }
-        catch (RuntimeException handlerFailure) {
+        try {
+            onError.accept(failure);
+        } catch (RuntimeException handlerFailure) {
             if (Gdx.app != null) Gdx.app.error("SceneHudRuntimePreparation", "Error handler failed", handlerFailure);
         }
     }
-    long generation(String tag) { checkThread(); var work = scenes.get(tag); return work == null ? 0 : work.coordinator.currentGeneration(); }
-    boolean isPending(String tag) { checkThread(); var work = scenes.get(tag); return work != null && work.request != null; }
 
-    @Override public void close() {
+    long generation(String tag) {
+        checkThread();
+        var work = scenes.get(tag);
+        return work == null ? 0 : work.coordinator.currentGeneration();
+    }
+
+    boolean isPending(String tag) {
+        checkThread();
+        var work = scenes.get(tag);
+        return work != null && work.request != null;
+    }
+
+    @Override
+    public void close() {
         checkThread();
         if (closed) return;
         onProjectChanging();

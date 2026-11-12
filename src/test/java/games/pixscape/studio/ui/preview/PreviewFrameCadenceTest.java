@@ -5,7 +5,8 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class PreviewFrameCadenceTest {
-    @Test public void averagesFramesOverRealDurationInsteadOfInstantaneousFps() {
+    @Test
+    public void averagesFramesOverRealDurationInsteadOfInstantaneousFps() {
         PreviewFrameCadence cadence = new PreviewFrameCadence();
         cadence.onFrameStart(0);
         cadence.onFrameStart(10_000_000);
@@ -16,7 +17,8 @@ public class PreviewFrameCadenceTest {
         assertFalse(cadence.isFull());
     }
 
-    @Test public void windowSlidesInTimeAndShortFpsRespondsSeparately() {
+    @Test
+    public void windowSlidesInTimeAndShortFpsRespondsSeparately() {
         PreviewFrameCadence cadence = new PreviewFrameCadence();
         long now = 0;
         cadence.onFrameStart(now);
@@ -31,7 +33,8 @@ public class PreviewFrameCadenceTest {
         assertEquals(50, cadence.fps(), 0);
     }
 
-    @Test public void boundaryKeepsOneWholeMeasuredFrame() {
+    @Test
+    public void boundaryKeepsOneWholeMeasuredFrame() {
         PreviewFrameCadence cadence = new PreviewFrameCadence();
         long now = 0;
         cadence.onFrameStart(now);
@@ -41,7 +44,8 @@ public class PreviewFrameCadenceTest {
         assertEquals(1000.0 / 30, cadence.averageFps(), .000001);
     }
 
-    @Test public void boundedStorageReportsItsActualPartialWindow() {
+    @Test
+    public void boundedStorageReportsItsActualPartialWindow() {
         PreviewFrameCadence cadence = new PreviewFrameCadence(64);
         for (int i = 0; i <= 1000; i++) cadence.onFrameStart(i * 1_000_000L);
         assertEquals(64, cadence.sampleCount());
@@ -51,7 +55,8 @@ public class PreviewFrameCadenceTest {
         assertEquals(1000, cadence.averageFps(), 0);
     }
 
-    @Test public void pauseReloadAndDebuggerGapDiscardOldSamples() {
+    @Test
+    public void pauseReloadAndDebuggerGapDiscardOldSamples() {
         PreviewFrameCadence cadence = new PreviewFrameCadence();
         cadence.onFrameStart(1);
         cadence.onFrameStart(10_000_001);

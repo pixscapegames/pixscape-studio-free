@@ -11,7 +11,9 @@ import games.pixscape.studio.service.entitygraph.CurrentGameObjectRelations;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 
-/** Atomically attaches one existing entity while preserving its world appearance and identity. */
+/**
+ * Atomically attaches one existing entity while preserving its world appearance and identity.
+ */
 public final class AddEntityToGameObjectCommand implements Command {
     private final World world;
     private final HistoryIdRegistry historyIds;
@@ -58,7 +60,10 @@ public final class AddEntityToGameObjectCommand implements Command {
         afterLocalZ = localZ;
     }
 
-    @Override public String label() { return "Add Entity to Game Object"; }
+    @Override
+    public String label() {
+        return "Add Entity to Game Object";
+    }
 
     @Override
     public void redo() {

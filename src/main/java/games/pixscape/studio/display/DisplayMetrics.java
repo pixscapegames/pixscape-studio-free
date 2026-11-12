@@ -1,6 +1,8 @@
 package games.pixscape.studio.display;
 
-/** Logical window and physical framebuffer dimensions for one desktop window. */
+/**
+ * Logical window and physical framebuffer dimensions for one desktop window.
+ */
 public final class DisplayMetrics {
     private static final float SCALE_EPSILON = 0.0001f;
 

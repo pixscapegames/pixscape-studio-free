@@ -24,12 +24,35 @@ public final class ChangeBlendModeCommand implements Command, OutcomeAwareComman
         after = mode.id;
     }
 
-    @Override public String label() { return "Change blend mode"; }
-    @Override public void redo() { redoOutcome(); }
-    @Override public void undo() { undoOutcome(); }
-    @Override public CommandOutcome executeOutcome() { return apply(after); }
-    @Override public CommandOutcome redoOutcome() { return apply(after); }
-    @Override public CommandOutcome undoOutcome() { return apply(before); }
+    @Override
+    public String label() {
+        return "Change blend mode";
+    }
+
+    @Override
+    public void redo() {
+        redoOutcome();
+    }
+
+    @Override
+    public void undo() {
+        undoOutcome();
+    }
+
+    @Override
+    public CommandOutcome executeOutcome() {
+        return apply(after);
+    }
+
+    @Override
+    public CommandOutcome redoOutcome() {
+        return apply(after);
+    }
+
+    @Override
+    public CommandOutcome undoOutcome() {
+        return apply(before);
+    }
 
     private CommandOutcome apply(int blend) {
         int entity = ids.entityOfHistoryId(target);

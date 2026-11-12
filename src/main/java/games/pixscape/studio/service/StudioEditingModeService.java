@@ -6,14 +6,20 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-/** Single Studio authority for the active interactive editing context. */
+/**
+ * Single Studio authority for the active interactive editing context.
+ */
 public final class StudioEditingModeService {
     public interface HudTestModeController {
         boolean canEnter();
+
         boolean enter();
+
         void exit();
+
         boolean isActive();
     }
+
     enum DocumentContext {
         NONE,
         SCENE,
@@ -34,12 +40,16 @@ public final class StudioEditingModeService {
         return currentMode;
     }
 
-    /** Keeps the attached Scene context authoritative while this service projects effective mode. */
+    /**
+     * Keeps the attached Scene context authoritative while this service projects effective mode.
+     */
     public void setActiveSceneSubmodeSink(Consumer<StudioEditingMode> sink) {
         activeSceneSubmodeSink = sink;
     }
 
-    /** Central availability rule for every action that mutates the scene/world editor. */
+    /**
+     * Central availability rule for every action that mutates the scene/world editor.
+     */
     public boolean allowsWorldEditingActions() {
         return documentContext == DocumentContext.SCENE;
     }
@@ -70,7 +80,9 @@ public final class StudioEditingModeService {
                 && hudTestModeController != null && hudTestModeController.canEnter();
     }
 
-    /** Transactional mode request: failed entry leaves the current authoring mode untouched. */
+    /**
+     * Transactional mode request: failed entry leaves the current authoring mode untouched.
+     */
     public boolean setHudTestMode(boolean test) {
         if (hudTestModeController == null || documentContext != DocumentContext.HUD) return false;
         boolean changed;
@@ -98,12 +110,16 @@ public final class StudioEditingModeService {
         listeners.remove(listener);
     }
 
-    /** Refreshes controls after a resource or lifecycle boundary forced the test instance closed. */
+    /**
+     * Refreshes controls after a resource or lifecycle boundary forced the test instance closed.
+     */
     public void refreshHudTestMode() {
         notifyListeners();
     }
 
-    /** Compatibility projection used only by active-document activation. */
+    /**
+     * Compatibility projection used only by active-document activation.
+     */
     public void activateHudDocument(int sourceTag) {
         boolean contextChanged = documentContext != DocumentContext.HUD;
         documentContext = DocumentContext.HUD;
@@ -111,7 +127,9 @@ public final class StudioEditingModeService {
         publishIfChanged(sourceTag, contextChanged);
     }
 
-    /** Restores the one Scene document and its last effective Scene submode atomically. */
+    /**
+     * Restores the one Scene document and its last effective Scene submode atomically.
+     */
     public void activateSceneDocument(StudioEditingMode sceneMode, int sourceTag) {
         exitHudTestMode();
         boolean contextChanged = documentContext != DocumentContext.SCENE;
@@ -121,7 +139,9 @@ public final class StudioEditingModeService {
         publishIfChanged(sourceTag, contextChanged);
     }
 
-    /** Projects the valid state where no editor document owns the center workspace. */
+    /**
+     * Projects the valid state where no editor document owns the center workspace.
+     */
     public void deactivateDocument(int sourceTag) {
         exitHudTestMode();
         boolean contextChanged = documentContext != DocumentContext.NONE;
@@ -174,7 +194,8 @@ public final class StudioEditingModeService {
             case PHYSICS -> physicsActive = true;
             case SPATIAL -> spatialActive = true;
             case LIGHTS -> lightsActive = true;
-            default -> { }
+            default -> {
+            }
         }
     }
 

@@ -4,7 +4,9 @@ import com.artemis.World;
 import games.pixscape.runtime.physics.PolygonBuildResult;
 import games.pixscape.runtime.physics.PolygonDecomposer;
 
-/** Shared polygon-source validation used by Studio authoring tools. */
+/**
+ * Shared polygon-source validation used by Studio authoring tools.
+ */
 public final class PhysicsPolygonAuthoringService {
     public PhysicsPolygonAuthoringService(World world) {
         if (world == null) {

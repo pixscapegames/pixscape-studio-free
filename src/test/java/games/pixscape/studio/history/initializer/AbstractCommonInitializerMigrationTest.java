@@ -27,7 +27,8 @@ public class AbstractCommonInitializerMigrationTest {
         meta.note = "hello";
         meta.kind = EntityKind.PARTICLE;
 
-        AbstractCommonInitializer initializer = new AbstractCommonInitializer(world) {};
+        AbstractCommonInitializer initializer = new AbstractCommonInitializer(world) {
+        };
         initializer.syncFrom(source);
 
         int target = world.create();

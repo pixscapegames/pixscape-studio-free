@@ -33,12 +33,22 @@ import java.util.List;
 
 import static org.junit.Assert.*;
 
-/** Exercises real picking and queued selection events without a native GL window. */
+/**
+ * Exercises real picking and queued selection events without a native GL window.
+ */
 public class PickingSystemSpatialSelectionTest {
-    @BeforeClass public static void setup() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void teardown() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void setup() {
+        VisUiTestBootstrap.loadSkin();
+    }
 
-    @Test public void allNineHandlesKeepSpatialSelectionThroughoutRepeatedDrags() throws Exception {
+    @AfterClass
+    public static void teardown() {
+        VisUiTestBootstrap.unloadSkin();
+    }
+
+    @Test
+    public void allNineHandlesKeepSpatialSelectionThroughoutRepeatedDrags() throws Exception {
         for (int handle = 0; handle < 9; handle++) {
             try (Fixture f = new Fixture()) {
                 for (int repeat = 0; repeat < 2; repeat++) {
@@ -67,7 +77,8 @@ public class PickingSystemSpatialSelectionTest {
         }
     }
 
-    @Test public void anotherVolumeAndBackgroundRemainSelectable() throws Exception {
+    @Test
+    public void anotherVolumeAndBackgroundRemainSelectable() throws Exception {
         try (Fixture f = new Fixture()) {
             // The center of the second volume's base is away from the selected handles.
             f.pointer(new Vector2(704, 192), true, true, false);
@@ -170,7 +181,8 @@ public class PickingSystemSpatialSelectionTest {
                     (vertices[handle * 2 + 1] + vertices[next * 2 + 1]) / 2);
         }
 
-        @Override public void close() {
+        @Override
+        public void close() {
             scope.close();
             selection.dispose();
             world.dispose();
@@ -180,8 +192,13 @@ public class PickingSystemSpatialSelectionTest {
 
         private static SpatialBlockData wall(int id, int x) {
             SpatialBlockData wall = new SpatialBlockData();
-            wall.id = id; wall.structureId = id; wall.x = x; wall.y = 2;
-            wall.width = 2; wall.depth = 2; wall.height = 80;
+            wall.id = id;
+            wall.structureId = id;
+            wall.x = x;
+            wall.y = 2;
+            wall.width = 2;
+            wall.depth = 2;
+            wall.height = 80;
             wall.beginAuthoredLinkedTileRefs();
             for (int y = 1; y < 5; y++) for (int gx = x - 1; gx < x + 3; gx++) wall.addLinkedTileRef(gx, y, 1);
             return wall;

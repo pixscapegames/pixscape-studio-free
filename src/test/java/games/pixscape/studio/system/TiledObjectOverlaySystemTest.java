@@ -84,11 +84,11 @@ public class TiledObjectOverlaySystemTest {
         TiledObjectOverlaySystem.computeRectangleCorners(transform, dimensions, corners);
 
         assertArrayEquals(new float[]{
-                        1.23223f, -4.35355f,
+                1.23223f, -4.35355f,
                 3.35355f, -2.23223f,
                 4.76777f, -3.64645f,
                 2.64645f, -5.76777f
-                }, corners, 0.001f);
+        }, corners, 0.001f);
     }
 
     @Test

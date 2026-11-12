@@ -7,16 +7,28 @@ import games.pixscape.studio.asset.*;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
 import org.junit.*;
 import org.junit.rules.TemporaryFolder;
+
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+
 import static org.junit.Assert.*;
 
 public class TileAssetPropertiesTest {
-    @Rule public TemporaryFolder temp = new TemporaryFolder();
-    @BeforeClass public static void load() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unload() { VisUiTestBootstrap.unloadSkin(); }
+    @Rule
+    public TemporaryFolder temp = new TemporaryFolder();
 
-    @Test public void inspectionIsReadOnlyAndAssetHistorySurvivesSelectionButNotProjectReplacement() throws Exception {
+    @BeforeClass
+    public static void load() {
+        VisUiTestBootstrap.loadSkin();
+    }
+
+    @AfterClass
+    public static void unload() {
+        VisUiTestBootstrap.unloadSkin();
+    }
+
+    @Test
+    public void inspectionIsReadOnlyAndAssetHistorySurvivesSelectionButNotProjectReplacement() throws Exception {
         AssetMetaDatabase db = new AssetMetaDatabase();
         TileAssetMeta first = tile(db, "first", 7);
         TileAssetMeta second = tile(db, "second", 7);
@@ -47,7 +59,8 @@ public class TileAssetPropertiesTest {
         assertFalse(inspector.canRedo());
     }
 
-    @Test public void failedAssetSaveLeavesContentHistoryAndPublishedMetadataUnchanged() throws Exception {
+    @Test
+    public void failedAssetSaveLeavesContentHistoryAndPublishedMetadataUnchanged() throws Exception {
         AssetMetaDatabase db = new AssetMetaDatabase();
         TileAssetMeta tile = tile(db, "first", 1);
         FileHandle regularFile = new FileHandle(temp.newFile("not-a-directory"));
@@ -64,7 +77,8 @@ public class TileAssetPropertiesTest {
     private static TileAssetMeta tile(AssetMetaDatabase db, String name, int localId) {
         var set = db.registerIfAbsent(AssetType.TILESET, "tiles/" + name, null, AssetMeta.AssetScope.USER);
         TileAssetMeta tile = (TileAssetMeta) db.registerIfAbsent(AssetType.TILE, "tiles/" + name + "/" + localId, null, AssetMeta.AssetScope.USER);
-        tile.tilesetId = set.id(); tile.sheetIndex = localId;
+        tile.tilesetId = set.id();
+        tile.sheetIndex = localId;
         return tile;
     }
 }

@@ -12,9 +12,11 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** Selects document-specific panels through the ordinary public docking lifecycle. */
+/**
+ * Selects document-specific panels through the ordinary public docking lifecycle.
+ */
 final class DocumentDockPanelCoordinator {
-    private enum Presentation { DOCKED, FLOATING, HIDDEN }
+    private enum Presentation {DOCKED, FLOATING, HIDDEN}
 
     private final DockManager docks;
     private final DockablePanel scenePanel;
@@ -53,8 +55,9 @@ final class DocumentDockPanelCoordinator {
         this.deferUi = Objects.requireNonNull(deferUi, "deferUi");
 
         documents.addListener(new EditorDocumentManager.Listener() {
-            @Override public void documentActivated(OpenEditorDocument previous,
-                                                     OpenEditorDocument current) {
+            @Override
+            public void documentActivated(OpenEditorDocument previous,
+                                          OpenEditorDocument current) {
                 project(current != null ? current.type() : null);
             }
         });

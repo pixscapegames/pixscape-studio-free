@@ -1,6 +1,8 @@
 package games.pixscape.studio.service.spatial;
 
-/** Writes the complete projected twelve-edge wireframe of one authored wall volume. */
+/**
+ * Writes the complete projected twelve-edge wireframe of one authored wall volume.
+ */
 public final class SpatialWallWireframe {
     public static final int SEGMENT_COUNT = 12;
     public static final int FLOATS_PER_SEGMENT = 4;

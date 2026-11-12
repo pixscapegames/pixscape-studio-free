@@ -204,12 +204,18 @@ public class ProjectConfig {
 
             if (m.description == null) m.description = "";
             if (m.runtimeAvailability == null) m.runtimeAvailability = new SceneRuntimeAvailabilityData();
-            if (m.runtimeAvailability.spriteAssetIds == null) m.runtimeAvailability.spriteAssetIds = new java.util.ArrayList<>();
-            if (m.runtimeAvailability.animationAssetIds == null) m.runtimeAvailability.animationAssetIds = new java.util.ArrayList<>();
-            if (m.runtimeAvailability.particleEffectPaths == null) m.runtimeAvailability.particleEffectPaths = new java.util.ArrayList<>();
-            if (m.runtimeAvailability.gameObjectIds == null) m.runtimeAvailability.gameObjectIds = new java.util.ArrayList<>();
-            if (m.runtimeAvailability.tiledTileAssetIds == null) m.runtimeAvailability.tiledTileAssetIds = new java.util.ArrayList<>();
-            if (m.runtimeAvailability.tiledAnimationIds == null) m.runtimeAvailability.tiledAnimationIds = new java.util.ArrayList<>();
+            if (m.runtimeAvailability.spriteAssetIds == null)
+                m.runtimeAvailability.spriteAssetIds = new java.util.ArrayList<>();
+            if (m.runtimeAvailability.animationAssetIds == null)
+                m.runtimeAvailability.animationAssetIds = new java.util.ArrayList<>();
+            if (m.runtimeAvailability.particleEffectPaths == null)
+                m.runtimeAvailability.particleEffectPaths = new java.util.ArrayList<>();
+            if (m.runtimeAvailability.gameObjectIds == null)
+                m.runtimeAvailability.gameObjectIds = new java.util.ArrayList<>();
+            if (m.runtimeAvailability.tiledTileAssetIds == null)
+                m.runtimeAvailability.tiledTileAssetIds = new java.util.ArrayList<>();
+            if (m.runtimeAvailability.tiledAnimationIds == null)
+                m.runtimeAvailability.tiledAnimationIds = new java.util.ArrayList<>();
             if (m.pixelsPerMeter <= 0f) m.pixelsPerMeter = 100f;
 
             SceneAmbientLighting.applyDefaultsAndDerive(m);

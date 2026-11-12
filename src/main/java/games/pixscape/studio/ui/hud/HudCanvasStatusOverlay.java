@@ -5,7 +5,9 @@ import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.studio.service.hud.HudEditorSession;
 
-/** Non-interactive central status for failed HUD targets. */
+/**
+ * Non-interactive central status for failed HUD targets.
+ */
 public final class HudCanvasStatusOverlay extends VisTable {
     private final HudEditorSession session;
     private final VisLabel label = new VisLabel("");

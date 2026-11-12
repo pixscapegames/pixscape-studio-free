@@ -32,7 +32,9 @@ public final class CreateEntityCommand implements Command {
         this(world, historyIds, initializer, onCreated, -1L);
     }
 
-    /** Accepts a history identity reserved before a multi-entity publication starts. */
+    /**
+     * Accepts a history identity reserved before a multi-entity publication starts.
+     */
     public CreateEntityCommand(World world,
                                HistoryIdRegistry historyIds,
                                Initializer initializer,
@@ -53,7 +55,10 @@ public final class CreateEntityCommand implements Command {
         return "Create " + initializer.label();
     }
 
-    @Override public int additionalActiveLights() { return initializer.activeLightCount(); }
+    @Override
+    public int additionalActiveLights() {
+        return initializer.activeLightCount();
+    }
 
     @Override
     public void redo() {

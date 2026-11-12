@@ -18,10 +18,18 @@ import static org.junit.Assert.*;
 
 public class FolderTreeBuilderTest {
 
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
 
-    @Test public void logicalRootCanRemainVisibleBeforeItsImportDirectoryExists() throws Exception {
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
+
+    @Test
+    public void logicalRootCanRemainVisibleBeforeItsImportDirectoryExists() throws Exception {
         VisTree tree = new VisTree();
         FileHandle missing = new FileHandle(Files.createTempDirectory("empty-font-root")
                 .resolve("orig/fonts").toFile());
@@ -38,7 +46,8 @@ public class FolderTreeBuilderTest {
         assertFalse(missing.exists());
     }
 
-    @Test public void skinRootRemainsVisibleBeforeItsImportDirectoryExists() throws Exception {
+    @Test
+    public void skinRootRemainsVisibleBeforeItsImportDirectoryExists() throws Exception {
         VisTree tree = new VisTree();
         FileHandle missing = new FileHandle(Files.createTempDirectory("empty-skin-root")
                 .resolve("orig/skins").toFile());
@@ -91,7 +100,8 @@ public class FolderTreeBuilderTest {
         assertNull(folder.assetInfo);
     }
 
-    @Test public void fontStorageDirectoryUsesDescriptorNameWithoutExtension() {
+    @Test
+    public void fontStorageDirectoryUsesDescriptorNameWithoutExtension() {
         AssetMetaDatabase assets = new AssetMetaDatabase();
         assets.registerIfAbsent(AssetType.FONT, "fonts/font-export",
                 "orig/fonts/1700/font-export.fnt", AssetMeta.AssetScope.USER);
@@ -104,7 +114,8 @@ public class FolderTreeBuilderTest {
         assertEquals(AssetNode.Kind.FOLDER, folder.kind);
     }
 
-    @Test public void skinStorageDirectoryUsesDescriptorNameWithoutExtension() {
+    @Test
+    public void skinStorageDirectoryUsesDescriptorNameWithoutExtension() {
         AssetMetaDatabase assets = new AssetMetaDatabase();
         assets.registerIfAbsent(AssetType.SKIN, "skins/game",
                 "orig/skins/1800/game.json", AssetMeta.AssetScope.USER);

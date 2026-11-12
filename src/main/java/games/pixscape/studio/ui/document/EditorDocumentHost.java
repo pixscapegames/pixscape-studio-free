@@ -18,7 +18,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-/** Center tab strip and content frame projected from {@link EditorDocumentManager}. */
+/**
+ * Center tab strip and content frame projected from {@link EditorDocumentManager}.
+ */
 public final class EditorDocumentHost extends VisTable {
     private final EditorDocumentManager manager;
     private final TabbedPane tabs = new TabbedPane("document-tabs");
@@ -55,19 +57,24 @@ public final class EditorDocumentHost extends VisTable {
         add(contentFrame).grow().padTop(-1f).row();
 
         tabs.addListener(new TabbedPaneListener() {
-            @Override public void switchedTab(Tab tab) {
+            @Override
+            public void switchedTab(Tab tab) {
                 if (synchronizing || !(tab instanceof EditorDocumentTab documentTab)) return;
                 if (suppressVisUiFallbackActivation) {
                     suppressVisUiFallbackActivation = false;
                     return;
                 }
                 if (!userRemovalInProgress) {
-                    try { manager.activate(documentTab.document().key()); }
-                    finally { selectFromManager(manager.activeDocument()); }
+                    try {
+                        manager.activate(documentTab.document().key());
+                    } finally {
+                        selectFromManager(manager.activeDocument());
+                    }
                 }
             }
 
-            @Override public void removedTab(Tab tab) {
+            @Override
+            public void removedTab(Tab tab) {
                 if (!synchronizing && tab instanceof EditorDocumentTab documentTab) {
                     boolean wasActive = tabs.getActiveTab() == tab;
                     boolean closed;
@@ -85,34 +92,57 @@ public final class EditorDocumentHost extends VisTable {
                 }
             }
 
-            @Override public void removedAllTabs() {}
+            @Override
+            public void removedAllTabs() {
+            }
         });
 
         manager.addListener(new EditorDocumentManager.Listener() {
-            @Override public void documentOpened(OpenEditorDocument document) { addFromManager(document); }
-            @Override public void documentClosed(OpenEditorDocument document) { removeFromManager(document); }
-            @Override public void documentTitleChanged(OpenEditorDocument document) {
+            @Override
+            public void documentOpened(OpenEditorDocument document) {
+                addFromManager(document);
+            }
+
+            @Override
+            public void documentClosed(OpenEditorDocument document) {
+                removeFromManager(document);
+            }
+
+            @Override
+            public void documentTitleChanged(OpenEditorDocument document) {
                 EditorDocumentTab tab = tabsByKey.get(document.key());
                 if (tab != null && tab.getPane() == tabs) tabs.updateTabTitle(tab);
             }
-            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+
+            @Override
+            public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
                 if (!userRemovalInProgress) selectFromManager(current);
             }
-            @Override public void activationFailed(OpenEditorDocument previous, OpenEditorDocument attempted) {
+
+            @Override
+            public void activationFailed(OpenEditorDocument previous, OpenEditorDocument attempted) {
                 if (!userRemovalInProgress) selectFromManager(previous);
             }
         });
         rebuildTabs();
     }
 
-    public TabbedPane tabbedPane() { return tabs; }
-    public int documentTabCount() { return tabs.getTabs().size; }
+    public TabbedPane tabbedPane() {
+        return tabs;
+    }
+
+    public int documentTabCount() {
+        return tabs.getTabs().size;
+    }
+
     public EditorDocumentKey selectedKey() {
         Tab active = tabs.getActiveTab();
         return active instanceof EditorDocumentTab documentTab ? documentTab.document().key() : null;
     }
 
-    /** Test seam matching a user selection without exposing the Tab as lifecycle authority. */
+    /**
+     * Test seam matching a user selection without exposing the Tab as lifecycle authority.
+     */
     public boolean requestActivation(EditorDocumentKey key) {
         EditorDocumentTab tab = tabsByKey.get(key);
         if (tab == null) return false;

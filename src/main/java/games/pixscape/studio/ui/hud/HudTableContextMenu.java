@@ -13,12 +13,15 @@ import games.pixscape.studio.service.hud.HudLayoutAuthoring;
 import java.util.List;
 import java.util.Objects;
 
-/** Contextual native menu over existing transactional table structure commands. */
+/**
+ * Contextual native menu over existing transactional table structure commands.
+ */
 final class HudTableContextMenu {
     private static PopupMenu activeMenu;
     private static Context activeContext;
 
-    private HudTableContextMenu() { }
+    private HudTableContextMenu() {
+    }
 
     static void show(Stage stage, float x, float y, HudEditorSession session,
                      String clickedCellId, boolean rowOnly) {
@@ -82,8 +85,12 @@ final class HudTableContextMenu {
             tip.setAppearDelayTime(0f);
         }
         item.addListener(new ClickListener() {
-            @Override public void clicked(InputEvent event, float x, float y) {
-                if (item.isDisabled() || !valid(context)) { event.handle(); return; }
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                if (item.isDisabled() || !valid(context)) {
+                    event.handle();
+                    return;
+                }
                 context.session.editTableStructure(action, anchorId, otherId, column);
                 close();
                 event.handle();
@@ -96,7 +103,9 @@ final class HudTableContextMenu {
         if (activeContext != null && activeContext.session == session && !valid(activeContext)) close();
     }
 
-    static PopupMenu activeMenu() { return activeMenu; }
+    static PopupMenu activeMenu() {
+        return activeMenu;
+    }
 
     private static boolean valid(Context context) {
         HudEditorSession session = context.session;
@@ -119,5 +128,6 @@ final class HudTableContextMenu {
 
     private record Context(HudEditorSession session, HudDocumentV1 document, String screenId,
                            String clickedCellId, String tableId, String selectedCellId,
-                           List<String> selectedRange) { }
+                           List<String> selectedRange) {
+    }
 }

@@ -22,7 +22,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.util.function.Consumer;
 
-/** Minimal headless Studio shell shared by docking lifecycle tests. */
+/**
+ * Minimal headless Studio shell shared by docking lifecycle tests.
+ */
 public final class DockingTestFixture implements AutoCloseable {
     public final DockManager manager;
     public final EditorDocumentManager documents;
@@ -68,7 +70,7 @@ public final class DockingTestFixture implements AutoCloseable {
         manager.register(assets, DockSlot.BOTTOM, true);
         coordinator = coordinate
                 ? new DocumentDockPanelCoordinator(
-                        documents, manager, layers, widgets, () -> studioStage, deferUi)
+                documents, manager, layers, widgets, () -> studioStage, deferUi)
                 : null;
 
         shell = new VisTable();
@@ -106,7 +108,9 @@ public final class DockingTestFixture implements AutoCloseable {
         shell.validate();
     }
 
-    /** Establishes the coordinator's Stage-based floating classification; not a native-window test. */
+    /**
+     * Establishes the coordinator's Stage-based floating classification; not a native-window test.
+     */
     void placeOnFloatingStage(DockablePanel panel) {
         panel.remove();
         panel.setFillParent(true);
@@ -114,7 +118,8 @@ public final class DockingTestFixture implements AutoCloseable {
         floatingStage.addActor(panel);
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         manager.dispose();
         floatingStage.dispose();
         studioStage.dispose();
@@ -140,7 +145,8 @@ public final class DockingTestFixture implements AutoCloseable {
             throws Exception {
         Unsafe unsafe = unsafe();
         StudioApplicationAdapter app = new StudioApplicationAdapter() {
-            @Override public Actor createDockCenterHost(Actor centerContent) {
+            @Override
+            public Actor createDockCenterHost(Actor centerContent) {
                 return centerHostFactory.apply(centerContent);
             }
         };
@@ -196,6 +202,8 @@ public final class DockingTestFixture implements AutoCloseable {
     }
 
     public static final class TestPanel extends DockablePanel {
-        public TestPanel(String title) { super(title); }
+        public TestPanel(String title) {
+            super(title);
+        }
     }
 }

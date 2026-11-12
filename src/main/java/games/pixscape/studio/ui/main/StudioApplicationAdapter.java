@@ -160,7 +160,8 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                 ? StudioFs.requireStudioProjectDir(cfg)
                 : null;
 
-        if (projectDir != null) games.pixscape.studio.helper.BundledMaterialUpgrade.upgrade(projectDir.child(StudioFs.DIR_ORIG_SHADERS));
+        if (projectDir != null)
+            games.pixscape.studio.helper.BundledMaterialUpgrade.upgrade(projectDir.child(StudioFs.DIR_ORIG_SHADERS));
         ShaderRegistry.reloadForProject(
                 projectDir,
                 StudioFs.DIR_ORIG_SHADERS
@@ -181,10 +182,25 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                 () -> drawer);
         studioEditingModeService.bindHudTestModeController(
                 new StudioEditingModeService.HudTestModeController() {
-                    @Override public boolean canEnter() { return hudEditorSession.canEnterTestMode(); }
-                    @Override public boolean enter() { return hudEditorSession.enterTestMode(); }
-                    @Override public void exit() { hudEditorSession.exitTestMode(); }
-                    @Override public boolean isActive() { return hudEditorSession.isTestMode(); }
+                    @Override
+                    public boolean canEnter() {
+                        return hudEditorSession.canEnterTestMode();
+                    }
+
+                    @Override
+                    public boolean enter() {
+                        return hudEditorSession.enterTestMode();
+                    }
+
+                    @Override
+                    public void exit() {
+                        hudEditorSession.exitTestMode();
+                    }
+
+                    @Override
+                    public boolean isActive() {
+                        return hudEditorSession.isTestMode();
+                    }
                 });
         hudEditorSession.addListener(() -> {
             studioEditingModeService.refreshHudTestMode();
@@ -227,30 +243,40 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         editorCommandRouter = new ActiveDocumentCommandRouter(
                 editorDocumentManager,
                 new ActiveDocumentCommandRouter.SceneCommands() {
-                    @Override public void save(SceneEditorDocument document, Runnable onSuccess,
-                                               Consumer<Throwable> onFailure) {
+                    @Override
+                    public void save(SceneEditorDocument document, Runnable onSuccess,
+                                     Consumer<Throwable> onFailure) {
                         sceneService.saveProjectAndCurrentSceneWithProgress(
                                 uiStage, onSuccess, onFailure);
                     }
-                    @Override public boolean undo(SceneEditorDocument document) {
+
+                    @Override
+                    public boolean undo(SceneEditorDocument document) {
                         canvas.undoHistory();
                         return true;
                     }
-                    @Override public boolean redo(SceneEditorDocument document) {
+
+                    @Override
+                    public boolean redo(SceneEditorDocument document) {
                         canvas.redoHistory();
                         return true;
                     }
                 },
                 this::saveHudDocument,
                 new ActiveDocumentCommandRouter.GameObjectCommands() {
-                    @Override public void save(GameObjectEditorDocument document) {
+                    @Override
+                    public void save(GameObjectEditorDocument document) {
                         saveGameObjectDocument(document);
                     }
-                    @Override public boolean undo(GameObjectEditorDocument document) {
+
+                    @Override
+                    public boolean undo(GameObjectEditorDocument document) {
                         document.context().historyManager().undo();
                         return true;
                     }
-                    @Override public boolean redo(GameObjectEditorDocument document) {
+
+                    @Override
+                    public boolean redo(GameObjectEditorDocument document) {
                         document.context().historyManager().redo();
                         return true;
                     }
@@ -568,7 +594,9 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         return canvas;
     }
 
-    /** Compatibility accessor for the active or most-recent live Scene context. */
+    /**
+     * Compatibility accessor for the active or most-recent live Scene context.
+     */
     public SceneEditorContext getSceneEditorContext() {
         return getMostRecentSceneEditorContext();
     }
@@ -613,7 +641,9 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                 .orElse(false);
     }
 
-    /** Supplies the document-aware owner for DockManager's generic center content. */
+    /**
+     * Supplies the document-aware owner for DockManager's generic center content.
+     */
     public Actor createDockCenterHost(Actor centerContent) {
         return new EditorDocumentHost(editorDocumentManager, centerContent);
     }
@@ -645,7 +675,9 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         return controls;
     }
 
-    /** Reattaches the controls after DockManager has rebuilt the overlay for a ruler change. */
+    /**
+     * Reattaches the controls after DockManager has rebuilt the overlay for a ruler change.
+     */
     static void restoreCanvasModeControls(CanvasModeControls controls) {
         if (controls == null) return;
         CanvasModeIndicator indicator = controls.indicator();
@@ -704,7 +736,9 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         }
     }
 
-    /** Opens an isolated editable copy of one Game Object asset, keyed by its logical asset ID. */
+    /**
+     * Opens an isolated editable copy of one Game Object asset, keyed by its logical asset ID.
+     */
     public GameObjectEditorDocument openGameObject(String assetPath) {
         if (assetPath == null || assetPath.isBlank()) return null;
         FileHandle assetFile = new FileHandle(assetPath);
@@ -758,7 +792,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
             RenderRebindHelper.rebindEntitiesAfterAtlasChange(
                     canvas, null, canvas.getAssetVisualResolver(), result.createdIds(), null);
             candidate.world().process();
-            sceneService.prepareGameObjectNormals(candidate.world(),editingMeta);
+            sceneService.prepareGameObjectNormals(candidate.world(), editingMeta);
             int rootEntityId = result.sourceToCreated().get(asset.rootSourceEntityId, -1);
             if (rootEntityId < 0) {
                 throw new IllegalStateException("Game Object root could not be materialized for editing.");
@@ -791,7 +825,9 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         }
     }
 
-    /** Publishes only the isolated Game Object edit context; no project Scene is read or changed. */
+    /**
+     * Publishes only the isolated Game Object edit context; no project Scene is read or changed.
+     */
     private void saveGameObjectDocument(GameObjectEditorDocument document) {
         SceneEditorContext context = document.context();
         IntArray root = new IntArray(new int[]{document.rootEntityId()});
@@ -811,7 +847,9 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         }
     }
 
-    /** Routes Save to the exact active editor document. */
+    /**
+     * Routes Save to the exact active editor document.
+     */
     public void saveActiveDocumentWithProgress(Runnable onSuccess, Consumer<Throwable> onFailure) {
         editorCommandRouter.save(onSuccess, onFailure);
     }
@@ -911,14 +949,18 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         }
     }
 
-    /** Project lifecycle boundary for Scene-local HUD Runtime preparation. */
+    /**
+     * Project lifecycle boundary for Scene-local HUD Runtime preparation.
+     */
     public void onHudRuntimeProjectChanging() {
         if (studioEditingModeService != null) studioEditingModeService.setHudTestMode(false);
         if (sceneHudCompositionRenderer != null) sceneHudCompositionRenderer.onProjectChanging();
         if (sceneHudRuntimePreparationService != null) sceneHudRuntimePreparationService.onProjectChanging();
     }
 
-    /** Binds future HUD Runtime requests after the new project is authoritative; no eager builds. */
+    /**
+     * Binds future HUD Runtime requests after the new project is authoritative; no eager builds.
+     */
     public void bindHudRuntimeProject(FileHandle projectDir) {
         if (sceneHudRuntimePreparationService != null) sceneHudRuntimePreparationService.bindProject(projectDir);
     }
@@ -1183,18 +1225,25 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
 
     private void bindEditorDocumentLifecycle() {
         editorDocumentManager.addListener(new EditorDocumentManager.Listener() {
-            @Override public void validateActivation(OpenEditorDocument current) {
+            @Override
+            public void validateActivation(OpenEditorDocument current) {
                 SceneEditorContext context = documentContext(current);
                 if (context != null) canvas.validateAttachment(context);
             }
-            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+
+            @Override
+            public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
                 applyDocumentActivation(previous, current);
             }
-            @Override public void activationFailed(OpenEditorDocument previous, OpenEditorDocument attempted) {
+
+            @Override
+            public void activationFailed(OpenEditorDocument previous, OpenEditorDocument attempted) {
                 // Restore from the authoritative document, not by replaying activation observers.
                 applyDocumentActivation(null, previous);
             }
-            @Override public void documentClosed(OpenEditorDocument document) {
+
+            @Override
+            public void documentClosed(OpenEditorDocument document) {
                 SceneEditorContext closedContext = documentContext(document);
                 if (closedContext != null) {
                     if (itemTreePanel != null) itemTreePanel.releaseSceneContext(closedContext);
@@ -1336,7 +1385,8 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                 "Save changes to \"" + document.title() + "\" before closing?",
                 Dialogs.OptionDialogType.YES_NO_CANCEL,
                 new OptionDialogListener() {
-                    @Override public void yes() {
+                    @Override
+                    public void yes() {
                         sceneService.saveSceneDocumentWithProgress(
                                 document,
                                 () -> editorDocumentManager.closeNow(document.key()),
@@ -1344,10 +1394,15 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                                         uiStage, "Save failed",
                                         PreviewLaunchSupport.userMessageFor(throwable)));
                     }
-                    @Override public void no() {
+
+                    @Override
+                    public void no() {
                         editorDocumentManager.closeNow(document.key());
                     }
-                    @Override public void cancel() { }
+
+                    @Override
+                    public void cancel() {
+                    }
                 });
     }
 
@@ -1366,7 +1421,8 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                 "Save changes to \"" + document.title() + "\" before closing?",
                 Dialogs.OptionDialogType.YES_NO_CANCEL,
                 new OptionDialogListener() {
-                    @Override public void yes() {
+                    @Override
+                    public void yes() {
                         try {
                             save.run();
                             editorDocumentManager.closeNow(document.key());
@@ -1375,8 +1431,15 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                                     PreviewLaunchSupport.userMessageFor(failure));
                         }
                     }
-                    @Override public void no() { editorDocumentManager.closeNow(document.key()); }
-                    @Override public void cancel() { }
+
+                    @Override
+                    public void no() {
+                        editorDocumentManager.closeNow(document.key());
+                    }
+
+                    @Override
+                    public void cancel() {
+                    }
                 });
     }
 
@@ -1385,7 +1448,9 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         return null;
     }
 
-    /** Guards declaration rename/removal against unsaved entity overrides in open documents. */
+    /**
+     * Guards declaration rename/removal against unsaved entity overrides in open documents.
+     */
     public boolean hasOpenShaderParameterReference(String shaderName, String parameterName) {
         if (editorDocumentManager == null) return false;
         for (OpenEditorDocument document : editorDocumentManager.documents()) {
@@ -1444,7 +1509,9 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         return studioEditingModeService != null && studioEditingModeService.isHudTestMode();
     }
 
-    /** Performs the HUD-only Delete shortcut when focus belongs to its canvas or hierarchy. */
+    /**
+     * Performs the HUD-only Delete shortcut when focus belongs to its canvas or hierarchy.
+     */
     public boolean deleteFocusedHudNode(Actor focus) {
         if (!hudCanvasActive() || studioEditingModeService.isHudTestMode()
                 || hasVisibleModalDialog(uiStage != null ? uiStage.getRoot() : null)
@@ -1563,7 +1630,8 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                                                    Stage studioStage, Stage worldStage) {
         // Only an active separator claims Escape; all other input keeps the HUD-first route.
         return new InputMultiplexer(new InputAdapter() {
-            @Override public boolean keyDown(int keycode) {
+            @Override
+            public boolean keyDown(int keycode) {
                 return keycode == Input.Keys.ESCAPE && docks.cancelResize();
             }
         }, hudRouter, studioStage, worldStage);

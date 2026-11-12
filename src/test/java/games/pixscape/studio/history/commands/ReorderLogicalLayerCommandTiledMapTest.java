@@ -11,7 +11,9 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-/** Maps remain top-level peers in logical ordering and history. */
+/**
+ * Maps remain top-level peers in logical ordering and history.
+ */
 public class ReorderLogicalLayerCommandTiledMapTest {
     @Test
     public void movesTiledMapAsATopLevelPeerAndRestoresItOnUndo() {
@@ -88,6 +90,7 @@ public class ReorderLogicalLayerCommandTiledMapTest {
         meta.nextEntityStableId = 100; // Fixture identities below are restored authored IDs.
         new games.pixscape.runtime.service.IdentityRegistry().bind(world, meta);
     }
+
     private static int orderedEntity(World world, int stableId, int layerIndex, int zIndex) {
         int entity = world.create();
         world.getMapper(PixscapeIdentityComponent.class).create(entity).stableId = stableId;

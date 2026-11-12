@@ -20,12 +20,14 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 public class TextureAtlasAssetImportServiceTest {
-    @Rule public final TemporaryFolder temporary = new TemporaryFolder();
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
     private FileHandle external, project;
     private AssetMetaDatabase database;
     private TextureAtlasAssetImportService importer;
 
-    @Before public void setup() throws Exception {
+    @Before
+    public void setup() throws Exception {
         GdxNativesLoader.load();
         external = new FileHandle(temporary.newFolder("external"));
         project = new FileHandle(temporary.newFolder("project"));
@@ -34,7 +36,8 @@ public class TextureAtlasAssetImportServiceTest {
         png("page.png", 4, 4, 0x12345678);
     }
 
-    @Test public void mixedAtlasUsesOnlyIndicesAndKeepsAliasesAndSingletonAnimations() {
+    @Test
+    public void mixedAtlasUsesOnlyIndicesAndKeepsAliasesAndSingletonAnimations() {
         List<AssetMeta> assets = load(page("page.png")
                 + region("walk", 10, 1, 0) + region("run", 2, 0, 0)
                 + region("walk", 2, 0, 0) + region("single", 7, 0, 0)
@@ -57,7 +60,8 @@ public class TextureAtlasAssetImportServiceTest {
         assertFalse(project.child("orig/.tmp").exists());
     }
 
-    @Test public void framesCanSpanPagesAndPersistAsOrdinaryAnimationAssets() {
+    @Test
+    public void framesCanSpanPagesAndPersistAsOrdinaryAnimationAssets() {
         png("nested/second.png", 4, 4, 0xaabbccff);
         load(page("page.png") + region("walk", 10, 0, 0)
                 + "\n" + page("nested/second.png") + region("walk", 2, 0, 0));
@@ -74,7 +78,8 @@ public class TextureAtlasAssetImportServiceTest {
                 project.child(restored.sourceRelPath()), restored.sourceRelPath()).length);
     }
 
-    @Test public void restoresNonSquareRotationTrimOffsetsAndEveryAlphaPixelExactly() {
+    @Test
+    public void restoresNonSquareRotationTrimOffsetsAndEveryAlphaPixelExactly() {
         // Packed counterclockwise: [B D F] / [A C E], canonical: [A B] / [C D] / [E F].
         int[] canonical = {0x11223300, 0x22334440, 0x33445580, 0x445566ff, 0x556677fe, 0x66778801};
         Pixmap page = new Pixmap(4, 4, Pixmap.Format.RGBA8888);
@@ -90,38 +95,47 @@ public class TextureAtlasAssetImportServiceTest {
             try {
                 assertEquals(5, restored.getWidth());
                 assertEquals(6, restored.getHeight());
-                for (int y = 0; y < 6; y++) for (int x = 0; x < 5; x++) {
-                    int expected = x >= 1 && x < 3 && y >= 1 && y < 4 ? canonical[(y - 1) * 2 + x - 1] : 0;
-                    assertEquals("Pixel " + x + "," + y, expected, restored.getPixel(x, y));
-                }
-            } finally { restored.dispose(); }
+                for (int y = 0; y < 6; y++)
+                    for (int x = 0; x < 5; x++) {
+                        int expected = x >= 1 && x < 3 && y >= 1 && y < 4 ? canonical[(y - 1) * 2 + x - 1] : 0;
+                        assertEquals("Pixel " + x + "," + y, expected, restored.getPixel(x, y));
+                    }
+            } finally {
+                restored.dispose();
+            }
         }
     }
 
-    @Test public void missingPageRejectsWholeAtlas() {
+    @Test
+    public void missingPageRejectsWholeAtlas() {
         rejected(page("page.png") + region("valid", 0, 0, 0) + "\n" + page("missing.png") + region("missing", 0, 0, 0), "missing");
     }
 
-    @Test public void nonPngPageRejectsWholeAtlas() {
+    @Test
+    public void nonPngPageRejectsWholeAtlas() {
         external.child("page.png").copyTo(external.child("page.jpg"));
         rejected(page("page.jpg") + region("walk", 0, 0, 0), "PNG");
     }
 
-    @Test public void undecodablePngRejectsWholeAtlas() {
-        external.child("page.png").writeBytes(new byte[]{(byte)137,80,78,71,13,10,26,10,0}, false);
+    @Test
+    public void undecodablePngRejectsWholeAtlas() {
+        external.child("page.png").writeBytes(new byte[]{(byte) 137, 80, 78, 71, 13, 10, 26, 10, 0}, false);
         rejected(page("page.png") + region("walk", 0, 0, 0), "decode");
     }
 
-    @Test public void duplicateIndexedRegionRejectsWholeAtlas() {
+    @Test
+    public void duplicateIndexedRegionRejectsWholeAtlas() {
         rejected(page("page.png") + region("walk", 2, 0, 0) + region("walk", 2, 1, 0), "duplicate (name, index): (walk, 2)");
     }
 
-    @Test public void varyingOriginalAnimationDimensionsAreRejected() {
+    @Test
+    public void varyingOriginalAnimationDimensionsAreRejected() {
         rejected(page("page.png") + region("walk", 0, 0, 0) + region("walk", 1, 0, 0)
                 + " offsets: 0, 0, 2, 2\n", "identical original dimensions");
     }
 
-    @Test public void invalidGeometryRotationAndMetadataAreRejected() {
+    @Test
+    public void invalidGeometryRotationAndMetadataAreRejected() {
         for (String field : List.of("bounds: 4, 0, 1, 1", "bounds: -1, 0, 1, 1", "rotate: 180",
                 "offsets: 2, 0, 2, 2", "orig: -1, 2", "split: 1, 1, 1, 1"))
             rejected(page("page.png") + region("walk", 0, 0, 0) + " " + field + "\n", "Atlas region");
@@ -129,19 +143,22 @@ public class TextureAtlasAssetImportServiceTest {
         rejected("page.png\n pma: true\n" + region("walk", 0, 0, 0), "Premultiplied");
     }
 
-    @Test public void unsafeNamesAndPagesAreRejected() {
+    @Test
+    public void unsafeNamesAndPagesAreRejected() {
         rejected(page("page.png") + region("../outside", 0, 0, 0), "Unsafe");
         rejected(page("page.png") + region(".hidden", 0, 0, 0), "Unsafe");
         rejected(page("../page.png") + region("walk", 0, 0, 0), "escapes");
     }
 
-    @Test public void unindexedDuplicatesAndRuntimeNameCollisionsAreRejected() {
+    @Test
+    public void unindexedDuplicatesAndRuntimeNameCollisionsAreRejected() {
         rejected(page("page.png") + region("still", -1, 0, 0) + region("still", -1, 1, 0), "duplicate");
         rejected(page("page.png") + region("walk.png", 0, 0, 0) + region("walk.jpg", 1, 0, 0), "Runtime naming convention");
         rejected(page("page.png") + region("walk", -2, 0, 0), "index must be");
     }
 
-    @Test public void restoresUnrotatedTrimWhenPageSizeIsOmitted() {
+    @Test
+    public void restoresUnrotatedTrimWhenPageSizeIsOmitted() {
         load("page.png\nstill\n bounds: 0, 0, 2, 1\n offsets: 2, 1, 5, 4\n");
         FileHandle file = project.child(database.findByLogicalPath("images/still").sourceRelPath());
         assertEquals(0, pixel(file, 1, 2));
@@ -150,7 +167,8 @@ public class TextureAtlasAssetImportServiceTest {
         assertEquals(0, pixel(file, 2, 3));
     }
 
-    @Test public void existingNamesAreNotOverwritten() {
+    @Test
+    public void existingNamesAreNotOverwritten() {
         String atlas = page("page.png") + region("walk", 0, 0, 0);
         load(atlas);
         byte[] before = frame(animation("walk"), 0).readBytes();
@@ -160,7 +178,8 @@ public class TextureAtlasAssetImportServiceTest {
         assertArrayEquals(before, frame(animation("walk"), 0).readBytes());
     }
 
-    @Test public void publicationFailureRollsBackEarlierAssetsAndPreservesConsumedIds() {
+    @Test
+    public void publicationFailureRollsBackEarlierAssetsAndPreservesConsumedIds() {
         FileHandle blocker = project.child(StudioFs.DIR_ORIG_IMAGES + "/second__a2.png");
         blocker.writeString("keep", false);
         assertThrows(IllegalStateException.class, () -> load(page("page.png")
@@ -172,8 +191,11 @@ public class TextureAtlasAssetImportServiceTest {
         assertFalse(project.child("orig/.tmp").exists());
     }
 
-    /** Opt-in check against the user's immutable source, without committing binary fixtures. */
-    @Test public void daemonDirectAtlas() {
+    /**
+     * Opt-in check against the user's immutable source, without committing binary fixtures.
+     */
+    @Test
+    public void daemonDirectAtlas() {
         String source = System.getenv("PIXSCAPE_TEST_ATLAS");
         org.junit.Assume.assumeTrue(source != null && !source.isBlank());
         FileHandle descriptor = new FileHandle(source);
@@ -196,30 +218,46 @@ public class TextureAtlasAssetImportServiceTest {
         descriptor.writeString(text, false, "UTF-8");
         return importer.importNew(descriptor, project);
     }
+
     private void rejected(String text, String message) {
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> load(text));
         assertTrue(failure.getMessage(), failure.getMessage().contains(message));
         assertEquals(0, database.size());
         assertFalse(project.child("orig/.tmp").exists());
     }
-    private AnimationAssetMeta animation(String name) { return (AnimationAssetMeta) database.findByLogicalPath("animations/" + name); }
+
+    private AnimationAssetMeta animation(String name) {
+        return (AnimationAssetMeta) database.findByLogicalPath("animations/" + name);
+    }
+
     private FileHandle frame(AnimationAssetMeta animation, int index) {
         FileHandle[] files = project.child(animation.sourceRelPath()).list("png");
         Arrays.sort(files, java.util.Comparator.comparing(FileHandle::name));
         return files[index];
     }
+
     private static int pixel(FileHandle file, int x, int y) {
         Pixmap pixmap = new Pixmap(file);
-        try { return pixmap.getPixel(x, y); } finally { pixmap.dispose(); }
+        try {
+            return pixmap.getPixel(x, y);
+        } finally {
+            pixmap.dispose();
+        }
     }
+
     private void png(String name, int width, int height, int color) {
         Pixmap pixels = new Pixmap(width, height, Pixmap.Format.RGBA8888);
         pixels.setBlending(Pixmap.Blending.None);
-        for (int y = 0; y < height; y++) for (int x = 0; x < width; x++) pixels.drawPixel(x, y, color + x * 256 + y * 65536);
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++) pixels.drawPixel(x, y, color + x * 256 + y * 65536);
         PixmapIO.writePNG(external.child(name), pixels);
         pixels.dispose();
     }
-    private static String page(String name) { return name + "\n size: 4, 4\n"; }
+
+    private static String page(String name) {
+        return name + "\n size: 4, 4\n";
+    }
+
     private static String region(String name, int index, int x, int y) {
         return name + "\n bounds: " + x + ", " + y + ", 1, 1\n index: " + index + "\n";
     }

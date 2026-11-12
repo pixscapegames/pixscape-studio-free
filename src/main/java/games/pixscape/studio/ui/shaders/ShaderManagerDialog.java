@@ -320,7 +320,8 @@ public class ShaderManagerDialog extends StudioModalWindow {
         });
 
         parametersButton.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 String name = shaderBox.getSelected();
                 if (name == null || getStage() == null || typeBox.getSelected() != ShaderKind.MATERIAL) return;
                 ShaderParameterDeclarationDialog dialog = new ShaderParameterDeclarationDialog(
@@ -418,7 +419,8 @@ public class ShaderManagerDialog extends StudioModalWindow {
         VisTable lightingChoices = buildLightingChoices();
         form.add(lightingChoices).colspan(2).growX().padTop(8f).row();
         kindBox.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 lightingChoices.setVisible(kindBox.getSelected() == ShaderKind.MATERIAL);
             }
         });
@@ -510,7 +512,8 @@ public class ShaderManagerDialog extends StudioModalWindow {
         }
 
         try {
-            if (kind == ShaderKind.MATERIAL) writeSurfaceAsset(shaderDir, name, lighting, "return base;\n", null, new Array<>());
+            if (kind == ShaderKind.MATERIAL)
+                writeSurfaceAsset(shaderDir, name, lighting, "return base;\n", null, new Array<>());
             else createNewShaderAsset(name, kind);
             reloadRegistryAndNotify();
             selectShader(kind, name);
@@ -538,7 +541,8 @@ public class ShaderManagerDialog extends StudioModalWindow {
     }
 
     private void writeNewShaderAsset(FileHandle shaderDir, String name, ShaderKind kind) {
-        if (kind != ShaderKind.FX) throw new IllegalArgumentException("New materials require the shared surface contract");
+        if (kind != ShaderKind.FX)
+            throw new IllegalArgumentException("New materials require the shared surface contract");
         try {
             shaderDir.mkdirs();
             if (!shaderDir.exists()) {
@@ -602,7 +606,8 @@ public class ShaderManagerDialog extends StudioModalWindow {
 
     private void clearEditors() {
         editedLighting = null;
-        surfaceEditor.setText(""); maskEditor.setText("");
+        surfaceEditor.setText("");
+        maskEditor.setText("");
         editedParameters = new Array<>();
         updateParametersSummary();
         for (ShaderVariant variant : ShaderVariant.values()) {
@@ -712,7 +717,8 @@ public class ShaderManagerDialog extends StudioModalWindow {
         FileHandle dir = getProjectShaderDir(ShaderKind.MATERIAL, name);
         String[] files = {"shader.json", "surface.glsl", "mask.glsl"};
         byte[][] previous = new byte[files.length][];
-        for (int i = 0; i < files.length; i++) if (dir.child(files[i]).exists()) previous[i] = dir.child(files[i]).readBytes();
+        for (int i = 0; i < files.length; i++)
+            if (dir.child(files[i]).exists()) previous[i] = dir.child(files[i]).readBytes();
         try {
             validateDeclarationChange(name, dir.child("shader.json"), StudioFs.requireStudioProjectDir(ProjectConfig.getInstance()));
             SurfaceShader candidate = editedSurface(name);
@@ -738,7 +744,10 @@ public class ShaderManagerDialog extends StudioModalWindow {
             return;
         }
 
-        if (editedLighting != null) { saveSurface(name); return; }
+        if (editedLighting != null) {
+            saveSurface(name);
+            return;
+        }
         for (ShaderVariant variant : ShaderVariant.values()) {
             String vertSource = vertEditors.get(variant).getText();
             String fragSource = fragEditors.get(variant).getText();
@@ -759,9 +768,9 @@ public class ShaderManagerDialog extends StudioModalWindow {
             return;
         }
 
-        ObjectMap<FileHandle,byte[]> previousFiles=new ObjectMap<>();
-        FileHandle savedDir=getProjectShaderDir(kind,name);
-        for(FileHandle file:savedDir.list())if(!file.isDirectory())previousFiles.put(file,file.readBytes());
+        ObjectMap<FileHandle, byte[]> previousFiles = new ObjectMap<>();
+        FileHandle savedDir = getProjectShaderDir(kind, name);
+        for (FileHandle file : savedDir.list()) if (!file.isDirectory()) previousFiles.put(file, file.readBytes());
         try {
             FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
             FileHandle shaderDir = getProjectShaderDir(kind, name);
@@ -807,7 +816,7 @@ public class ShaderManagerDialog extends StudioModalWindow {
             selectShader(kind, name);
 
         } catch (Exception ex) {
-            for(ObjectMap.Entry<FileHandle,byte[]> old:previousFiles)old.key.writeBytes(old.value,false);
+            for (ObjectMap.Entry<FileHandle, byte[]> old : previousFiles) old.key.writeBytes(old.value, false);
             Dialogs.showErrorDialog(
                     getStage(),
                     "Error while saving shader",
@@ -1058,7 +1067,7 @@ public class ShaderManagerDialog extends StudioModalWindow {
                 return false;
             }
 
-            byte[] oldMetadata=sourceDir.child("shader.json").readBytes();
+            byte[] oldMetadata = sourceDir.child("shader.json").readBytes();
             try {
                 sourceDir.moveTo(targetDir);
                 if (!targetDir.exists()) {
@@ -1069,15 +1078,15 @@ public class ShaderManagerDialog extends StudioModalWindow {
                 FileHandle metadata = targetDir.child("shader.json");
                 metadata.writeString(buildShaderJson(targetName, kind, metadata), false, "UTF-8");
 
-                FileHandle project=StudioFs.requireStudioProjectDir(ProjectConfig.getInstance());
-                ShaderRegistry.renameForProject(project,StudioFs.DIR_ORIG_SHADERS,sourceName,targetName);
+                FileHandle project = StudioFs.requireStudioProjectDir(ProjectConfig.getInstance());
+                ShaderRegistry.renameForProject(project, StudioFs.DIR_ORIG_SHADERS, sourceName, targetName);
                 ShaderRegistry.saveProjectIndices();
                 EventFlow.i().publish(new EventFlow.ShaderListChanged(EventFlow.tag(this)));
                 selectShader(kind, targetName);
                 return true;
             } catch (Exception ex) {
-                if(targetDir.exists() && !sourceDir.exists())targetDir.moveTo(sourceDir);
-                sourceDir.child("shader.json").writeBytes(oldMetadata,false);
+                if (targetDir.exists() && !sourceDir.exists()) targetDir.moveTo(sourceDir);
+                sourceDir.child("shader.json").writeBytes(oldMetadata, false);
                 Dialogs.showErrorDialog(
                         getStage(),
                         "Error while renaming shader",
@@ -1192,9 +1201,11 @@ public class ShaderManagerDialog extends StudioModalWindow {
                                    Array<ShaderFloatParam> replacement) {
         if (existingMetadata != null && existingMetadata.exists()) {
             JsonValue metadata = new JsonReader().parse(existingMetadata);
-            metadata.remove("name"); metadata.addChild("name", new JsonValue(name));
+            metadata.remove("name");
+            metadata.addChild("name", new JsonValue(name));
             if (replacement != null) {
-                metadata.remove("parameters"); metadata.addChild("parameters", parameterJson(replacement));
+                metadata.remove("parameters");
+                metadata.addChild("parameters", parameterJson(replacement));
             }
             return metadata.prettyPrint(JsonWriter.OutputType.json, 120);
         }
@@ -1278,7 +1289,10 @@ public class ShaderManagerDialog extends StudioModalWindow {
         for (ShaderFloatParam old : previous) {
             boolean stillExists = false;
             for (ShaderFloatParam next : editedParameters) {
-                if (old.name.equals(next.name)) { stillExists = true; break; }
+                if (old.name.equals(next.name)) {
+                    stillExists = true;
+                    break;
+                }
             }
             if (stillExists) continue;
             if (app != null && app.hasOpenShaderParameterReference(shaderName, old.name)) {
@@ -1308,7 +1322,7 @@ public class ShaderManagerDialog extends StudioModalWindow {
                 int shaderIdx = ShaderRegistry.indexOf(shaderName);
                 if (entities == null || shaderIdx < 0) {
                     if (java.util.regex.Pattern.compile("\"name\"\\s*:\\s*\""
-                            + java.util.regex.Pattern.quote(parameterName) + "\"")
+                                    + java.util.regex.Pattern.quote(parameterName) + "\"")
                             .matcher(contents).find()) return child;
                     continue;
                 }

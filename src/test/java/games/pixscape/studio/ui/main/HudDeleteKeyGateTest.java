@@ -8,7 +8,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.*;
 
 public class HudDeleteKeyGateTest {
-    @Test public void consumesOnlyHandledHudDeletesAndSuppressesRepeatUntilKeyUp() {
+    @Test
+    public void consumesOnlyHandledHudDeletesAndSuppressesRepeatUntilKeyUp() {
         HudDeleteKeyGate gate = new HudDeleteKeyGate();
         AtomicInteger deletions = new AtomicInteger();
 

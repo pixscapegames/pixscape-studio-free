@@ -154,7 +154,7 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
             if (op == TransformOp.SCALE && after != null) {
                 rejectedScale = !isValidGameObjectScale(after)
                         || !GameObjectHierarchyCommandSupport.canApplyScale(
-                                world, entityId, after.scaleX, after.scaleY);
+                        world, entityId, after.scaleX, after.scaleY);
             } else {
                 requireValidGameObjectTransform(after);
             }

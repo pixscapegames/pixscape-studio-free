@@ -63,6 +63,7 @@ public class RemovePhysicsBodyCommandTest {
             harness.close();
         }
     }
+
     @Test
     public void repeatedRemoveUndoRestoresBodyShapeAndJointIdentities() {
         Harness harness = new Harness();
@@ -117,7 +118,7 @@ public class RemovePhysicsBodyCommandTest {
             Assert.assertEquals(bodyA, base.aEid);
             Assert.assertEquals(bodyB, base.bEid);
             Assert.assertEquals(3.5f, harness.world.getMapper(
-                    PhysicsDistanceJointComponent.class)
+                            PhysicsDistanceJointComponent.class)
                     .get(restoredJoint).lengthM, 0f);
             Assert.assertTrue(harness.world.getMapper(
                     PhysicsCompiledFixturesComponent.class).get(bodyA).valid);

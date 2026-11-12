@@ -269,5 +269,6 @@ public class SpatialWallEditSessionTest {
 
     private record Fixture(World world, int layer, TiledMapLayerData map,
                            SpatialBlocksComponent walls, HistoryManager history,
-                           SpatialBlockSelectionService selection) { }
+                           SpatialBlockSelectionService selection) {
+    }
 }

@@ -15,7 +15,9 @@ import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 
-/** Adds or removes the authored physics relation for one Spatial Block. */
+/**
+ * Adds or removes the authored physics relation for one Spatial Block.
+ */
 public final class SetSpatialBlockPhysicsCollisionCommand
         implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
     private final World world;

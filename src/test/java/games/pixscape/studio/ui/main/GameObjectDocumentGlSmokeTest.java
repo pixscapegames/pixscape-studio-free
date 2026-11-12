@@ -22,9 +22,12 @@ import java.nio.file.Files;
 import static org.junit.Assert.*;
 import static org.junit.Assume.assumeTrue;
 
-/** Opt-in desktop integration exercise; never opens the user's project or settings. */
+/**
+ * Opt-in desktop integration exercise; never opens the user's project or settings.
+ */
 public class GameObjectDocumentGlSmokeTest {
-    @Test public void isolatedAssetActivation() throws Exception {
+    @Test
+    public void isolatedAssetActivation() throws Exception {
         assumeTrue("1".equals(System.getenv("PIXSCAPE_DOCUMENT_GL_TEST")));
         String originalHome = System.getProperty("user.home");
         ProjectConfig originalConfig = ProjectConfig.getInstance();
@@ -44,7 +47,9 @@ public class GameObjectDocumentGlSmokeTest {
         try (var globals = new games.pixscape.studio.service.StudioGlTestScope()) {
             new Lwjgl3Application(new ApplicationAdapter() {
                 StudioApplicationAdapter studio;
-                @Override public void create() {
+
+                @Override
+                public void create() {
                     try {
                         studio = new StudioApplicationAdapter();
                         studio.create();
@@ -94,14 +99,17 @@ public class GameObjectDocumentGlSmokeTest {
                         assertTrue(second.isDirty());
                         studio.redoActiveDocument();
                         assertTrue(document.isDirty());
-                        studio.saveActiveDocumentWithProgress(() -> {}, ex -> { throw new AssertionError(ex); });
+                        studio.saveActiveDocumentWithProgress(() -> {
+                        }, ex -> {
+                            throw new AssertionError(ex);
+                        });
                         assertFalse(document.isDirty());
                         assertEquals("edited car", new GameObjectAssetLoader().load(file).entities.get(0).identity.name);
                         rename(document, "unsaved car");
                         var originalWorld = document.context().world();
                         var assetOps = studio.getCanvas().getEditorOps();
                         var bodies = originalWorld.getAspectSubscriptionManager().get(
-                                com.artemis.Aspect.all(games.pixscape.runtime.component.physics.PhysicsBodyComponent.class))
+                                        com.artemis.Aspect.all(games.pixscape.runtime.component.physics.PhysicsBodyComponent.class))
                                 .getEntities();
                         int body = bodies.get(0);
 
@@ -167,7 +175,10 @@ public class GameObjectDocumentGlSmokeTest {
                         assertTrue(document.isDirty());
                         var sceneFile = directory.child("scenes").child(sceneMeta.getFile());
                         byte[] sceneBytes = sceneFile.readBytes();
-                        studio.saveActiveDocumentWithProgress(() -> {}, ex -> { throw new AssertionError(ex); });
+                        studio.saveActiveDocumentWithProgress(() -> {
+                        }, ex -> {
+                            throw new AssertionError(ex);
+                        });
                         assertArrayEquals(sceneBytes, sceneFile.readBytes());
                         manager.closeNow(scene.key());
                         assertTrue(document.context().isInitialized());
@@ -176,7 +187,8 @@ public class GameObjectDocumentGlSmokeTest {
                         assertTrue(studio.getCanvas().isAttached(document.context()));
 
                         EditorDocumentManager.Listener rejectOpening = new EditorDocumentManager.Listener() {
-                            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+                            @Override
+                            public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
                                 if (current instanceof GameObjectEditorDocument candidate
                                         && candidate.assetId().contains("rejected")) {
                                     throw new IllegalStateException("Injected inspector activation failure");
@@ -206,12 +218,21 @@ public class GameObjectDocumentGlSmokeTest {
                         studio.undoActiveDocument();
                         reopened.context().world().process();
                         assertFalse(reopened.context().world().getEntityManager().isActive(point));
-                    } catch (Throwable ex) { failure[0] = ex; }
-                    finally { Gdx.app.exit(); }
+                    } catch (Throwable ex) {
+                        failure[0] = ex;
+                    } finally {
+                        Gdx.app.exit();
+                    }
                 }
-                @Override public void dispose() {
-                    try { if (studio != null) studio.dispose(); }
-                    catch (Throwable ex) { if (failure[0] == null) failure[0] = ex; else failure[0].addSuppressed(ex); }
+
+                @Override
+                public void dispose() {
+                    try {
+                        if (studio != null) studio.dispose();
+                    } catch (Throwable ex) {
+                        if (failure[0] == null) failure[0] = ex;
+                        else failure[0].addSuppressed(ex);
+                    }
                 }
             }, gl);
         } finally {
@@ -227,12 +248,12 @@ public class GameObjectDocumentGlSmokeTest {
         var panel = studio.getItemTreePanel();
         var field = panel.getClass().getDeclaredField("tree");
         field.setAccessible(true);
-        var tree = (games.pixscape.studio.ui.tree.IdVisTree)field.get(panel);
+        var tree = (games.pixscape.studio.ui.tree.IdVisTree) field.get(panel);
         assertEquals(1, tree.getRootNodes().size);
         var root = tree.getRootNodes().first();
         assertTrue(root.isEntityNode());
         assertEquals(document.rootEntityId(), root.getEntityId());
-        var child = (games.pixscape.studio.ui.tree.EntityNode)root.getChildren().first();
+        var child = (games.pixscape.studio.ui.tree.EntityNode) root.getChildren().first();
         assertTrue(child.isEntityNode());
         var propertiesField = StudioApplicationAdapter.class.getDeclaredField("propertiesPanel");
         propertiesField.setAccessible(true);

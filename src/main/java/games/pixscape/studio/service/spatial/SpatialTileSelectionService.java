@@ -19,7 +19,9 @@ public final class SpatialTileSelectionService {
         OUTSIDE_MAP
     }
 
-    /** Reusable normalized occupied range. Callers must not retain it across selection updates. */
+    /**
+     * Reusable normalized occupied range. Callers must not retain it across selection updates.
+     */
     public static final class NormalizedSelection {
         public int minGx;
         public int maxGxExclusive;
@@ -125,11 +127,25 @@ public final class SpatialTileSelectionService {
         hoverGy = gy;
     }
 
-    public void clearHover() { hoverMapEntityId = NO_MAP; }
-    public boolean hasHover() { return hoverMapEntityId >= 0; }
-    public int getHoverMapEntityId() { return hoverMapEntityId; }
-    public int getHoverGx() { return hoverGx; }
-    public int getHoverGy() { return hoverGy; }
+    public void clearHover() {
+        hoverMapEntityId = NO_MAP;
+    }
+
+    public boolean hasHover() {
+        return hoverMapEntityId >= 0;
+    }
+
+    public int getHoverMapEntityId() {
+        return hoverMapEntityId;
+    }
+
+    public int getHoverGx() {
+        return hoverGx;
+    }
+
+    public int getHoverGy() {
+        return hoverGy;
+    }
 
     public SpatialWallAttachments.Axis gestureAxis() {
         float ax = Math.abs(gestureDx);
@@ -332,10 +348,10 @@ public final class SpatialTileSelectionService {
     }
 
     public static SpatialBlockData fromOccupiedRect(TiledMapLayerData map,
-                                                     int minGx, int minGy,
-                                                     int maxGx, int maxGy,
-                                                     float defaultAltitude,
-                                                     float defaultHeight) {
+                                                    int minGx, int minGy,
+                                                    int maxGx, int maxGy,
+                                                    float defaultAltitude,
+                                                    float defaultHeight) {
         if (map == null || minGx > maxGx || minGy > maxGy) return null;
         for (int gy = minGy; gy <= maxGy; gy++) {
             for (int gx = minGx; gx <= maxGx; gx++) {

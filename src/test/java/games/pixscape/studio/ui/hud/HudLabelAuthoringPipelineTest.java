@@ -24,10 +24,18 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class HudLabelAuthoringPipelineTest {
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
 
-    @Test public void createdFreeAndTableLabelsMaterializeAtVisibleNaturalSize() {
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
+
+    @Test
+    public void createdFreeAndTableLabelsMaterializeAtVisibleNaturalSize() {
         Label.LabelStyle style = VisUI.getSkin().get("default", Label.LabelStyle.class);
         Label probe = new Label("Étiquette", style);
         HudVisualResources resources = labelResources(style);
@@ -60,7 +68,7 @@ public class HudLabelAuthoringPipelineTest {
     }
 
     private static MaterializedHud materialize(HudDocumentV1 document,
-                                                HudVisualResources resources) {
+                                               HudVisualResources resources) {
         var validation = new HudDocumentValidator().validate(document);
         assertTrue(validation.issues().toString(), validation.isValid());
         return new HudMaterializer().materialize(validation.validatedDocument(), resources);
@@ -68,13 +76,30 @@ public class HudLabelAuthoringPipelineTest {
 
     private static HudVisualResources labelResources(Label.LabelStyle style) {
         return new HudVisualResources() {
-            @Override public TextureRegion region(String name) { return null; }
-            @Override public Drawable drawable(String name) { return null; }
-            @Override public Label.LabelStyle labelStyle(String name) {
+            @Override
+            public TextureRegion region(String name) {
+                return null;
+            }
+
+            @Override
+            public Drawable drawable(String name) {
+                return null;
+            }
+
+            @Override
+            public Label.LabelStyle labelStyle(String name) {
                 return "default".equals(name) ? style : null;
             }
-            @Override public Label.LabelStyle builtInLabelStyle() { return style; }
-            @Override public TextButton.TextButtonStyle textButtonStyle(String name) { return null; }
+
+            @Override
+            public Label.LabelStyle builtInLabelStyle() {
+                return style;
+            }
+
+            @Override
+            public TextButton.TextButtonStyle textButtonStyle(String name) {
+                return null;
+            }
         };
     }
 }

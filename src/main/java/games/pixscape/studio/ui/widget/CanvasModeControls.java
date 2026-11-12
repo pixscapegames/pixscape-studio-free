@@ -10,7 +10,9 @@ import games.pixscape.studio.service.StudioEditingModeService;
 
 import java.util.Objects;
 
-/** Owns the mode label and the stable HUD test action as separate sibling actors. */
+/**
+ * Owns the mode label and the stable HUD test action as separate sibling actors.
+ */
 public final class CanvasModeControls extends VisTable implements Disposable {
     static final float CONTROL_GAP = 8f;
 
@@ -26,7 +28,8 @@ public final class CanvasModeControls extends VisTable implements Disposable {
         setTouchable(Touchable.childrenOnly);
         hudTestToggle.setTouchable(Touchable.enabled);
         hudTestToggle.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 modeService.toggleHudTestMode();
                 refresh();
             }
@@ -36,7 +39,9 @@ public final class CanvasModeControls extends VisTable implements Disposable {
         refresh();
     }
 
-    /** Restores the stable actors after DockManager rebuilds its ruler-aware overlay cells. */
+    /**
+     * Restores the stable actors after DockManager rebuilds its ruler-aware overlay cells.
+     */
     public void rebuildContent() {
         clearChildren();
         add(indicator);
@@ -65,7 +70,8 @@ public final class CanvasModeControls extends VisTable implements Disposable {
         return hudTestToggle;
     }
 
-    @Override public void dispose() {
+    @Override
+    public void dispose() {
         modeService.removeListener(modeListener);
     }
 }

@@ -20,7 +20,10 @@ import java.nio.file.Path;
 import static org.junit.Assert.*;
 
 public class RuntimeExportHudMetadataTest {
-    @BeforeClass public static void loadNatives() { GdxNativesLoader.load(); }
+    @BeforeClass
+    public static void loadNatives() {
+        GdxNativesLoader.load();
+    }
 
     @Test
     public void exportPreservesCanonicalDirectHudMetadataAndIncludesStandaloneHudArtifacts() throws Exception {

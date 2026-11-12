@@ -11,9 +11,12 @@ import org.junit.Test;
 
 import static org.junit.Assert.*;
 
-/** Real command boundaries: deliberately no ECS step between mutation and placement. */
+/**
+ * Real command boundaries: deliberately no ECS step between mutation and placement.
+ */
 public class PlacementCompositionTest {
-    @Test public void unrelatedInvalidRelationStillRejectsCompositionButNotLeafPlacement() throws Exception {
+    @Test
+    public void unrelatedInvalidRelationStillRejectsCompositionButNotLeafPlacement() throws Exception {
         try (AlignServiceTest.Fixture f = new AlignServiceTest.Fixture()) {
             int root = f.root(100, 0), child = f.sprite(0, 0, 10, 10);
             int reference = f.sprite(20, 0, 10, 10), leaf = f.sprite(300, 0, 10, 10);
@@ -25,7 +28,9 @@ public class PlacementCompositionTest {
             f.align.alignLeft();
             assertEquals(0, f.history.getCursor());
             // Leaf-only preparation must not collect unrelated scene relations.
-            f.selection.clearSelection(); f.selection.selectAdd(reference); f.selection.selectAdd(leaf);
+            f.selection.clearSelection();
+            f.selection.selectAdd(reference);
+            f.selection.selectAdd(leaf);
             assertTrue(f.align.isPlacementAvailable());
             f.align.alignLeft();
             assertEquals(20, f.t.get(leaf).x, 0.03f);
@@ -35,13 +40,15 @@ public class PlacementCompositionTest {
         }
     }
 
-    @Test public void selectedAncestorMovesOnceWithoutHidingPhysicsFromAttachValidation() throws Exception {
+    @Test
+    public void selectedAncestorMovesOnceWithoutHidingPhysicsFromAttachValidation() throws Exception {
         try (AlignServiceTest.Fixture f = new AlignServiceTest.Fixture()) {
             int root = f.root(100, 0), body = f.sprite(50, 0, 10, 10);
             int visible = f.sprite(5, 0, 10, 10), reference = f.sprite(0, 0, 10, 10);
             int scaled = f.root(300, 0);
             f.t.get(scaled).scaleX = f.t.get(scaled).scaleY = 2;
-            f.attach(body, root); f.attach(visible, root);
+            f.attach(body, root);
+            f.attach(visible, root);
             f.world.getMapper(PhysicsBodyComponent.class).create(body);
             f.world.getMapper(VisibilityComponent.class).get(body).visible = false;
             f.select(reference, body, root);
@@ -58,10 +65,12 @@ public class PlacementCompositionTest {
         }
     }
 
-    @Test public void deletedMemberStopsContributingBeforeEcsPublication() throws Exception {
+    @Test
+    public void deletedMemberStopsContributingBeforeEcsPublication() throws Exception {
         try (AlignServiceTest.Fixture f = new AlignServiceTest.Fixture()) {
             int root = f.root(100, 0), distant = f.sprite(100, 0, 10, 10);
-            f.attach(f.sprite(0, 0, 10, 10), root); f.attach(distant, root);
+            f.attach(f.sprite(0, 0, 10, 10), root);
+            f.attach(distant, root);
             int target = f.sprite(300, 0, 10, 10);
             f.select(root, target);
             f.history.execute(new DeleteGameObjectHierarchyCommand(f.world, f.history.historyIds(),
@@ -73,7 +82,8 @@ public class PlacementCompositionTest {
         }
     }
 
-    @Test public void newlyIndexedAttachmentIsIncludedWithoutPublishingAnEcsStep() throws Exception {
+    @Test
+    public void newlyIndexedAttachmentIsIncludedWithoutPublishingAnEcsStep() throws Exception {
         try (AlignServiceTest.Fixture f = new AlignServiceTest.Fixture()) {
             int root = f.root(100, 0), target = f.sprite(300, 0, 10, 10);
             f.attach(f.sprite(0, 0, 10, 10), root);
@@ -91,17 +101,20 @@ public class PlacementCompositionTest {
         }
     }
 
-    @Test public void publishedAndCommandAdmissionAgreeAfterCompositionChanges() throws Exception {
+    @Test
+    public void publishedAndCommandAdmissionAgreeAfterCompositionChanges() throws Exception {
         try (AlignServiceTest.Fixture f = new AlignServiceTest.Fixture()) {
             int root = f.root(100, 0), child = f.sprite(0, 0, 10, 10);
             f.attach(child, root);
             f.attach(f.sprite(50, 0, 10, 10), root);
             f.select(root, f.sprite(300, 0, 10, 10));
             assertTrue(f.align.isPlacementAvailableAfterEcsStep());
-            f.changeWidth(child, 0); f.process();
+            f.changeWidth(child, 0);
+            f.process();
             assertFalse(f.align.isPlacementAvailable());
             assertFalse(f.align.isPlacementAvailableAfterEcsStep());
-            f.history.undo(); f.process();
+            f.history.undo();
+            f.process();
             assertTrue(f.align.isPlacementAvailable());
             assertTrue(f.align.isPlacementAvailableAfterEcsStep());
             f.world.getMapper(VisibilityComponent.class).get(child).visible = false;
@@ -110,7 +123,8 @@ public class PlacementCompositionTest {
         }
     }
 
-    @Test public void detachThenPlaceUsesRemainingContent() throws Exception {
+    @Test
+    public void detachThenPlaceUsesRemainingContent() throws Exception {
         try (AlignServiceTest.Fixture f = new AlignServiceTest.Fixture()) {
             int root = f.root(100, 0);
             f.attach(f.sprite(0, 0, 10, 10), root);
@@ -129,7 +143,8 @@ public class PlacementCompositionTest {
         }
     }
 
-    @Test public void detachAndAttachThenPlaceUsesNewParentContent() throws Exception {
+    @Test
+    public void detachAndAttachThenPlaceUsesNewParentContent() throws Exception {
         try (AlignServiceTest.Fixture f = new AlignServiceTest.Fixture()) {
             int oldRoot = f.root(100, 0), newRoot = f.root(0, 0);
             f.attach(f.sprite(0, 0, 10, 10), oldRoot);
@@ -150,7 +165,8 @@ public class PlacementCompositionTest {
         }
     }
 
-    @Test public void visibilityEditThenPlaceUsesVisibleContent() throws Exception {
+    @Test
+    public void visibilityEditThenPlaceUsesVisibleContent() throws Exception {
         try (AlignServiceTest.Fixture f = new AlignServiceTest.Fixture()) {
             int root = f.root(100, 0);
             f.attach(f.sprite(0, 0, 10, 10), root);
@@ -169,7 +185,8 @@ public class PlacementCompositionTest {
         }
     }
 
-    @Test public void undoAndRedoCompositionThenPlaceReadCurrentMembership() throws Exception {
+    @Test
+    public void undoAndRedoCompositionThenPlaceReadCurrentMembership() throws Exception {
         for (boolean redo : new boolean[]{false, true}) {
             try (AlignServiceTest.Fixture f = new AlignServiceTest.Fixture()) {
                 int root = f.root(100, 0);
@@ -182,7 +199,10 @@ public class PlacementCompositionTest {
                         f.world, f.history.historyIds(), f.context.identityRegistry(), child));
                 f.process();
                 f.history.undo();
-                if (redo) { f.process(); f.history.redo(); }
+                if (redo) {
+                    f.process();
+                    f.history.redo();
+                }
                 f.align.alignRight();
                 assertEquals(redo ? 100 : 200, f.t.get(target).x, 0.03f);
                 f.process();

@@ -8,7 +8,9 @@ import games.pixscape.studio.ui.modal.StudioDialog;
 
 import java.util.function.BiConsumer;
 
-/** Small modal that captures TABLE dimensions before any authored mutation occurs. */
+/**
+ * Small modal that captures TABLE dimensions before any authored mutation occurs.
+ */
 final class HudTableCreateDialog {
     static final int MAX_DIMENSION = 64;
 
@@ -20,7 +22,8 @@ final class HudTableCreateDialog {
         VisTextField rows = positiveField();
         VisTextField columns = positiveField();
         StudioDialog dialog = new StudioDialog("New Table") {
-            @Override protected void result(Object object) {
+            @Override
+            protected void result(Object object) {
                 if (!Boolean.TRUE.equals(object)) return;
                 int rowCount = positive(rows.getText());
                 int columnCount = positive(columns.getText());
@@ -60,7 +63,10 @@ final class HudTableCreateDialog {
     }
 
     private static int positive(String text) {
-        try { return Integer.parseInt(text != null ? text.trim() : ""); }
-        catch (NumberFormatException ignored) { return 0; }
+        try {
+            return Integer.parseInt(text != null ? text.trim() : "");
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
     }
 }

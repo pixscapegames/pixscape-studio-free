@@ -15,8 +15,15 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 
 public class HudIsolationDocumentActivationTest {
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
+
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
 
     @Test
     public void sceneAndHudSwitchingChangesActivationWithoutClosingAnyTab() {
@@ -28,7 +35,10 @@ public class HudIsolationDocumentActivationTest {
         HudScreenEditorDocument hudB = manager.openHudScreen("hud/b", "HUD B");
         AtomicInteger closes = new AtomicInteger();
         manager.addListener(new EditorDocumentManager.Listener() {
-            @Override public void documentClosed(OpenEditorDocument document) { closes.incrementAndGet(); }
+            @Override
+            public void documentClosed(OpenEditorDocument document) {
+                closes.incrementAndGet();
+            }
         });
 
         manager.activate(sceneA.key());

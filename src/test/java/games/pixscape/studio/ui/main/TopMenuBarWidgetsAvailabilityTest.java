@@ -18,28 +18,47 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.*;
 
 public class TopMenuBarWidgetsAvailabilityTest {
-    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
-    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+    @BeforeClass
+    public static void loadSkin() {
+        VisUiTestBootstrap.loadSkin();
+    }
 
-    @Test public void availabilityFollowsActiveDocumentWithoutChangingCheckedStateOrFiringAction() {
+    @AfterClass
+    public static void unloadSkin() {
+        VisUiTestBootstrap.unloadSkin();
+    }
+
+    @Test
+    public void availabilityFollowsActiveDocumentWithoutChangingCheckedStateOrFiringAction() {
         EditorDocumentManager documents = new EditorDocumentManager();
         CheckBoxMenuItem widgets = new CheckBoxMenuItem("Widgets", true);
         AtomicInteger actions = new AtomicInteger();
         widgets.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) { actions.incrementAndGet(); }
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                actions.incrementAndGet();
+            }
         });
         documents.addListener(new EditorDocumentManager.Listener() {
-            @Override public void documentOpened(OpenEditorDocument document) {
+            @Override
+            public void documentOpened(OpenEditorDocument document) {
                 refresh();
             }
-            @Override public void documentActivated(OpenEditorDocument previous,
-                                                    OpenEditorDocument current) {
+
+            @Override
+            public void documentActivated(OpenEditorDocument previous,
+                                          OpenEditorDocument current) {
                 refresh();
             }
-            @Override public void documentClosed(OpenEditorDocument document) {
+
+            @Override
+            public void documentClosed(OpenEditorDocument document) {
                 refresh();
             }
-            private void refresh() { TopMenuBar.refreshWidgetsAvailability(widgets, documents, true); }
+
+            private void refresh() {
+                TopMenuBar.refreshWidgetsAvailability(widgets, documents, true);
+            }
         });
 
         TopMenuBar.refreshWidgetsAvailability(widgets, documents, false);
@@ -70,19 +89,37 @@ public class TopMenuBarWidgetsAvailabilityTest {
         assertFalse(widgets.check.isChecked());
     }
 
-    @Test public void layersAvailabilityFollowsSceneHudSceneWithoutChangingPanelState() {
+    @Test
+    public void layersAvailabilityFollowsSceneHudSceneWithoutChangingPanelState() {
         EditorDocumentManager documents = new EditorDocumentManager();
         CheckBoxMenuItem layers = new CheckBoxMenuItem("Layers", true);
         AtomicInteger actions = new AtomicInteger();
         layers.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) { actions.incrementAndGet(); }
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                actions.incrementAndGet();
+            }
         });
         documents.addListener(new EditorDocumentManager.Listener() {
-            @Override public void documentOpened(OpenEditorDocument document) { refresh(); }
-            @Override public void documentActivated(OpenEditorDocument previous,
-                                                    OpenEditorDocument current) { refresh(); }
-            @Override public void documentClosed(OpenEditorDocument document) { refresh(); }
-            private void refresh() { TopMenuBar.refreshLayersAvailability(layers, documents); }
+            @Override
+            public void documentOpened(OpenEditorDocument document) {
+                refresh();
+            }
+
+            @Override
+            public void documentActivated(OpenEditorDocument previous,
+                                          OpenEditorDocument current) {
+                refresh();
+            }
+
+            @Override
+            public void documentClosed(OpenEditorDocument document) {
+                refresh();
+            }
+
+            private void refresh() {
+                TopMenuBar.refreshLayersAvailability(layers, documents);
+            }
         });
 
         TopMenuBar.refreshLayersAvailability(layers, documents);

@@ -1,8 +1,10 @@
 package games.pixscape.studio.service.tiled;
 
-/** Actionable authoring rejection for a complete tiled mutation. */
+/**
+ * Actionable authoring rejection for a complete tiled mutation.
+ */
 public final class TiledSpatialMutationRejection {
-    public enum Kind { LINKED_ANCHOR, SPATIAL_POST_STATE }
+    public enum Kind {LINKED_ANCHOR, SPATIAL_POST_STATE}
 
     private final Kind kind;
     private final int affectedCellCount;
@@ -24,13 +26,33 @@ public final class TiledSpatialMutationRejection {
         this.cause = cause;
     }
 
-    public Kind kind() { return kind; }
-    public int affectedCellCount() { return affectedCellCount; }
-    public int affectedWallCount() { return affectedWallCount; }
-    public int firstBlockId() { return firstBlockId; }
-    public int firstStructureId() { return firstStructureId; }
-    public String detail() { return detail; }
-    public RuntimeException cause() { return cause; }
+    public Kind kind() {
+        return kind;
+    }
+
+    public int affectedCellCount() {
+        return affectedCellCount;
+    }
+
+    public int affectedWallCount() {
+        return affectedWallCount;
+    }
+
+    public int firstBlockId() {
+        return firstBlockId;
+    }
+
+    public int firstStructureId() {
+        return firstStructureId;
+    }
+
+    public String detail() {
+        return detail;
+    }
+
+    public RuntimeException cause() {
+        return cause;
+    }
 
     public String userMessage() {
         if (kind == Kind.LINKED_ANCHOR) {

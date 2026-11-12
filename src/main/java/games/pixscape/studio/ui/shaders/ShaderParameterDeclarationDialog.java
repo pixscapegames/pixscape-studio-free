@@ -11,7 +11,9 @@ import games.pixscape.studio.ui.modal.StudioModalWindow;
 
 import java.util.function.Consumer;
 
-/** Edits the ordered declaration; entity overrides are edited in Material > Parameters. */
+/**
+ * Edits the ordered declaration; entity overrides are edited in Material > Parameters.
+ */
 final class ShaderParameterDeclarationDialog extends StudioModalWindow {
     private static final class Row {
         final VisTextField name = new VisTextField();
@@ -56,7 +58,8 @@ final class ShaderParameterDeclarationDialog extends StudioModalWindow {
         if (initial != null) for (ShaderFloatParam parameter : initial) addRow(parameter.name, parameter.value);
         rebuild();
         add.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 if (rows.size >= ShaderParameterLayout.MAX_FLOATS) {
                     Dialogs.showErrorDialog(getStage(), "Maximum 16 float parameters per shader.");
                     return;
@@ -66,10 +69,16 @@ final class ShaderParameterDeclarationDialog extends StudioModalWindow {
             }
         });
         apply.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) { applyRows(); }
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                applyRows();
+            }
         });
         cancel.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) { fadeOut(); }
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                fadeOut();
+            }
         });
         pack();
         centerWindow();
@@ -81,7 +90,8 @@ final class ShaderParameterDeclarationDialog extends StudioModalWindow {
         row.value.setText(Float.toString(value));
         row.name.setMessageText("u_gain");
         row.remove.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
                 rows.removeValue(row, true);
                 rebuild();
             }

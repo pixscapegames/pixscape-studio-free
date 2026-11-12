@@ -11,9 +11,11 @@ import games.pixscape.studio.service.SceneService;
 
 import java.util.function.Supplier;
 
-/** Canvas-scoped lifecycle and publication boundary for tiled brush mutations. */
+/**
+ * Canvas-scoped lifecycle and publication boundary for tiled brush mutations.
+ */
 public final class TiledMutationController {
-    public enum Status { ACCEPTED, REJECTED, NO_MUTATION, CANCELLED }
+    public enum Status {ACCEPTED, REJECTED, NO_MUTATION, CANCELLED}
 
     public static final class Result {
         private static final Result ACCEPTED = new Result(Status.ACCEPTED, -1, null);
@@ -30,9 +32,17 @@ public final class TiledMutationController {
             this.rejection = rejection;
         }
 
-        public Status status() { return status; }
-        public int mapEntityId() { return mapEntityId; }
-        public TiledSpatialMutationRejection rejection() { return rejection; }
+        public Status status() {
+            return status;
+        }
+
+        public int mapEntityId() {
+            return mapEntityId;
+        }
+
+        public TiledSpatialMutationRejection rejection() {
+            return rejection;
+        }
     }
 
     private final World world;
@@ -143,9 +153,17 @@ public final class TiledMutationController {
         clearTransientState();
     }
 
-    public boolean isActive() { return activeStroke != null; }
-    public int activeMapEntityId() { return activeStroke != null ? activeStroke.getMapEntityId() : -1; }
-    public TiledBrushSession activePreviewSession() { return activeStroke; }
+    public boolean isActive() {
+        return activeStroke != null;
+    }
+
+    public int activeMapEntityId() {
+        return activeStroke != null ? activeStroke.getMapEntityId() : -1;
+    }
+
+    public TiledBrushSession activePreviewSession() {
+        return activeStroke;
+    }
 
     private Result publish(TiledBrushSession session) {
         if (session == null) return Result.NO_MUTATION;
@@ -253,7 +271,15 @@ public final class TiledMutationController {
         stack.add(pack(gx, gy));
     }
 
-    private static int pack(int x, int y) { return (x << 16) ^ (y & 0xFFFF); }
-    private static int unpackX(int packed) { return packed >> 16; }
-    private static int unpackY(int packed) { return packed & 0xFFFF; }
+    private static int pack(int x, int y) {
+        return (x << 16) ^ (y & 0xFFFF);
+    }
+
+    private static int unpackX(int packed) {
+        return packed >> 16;
+    }
+
+    private static int unpackY(int packed) {
+        return packed & 0xFFFF;
+    }
 }

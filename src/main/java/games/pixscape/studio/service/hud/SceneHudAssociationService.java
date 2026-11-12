@@ -12,7 +12,9 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** One history-backed mutation seam for a Scene's authored default HUD association. */
+/**
+ * One history-backed mutation seam for a Scene's authored default HUD association.
+ */
 public final class SceneHudAssociationService {
     private final Supplier<FileHandle> projectDir;
     private final Supplier<ProjectConfig> configuration;
@@ -93,7 +95,8 @@ public final class SceneHudAssociationService {
         }
     }
 
-    private record Target(SceneMeta scene, String sceneTag) {}
+    private record Target(SceneMeta scene, String sceneTag) {
+    }
 
     private static final class ChangeAssociationCommand implements Command {
         private final SceneMeta scene;
@@ -115,9 +118,20 @@ public final class SceneHudAssociationService {
             this.associationChanged = associationChanged;
         }
 
-        @Override public String label() { return after == null ? "Remove Scene HUD" : "Set Scene HUD"; }
-        @Override public void redo() { apply(after); }
-        @Override public void undo() { apply(before); }
+        @Override
+        public String label() {
+            return after == null ? "Remove Scene HUD" : "Set Scene HUD";
+        }
+
+        @Override
+        public void redo() {
+            apply(after);
+        }
+
+        @Override
+        public void undo() {
+            apply(before);
+        }
 
         private void apply(String screenId) {
             scene.defaultHudScreenId = screenId;
