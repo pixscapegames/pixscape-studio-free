@@ -6,12 +6,10 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
-import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.UIUtils;
 import com.badlogic.gdx.utils.IntArray;
-import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.MenuItem;
 import com.kotcrab.vis.ui.widget.PopupMenu;
 import com.kotcrab.vis.ui.widget.VisScrollPane;
@@ -33,7 +31,6 @@ import games.pixscape.studio.document.OpenEditorDocument;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.AddTiledMapCommand;
-import games.pixscape.studio.history.commands.ReorderLogicalLayerCommand;
 import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.ops.EditorOps;
 import games.pixscape.studio.scene.SceneEditorContext;
@@ -80,7 +77,6 @@ public class ItemTreePanel extends DockablePanel {
     private ComponentMapper<PhysicsBodyComponent> mBody;
     private ComponentMapper<PhysicsShapesComponent> mFixtures;
     private ComponentMapper<GameObjectComponent> mGameObject;
-    private ComponentMapper<GameObjectMemberComponent> mGameObjectMember;
 
     private EntitySubscription layersSub;
     private EntitySubscription layerItemsSub;
@@ -133,30 +129,8 @@ public class ItemTreePanel extends DockablePanel {
 
         VisTable root = new VisTable();
 
-        VisTable toolbar = new VisTable(false);
-        toolbar.left();
-
-        Button btnUp = new Button(VisUI.getSkin(), "up");
-        btnUp.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                moveSelectionUp();
-            }
-        });
-        toolbar.add(btnUp);
-
-        Button btnDown = new Button(VisUI.getSkin(), "down");
-        btnDown.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                moveSelectionDown();
-            }
-        });
-        toolbar.add(btnDown);
-
         root.add(scroller).grow().row();
-        root.add(moveFeedback).growX().height(18).row();
-        root.add(toolbar).bottom().center().row();
+        root.add(moveFeedback).growX().height(0).row();
 
         worldContent = root;
         hudHierarchy = new HudHierarchyPanel(
@@ -273,7 +247,6 @@ public class ItemTreePanel extends DockablePanel {
         mBody = world.getMapper(PhysicsBodyComponent.class);
         mFixtures = world.getMapper(PhysicsShapesComponent.class);
         mGameObject = world.getMapper(GameObjectComponent.class);
-        mGameObjectMember = world.getMapper(GameObjectMemberComponent.class);
         gameObjectHierarchy = world.getSystem(GameObjectHierarchySystem.class);
         gameObjectComposition = world.getSystem(GameObjectCompositionSystem.class);
         AspectSubscriptionManager asm = world.getAspectSubscriptionManager();
@@ -321,45 +294,6 @@ public class ItemTreePanel extends DockablePanel {
 
     public void bindPropertiesPanel(PropertiesPanel propertiesPanel) {
         this.propertiesPanel = propertiesPanel;
-    }
-
-    private void moveSelectionUp() {
-        moveSelection(-1);
-    }
-
-    private void moveSelectionDown() {
-        moveSelection(1);
-    }
-
-    private void moveSelection(int direction) {
-        IntArray selection = selectionService.getSelectionSnapshot();
-        int entityId;
-        if (selection.size == 1) {
-            entityId = selection.first();
-        } else if (explicitTiledMapEntityId >= 0
-                && world.getEntityManager().isActive(explicitTiledMapEntityId)
-                && mTiled.has(explicitTiledMapEntityId)) {
-            // Map-node selection enters explicit map-editing context instead of entity selection.
-            // It remains a normal top-level logical item for layer ordering.
-            entityId = explicitTiledMapEntityId;
-        } else {
-            return;
-        }
-        // Member z is local sibling order; the global layer reorder command is not applicable.
-        if (mGameObjectMember.has(entityId)) return;
-        if (!ItemTreeJointSupport.isLogicalOrderMoveAllowed(world, entityId)) return;
-        EntityIndexComponent index = requireEntityIndex(entityId, "ItemTree move");
-        LayerLogicalOrderService.LayerOrder order =
-                logicalOrderService.derive(index.layerIndex);
-        executeLogicalReorder(index.layerIndex, order.moveEntity(entityId, direction));
-    }
-
-    private void executeLogicalReorder(int layerIndex, IntArray desiredOrder) {
-        if (desiredOrder == null) return;
-        ReorderLogicalLayerCommand command = new ReorderLogicalLayerCommand(
-                world, historyManager.historyIds(), layerIndex, desiredOrder);
-        if (command.isNoop()) return;
-        historyManager.execute(command);
     }
 
     public void markDirty() {
@@ -1064,14 +998,6 @@ public class ItemTreePanel extends DockablePanel {
             tree.registerNode(bodyNode, entityId);
         }
         return entityNode;
-    }
-
-    private EntityIndexComponent requireEntityIndex(int entityId, String context) {
-        EntityIndexComponent index = mEntityIndex.getSafe(entityId, null);
-        if (index == null) {
-            throw new IllegalStateException(context + ": drawable entity missing EntityIndexComponent: " + entityId);
-        }
-        return index;
     }
 
     public void onSelectionChanged(IntArray selectionSnapshot) {

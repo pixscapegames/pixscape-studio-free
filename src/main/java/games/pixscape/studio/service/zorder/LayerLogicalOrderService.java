@@ -71,21 +71,6 @@ public final class LayerLogicalOrderService {
         public List<LogicalItem> items() { return List.copyOf(items); }
         public IntArray flattenedTopToBottom() { return flatten(items); }
 
-        public IntArray moveEntity(int entityId, int direction) {
-            if (direction != -1 && direction != 1) return null;
-            int itemIndex = -1;
-            for (int i = 0; i < items.size(); i++) {
-                if (items.get(i).entityId == entityId) { itemIndex = i; break; }
-            }
-            int siblingIndex = itemIndex + direction;
-            if (itemIndex < 0 || siblingIndex < 0 || siblingIndex >= items.size()) return null;
-            List<LogicalItem> moved = new ArrayList<>(items);
-            LogicalItem sibling = moved.get(siblingIndex);
-            moved.set(siblingIndex, moved.get(itemIndex));
-            moved.set(itemIndex, sibling);
-            return flatten(moved);
-        }
-
         private static IntArray flatten(List<LogicalItem> ordered) {
             IntArray result = new IntArray(ordered.size());
             for (LogicalItem item : ordered) result.add(item.entityId);

@@ -11,7 +11,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-/** Guards map-node reorder after the tree switches selection to its tiled editing target. */
+/** Maps remain top-level peers in logical ordering and history. */
 public class ReorderLogicalLayerCommandTiledMapTest {
     @Test
     public void movesTiledMapAsATopLevelPeerAndRestoresItOnUndo() {
@@ -31,7 +31,7 @@ public class ReorderLogicalLayerCommandTiledMapTest {
             assertEquals(new IntArray(new int[]{sprite, map}), order.flattenedTopToBottom());
 
             ReorderLogicalLayerCommand command = new ReorderLogicalLayerCommand(
-                    world, new HistoryManager(8).historyIds(), 2, order.moveEntity(map, -1));
+                    world, new HistoryManager(8).historyIds(), 2, IntArray.with(map, sprite));
             command.redo();
             assertEquals(1, world.getMapper(EntityIndexComponent.class).get(map).zIndex);
             assertEquals(0, world.getMapper(EntityIndexComponent.class).get(sprite).zIndex);
@@ -63,7 +63,7 @@ public class ReorderLogicalLayerCommandTiledMapTest {
             LayerLogicalOrderService orderService = new LayerLogicalOrderService(world);
             ReorderLogicalLayerCommand moveAboveRoot = new ReorderLogicalLayerCommand(
                     world, history.historyIds(), 4,
-                    orderService.derive(4).moveEntity(secondMap, -1));
+                    IntArray.with(firstMap, secondMap, gameObject, sprite));
             moveAboveRoot.redo();
             assertEquals(new IntArray(new int[]{firstMap, secondMap, gameObject, sprite}),
                     orderService.derive(4).flattenedTopToBottom());
@@ -74,7 +74,7 @@ public class ReorderLogicalLayerCommandTiledMapTest {
 
             ReorderLogicalLayerCommand swapMaps = new ReorderLogicalLayerCommand(
                     world, history.historyIds(), 4,
-                    orderService.derive(4).moveEntity(firstMap, 1));
+                    IntArray.with(secondMap, firstMap, gameObject, sprite));
             swapMaps.redo();
             assertEquals(new IntArray(new int[]{secondMap, firstMap, gameObject, sprite}),
                     orderService.derive(4).flattenedTopToBottom());

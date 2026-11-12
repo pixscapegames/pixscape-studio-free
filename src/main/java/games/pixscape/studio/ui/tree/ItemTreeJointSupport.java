@@ -79,7 +79,4 @@ final class ItemTreeJointSupport {
         return jointEntityId < 0 ? null : tree.findJointNode(jointEntityId);
     }
 
-    static boolean isLogicalOrderMoveAllowed(World world, int entityId) {
-        return !world.getMapper(PhysicsJointComponent.class).has(entityId);
-    }
 }

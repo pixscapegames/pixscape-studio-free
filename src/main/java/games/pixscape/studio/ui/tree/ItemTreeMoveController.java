@@ -8,6 +8,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.DragListener;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisScrollPane;
+import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.studio.document.SceneEditorDocument;
 import games.pixscape.studio.history.commands.ItemMovePreparation;
@@ -79,6 +80,7 @@ final class ItemTreeMoveController {
     private void start() {
         cancel();
         if (!(app.getEditorDocumentManager().activeDocument() instanceof SceneEditorDocument scene)) return;
+        feedbackHeight(18);
         document = scene; stage = tree.getStage();
         viewportWidth = scroll.getWidth(); viewportHeight = scroll.getHeight();
         revision = scene.context().historyManager().getMutationRevision(); generation = scene.context().generation();
@@ -112,6 +114,14 @@ final class ItemTreeMoveController {
         prepared = null; document = null; stage = null; target = null; sources = null;
         nodes.clear();
         lastX = Float.NaN;
+        feedbackHeight(0);
+    }
+    private void feedbackHeight(float height) {
+        if (!(feedback.getParent() instanceof VisTable parent)) return;
+        var cell = parent.getCell(feedback);
+        if (cell.getPrefHeight() == height) return;
+        cell.height(height);
+        parent.invalidateHierarchy(); parent.validate(); scroll.validate();
     }
     void update(float delta) {
         if (document == null) return;

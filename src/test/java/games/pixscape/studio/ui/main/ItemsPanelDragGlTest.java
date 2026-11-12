@@ -166,6 +166,9 @@ public class ItemsPanelDragGlTest {
             int cursor = context.historyManager().getCursor();
             Vector2 edge = studio.getUiStage().stageToScreenCoordinates(scroll.localToStageCoordinates(new Vector2(scroll.getWidth() * .5f, 12)));
             begin(studio, source, edge);
+            // Feedback reserves space only during a gesture; target the now-visible scroll edge.
+            edge = studio.getUiStage().stageToScreenCoordinates(scroll.localToStageCoordinates(new Vector2(scroll.getWidth() * .5f, 12)));
+            drag(studio, edge);
             screenshot(studio, "items-scroll-start");
             for (int i = 0; i < 500; i++) studio.getUiStage().act(.02f);
             assertTrue("scroll=" + scroll.getScrollY() + " max=" + scroll.getMaxY() + " active=" + field(field(studio.getItemTreePanel(), "itemMoves"), "document"), scroll.getScrollY() > 200);
@@ -206,10 +209,20 @@ public class ItemsPanelDragGlTest {
             int red = studio.getCanvas().getEditorOps().createStandaloneSprite("red.png", -180, 20);
             int blue = studio.getCanvas().getEditorOps().createStandaloneSprite("blue.png", -130, 45);
             settle(studio); click(studio, blue);
+            var content = (com.kotcrab.vis.ui.widget.VisTable) field(studio.getItemTreePanel(), "worldContent");
+            var scroll = (ScrollPane) field(studio.getItemTreePanel(), "scroller");
+            var feedback = (Actor) field(field(studio.getItemTreePanel(), "itemMoves"), "feedback");
+            assertEquals("Only the tree and transient DnD feedback remain", 2, content.getChildren().size);
+            assertEquals(0f, feedback.getHeight(), 0f);
+            assertEquals("The tree reaches the bottom without an empty toolbar/status strip", content.getPadBottom(), scroll.getY(), .01f);
             var context = studio.getSceneEditorContext(); int cursor = context.historyManager().getCursor();
             screenshot(studio, "items-canvas-before");
             Vector2 end = point(studio, tree(studio).findNode(red), .08f);
-            begin(studio, blue, end); screenshot(studio, "items-canvas-ghost"); release(studio, end);
+            begin(studio, blue, end);
+            assertTrue(feedback.getHeight() > 0);
+            screenshot(studio, "items-canvas-ghost"); release(studio, end);
+            assertEquals(0f, feedback.getHeight(), 0f);
+            assertEquals(content.getPadBottom(), scroll.getY(), .01f);
             assertEquals(cursor + 1, context.historyManager().getCursor());
             var indices = context.world().getMapper(EntityIndexComponent.class);
             assertTrue(indices.get(red).zIndex > indices.get(blue).zIndex);
