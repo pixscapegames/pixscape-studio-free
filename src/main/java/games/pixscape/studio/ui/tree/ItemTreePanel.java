@@ -16,6 +16,7 @@ import com.kotcrab.vis.ui.widget.MenuItem;
 import com.kotcrab.vis.ui.widget.PopupMenu;
 import com.kotcrab.vis.ui.widget.VisScrollPane;
 import com.kotcrab.vis.ui.widget.VisTable;
+import com.kotcrab.vis.ui.widget.VisLabel;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
@@ -88,7 +89,8 @@ public class ItemTreePanel extends DockablePanel {
     private GameObjectHierarchySystem gameObjectHierarchy;
     private GameObjectCompositionSystem gameObjectComposition;
 
-    private final IdVisTree tree;
+    private final ItemMoveTree tree;
+    private final ItemTreeMoveController itemMoves;
     private IconResolver iconResolver;
     private final Set<World> refreshBoundWorlds =
             Collections.newSetFromMap(new IdentityHashMap<>());
@@ -116,12 +118,18 @@ public class ItemTreePanel extends DockablePanel {
         bindServices(sceneContext);
         this.editingModeService = canvas.getStudioEditingModeService();
 
-        tree = new IdVisTree();
+        tree = new ItemMoveTree();
         tree.setIndentSpacing(25);
         tree.getSelection().setMultiple(true);
         hookItemContextMenus();
 
         scroller = StudioTreeUiSupport.createScrollPane(tree);
+        scroller.setFlickScroll(false); // Row drags belong to Items; wheel and scrollbar scrolling remain available.
+        scroller.setOverscroll(false, false);
+        VisLabel moveFeedback = new VisLabel(""); // Status only; existing label style, no input ownership.
+        moveFeedback.setEllipsis(true);
+        moveFeedback.setTouchable(com.badlogic.gdx.scenes.scene2d.Touchable.disabled);
+        itemMoves = new ItemTreeMoveController(app, tree, scroller, moveFeedback);
 
         VisTable root = new VisTable();
 
@@ -147,6 +155,7 @@ public class ItemTreePanel extends DockablePanel {
         toolbar.add(btnDown);
 
         root.add(scroller).grow().row();
+        root.add(moveFeedback).growX().height(18).row();
         root.add(toolbar).bottom().center().row();
 
         worldContent = root;
@@ -165,6 +174,7 @@ public class ItemTreePanel extends DockablePanel {
 
         EventFlow.i().subscribe(EventFlow.SelectionChanged.class, evt -> {
             if (handlingTreeSelection || suppressTreeSelectionEvents) return;
+            itemMoves.cancel();
 
             if (evt.source() != SelectionService.SelectionSource.TREE) {
                 explicitTiledMapEntityId = -1;
@@ -223,6 +233,10 @@ public class ItemTreePanel extends DockablePanel {
 
     public void bindSceneContext(SceneEditorContext context) {
         if (context == null || context.isDisposed()) return;
+        itemMoves.cancel();
+        tree.getSelection().setProgrammaticChangeEvents(false);
+        tree.clearNodes();
+        tree.getSelection().setProgrammaticChangeEvents(true);
         var document = app.getEditorDocumentManager().activeDocument();
         assetRootEntity = document instanceof games.pixscape.studio.document.GameObjectEditorDocument asset
                 && asset.context() == context ? asset.rootEntityId() : -1;
@@ -236,6 +250,7 @@ public class ItemTreePanel extends DockablePanel {
 
     public void releaseSceneContext(SceneEditorContext context) {
         if (context == null || !context.isInitialized()) return;
+        itemMoves.cancel();
         refreshBoundWorlds.remove(context.world());
         subscriptionsBoundWorlds.remove(context.world());
     }
@@ -274,6 +289,7 @@ public class ItemTreePanel extends DockablePanel {
     }
 
     private void showDocumentType(EditorDocumentType type) {
+        if (itemMoves != null) itemMoves.cancel();
         documentContent.clearChildren();
         Actor projection = projectionForDocument(type, worldContent, hudHierarchy);
         if (projection != null) documentContent.add(projection).grow();
@@ -347,7 +363,18 @@ public class ItemTreePanel extends DockablePanel {
     }
 
     public void markDirty() {
+        if (itemMoves != null) itemMoves.cancel();
         dirty = true;
+    }
+
+    @Override public void act(float delta) {
+        super.act(delta);
+        itemMoves.update(delta);
+    }
+
+    @Override protected void setStage(Stage stage) {
+        if (itemMoves != null && stage != getStage()) itemMoves.cancel();
+        super.setStage(stage);
     }
 
     public void updateIfDirty() {
@@ -541,7 +568,9 @@ public class ItemTreePanel extends DockablePanel {
 
     private void rebuildTreeFromWorld() {
         suppressTreeSelectionEvents = true;
-
+        java.util.Map<String, Boolean> expansion = new java.util.HashMap<>();
+        for (EntityNode root : tree.getRootNodes()) rememberExpansion(root, expansion, false);
+        float scrollY = scroller.getScrollY();
         tree.clearNodes();
         GameObjectTopologyState topology = gameObjectHierarchy != null
                 ? gameObjectHierarchy.topology() : null;
@@ -565,9 +594,19 @@ public class ItemTreePanel extends DockablePanel {
                     LayerMetaComponent meta = layerService.meta(layerIndex);
                     return meta != null && meta.locked;
                 });
-        tree.expandAll();
+        for (EntityNode root : tree.getRootNodes()) rememberExpansion(root, expansion, true);
+        tree.invalidateHierarchy(); scroller.validate();
+        scroller.setScrollY(scrollY); scroller.updateVisualScroll();
         suppressTreeSelectionEvents = false;
         syncTreeSelectionFromModel(selectionService.getSelectionSnapshot(), false);
+    }
+
+    private void rememberExpansion(EntityNode node, java.util.Map<String, Boolean> expansion, boolean restore) {
+        var identity = mIdentity.getSafe(node.getEntityId(), null);
+        String key = (identity == null ? node.getEntityId() : identity.stableId) + ":" + node.getKind();
+        if (restore) node.setExpanded(expansion.getOrDefault(key, true));
+        else expansion.put(key, node.isExpanded());
+        for (Object child : node.getChildren()) rememberExpansion((EntityNode) child, expansion, restore);
     }
 
     private void addSceneLayerNodes(GameObjectTopologyState topology, GameObjectCompositionState composition) {
@@ -613,11 +652,15 @@ public class ItemTreePanel extends DockablePanel {
             return node;
         }
         int child = composition.orderedFirstChildEntityId[entityId];
+        IntArray children = new IntArray();
         while (child >= 0) {
-            node.add(createGameObjectHierarchyNode(child, layerLocked, topology, composition));
+            children.add(child);
             child = child < composition.orderedNextSiblingEntityId.length
                     ? composition.orderedNextSiblingEntityId[child] : -1;
         }
+        // Runtime publishes back-to-front; Items presents frontmost first, like its root order.
+        for (int i = children.size - 1; i >= 0; i--)
+            node.add(createGameObjectHierarchyNode(children.get(i), layerLocked, topology, composition));
         return node;
     }
 
