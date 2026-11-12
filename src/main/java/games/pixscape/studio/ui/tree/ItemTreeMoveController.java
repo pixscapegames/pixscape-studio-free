@@ -136,19 +136,24 @@ final class ItemTreeMoveController {
         if (pointer.x == lastX && pointer.y == lastY && scroll.getVisualScrollY() == lastScroll) return;
         lastX = pointer.x; lastY = pointer.y; lastScroll = scroll.getVisualScrollY();
         tree.stageToLocalCoordinates(local.set(pointer));
-        EntityNode node = null; float fraction = 0;
+        EntityNode node = null; float fraction = 0, hitTop = 0;
         if (tree.preview() != null) {
             var row = tree.previewRowAt(local.y);
             if (row != null) {
                 if (row.ghost()) return; // The whole reserved ghost area denotes the same destination.
                 node = row.node(); fraction = (row.top() - local.y) / row.height();
+                hitTop = row.top();
             }
         } else {
             node = tree.getNodeAt(local.y);
-            if (node != null) fraction = (node.getActor().getTop() - local.y) / node.getActor().getHeight();
+            if (node != null) {
+                fraction = (node.getActor().getTop() - local.y) / node.getActor().getHeight();
+                hitTop = node.getActor().getTop() + tree.getYSpacing() / 2;
+            }
         }
         if (node == null || !(node.isLayerNode() || node.isEntityNode() || node.isTiledMapNode())) {
-            prepared = null; target = null; tree.preview(null); feedback.setText("Drop on an item or layer"); return;
+            if (prepared != null) hideGhosts();
+            prepared = null; target = null; feedback.setText("Drop on an item or layer"); return;
         }
         boolean inside = node.isLayerNode() || (fraction >= .25f && fraction <= .75f
                 && document.context().world().getMapper(GameObjectComponent.class).has(node.getEntityId()));
@@ -157,13 +162,22 @@ final class ItemTreeMoveController {
         target = next;
         // Retain only the displayed destination, not a scene-sized plan for every visited row.
         var result = prepare(next);
+        if (!result.accepted()) {
+            if (prepared != null) hideGhosts();
+            prepared = null; feedback.setText(result.refusal()); return;
+        }
         prepared = result.move();
-        if (!result.accepted()) { tree.preview(null); feedback.setText(result.refusal()); return; }
         feedback.setText(inside ? "Inside " + node.getLabel().getText() : (next.after ? "After " : "Before ") + node.getLabel().getText());
+        float hitStageY = tree.localToStageCoordinates(local.set(0, hitTop)).y;
         // Explicit center hover opens the destination immediately; no delayed task can outlive a drag.
         next.parent.setExpanded(true); tree.invalidate(); tree.validate(); scroll.layout();
         lastScroll = scroll.getVisualScrollY();
-        showPreview();
+        showPreview(node, hitStageY);
+    }
+    private void hideGhosts() {
+        // A refusal removes feedback, not the coordinate system used by the next input event.
+        // Retain the displayed rows and their positions until another destination or panel exit.
+        if (tree.preview() != null) tree.preview(tree.preview().stream().filter(row -> !row.ghost()).toList());
     }
     private ItemMovePreparation.Result prepare(Target target) {
         if (target.parent == null) return new ItemMovePreparation.Result(null, "Drop inside a layer");
@@ -184,7 +198,7 @@ final class ItemTreeMoveController {
         return slot == 0 ? first : ItemMovePreparation.prepare(document, sources,
                 new ItemMovePreparation.Destination(document, destination.layerStableId(), parent, slot));
     }
-    private void showPreview() {
+    private void showPreview(EntityNode hit, float hitStageY) {
         List<ItemMoveTree.Row> rows = new ArrayList<>();
         Set<Integer> moving = new HashSet<>(prepared.sources());
         int parent = prepared.destination().parentStableId();
@@ -194,6 +208,19 @@ final class ItemTreeMoveController {
         EntityNode anchor = following.isEmpty() ? null : nodes.get(following.getFirst());
         for (EntityNode root : tree.getRootNodes()) project(root, 0, moving, target.parent, anchor, rows);
         float top = tree.getRootNodes().first().getActor().getTop() + tree.getYSpacing() / 2;
+        float bottom = top, anchorTop = top;
+        for (var row : rows) {
+            if (row.node() == hit) anchorTop = bottom;
+            bottom -= row.height();
+        }
+        EntityNode last = tree.getRootNodes().peek();
+        while (last.isExpanded() && last.getChildren().notEmpty()) last = (EntityNode) last.getChildren().peek();
+        float contentBottom = last.getActor().getY() - tree.getYSpacing() / 2;
+        float desiredTop = tree.stageToLocalCoordinates(local.set(0, hitStageY)).y;
+        // Compact sources can remove many descendant rows. Anchor the hovered row instead
+        // of pulling it away from the pointer. Use only the space freed within the original
+        // content extent: scrolling stays bounded and every remaining row stays reachable.
+        top += Math.max(contentBottom - bottom, Math.min(0, desiredTop - anchorTop));
         List<ItemMoveTree.Row> positioned = new ArrayList<>();
         for (var row : rows) { positioned.add(new ItemMoveTree.Row(row.node(), row.depth(), row.ghost(), top, row.height())); top -= row.height(); }
         tree.preview(List.copyOf(positioned));

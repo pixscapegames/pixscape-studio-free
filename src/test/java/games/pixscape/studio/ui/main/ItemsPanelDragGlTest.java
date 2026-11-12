@@ -19,6 +19,88 @@ import static org.junit.Assert.*;
 
 /** Actual Studio/Stage gestures, separate from visual inspection of captured frames. */
 public class ItemsPanelDragGlTest {
+    @Test public void expandedGroupDestinationSurvivesIntermediateHorizontalMotion() throws Exception {
+        withStudio(900, (studio, root) -> {
+            open(studio, project(studio, root.child("stable-target")));
+            var context = studio.getSceneEditorContext();
+            int a = item(studio, "A", 30), b = item(studio, "B", 20), c = item(studio, "C", 10);
+            for (int i = 0; i < 10; i++) {
+                int child = item(studio, "Child " + i, i);
+                context.world().getMapper(GameObjectMemberComponent.class).create(child).parentStableId = context.identityRegistry().getStableId(a);
+            }
+            var indices = context.world().getMapper(EntityIndexComponent.class);
+            indices.get(a).zIndex = 30; indices.get(b).zIndex = 20; indices.get(c).zIndex = 10;
+            settle(studio); click(studio, a);
+            int cursor = context.historyManager().getCursor();
+            Vector2 end = point(studio, tree(studio).findNode(b), .08f);
+            begin(studio, a, end);
+            var prepared = plan(studio); assertNotNull(prepared);
+            assertEquals(1, prepared.destination().insertionIndex());
+            for (int i = 0; i < 12; i++) {
+                end.x += 1; drag(studio, end); studio.getUiStage().act(.016f);
+                assertSame("Horizontal motion " + i + " must retain the displayed destination", prepared, plan(studio));
+                assertEquals(cursor, context.historyManager().getCursor());
+                assertEquals(30, indices.get(a).zIndex);
+            }
+            screenshot(studio, "items-stable-expanded-ghost");
+            end = displayedPoint(studio, tree(studio).findNode(c), .08f);
+            drag(studio, end); assertEquals(2, plan(studio).destination().insertionIndex());
+            // Empty projected space must stay empty: never fall back to the old descendant rows.
+            Vector2 blank = studio.getUiStage().stageToScreenCoordinates(tree(studio).localToStageCoordinates(new Vector2(120, tree(studio).getHeight() - 5)));
+            drag(studio, blank); assertNull(plan(studio));
+            for (int i = 0; i < 8; i++) { blank.x++; drag(studio, blank); assertNull(plan(studio)); }
+            end = displayedPoint(studio, tree(studio).findNode(b), .08f);
+            drag(studio, end); assertEquals(1, plan(studio).destination().insertionIndex());
+            release(studio, end);
+            assertEquals(cursor + 1, context.historyManager().getCursor());
+            assertTrue(indices.get(b).zIndex > indices.get(a).zIndex);
+            assertTrue(indices.get(a).zIndex > indices.get(c).zIndex);
+            context.historyManager().undo(); settle(studio); assertEquals(30, indices.get(a).zIndex);
+            context.historyManager().redo(); settle(studio); assertTrue(indices.get(b).zIndex > indices.get(a).zIndex);
+        });
+    }
+
+    @Test public void expandedMultipleSourcesCanChangeTargetExpandAndReenter() throws Exception {
+        withStudio(900, (studio, root) -> {
+            open(studio, project(studio, root.child("multiple-stability")));
+            var context = studio.getSceneEditorContext();
+            int a = item(studio, "A", 30), b = item(studio, "B", 20), c = item(studio, "C", 10), firstChild = -1;
+            for (int i = 0; i < 11; i++) {
+                int child = item(studio, "Child " + i, i);
+                if (i == 0) firstChild = child;
+                context.world().getMapper(GameObjectMemberComponent.class).create(child).parentStableId = context.identityRegistry().getStableId(i == 10 ? b : a);
+            }
+            var indices = context.world().getMapper(EntityIndexComponent.class);
+            indices.get(a).zIndex = 30; indices.get(b).zIndex = 20; indices.get(c).zIndex = 10;
+            settle(studio);
+            var tree = tree(studio); tree.getSelection().clear();
+            tree.getSelection().addAll(com.badlogic.gdx.utils.Array.with(tree.findNode(a), tree.findNode(firstChild), tree.findNode(c)));
+            tree.findNode(b).setExpanded(false); tree.invalidateHierarchy(); settle(studio);
+            int cursor = context.historyManager().getCursor();
+            Vector2 end = point(studio, tree.findNode(b), .5f);
+            begin(studio, a, end);
+            assertTrue(tree.findNode(b).isExpanded());
+            var prepared = plan(studio); assertNotNull(prepared); assertEquals(2, prepared.sources().size());
+            for (int i = 0; i < 12; i++) { end.x++; drag(studio, end); assertSame(prepared, plan(studio)); }
+            int ghosts = 0;
+            for (Object row : (List<?>) field(tree, "preview")) if ((boolean) field(row, "ghost")) ghosts++;
+            assertEquals(2, ghosts);
+            screenshot(studio, "items-stable-multiple-open-ghost");
+            Vector2 rootTarget = displayedPoint(studio, tree.findNode(context.layerService().getLayerEntity(0)), .5f);
+            drag(studio, rootTarget); assertEquals(0, plan(studio).destination().parentStableId());
+            drag(studio, new Vector2(900, 400)); assertNull(plan(studio)); assertNull(field(tree, "preview"));
+            end = point(studio, tree.findNode(b), .5f); drag(studio, end);
+            assertEquals(context.identityRegistry().getStableId(b), plan(studio).destination().parentStableId());
+            for (int i = 0; i < 8; i++) { end.x--; drag(studio, end); assertNotNull(plan(studio)); }
+            assertEquals(cursor, context.historyManager().getCursor()); assertEquals(0, parent(studio, a)); assertEquals(0, parent(studio, c));
+            release(studio, end); assertEquals(cursor + 1, context.historyManager().getCursor());
+            assertEquals(context.identityRegistry().getStableId(b), parent(studio, a));
+            assertEquals(context.identityRegistry().getStableId(b), parent(studio, c));
+            context.historyManager().undo(); settle(studio); assertEquals(0, parent(studio, a)); assertEquals(0, parent(studio, c));
+            context.historyManager().redo(); settle(studio); assertEquals(context.identityRegistry().getStableId(b), parent(studio, a));
+        });
+    }
+
     @Test public void modifiersNoopInformativeRowsAndCollapsedDestinations() throws Exception {
         withStudio(900, (studio, root) -> {
             open(studio, project(studio, root.child("clicks")));
@@ -73,6 +155,11 @@ public class ItemsPanelDragGlTest {
             var context = studio.getSceneEditorContext();
             int source = -1;
             for (int i = 0; i < 45; i++) source = item(studio, "Item " + i, i);
+            for (int i = 0; i < 10; i++) {
+                int child = item(studio, "Scrolled child " + i, i);
+                context.world().getMapper(GameObjectMemberComponent.class).create(child).parentStableId = context.identityRegistry().getStableId(source);
+            }
+            context.world().getMapper(EntityIndexComponent.class).get(source).zIndex = 1000;
             settle(studio);
             ScrollPane scroll = (ScrollPane) field(studio.getItemTreePanel(), "scroller");
             scroll.setScrollY(0); scroll.updateVisualScroll(); settle(studio);
@@ -281,6 +368,15 @@ public class ItemsPanelDragGlTest {
     private static Vector2 point(StudioApplicationAdapter studio, EntityNode node, float y) {
         Actor actor = node.getActor();
         return studio.getUiStage().stageToScreenCoordinates(actor.localToStageCoordinates(new Vector2(Math.max(5, actor.getWidth() / 2), actor.getHeight() * y)));
+    }
+    private static Vector2 displayedPoint(StudioApplicationAdapter studio, EntityNode node, float y) throws Exception {
+        var tree = tree(studio);
+        List<?> rows = (List<?>) field(tree, "preview");
+        if (rows != null) for (Object row : rows) if (field(row, "node") == node && !(boolean) field(row, "ghost")) {
+            float top = (float) field(row, "top"), height = (float) field(row, "height");
+            return studio.getUiStage().stageToScreenCoordinates(tree.localToStageCoordinates(new Vector2(node.getActor().getX() + 10, top - height * (1 - y))));
+        }
+        return point(studio, node, y);
     }
     private static void settle(StudioApplicationAdapter studio) { EventFlow.i().flush(); studio.render(); studio.render(); }
     private static void click(StudioApplicationAdapter studio, int entity) throws Exception {
