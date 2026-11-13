@@ -334,22 +334,20 @@ public class EntityProperties extends VisTable {
         EntityKind kind = (meta != null && meta.kind != null) ? meta.kind : EntityKind.UNKNOWN;
 
         boolean isParticle = kind == EntityKind.PARTICLE;
-        boolean isAnim = kind == EntityKind.ANIMATION;
-        boolean isSprite = kind == EntityKind.SPRITE;
-        boolean isGameObject = kind == EntityKind.GAME_OBJECT;
+        boolean isAnim = ctx.world.getMapper(AnimationComponent.class).has(currentEntityId);
+        boolean isSprite = ctx.world.getMapper(TextureRegionComponent.class).has(currentEntityId) && !isAnim;
+        boolean isGameObject = ctx.world.getMapper(GameObjectComponent.class).has(currentEntityId);
 
         transformSection.setApplicable(true);
         gameObjectSection.setApplicable(isGameObject);
-        materialSection.setApplicable(!isGameObject
-                && isMaterialApplicable(kind, ctx.mMat.has(currentEntityId)));
+        materialSection.setApplicable(isMaterialApplicable(kind, ctx.mMat.has(currentEntityId)));
         animationSection.setApplicable(isAnim);
         particleSection.setApplicable(isParticle);
         repeatableSection.setApplicable(repeatablePanel.isApplicable() && isSprite);
 
         boolean physicsApplicable = isPhysicsApplicable();
         spatialSection.setApplicable(isSpatialApplicable(isSprite, isAnim));
-        if (isGameObject) spatialSection.setApplicable(false);
-        physicsSection.setApplicable(!isGameObject && physicsApplicable);
+        physicsSection.setApplicable(physicsApplicable);
 
         invalidateHierarchy();
     }
@@ -442,16 +440,7 @@ public class EntityProperties extends VisTable {
     }
 
     private boolean hasSpatialActorState() {
-        if (currentEntityId < 0) return false;
-        if (ctx.mSpatialHeight.has(currentEntityId)) return true;
-        games.pixscape.runtime.component.physics.PhysicsShapesComponent shapes =
-                ctx.mPhysFixtures.getSafe(currentEntityId, null);
-        if (shapes == null) return false;
-        for (int i = 0; i < shapes.shapes.size; i++) {
-            games.pixscape.runtime.physics.PhysicsShapeData shape = shapes.shapes.get(i);
-            if (shape != null && shape.spatialFootprint) return true;
-        }
-        return false;
+        return games.pixscape.studio.service.SpatialActorShapeSupport.hasActorState(ctx.world, currentEntityId);
     }
 
     public void dispose() {

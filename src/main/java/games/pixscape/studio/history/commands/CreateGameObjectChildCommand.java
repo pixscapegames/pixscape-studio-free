@@ -64,7 +64,12 @@ public final class CreateGameObjectChildCommand implements Command {
                 .get(parentEntityId);
         boolean emptySceneOnlyParent = (parentGameObject.sourceAssetId == null
                 || parentGameObject.sourceAssetId.isBlank())
-                && !hasDirectChildren(world, parentStableId);
+                && !hasDirectChildren(world, parentStableId)
+                && !world.getMapper(TextureRegionComponent.class).has(parentEntityId)
+                && !world.getMapper(AnimationComponent.class).has(parentEntityId)
+                && !world.getMapper(PointLightComponent.class).has(parentEntityId)
+                && !world.getMapper(ConeLightComponent.class).has(parentEntityId)
+                && !world.getMapper(games.pixscape.runtime.component.physics.PhysicsBodyComponent.class).has(parentEntityId);
         this.childInitializer = new ChildInitializer(
                 initializer, parentStableId, effectiveLayer, localZ,
                 emptySceneOnlyParent);

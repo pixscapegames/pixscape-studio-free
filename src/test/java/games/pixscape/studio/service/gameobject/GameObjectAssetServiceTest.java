@@ -245,7 +245,7 @@ public class GameObjectAssetServiceTest {
     }
 
     @Test
-    public void captureRejectsPhysicsJointEndpointOutsideTheHierarchy() throws Exception {
+    public void captureExcludesExternalJointWithoutChangingSource() throws Exception {
         World world = new World(new WorldConfiguration());
         int root = entity(world, 1, -1, true, 0f, 0);
         int other = entity(world, 2, -1, false, 0f, 0);
@@ -257,14 +257,14 @@ public class GameObjectAssetServiceTest {
 
         EntityGraph graph = new EntityGraphCaptureService(world)
                 .captureForGameObject(new IntArray(new int[]{root}));
-        try {
-            new GameObjectAssetService(world).saveGameObject(
-                    new FileHandle(temp.getRoot()).child("joint.gameobject"), graph);
-            Assert.fail("Expected Physics joint endpoint rejection.");
-        } catch (IllegalArgumentException expected) {
-            Assert.assertTrue(expected.getMessage().contains(
-                    "Physics joint connected to an entity outside the Game Object"));
-        }
+        GameObjectAssetService service = new GameObjectAssetService(world);
+        FileHandle file = new FileHandle(temp.getRoot()).child("joint.gameobject");
+        service.saveGameObject(file, graph);
+        Assert.assertEquals(0, service.loadGameObjectAsset(file).joints.size);
+        Assert.assertTrue(service.diagnostic().contains("External joints excluded"));
+        Assert.assertEquals(root, joint.aEid);
+        Assert.assertEquals(other, joint.bEid);
+        Assert.assertTrue(world.getEntityManager().isActive(jointEntity));
     }
 
     @Test
@@ -643,7 +643,7 @@ public class GameObjectAssetServiceTest {
     }
 
     @Test
-    public void jointedPhysicalSelectionIsUnavailableBeforeAnyAssetIsWritten() throws Exception {
+    public void jointedPhysicalSelectionConvertsWithExternalConnectionPreserved() throws Exception {
         World world = new World(new WorldConfiguration());
         int first = entity(world, 10, -1, false, 0f, 0);
         int second = entity(world, 11, -1, false, 2f, 1);
@@ -665,20 +665,13 @@ public class GameObjectAssetServiceTest {
         GameObjectAssetService service = new GameObjectAssetService(
                 world, new HistoryManager(8), identities, null, null, selection,
                 new PhysicsService(world, null, meta));
-        Assert.assertFalse(service.canConvertSelectionToGameObject(selection.getSelectionSnapshot()));
-        Assert.assertTrue(service.conversionRejection(selection.getSelectionSnapshot())
-                .contains("Physics joint connected to an entity outside the Game Object"));
+        Assert.assertTrue(service.canConvertSelectionToGameObject(selection.getSelectionSnapshot()));
         FileHandle assetFile = new FileHandle(temp.getRoot()).child("jointed.gameobject");
-        try {
-            service.convertSelectionToGameObject(
-                    assetFile, new FileHandle(temp.getRoot()).child("jointed.png"), "jointed");
-            Assert.fail("Expected joint-specific conversion rejection.");
-        } catch (IllegalArgumentException expected) {
-            Assert.assertTrue(expected.getMessage().contains(
-                    "Physics joint connected to an entity outside the Game Object"));
-        }
-        Assert.assertFalse(assetFile.exists());
-        Assert.assertFalse(world.getMapper(GameObjectMemberComponent.class).has(first));
+        service.convertSelectionToGameObject(assetFile, new FileHandle(temp.getRoot()).child("jointed.png"),
+                "jointed", preview -> preview.writeString("preview", false, "UTF-8"));
+        Assert.assertTrue(assetFile.exists());
+        Assert.assertEquals(0, service.loadGameObjectAsset(assetFile).joints.size);
+        Assert.assertTrue(service.diagnostic().contains("External joints excluded"));
         Assert.assertEquals(first, joint.aEid);
         Assert.assertEquals(second, joint.bEid);
     }
@@ -828,7 +821,7 @@ public class GameObjectAssetServiceTest {
     }
 
     @Test
-    public void jointedExistingGameObjectIsUnavailableWithTheJointSpecificReason() throws Exception {
+    public void jointedExistingGameObjectPublishesWithVisibleExclusionDiagnostic() throws Exception {
         World world = new World(new WorldConfiguration());
         int root = entity(world, 1, -1, true, 0f, 0);
         int member = entity(world, 2, 1, false, 1f, 0);
@@ -842,26 +835,19 @@ public class GameObjectAssetServiceTest {
 
         GameObjectAssetService.SelectionClassification classification =
                 new GameObjectAssetService(world).classifySelection(new IntArray(new int[]{root}));
-        Assert.assertEquals(GameObjectAssetService.SelectionMode.UNAVAILABLE, classification.mode());
-        Assert.assertEquals("Save as Game Object Asset…", classification.actionLabel());
-        Assert.assertTrue(classification.rejection().contains(
-                "Physics joint connected to an entity outside the Game Object"));
-
+        Assert.assertEquals(GameObjectAssetService.SelectionMode.SAVE_EXISTING_GAME_OBJECT, classification.mode());
         SelectionService selection = new SelectionService(world, null);
         selection.selectOnly(root);
         FileHandle assetFile = new FileHandle(temp.getRoot()).child("jointed-go.gameobject");
-        try {
-            new GameObjectAssetService(world, null, null, null, null, selection, null)
-                    .saveExistingGameObjectAsAsset(assetFile,
-                            new FileHandle(temp.getRoot()).child("jointed-go.png"),
-                            "gameobjects/jointed-go.gameobject",
-                            preview -> preview.writeString("preview", false, "UTF-8"));
-            Assert.fail("Expected joint-specific Game Object save rejection.");
-        } catch (IllegalArgumentException expected) {
-            Assert.assertTrue(expected.getMessage().contains(
-                    "Physics joint connected to an entity outside the Game Object"));
-        }
-        Assert.assertFalse(assetFile.exists());
+        GameObjectAssetService service = new GameObjectAssetService(world, null, null, null, null, selection, null);
+        service.saveExistingGameObjectAsAsset(assetFile,
+                new FileHandle(temp.getRoot()).child("jointed-go.png"), "gameobjects/jointed-go.gameobject",
+                preview -> preview.writeString("preview", false, "UTF-8"));
+        Assert.assertTrue(assetFile.exists());
+        Assert.assertTrue(service.diagnostic().contains("External joints excluded"));
+        Assert.assertEquals(0, service.loadGameObjectAsset(assetFile).joints.size);
+        Assert.assertEquals(member, joint.aEid);
+        Assert.assertEquals(external, joint.bEid);
         Assert.assertEquals(1, parent(world, member));
     }
 

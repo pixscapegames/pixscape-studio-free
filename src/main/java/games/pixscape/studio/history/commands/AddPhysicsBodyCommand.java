@@ -29,6 +29,11 @@ public final class AddPhysicsBodyCommand
     private final boolean transformExistedBefore;
     private final boolean noop;
     private PhysicsShapeData createdDefaultShape;
+    private String refusal;
+
+    public String refusal() {
+        return refusal;
+    }
 
     public AddPhysicsBodyCommand(
             World world,
@@ -61,6 +66,7 @@ public final class AddPhysicsBodyCommand
                             world, identities, bodyEntityId);
                 }
             } catch (RuntimeException ex) {
+                refusal = ex.getMessage();
                 valid = false;
             }
         }
@@ -98,6 +104,12 @@ public final class AddPhysicsBodyCommand
             return CommandOutcome.NO_CHANGE;
         }
 
+        try {
+            GameObjectHierarchyCommandSupport.requirePhysicsAncestry(world, IdentityRegistry.boundTo(world), entityId);
+        } catch (IllegalArgumentException ex) {
+            refusal = ex.getMessage();
+            return CommandOutcome.REJECTED;
+        }
         if (!world.getMapper(TransformComponent.class).has(entityId)) {
             TransformComponent transform =
                     world.getMapper(TransformComponent.class).create(entityId);

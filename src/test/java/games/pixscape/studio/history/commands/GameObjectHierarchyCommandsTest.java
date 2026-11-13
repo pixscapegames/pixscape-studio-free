@@ -214,10 +214,10 @@ public class GameObjectHierarchyCommandsTest {
             assertFalse(hierarchy.containsPhysicsInDescendants(ownBodyOnly));
             assertFalse(hierarchy.containsPhysicsInDescendants(unrelated));
             assertTrue(GameObjectHierarchyCommandSupport.isPhysicsAncestorScaleLocked(f.world, ancestor));
-            assertFalse(GameObjectHierarchyCommandSupport.isPhysicsAncestorScaleLocked(f.world, ownBodyOnly));
+            assertTrue(GameObjectHierarchyCommandSupport.isPhysicsAncestorScaleLocked(f.world, ownBodyOnly));
             assertFalse(GameObjectHierarchyCommandSupport.isPhysicsAncestorScaleLocked(f.world, unrelated));
             assertFalse(GameObjectHierarchyCommandSupport.canApplyScale(f.world, ancestor, 2f, 2f));
-            assertTrue(GameObjectHierarchyCommandSupport.canApplyScale(f.world, ownBodyOnly, 2f, 2f));
+            assertFalse(GameObjectHierarchyCommandSupport.canApplyScale(f.world, ownBodyOnly, 2f, 2f));
         } finally {
             f.close();
         }

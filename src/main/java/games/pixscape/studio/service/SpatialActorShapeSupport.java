@@ -1,13 +1,28 @@
 package games.pixscape.studio.service;
 
+import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 
 /**
- * Shared authored-shape rule for disabling Spatial Actor state.
+ * Shared authored Spatial Actor state and footprint rules.
  */
 public final class SpatialActorShapeSupport {
     private SpatialActorShapeSupport() {
+    }
+
+    /** Inspector activation state, independent of current render eligibility or native body presence. */
+    public static boolean hasActorState(World world, int entityId) {
+        if (world == null || entityId < 0) {
+            return false;
+        }
+        if (world.getMapper(SpatialHeightComponent.class).has(entityId)) {
+            return true;
+        }
+        PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).getSafe(entityId, null);
+        return shapes != null && findFootprint(shapes.shapes, 0) >= 0;
     }
 
     /**

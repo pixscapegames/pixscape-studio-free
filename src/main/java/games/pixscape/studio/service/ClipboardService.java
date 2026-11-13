@@ -76,6 +76,7 @@ public final class ClipboardService {
             return false;
         }
         pasteCount = 0;
+        canvas.showCompositionDiagnostic(graphCaptureService.diagnostic());
         return true;
     }
 
@@ -108,6 +109,9 @@ public final class ClipboardService {
                         editingContext, entityId)));
         selectionService.clearSelection();
         pasteCount = 0;
+        canvas.showCompositionDiagnostic(graphCaptureService.diagnostic().replace(
+                "Source Scene connections are unchanged.",
+                "Cutting removes the source objects and their dependent joints."));
         return true;
     }
 

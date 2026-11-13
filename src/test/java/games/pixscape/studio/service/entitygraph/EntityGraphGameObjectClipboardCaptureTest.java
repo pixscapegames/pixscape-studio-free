@@ -314,7 +314,7 @@ public class EntityGraphGameObjectClipboardCaptureTest {
     }
 
     @Test
-    public void gameObjectHierarchyClipboardRejectsExternalPhysicsJointEndpoint() {
+    public void gameObjectHierarchyClipboardExcludesExternalJointAndReportsIt() {
         Fixture f = new Fixture();
         try {
             int root = f.gameObject(10, -1, 0f, 0f, 0f, 1f, 0f, 0f);
@@ -326,14 +326,12 @@ public class EntityGraphGameObjectClipboardCaptureTest {
             f.distanceJoint(40, memberBody, externalBody);
             f.world.process();
 
-            try {
-                new EntityGraphCaptureService(f.world)
-                        .captureGameObjectClipboard(new IntArray(new int[]{root}));
-                fail("Expected Game Object hierarchy joint rejection.");
-            } catch (IllegalArgumentException expected) {
-                assertTrue(expected.getMessage().contains(
-                        "Physics joint connected to an entity outside the Game Object"));
-            }
+            EntityGraphCaptureService capture = new EntityGraphCaptureService(f.world);
+            EntityGraph graph = capture.captureGameObjectClipboard(new IntArray(new int[]{root}));
+            assertEquals(2, graph.size());
+            assertTrue(capture.diagnostic().contains("External joints excluded"));
+            assertTrue(capture.diagnostic().contains("40"));
+            assertTrue(f.world.getEntityManager().isActive(externalBody));
             assertTrue(f.world.getEntityManager().isActive(root));
             assertTrue(f.world.getEntityManager().isActive(memberBody));
         } finally {

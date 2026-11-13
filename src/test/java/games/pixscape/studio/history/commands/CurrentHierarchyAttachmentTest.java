@@ -214,7 +214,9 @@ public class CurrentHierarchyAttachmentTest {
             int parent = f.root(1), child = f.root(1), leaf = f.entity(false, 1);
             f.process();
             f.assertRejected(() -> f.attach(parent, parent));
+            f.world.getMapper(ParticleEmitterComponent.class).create(leaf);
             f.assertRejected(() -> f.attach(child, leaf));
+            f.world.getMapper(ParticleEmitterComponent.class).remove(leaf);
             f.assertRejected(() -> f.attach(child, -1));
             f.world.getMapper(GameObjectMemberComponent.class).create(parent).parentStableId = Integer.MAX_VALUE;
             assertTrue(CurrentGameObjectRelations.collectCurrentChildrenByParentStableId(f.world, f.ids)

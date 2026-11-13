@@ -719,6 +719,16 @@ public final class StudioContextMenu extends InputListener {
             }
         });
         menu.addItem(createGameObject);
+        MenuItem place = new MenuItem("Place composition…");
+        place.setDisabled(!hasSelection);
+        place.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                showCompositionPlacementDialog(new IntArray(selection));
+                event.handle();
+            }
+        });
+        menu.addItem(place);
 
         MenuItem delete = new MenuItem(selectedMap >= 0 ? "Delete Tiled Map" : "Delete");
         delete.setDisabled(!hasDeletableTarget);
@@ -738,6 +748,61 @@ public final class StudioContextMenu extends InputListener {
         if (hasSelection || canPaste) {
             menu.addSeparator();
         }
+    }
+
+    private void showCompositionPlacementDialog(IntArray roots) {
+        World placementWorld = world;
+        var placementHistory = history;
+        var identities = games.pixscape.runtime.service.IdentityRegistry.boundTo(world);
+        int[] stableIds = new int[roots.size];
+        for (int i = 0; i < roots.size; i++) {
+            stableIds[i] = identities.getStableId(roots.get(i));
+        }
+        new StudioDialog("Place composition") {
+            private final VisTextField dx = new VisTextField("0");
+            private final VisTextField dy = new VisTextField("0");
+            private final VisTextField angle = new VisTextField("0");
+            private final VisTextField px = new VisTextField(Float.toString(lastRightClickWorld.x));
+            private final VisTextField py = new VisTextField(Float.toString(lastRightClickWorld.y));
+            private final VisCheckBox reset = new VisCheckBox("Reset linear and angular velocities");
+            {
+                getContentTable().defaults().pad(6).left();
+                getContentTable().add(new VisLabel("Move X / Y")).row();
+                getContentTable().add(dx).width(140);
+                getContentTable().add(dy).width(140).row();
+                getContentTable().add(new VisLabel("Rotation (degrees)")).left();
+                getContentTable().add(angle).width(140).row();
+                getContentTable().add(new VisLabel("World pivot X / Y")).row();
+                getContentTable().add(px).width(140);
+                getContentTable().add(py).width(140).row();
+                getContentTable().add(reset).colspan(2).row();
+                button("Cancel", false);
+                button("Place", true);
+            }
+
+            @Override
+            protected void result(Object result) {
+                if (Boolean.TRUE.equals(result)) {
+                    try {
+                        if (world != placementWorld || history != placementHistory) {
+                            throw new IllegalStateException("The document changed; reopen placement in the current document.");
+                        }
+                        for (int i = 0; i < roots.size; i++) {
+                            if (identities.findByStableId(stableIds[i]) != roots.get(i)) {
+                                throw new IllegalStateException("The selection changed; reopen composition placement.");
+                            }
+                        }
+                        placementHistory.execute(new games.pixscape.studio.history.commands.PlaceCompositionCommand(
+                                placementWorld, roots, Float.parseFloat(px.getText()), Float.parseFloat(py.getText()),
+                                Float.parseFloat(dx.getText()), Float.parseFloat(dy.getText()),
+                                Float.parseFloat(angle.getText()) * com.badlogic.gdx.math.MathUtils.degreesToRadians,
+                                reset.isChecked(), placementHistory.historyIds()));
+                    } catch (IllegalArgumentException | IllegalStateException ex) {
+                        Dialogs.showOKDialog(stage, "Cannot place composition", ex.getMessage());
+                    }
+                }
+            }
+        }.show(stage);
     }
 
     private void showGameObjectAssetDialog(GameObjectAssetService.SelectionMode mode) {
@@ -810,7 +875,7 @@ public final class StudioContextMenu extends InputListener {
             EventFlow.i().publish(new EventFlow.GameObjectsChanged(MY_TAG));
             String success = saveExisting ? "Game Object asset saved:\n" : "Game Object created:\n";
             Gdx.app.log("GameObject", success + gameObjectFile.path());
-            Dialogs.showOKDialog(stage, title, success + gameObjectFile.path());
+            Dialogs.showOKDialog(stage, title, success + gameObjectFile.path() + "\n" + gameObjectAssetService.diagnostic());
         } catch (RuntimeException ex) {
             Gdx.app.error("GameObject", "Failed to publish Game Object asset", ex);
             Dialogs.showOKDialog(stage, title + " failed", ex.getMessage());

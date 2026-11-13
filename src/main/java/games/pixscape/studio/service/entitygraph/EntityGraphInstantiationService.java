@@ -467,10 +467,6 @@ public final class EntityGraphInstantiationService {
                 throw new IllegalArgumentException(
                         "Game Object graph root scale must be finite, positive, and uniform.");
             }
-            if (snapshot.hasTextureRegion || snapshot.hasAnimation) {
-                throw new IllegalArgumentException(
-                        "Game Object graph root contains an unsupported component domain.");
-            }
         }
     }
 

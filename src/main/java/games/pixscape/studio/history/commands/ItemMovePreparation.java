@@ -85,7 +85,7 @@ public final class ItemMovePreparation {
     /**
      * storedLayer retains historical member indices; effective ownership is given by the group.
      */
-    public record State(int stableId, int parentStableId, int storedLayer, int z, Pose pose) {
+    public record State(int stableId, int parentStableId, int storedLayer, int z, Pose pose, boolean composition) {
     }
 
     public record Change(State before, State after, int beforeEffectiveLayerStableId, int afterEffectiveLayerStableId) {
@@ -280,7 +280,7 @@ public final class ItemMovePreparation {
                         throw new IllegalArgumentException("Parent conversion exceeds world-pose tolerance.");
                     pose = Pose.read(local);
                 }
-                updated.put(id, new State(id, parent, parent == 0 ? targetLayer.index : old.storedLayer, old.z, pose));
+                updated.put(id, new State(id, parent, parent == 0 ? targetLayer.index : old.storedLayer, old.z, pose, old.composition));
             }
             for (var entry : before.entrySet()) {
                 Group group = entry.getKey();
@@ -293,8 +293,14 @@ public final class ItemMovePreparation {
                 for (int i = 0; i < next.size(); i++) {
                     int id = next.get(i);
                     State state = updated.getOrDefault(id, current.states.get(id));
-                    updated.put(id, new State(id, state.parentStableId, state.storedLayer, next.size() - 1 - i, state.pose));
+                    updated.put(id, new State(id, state.parentStableId, state.storedLayer, next.size() - 1 - i, state.pose, state.composition));
                 }
+            }
+            if (parent != 0 && !current.states.get(parent).composition) {
+                State old = updated.getOrDefault(parent, current.states.get(parent));
+                Pose pose = Pose.read(GameObjectHierarchyCommandSupport.promotedParentLocal(
+                        current.world, current.ids, current.entity(parent)));
+                updated.put(parent, new State(parent, old.parentStableId, old.storedLayer, old.z, pose, true));
             }
             List<Change> changes = new ArrayList<>();
             Set<Integer> guarded = new HashSet<>(covered);
@@ -350,7 +356,8 @@ public final class ItemMovePreparation {
                 if (index == null || world.getMapper(PhysicsJointComponent.class).has(entity)) continue;
                 var member = world.getMapper(GameObjectMemberComponent.class).getSafe(entity, null);
                 states.put(stable, new State(stable, member == null ? 0 : member.parentStableId,
-                        index.layerIndex, index.zIndex, Pose.read(world.getMapper(TransformComponent.class).getSafe(entity, null))));
+                        index.layerIndex, index.zIndex, Pose.read(world.getMapper(TransformComponent.class).getSafe(entity, null)),
+                        world.getMapper(GameObjectComponent.class).has(entity)));
             }
             for (State state : states.values()) {
                 if (state.parentStableId != 0 && (!states.containsKey(state.parentStableId)

@@ -75,7 +75,7 @@ public class LayerPropertiesCollisionVisibilityContractTest {
         assertFalse(source.contains("SpatialHeightPanel"));
         assertTrue(source.contains("SpatialPhysicsPanel"));
         assertTrue(source.contains("new ToggleSection(\"Spatial\""));
-        assertTrue(source.contains("boolean isSprite = kind == EntityKind.SPRITE;"));
+        assertTrue(source.contains("boolean isSprite = ctx.world.getMapper(TextureRegionComponent.class).has(currentEntityId) && !isAnim;"));
         assertTrue(source.contains("spatialSection.setApplicable(isSpatialApplicable(isSprite, isAnim));"));
         assertTrue(source.contains("&& isEntityInSpatialEnabledLayer())"));
         assertFalse(source.contains("EventFlow.LayerSpatialDepthChanged.class"));

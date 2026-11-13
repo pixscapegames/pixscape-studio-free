@@ -21,6 +21,9 @@ public final class AddEntityToGameObjectCommand implements Command {
     private final long childHistoryId;
     private final long parentHistoryId;
     private final int parentStableId;
+    private final boolean promoteParent;
+    private final TransformComponent beforeParentLocal;
+    private final TransformComponent afterParentLocal;
     private final TransformComponent beforeWorld;
     private final TransformComponent afterLocal;
     private final int beforeLayer;
@@ -42,6 +45,11 @@ public final class AddEntityToGameObjectCommand implements Command {
         this.world = world;
         this.historyIds = historyIds;
         this.identities = identities;
+        promoteParent = !world.getMapper(GameObjectComponent.class).has(parentEntityId);
+        beforeParentLocal = GameObjectHierarchyCommandSupport.copy(world.getMapper(TransformComponent.class).get(parentEntityId));
+        afterParentLocal = promoteParent
+                ? GameObjectHierarchyCommandSupport.promotedParentLocal(world, identities, parentEntityId)
+                : beforeParentLocal;
         childHistoryId = historyIds.ensureForEntity(childEntityId);
         parentHistoryId = historyIds.ensureForEntity(parentEntityId);
         parentStableId = world.getMapper(PixscapeIdentityComponent.class)
@@ -73,6 +81,11 @@ public final class AddEntityToGameObjectCommand implements Command {
         if (world.getMapper(PixscapeIdentityComponent.class).get(parent).stableId != parentStableId) {
             throw new IllegalStateException("Game Object parent stable identity changed.");
         }
+        if (promoteParent) {
+            world.getMapper(GameObjectComponent.class).create(parent);
+            GameObjectHierarchyCommandSupport.apply(world.getMapper(TransformComponent.class).get(parent), afterParentLocal);
+            dirty(parent);
+        }
         GameObjectHierarchyCommandSupport.apply(
                 world.getMapper(TransformComponent.class).get(child), afterLocal);
         world.getMapper(EntityIndexComponent.class).get(child).zIndex = afterLocalZ;
@@ -94,6 +107,12 @@ public final class AddEntityToGameObjectCommand implements Command {
         EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).get(child);
         index.layerIndex = beforeLayer;
         index.zIndex = beforeZ;
+        if (promoteParent) {
+            int parent = resolve(parentHistoryId, "parent");
+            world.getMapper(GameObjectComponent.class).remove(parent);
+            GameObjectHierarchyCommandSupport.apply(world.getMapper(TransformComponent.class).get(parent), beforeParentLocal);
+            dirty(parent);
+        }
         dirty(child);
     }
 

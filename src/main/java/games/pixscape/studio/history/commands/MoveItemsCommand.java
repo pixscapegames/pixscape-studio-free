@@ -1,6 +1,7 @@
 package games.pixscape.studio.history.commands;
 
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.render.GeometryDirty;
@@ -66,6 +67,11 @@ public final class MoveItemsCommand implements Command, OutcomeAwareCommand {
         for (var change : move.changes) {
             var target = undo ? change.before() : change.after();
             int entity = ids.findByStableId(target.stableId());
+            if (target.composition()) {
+                world.getMapper(GameObjectComponent.class).create(entity);
+            } else {
+                world.getMapper(GameObjectComponent.class).remove(entity);
+            }
             if (target.parentStableId() == 0) members.remove(entity);
             else members.create(entity).parentStableId = target.parentStableId();
             var index = indexes.get(entity);

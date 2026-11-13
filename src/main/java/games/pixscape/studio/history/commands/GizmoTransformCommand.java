@@ -142,8 +142,8 @@ public final class GizmoTransformCommand implements Command, SupportsNoop {
         if (entityId >= 0 && world.getMapper(GameObjectComponent.class).has(entityId)) {
             if (op == TransformOp.SCALE) {
                 if (!isValidGameObjectScale(after)
-                        || !GameObjectHierarchyCommandSupport.canApplyScale(
-                        world, entityId, after.sx, after.sy)) {
+                        || (GameObjectHierarchyCommandSupport.isPhysicsAncestorScaleLocked(world, entityId)
+                        && (before.sx != after.sx || before.sy != after.sy))) {
                     TransformComponent current = world.getMapper(TransformComponent.class)
                             .getSafe(entityId, null);
                     if (current != null) before.applyTo(current);

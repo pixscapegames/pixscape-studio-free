@@ -24,6 +24,12 @@ import java.util.List;
 
 public final class EntityGraphCaptureService {
     private final World world;
+    private String diagnostic = "";
+
+    public String diagnostic() {
+        return diagnostic;
+    }
+
     private final ComponentMapper<TransformComponent> mTransform;
     private final ComponentMapper<EntityIndexComponent> mEntityIndex;
     private final ComponentMapper<PhysicsJointComponent> mJointBase;
@@ -78,6 +84,7 @@ public final class EntityGraphCaptureService {
      * Captures already-normalized V1 clipboard roots without changing Scene state.
      */
     public EntityGraph captureNormalizedClipboard(IntArray roots) {
+        diagnostic = "";
         if (roots.size == 0) return EntityGraph.empty();
         if (!containsGameObjectRoot(roots)) {
             return captureSupportedSelection(collectSupportedSelection(roots));
@@ -189,7 +196,7 @@ public final class EntityGraphCaptureService {
     }
 
     /**
-     * P4 captures internal joints but rejects any Body dependency that escapes the hierarchy closure.
+     * Captures internal joints and reports dependencies excluded from the selected scope.
      */
     private IntArray requireSupportedGameObjectHierarchyPhysics(IntArray capturedEntities) {
         IntSet hierarchyEntities = new IntSet(capturedEntities.size);
@@ -210,35 +217,13 @@ public final class EntityGraphCaptureService {
                 }
             }
         }
-        IntArray internal = new IntArray(false, 8);
-        if (hierarchyEntities.size == 0) return internal;
-        IntBag joints = world.getAspectSubscriptionManager().get(
-                Aspect.all(PhysicsJointComponent.class)).getEntities();
-        for (int i = 0; i < joints.size(); i++) {
-            PhysicsJointComponent joint = mJointBase.get(joints.get(i));
-            boolean aInside = hierarchyEntities.contains(joint.aEid);
-            boolean bInside = hierarchyEntities.contains(joint.bEid);
-            if (aInside != bInside) {
-                throw new IllegalArgumentException(
-                        "Game Object contains a Physics joint connected to an entity outside the Game Object.");
-            }
-            if (aInside) internal.add(joints.get(i));
+        IntSet scope = new IntSet(capturedEntities.size);
+        for (int i = 0; i < capturedEntities.size; i++) {
+            scope.add(capturedEntities.get(i));
         }
-        IntSet internalSet = new IntSet(internal.size);
-        for (int i = 0; i < internal.size; i++) internalSet.add(internal.get(i));
-        ComponentMapper<games.pixscape.runtime.component.physics.PhysicsGearJointComponent> gears =
-                world.getMapper(games.pixscape.runtime.component.physics.PhysicsGearJointComponent.class);
-        for (int i = 0; i < internal.size; i++) {
-            int jointEntityId = internal.get(i);
-            PhysicsJointComponent base = mJointBase.get(jointEntityId);
-            if (base.type != PhysicsJointComponent.TYPE_GEAR) continue;
-            games.pixscape.runtime.component.physics.PhysicsGearJointComponent gear = gears.getSafe(jointEntityId, null);
-            if (gear == null || !internalSet.contains(gear.joint1Eid) || !internalSet.contains(gear.joint2Eid)) {
-                throw new IllegalArgumentException(
-                        "Game Object Gear joint depends on a joint outside the Game Object.");
-            }
-        }
-        return internal;
+        CompositionJointScope.Result result = CompositionJointScope.classify(world, scope);
+        diagnostic = result.diagnostic();
+        return result.internal();
     }
 
     private void appendClipboardJoints(List<EntityGraphEntry> entries, IntArray entityIds, IntArray jointEntities) {

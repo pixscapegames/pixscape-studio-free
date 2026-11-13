@@ -484,6 +484,105 @@ public class MoveItemsCommandTest {
         }
     }
 
+    @Test
+    public void droppingOnAnimatedContentPromotesThatNodeAndUndoRestoresBothNodes() {
+        try (F f = new F()) {
+            int outer = f.root(0, 5), animation = f.sprite(0, 3), child = f.sprite(0, 1);
+            f.world.getMapper(AnimationComponent.class).create(animation);
+            f.attach(animation, outer, 3);
+            f.t(outer).rotationRad = .3f;
+            f.t(animation).rotationRad = .6f;
+            f.publish();
+            var parentBefore = f.pose(animation);
+            var childBefore = f.pose(child);
+            var plan = f.prepare(0, animation, 0, child);
+            assertFalse(f.world.getMapper(GameObjectComponent.class).has(animation));
+            f.execute(plan);
+            assertEquals(1, f.context.historyManager().getCursor());
+            assertTrue(f.world.getMapper(GameObjectComponent.class).has(animation));
+            assertTrue(f.world.getMapper(AnimationComponent.class).has(animation));
+            assertTrue(f.world.getMapper(TextureRegionComponent.class).has(animation));
+            assertTrue(parentBefore.closeTo(f.pose(animation)));
+            assertTrue(childBefore.closeTo(f.pose(child)));
+            assertEquals(f.stable(animation), f.parent(child));
+            f.context.historyManager().undo();
+            assertFalse(f.world.getMapper(GameObjectComponent.class).has(animation));
+            assertEquals(0, f.parent(child));
+            assertEquals(parentBefore, f.pose(animation));
+            assertEquals(childBefore, f.pose(child));
+            f.context.historyManager().redo();
+            f.publish();
+            assertEquals(f.stable(animation), f.parent(child));
+        }
+    }
+
+    @Test
+    public void explicitPlacementIsOneUndoableNativeCommandAndExternalRefusalDoesNotEnterHistory() {
+        try (F f = new F()) {
+            int parent = f.root(0, 4), body = f.body(0), trailer = f.body(0);
+            f.attach(body, parent, 1);
+            f.t(trailer).x = 210f;
+            f.publish();
+            var runtime = f.world.getMapper(PhysicsRuntimeBodyComponent.class);
+            Vector2 before = new Vector2(runtime.get(body).body.getPosition());
+            f.context.layerService().meta(0).locked = true;
+            assertThrows(IllegalArgumentException.class, () -> new PlaceCompositionCommand(f.world,
+                    IntArray.with(parent), 0f, 0f, 100f, 50f, .3f, false));
+            assertEquals(0, f.context.historyManager().getCursor());
+            assertEquals(before, runtime.get(body).body.getPosition());
+            f.context.layerService().meta(0).locked = false;
+            PlaceCompositionCommand placement = new PlaceCompositionCommand(f.world, IntArray.with(parent),
+                    0f, 0f, 100f, 50f, .3f, false);
+            f.context.historyManager().execute(placement);
+            Vector2 after = new Vector2(runtime.get(body).body.getPosition());
+            assertNotEquals(before, after);
+            assertEquals(1, f.context.historyManager().getCursor());
+            f.context.historyManager().undo();
+            assertEquals(before, runtime.get(body).body.getPosition());
+            f.context.historyManager().redo();
+            assertEquals(after, runtime.get(body).body.getPosition());
+            int hitch = f.world.create();
+            f.context.identityRegistry().ensureStableId(hitch);
+            var joint = f.world.getMapper(PhysicsJointComponent.class).create(hitch);
+            joint.aEid = body;
+            joint.bEid = trailer;
+            f.world.getMapper(PhysicsDistanceJointComponent.class).create(hitch).lengthM = 1f;
+            f.publish();
+            assertThrows(IllegalArgumentException.class, () -> new PlaceCompositionCommand(f.world,
+                    IntArray.with(parent), 0f, 0f, 10f, 0f, 0f, false));
+            assertEquals(1, f.context.historyManager().getCursor());
+            assertEquals(after, runtime.get(body).body.getPosition());
+        }
+    }
+
+    @Test
+    public void consecutivePlacementCommandsKeepIndependentUndoSnapshots() {
+        try (F f = new F()) {
+            int parent = f.root(0, 4), body = f.body(0);
+            f.attach(body, parent, 1);
+            f.publish();
+            var nativeBody = f.world.getMapper(PhysicsRuntimeBodyComponent.class).get(body).body;
+            float before = nativeBody.getPosition().x;
+            var history = f.context.historyManager();
+            history.execute(new PlaceCompositionCommand(f.world, IntArray.with(parent),
+                    0, 0, 100, 0, 0, false, history.historyIds()));
+            history.execute(new PlaceCompositionCommand(f.world, IntArray.with(parent),
+                    0, 0, 50, 0, 0, false, history.historyIds()));
+            assertEquals(before + 1.5f, nativeBody.getPosition().x, .0001f);
+            var hierarchy = f.world.getSystem(GameObjectHierarchySystem.class);
+            hierarchy.reservePlacement(2, 0);
+            hierarchy.placeComposition(IntArray.with(parent), 0, 0, 25, 0, 0, false);
+            assertEquals(before + 1.75f, nativeBody.getPosition().x, .0001f);
+            history.undo();
+            assertEquals(before + 1f, nativeBody.getPosition().x, .0001f);
+            history.undo();
+            assertEquals(before, nativeBody.getPosition().x, .0001f);
+            history.redo();
+            history.redo();
+            assertEquals(before + 1.5f, nativeBody.getPosition().x, .0001f);
+        }
+    }
+
     private static final class F implements AutoCloseable {
         final SceneMeta meta = new SceneMeta();
         final SceneEditorContext context = new SceneEditorContext("items", new StudioEditingModeService());

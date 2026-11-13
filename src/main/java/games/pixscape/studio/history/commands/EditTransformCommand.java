@@ -148,7 +148,6 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
         this.op = Objects.requireNonNull(op, "op");
         this.before = before;
         this.after = after;
-        this.entityHistoryId = historyIds != null ? historyIds.ensureForEntity(entityId) : -1L;
         boolean rejectedScale = false;
         if (world != null && world.getMapper(GameObjectComponent.class).has(entityId)) {
             if (op == TransformOp.SCALE && after != null) {
@@ -166,6 +165,10 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
                 ? RepeatRotationConstraint.repeatAfterRotation(beforeRepeat, after.rotationRad())
                 : beforeRepeat;
 
+        this.entityHistoryId = !rejectedScale && world != null && historyIds != null
+                && before != null && after != null
+                && (!before.sameAs(after) || !repeatSnapshotsSame(beforeRepeat, afterRepeat))
+                ? historyIds.ensureForEntity(entityId) : -1L;
         this.noop = world == null
                 || historyIds == null
                 || entityHistoryId <= 0L

@@ -101,6 +101,12 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             java.util.Collections.newSetFromMap(new IdentityHashMap<>());
     private boolean resourceImportBusy;
 
+    public void showCompositionDiagnostic(String message) {
+        if (message != null && !message.isBlank()) {
+            Dialogs.showOKDialog(app.getUiStage(), "Game Object composition", message);
+        }
+    }
+
     public void setResourceImportBusy(boolean busy) {
         resourceImportBusy = busy;
     }

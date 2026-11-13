@@ -46,9 +46,7 @@ public final class GameObjectHierarchyCommandSupport {
         }
         requireIndexedCore(world, identities, childEntityId, "child");
         requireIndexedCore(world, identities, parentEntityId, "parent");
-        if (!world.getMapper(GameObjectComponent.class).has(parentEntityId)) {
-            throw new IllegalArgumentException("Hierarchy parent must be a Game Object root.");
-        }
+        requireSupportedMember(world, parentEntityId);
         requireSupportedMember(world, childEntityId);
         if (world.getMapper(GameObjectComponent.class).has(childEntityId)) {
             GameObjectTransformMath.requirePositiveUniformParentScale(
@@ -66,7 +64,7 @@ public final class GameObjectHierarchyCommandSupport {
                 || world.getMapper(SpatialBlocksComponent.class).has(entityId)
                 || world.getMapper(SpatialShapesComponent.class).has(entityId)) {
             throw new IllegalArgumentException(
-                    "Tiled and Scene-local Spatial structures are not supported as Game Object members.");
+                    "Maps, particles and Scene-local Spatial structures cannot be composition members or parents.");
         }
     }
 
@@ -102,6 +100,17 @@ public final class GameObjectHierarchyCommandSupport {
                 worldTransform(world, identities, parent, depth + 1), authored,
                 world.getMapper(GameObjectComponent.class).has(entityId),
                 new TransformComponent());
+    }
+
+    static TransformComponent promotedParentLocal(World world, IdentityRegistry identities, int entityId) {
+        TransformComponent pose = worldTransform(world, identities, entityId);
+        GameObjectMemberComponent member = world.getMapper(GameObjectMemberComponent.class).getSafe(entityId, null);
+        if (member == null) {
+            return pose;
+        }
+        return GameObjectTransformMath.worldToLocal(
+                worldTransform(world, identities, identities.findByStableId(member.parentStableId)),
+                pose, true, new TransformComponent());
     }
 
     static int topLevelRoot(World world, IdentityRegistry identities, int entityId) {
@@ -222,8 +231,10 @@ public final class GameObjectHierarchyCommandSupport {
                 || !world.getMapper(GameObjectComponent.class).has(entityId)) {
             return true;
         }
-        return !hasPhysicsDescendant(world, IdentityRegistry.boundTo(world), entityId)
-                || (scaleX == 1f && scaleY == 1f);
+        TransformComponent current = world.getMapper(TransformComponent.class).get(entityId);
+        return !(world.getMapper(PhysicsBodyComponent.class).has(entityId)
+                || hasPhysicsDescendant(world, IdentityRegistry.boundTo(world), entityId))
+                || (scaleX == current.scaleX && scaleY == current.scaleY);
     }
 
     /**
@@ -232,7 +243,8 @@ public final class GameObjectHierarchyCommandSupport {
     public static boolean isPhysicsAncestorScaleLocked(World world, int entityId) {
         return world != null && entityId >= 0
                 && world.getMapper(GameObjectComponent.class).has(entityId)
-                && hasPhysicsDescendant(world, IdentityRegistry.boundTo(world), entityId);
+                && (world.getMapper(PhysicsBodyComponent.class).has(entityId)
+                || hasPhysicsDescendant(world, IdentityRegistry.boundTo(world), entityId));
     }
 
     static void requireScaleAllowedForPhysicsDescendants(
@@ -273,7 +285,7 @@ public final class GameObjectHierarchyCommandSupport {
                 throw new IllegalArgumentException("Game Object hierarchy cycle rejected.");
             }
             requireIndexedCore(world, identities, current, "ancestor");
-            if (!world.getMapper(GameObjectComponent.class).has(current)) {
+            if (current != parentEntityId && !world.getMapper(GameObjectComponent.class).has(current)) {
                 throw new IllegalArgumentException("Hierarchy parent must be a Game Object root.");
             }
             GameObjectTransformMath.requirePositiveUniformParentScale(

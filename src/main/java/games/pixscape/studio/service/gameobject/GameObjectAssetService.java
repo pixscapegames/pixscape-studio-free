@@ -67,6 +67,12 @@ public final class GameObjectAssetService {
 
     private static final String CONVERT_ACTION_LABEL = "Convert Selection to Game Object…";
     private static final String SAVE_ACTION_LABEL = "Save as Game Object Asset…";
+    private String diagnostic = "";
+
+    public String diagnostic() {
+        return diagnostic;
+    }
+
     private final World world;
     private final HistoryManager historyManager;
     private final IdentityRegistry identityRegistry;
@@ -952,46 +958,15 @@ public final class GameObjectAssetService {
         }
     }
 
-    /**
-     * Discovers all internal Scene joints for the captured Body closure. A joint with exactly one
-     * endpoint in the closure would otherwise be silently lost from a reusable asset, so it is
-     * rejected before any publication or History mutation.
-     */
+    /** Classifies joints relative to this publication, leaving the source Scene untouched. */
     private IntArray requireInternalJointClosure(IntMap<Integer> capturedEntityToLocal) {
         IntSet captured = new IntSet(capturedEntityToLocal.size);
-        for (IntMap.Entry<Integer> entry : capturedEntityToLocal) captured.add(entry.key);
-        IntArray internal = new IntArray(false, 8);
-        IntSet internalSet = new IntSet();
-        com.artemis.utils.IntBag joints = world.getAspectSubscriptionManager().get(
-                Aspect.all(PhysicsJointComponent.class)).getEntities();
-        ComponentMapper<PhysicsJointComponent> bases = world.getMapper(PhysicsJointComponent.class);
-        for (int i = 0; i < joints.size(); i++) {
-            int jointEntityId = joints.get(i);
-            PhysicsJointComponent joint = bases.getSafe(jointEntityId, null);
-            if (joint == null) continue;
-            boolean aInside = captured.contains(joint.aEid);
-            boolean bInside = captured.contains(joint.bEid);
-            if (aInside != bInside) {
-                throw new IllegalArgumentException(
-                        "Game Object contains a Physics joint connected to an entity outside the Game Object.");
-            }
-            if (aInside) {
-                internal.add(jointEntityId);
-                internalSet.add(jointEntityId);
-            }
+        for (IntMap.Entry<Integer> entry : capturedEntityToLocal) {
+            captured.add(entry.key);
         }
-        ComponentMapper<PhysicsGearJointComponent> gears = world.getMapper(PhysicsGearJointComponent.class);
-        for (int i = 0; i < internal.size; i++) {
-            int jointEntityId = internal.get(i);
-            PhysicsJointComponent base = bases.get(jointEntityId);
-            if (base.type != PhysicsJointComponent.TYPE_GEAR) continue;
-            PhysicsGearJointComponent gear = gears.getSafe(jointEntityId, null);
-            if (gear == null || !internalSet.contains(gear.joint1Eid) || !internalSet.contains(gear.joint2Eid)) {
-                throw new IllegalArgumentException(
-                        "Game Object Gear joint depends on a joint outside the Game Object.");
-            }
-        }
-        return internal;
+        var result = games.pixscape.studio.service.entitygraph.CompositionJointScope.classify(world, captured);
+        diagnostic = result.diagnostic();
+        return result.internal();
     }
 
     private static IntMap<Integer> toLocalIds(IntArray entities) {

@@ -88,10 +88,7 @@ public final class GameObjectGizmoGeometry {
         boolean found = false;
 
         stack.clear();
-        for (int child = topology.firstChildEntityId[rootEntityId]; child >= 0;
-             child = topology.nextSiblingEntityId[child]) {
-            stack.add(child);
-        }
+        stack.add(rootEntityId);
         while (stack.size > 0) {
             int entityId = stack.pop();
             if (entityId < 0 || entityId >= compositionState.hierarchyVisible.length
@@ -103,7 +100,6 @@ public final class GameObjectGizmoGeometry {
                      child = topology.nextSiblingEntityId[child]) {
                     stack.add(child);
                 }
-                continue;
             }
             if (!composition.contributesDrawableBounds(entityId)) continue;
             if (!writeExactWorldCorners(entityId, worldState, exactWorldCorners)) continue;

@@ -254,14 +254,19 @@ public final class BodyPanel extends CollapsibleWidget {
             boolean createDefaultShape = !hadPhysicsBeforeChange
                     && shouldCreateDefaultFixture(entityId)
                     && countFixtures(entityId) == 0;
-            ctx.history.execute(new AddPhysicsBodyCommand(
+            AddPhysicsBodyCommand command = new AddPhysicsBodyCommand(
                     ctx.world,
                     ctx.history.historyIds(),
                     ctx.physicsService,
                     entityId,
                     PhysicsBodyComponent.DYNAMIC,
                     createDefaultShape
-            ));
+            );
+            if (command.refusal() != null) {
+                com.kotcrab.vis.ui.util.dialog.Dialogs.showOKDialog(getStage(), "Cannot add Body", command.refusal());
+            } else {
+                ctx.history.execute(command);
+            }
         } else {
             ctx.history.execute(new RemovePhysicsBodyCommand(
                     ctx.world,

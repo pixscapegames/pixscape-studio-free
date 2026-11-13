@@ -76,6 +76,10 @@ public class TransformPanel extends CollapsibleWidget {
         scaleXRow = row("Scale X:", scalexField);
         scaleYRow = row("Scale Y:", scaleyField);
         uniformScaleRow = row("Scale:", uniformScaleField);
+        new com.kotcrab.vis.ui.widget.Tooltip.Builder(
+                "Scales this node and its children. Locked when the composition contains Physics. "
+                        + "Use a visual child for independent visual scaling.")
+                .target(uniformScaleField).build();
         widthRow = row("Width:", widthLabel);
         heightRow = row("Height:", heightLabel);
         originXCell = root.add(originXRow).left();
@@ -118,6 +122,9 @@ public class TransformPanel extends CollapsibleWidget {
         setApplicable(scaleXCell, scaleXRow, !particle && !gameObject);
         setApplicable(scaleYCell, scaleYRow, !particle && !gameObject);
         setApplicable(uniformScaleCell, uniformScaleRow, gameObject);
+        uniformScaleField.setDisabled(gameObject
+                && games.pixscape.studio.history.commands.GameObjectHierarchyCommandSupport
+                .isPhysicsAncestorScaleLocked(ctx.world, entityId));
         setApplicable(widthCell, widthRow, !particle && !gameObject);
         setApplicable(heightCell, heightRow, !particle && !gameObject);
         root.invalidateHierarchy();

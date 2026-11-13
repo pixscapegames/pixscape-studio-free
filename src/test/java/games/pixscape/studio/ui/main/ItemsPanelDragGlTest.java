@@ -24,6 +24,111 @@ import static org.junit.Assert.*;
  */
 public class ItemsPanelDragGlTest {
     @Test
+    public void spatialLabelsFollowInspectorHistoryHierarchyAndScenePersistence() throws Exception {
+        withStudio(900, (studio, temporary) -> {
+            var projectFile = project(studio, temporary.child("spatial-labels"));
+            var config = games.pixscape.studio.configuration.ProjectConfig.ProjectIO.loadProject(projectFile);
+            config.getCurrentSceneMeta().physicsEnabled = true;
+            config.getCurrentSceneMeta().gravityY = 0;
+            games.pixscape.studio.configuration.ProjectConfig.ProjectIO.saveProject(config, projectFile);
+            addImage(projectFile.parent(), "hero", 80, 60);
+            open(studio, projectFile);
+            var context = studio.getSceneEditorContext();
+            var world = context.world();
+            var history = context.historyManager();
+            var ops = studio.getCanvas().getEditorOps();
+            history.execute(new games.pixscape.studio.history.commands.ToggleSpatialActorLayerCommand(
+                    world, history.historyIds(), context.layerService(), context.layerService().getLayerEntity(0), true));
+            int hero = ops.createStandaloneSprite("hero.png", -160, 30, "hero");
+            int child = ops.createStandaloneSprite("hero.png", -60, 30, "child");
+            int bodyOnly = ops.createStandaloneSprite("hero.png", 60, 30, "body only");
+            for (int entity : new int[]{hero, bodyOnly}) {
+                history.execute(new games.pixscape.studio.history.commands.AddPhysicsBodyCommand(world,
+                        history.historyIds(), studio.getCanvas().getPhysicsService(), entity,
+                        games.pixscape.runtime.component.physics.PhysicsBodyComponent.DYNAMIC, true));
+            }
+            settle(studio);
+            assertEquals("hero", tree(studio).findNode(hero).getLabel().getText().toString());
+            assertEquals("body only", tree(studio).findNode(bodyOnly).getLabel().getText().toString());
+            click(studio, hero);
+            settle(studio);
+            var properties = field(field(studio, "propertiesPanel"), "entityProperties");
+            var toggle = (com.kotcrab.vis.ui.widget.VisCheckBox) field(field(properties, "spatialPanel"), "enabledBox");
+            assertFalse(toggle.isDisabled());
+            toggle.setChecked(true); // Exercise the Inspector's real command listener.
+            settle(studio);
+            assertEquals("hero (spatial)", tree(studio).findNode(hero).getLabel().getText().toString());
+            assertEquals("Dynamic body", tree(studio).findBodyNode(hero).getLabel().getText().toString());
+            history.undo();
+            settle(studio);
+            assertEquals("hero", tree(studio).findNode(hero).getLabel().getText().toString());
+            history.redo();
+            settle(studio);
+            assertEquals("hero (spatial)", tree(studio).findNode(hero).getLabel().getText().toString());
+            toggle.setChecked(false);
+            settle(studio);
+            assertEquals("hero", tree(studio).findNode(hero).getLabel().getText().toString());
+            history.undo();
+            settle(studio);
+
+            history.execute(new games.pixscape.studio.history.commands.AddEntityToGameObjectCommand(
+                    world, history.historyIds(), context.identityRegistry(), child, hero, 0));
+            settle(studio);
+            assertTrue(world.getMapper(GameObjectComponent.class).has(hero));
+            assertEquals("hero (spatial)", tree(studio).findNode(hero).getLabel().getText().toString());
+            assertEquals("child", tree(studio).findNode(child).getLabel().getText().toString());
+            tree(studio).findNode(hero).setExpanded(true);
+            settle(studio);
+            click(studio, child);
+            settle(studio);
+            properties = field(field(studio, "propertiesPanel"), "entityProperties");
+            toggle = (com.kotcrab.vis.ui.widget.VisCheckBox) field(field(properties, "spatialPanel"), "enabledBox");
+            assertFalse(toggle.isDisabled());
+            toggle.setChecked(true);
+            settle(studio);
+            assertEquals("child (spatial)", tree(studio).findNode(child).getLabel().getText().toString());
+            click(studio, hero);
+            settle(studio);
+            properties = field(field(studio, "propertiesPanel"), "entityProperties");
+            var name = (games.pixscape.studio.ui.widget.SimpleTextField) field(properties, "entityName");
+            assertEquals("hero", name.getText());
+            var originalNode = tree(studio).findNode(hero);
+            name.setText("renamed hero");
+            name.commit();
+            EventFlow.i().flush();
+            studio.getItemTreePanel().updateIfDirty();
+            assertSame("Renaming only updates the label", originalNode, tree(studio).findNode(hero));
+            assertEquals("renamed hero (spatial)", originalNode.getLabel().getText().toString());
+            assertEquals("renamed hero", world.getMapper(PixscapeIdentityComponent.class).get(hero).name);
+            history.undo();
+            settle(studio);
+            assertEquals("hero (spatial)", tree(studio).findNode(hero).getLabel().getText().toString());
+            history.redo();
+            settle(studio);
+            screenshot(studio, "items-spatial-labels");
+            int heroStable = context.identityRegistry().getStableId(hero);
+            int childStable = context.identityRegistry().getStableId(child);
+            var sceneFile = projectFile.parent().child("scenes/" + context.sceneMeta().getFile());
+            games.pixscape.studio.service.SceneService.saveScene(world, sceneFile, false);
+            assertFalse("Decoration must never be serialized", sceneFile.readString().contains(" (spatial)"));
+            games.pixscape.studio.configuration.ProjectConfig.ProjectIO.saveProject(
+                    games.pixscape.studio.configuration.ProjectConfig.getInstance(), projectFile);
+            open(studio, projectFile);
+            settle(studio);
+            var restored = studio.getSceneEditorContext();
+            int restoredHero = restored.identityRegistry().findByStableId(heroStable);
+            int restoredChild = restored.identityRegistry().findByStableId(childStable);
+            assertEquals("renamed hero", restored.world().getMapper(PixscapeIdentityComponent.class).get(restoredHero).name);
+            assertEquals("renamed hero (spatial)", tree(studio).findNode(restoredHero).getLabel().getText().toString());
+            assertEquals("child (spatial)", tree(studio).findNode(restoredChild).getLabel().getText().toString());
+            tree(studio).findNode(restoredHero).setExpanded(true);
+            click(studio, restoredHero);
+            settle(studio);
+            screenshot(studio, "items-spatial-labels-reloaded");
+        });
+    }
+
+    @Test
     public void expandedGroupDestinationSurvivesIntermediateHorizontalMotion() throws Exception {
         withStudio(900, (studio, root) -> {
             open(studio, project(studio, root.child("stable-target")));
@@ -492,6 +597,208 @@ public class ItemsPanelDragGlTest {
             release(studio, click);
             assertEquals(q, context.selectionService().getFirstSelectedEntityId());
         });
+    }
+
+    @Test
+    public void drawableBodyParentAndIndependentHitchSurviveRealStudioWorkflows() throws Exception {
+        withStudio(900, (studio, temporary) -> {
+            var projectFile = project(studio, temporary.child("composition"));
+            var config = games.pixscape.studio.configuration.ProjectConfig.ProjectIO.loadProject(projectFile);
+            config.getCurrentSceneMeta().physicsEnabled = true;
+            config.getCurrentSceneMeta().gravityY = 0f;
+            games.pixscape.studio.configuration.ProjectConfig.ProjectIO.saveProject(config, projectFile);
+            var db = games.pixscape.studio.asset.AssetMetaDatabase.load(projectFile.parent().child("assets.json"));
+            String[] images = {"car.png", "badge.png", "trailer.png"};
+            for (int i = 0; i < images.length; i++) {
+                db.registerIfAbsent(games.pixscape.studio.asset.AssetType.IMAGE, "images/" + images[i],
+                        "orig/images/" + images[i], games.pixscape.studio.asset.AssetMeta.AssetScope.USER);
+                Pixmap image = new Pixmap(i == 1 ? 36 : 150, i == 1 ? 36 : 76, Pixmap.Format.RGBA8888);
+                image.setColor(i == 0 ? .15f : .95f, i == 1 ? .8f : .35f, i == 0 ? .9f : .12f, 1f);
+                image.fill();
+                image.setColor(.92f, .95f, 1f, 1f);
+                image.drawRectangle(3, 3, image.getWidth() - 6, image.getHeight() - 6);
+                PixmapIO.writePNG(projectFile.parent().child("orig/images/" + images[i]), image);
+                image.dispose();
+            }
+            db.save(projectFile.parent().child("assets.json"));
+            open(studio, projectFile);
+            var canvas = studio.getCanvas();
+            var context = studio.getSceneEditorContext();
+            var world = context.world();
+            var history = context.historyManager();
+            var ids = context.identityRegistry();
+            var ops = canvas.getEditorOps();
+            int car = ops.createStandaloneSprite("car.png", -140f, 30f, "Car / visual + body + children");
+            int badge = ops.createStandaloneSprite("badge.png", -110f, 55f, "Child visual");
+            int trailer = ops.createStandaloneSprite("trailer.png", 110f, 30f, "Independent trailer");
+            assertTrue(car >= 0 && badge >= 0 && trailer >= 0);
+            settle(studio);
+            // Real Items drag onto the middle of a drawable row promotes that very row.
+            click(studio, badge);
+            int cursor = history.getCursor();
+            Vector2 target = point(studio, tree(studio).findNode(car), .5f);
+            begin(studio, badge, target);
+            assertNotNull(plan(studio));
+            release(studio, target);
+            assertEquals(cursor + 1, history.getCursor());
+            assertTrue(world.getMapper(GameObjectComponent.class).has(car));
+            assertEquals(ids.getStableId(car), parent(studio, badge));
+            assertTrue(studio.undoActiveDocument());
+            settle(studio);
+            assertFalse(world.getMapper(GameObjectComponent.class).has(car));
+            assertTrue(studio.redoActiveDocument());
+            settle(studio);
+            for (int body : new int[]{car, trailer}) {
+                history.execute(new games.pixscape.studio.history.commands.AddPhysicsBodyCommand(world,
+                        history.historyIds(), canvas.getPhysicsService(), body,
+                        games.pixscape.runtime.component.physics.PhysicsBodyComponent.DYNAMIC, true));
+            }
+            settle(studio);
+            int hitch = ops.createJoint(games.pixscape.runtime.component.physics.PhysicsJointComponent.TYPE_DISTANCE,
+                    car, trailer, 0f, 30f);
+            settle(studio);
+            assertTrue(hitch >= 0);
+            assertEquals(0, parent(studio, trailer));
+            var bodies = world.getMapper(games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent.class);
+            assertNotNull(bodies.get(car).body);
+            click(studio, car);
+            settle(studio);
+            canvas.focusCameraAt(130f, 20f);
+            screenshot(studio, "composition-witness");
+            var picker = world.getSystem(games.pixscape.studio.system.PickingSystem.class);
+            var hit = picker.getClass().getDeclaredMethod("findTopmostObbHit", float.class, float.class);
+            hit.setAccessible(true);
+            assertEquals(car, ((Integer) hit.invoke(picker, -190f, 20f)).intValue());
+            // Exercise the live placement dialog and its normal Stage button listener.
+            var menu = field(canvas, "contextMenu");
+            var show = menu.getClass().getDeclaredMethod("showCompositionPlacementDialog", com.badlogic.gdx.utils.IntArray.class);
+            show.setAccessible(true);
+            Vector2 before = new Vector2(bodies.get(car).body.getPosition());
+            show.invoke(menu, com.badlogic.gdx.utils.IntArray.with(car, trailer));
+            for (int i = 0; i < 4; i++) {
+                studio.getUiStage().act(.6f);
+            }
+            settle(studio);
+            com.kotcrab.vis.ui.widget.VisDialog dialog = null;
+            for (Actor actor : studio.getUiStage().getActors()) {
+                if (actor instanceof com.kotcrab.vis.ui.widget.VisDialog candidate
+                        && candidate.getTitleLabel().getText().toString().equals("Place composition")) {
+                    dialog = candidate;
+                }
+            }
+            assertNotNull(dialog);
+            ((com.kotcrab.vis.ui.widget.VisTextField) field(dialog, "dx")).setText("40");
+            ((com.kotcrab.vis.ui.widget.VisTextField) field(dialog, "angle")).setText("12");
+            screenshot(studio, "composition-placement-dialog");
+            Actor place = findButton(dialog, "Place");
+            Vector2 button = studio.getUiStage().stageToScreenCoordinates(place.localToStageCoordinates(
+                    new Vector2(place.getWidth() / 2, place.getHeight() / 2)));
+            down(studio, button);
+            release(studio, button);
+            finishDialogActions(studio);
+            screenshot(studio, "composition-after-placement");
+            assertEquals("Place Composition", history.peekUndoLabel());
+            assertNotEquals(before, bodies.get(car).body.getPosition());
+            studio.undoActiveDocument();
+            settle(studio);
+            assertEquals(before, bodies.get(car).body.getPosition());
+            studio.redoActiveDocument();
+            settle(studio);
+            // Copy/export exclude the hitch, leave both instances and their source joint intact.
+            context.selectionService().selectOnly(car);
+            assertTrue(canvas.getClipboardService().copySelection());
+            finishDialogActions(studio);
+            screenshot(studio, "composition-copy-diagnostic");
+            for (Actor actor : new com.badlogic.gdx.utils.Array<>(studio.getUiStage().getActors())) {
+                if (actor instanceof com.kotcrab.vis.ui.widget.VisDialog modal) {
+                    modal.hide();
+                }
+            }
+            finishDialogActions(studio);
+            var exported = projectFile.parent().child("gameobjects/car.gameobject");
+            canvas.getGameObjectAssetService().saveExistingGameObjectAsAsset(exported,
+                    projectFile.parent().child("gameobjects/car.png"), "gameobjects/car.gameobject");
+            var asset = new games.pixscape.runtime.gameobject.GameObjectAssetLoader().load(exported);
+            assertEquals(2, asset.entities.size);
+            assertEquals(0, asset.joints.size);
+            assertNotNull(asset.entities.first().assetRef);
+            assertNotNull(asset.entities.first().physicsBody);
+            assertTrue(canvas.getGameObjectAssetService().diagnostic().contains("External joints excluded"));
+            assertTrue(canvas.getClipboardService().paste());
+            settle(studio);
+            int duplicate = context.selectionService().getFirstSelectedEntityId();
+            assertNotEquals(car, duplicate);
+            assertTrue(world.getMapper(GameObjectComponent.class).has(duplicate));
+            assertNotSame(bodies.get(car).body, bodies.get(duplicate).body);
+            assertTrue(studio.undoActiveDocument());
+            settle(studio);
+            // Body deletion removes the hitch but keeps its opposite object; undo restores both resources.
+            int carStable = ids.getStableId(car), trailerStable = ids.getStableId(trailer);
+            long hitchHistory = history.historyIds().historyIdOfEntity(hitch);
+            ops.deleteEntities(com.badlogic.gdx.utils.IntArray.with(car));
+            settle(studio);
+            assertTrue(world.getEntityManager().isActive(trailer));
+            assertEquals(-1, history.historyIds().entityOfHistoryId(hitchHistory));
+            studio.undoActiveDocument();
+            settle(studio);
+            car = ids.findByStableId(carStable);
+            trailer = ids.findByStableId(trailerStable);
+            hitch = history.historyIds().entityOfHistoryId(hitchHistory);
+            assertNotNull(bodies.get(car).body);
+            assertNotNull(world.getMapper(games.pixscape.runtime.component.physics.PhysicsRuntimeJointComponent.class).get(hitch).joint);
+            // The placement command resolves restored Body identities and existing History joint identities.
+            assertTrue(studio.undoActiveDocument());
+            settle(studio);
+            assertEquals(before, bodies.get(car).body.getPosition());
+            assertTrue(studio.redoActiveDocument());
+            settle(studio);
+            var sceneFile = projectFile.parent().child("scenes/" + context.sceneMeta().getFile());
+            games.pixscape.studio.service.SceneService.saveScene(world, sceneFile, false);
+            games.pixscape.studio.configuration.ProjectConfig.ProjectIO.saveProject(
+                    games.pixscape.studio.configuration.ProjectConfig.getInstance(), projectFile);
+            open(studio, projectFile);
+            settle(studio);
+            var restored = studio.getSceneEditorContext();
+            int reloadedCar = restored.identityRegistry().findByStableId(carStable);
+            int reloadedHitch = restored.world().getAspectSubscriptionManager().get(com.artemis.Aspect.all(
+                    games.pixscape.runtime.component.physics.PhysicsJointComponent.class)).getEntities().get(0);
+            assertTrue(restored.world().getMapper(GameObjectComponent.class).has(reloadedCar));
+            assertTrue(restored.world().getMapper(TextureRegionComponent.class).has(reloadedCar));
+            assertNotNull(restored.world().getMapper(games.pixscape.runtime.component.physics.PhysicsRuntimeJointComponent.class)
+                    .get(reloadedHitch).joint);
+            studio.getCanvas().focusCameraAt(100f, 20f);
+            click(studio, reloadedCar);
+            settle(studio);
+            assertEquals(reloadedCar, restored.selectionService().getFirstSelectedEntityId());
+            screenshot(studio, "composition-reloaded");
+            String destination = System.getenv("PIXSCAPE_COMPOSITION_WITNESS_DIR");
+            if (destination != null) {
+                projectFile.parent().copyTo(new com.badlogic.gdx.files.FileHandle(destination));
+            }
+        });
+    }
+
+    private static void finishDialogActions(StudioApplicationAdapter studio) {
+        for (int i = 0; i < 4; i++) {
+            studio.getUiStage().act(.6f);
+        }
+        settle(studio);
+    }
+
+    private static Actor findButton(Actor actor, String text) {
+        if (actor instanceof com.badlogic.gdx.scenes.scene2d.ui.TextButton button
+                && button.getText().toString().equals(text)) {
+            return actor;
+        }
+        if (actor instanceof com.badlogic.gdx.scenes.scene2d.Group group) {
+            for (Actor child : group.getChildren()) {
+                Actor found = findButton(child, text);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 
     private static int item(StudioApplicationAdapter studio, String name, int z) {

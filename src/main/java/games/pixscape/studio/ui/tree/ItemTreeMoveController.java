@@ -9,7 +9,6 @@ import com.badlogic.gdx.scenes.scene2d.utils.DragListener;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisScrollPane;
 import com.kotcrab.vis.ui.widget.VisTable;
-import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.studio.document.SceneEditorDocument;
 import games.pixscape.studio.history.commands.ItemMovePreparation;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
@@ -223,7 +222,7 @@ final class ItemTreeMoveController {
             return;
         }
         boolean inside = node.isLayerNode() || (fraction >= .25f && fraction <= .75f
-                && document.context().world().getMapper(GameObjectComponent.class).has(node.getEntityId()));
+                && node.isEntityNode());
         Target next = inside ? new Target(node, null, false) : new Target((EntityNode) node.getParent(), node, fraction > .5f);
         if (next.equals(target)) return;
         target = next;
