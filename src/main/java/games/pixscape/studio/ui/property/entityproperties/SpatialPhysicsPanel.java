@@ -22,6 +22,7 @@ import games.pixscape.studio.history.commands.EditSpatialHeightCommand;
 import games.pixscape.studio.history.commands.ToggleSpatialActorCommand;
 import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.LayerService;
+import games.pixscape.studio.service.SpatialActorShapeSupport;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
 import games.pixscape.studio.ui.widget.FloatField;
@@ -130,7 +131,7 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         try {
             boolean height = hasSpatialHeight(eid);
             boolean footprint = hasMarkedFootprint(eid);
-            boolean actor = height || footprint;
+            boolean actor = SpatialActorShapeSupport.hasActorState(ctx.world, eid);
             if (height && !footprint) {
                 String missing = ctx.mPhysBody.has(eid)
                         ? "Spatial footprint missing." : "Physics body and Spatial footprint missing.";
@@ -162,16 +163,12 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
     private boolean hasMarkedFootprint(int eid) {
         if (eid < 0 || !ctx.mPhysFixtures.has(eid)) return false;
         PhysicsShapesComponent shapes = ctx.mPhysFixtures.get(eid);
-        for (int i = 0; i < shapes.shapes.size; i++) {
-            PhysicsShapeData shape = shapes.shapes.get(i);
-            if (shape != null && shape.spatialFootprint) return true;
-        }
-        return false;
+        return SpatialActorShapeSupport.findFootprint(shapes.shapes, 0) >= 0;
     }
 
     public void refreshLayerEligibility() {
         if (entityId < 0) return;
-        boolean actor = hasSpatialHeight(entityId) || hasMarkedFootprint(entityId);
+        boolean actor = SpatialActorShapeSupport.hasActorState(ctx.world, entityId);
         enabledBox.setDisabled(!isEligibleForActivation(entityId) && !actor);
     }
 

@@ -10,6 +10,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.UIUtils;
 import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.IntSet;
 import com.kotcrab.vis.ui.widget.MenuItem;
 import com.kotcrab.vis.ui.widget.PopupMenu;
 import com.kotcrab.vis.ui.widget.VisScrollPane;
@@ -37,6 +38,7 @@ import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.service.IconResolver;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.service.SpatialActorShapeSupport;
 import games.pixscape.studio.service.StudioEditingModeService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
@@ -93,6 +95,7 @@ public class ItemTreePanel extends DockablePanel {
     private final Set<World> subscriptionsBoundWorlds =
             Collections.newSetFromMap(new IdentityHashMap<>());
     private volatile boolean dirty = true;
+    private final IntSet dirtyEntityLabels = new IntSet();
     private boolean suppressTreeSelectionEvents = false;
     private boolean handlingTreeSelection = false;
 
@@ -167,16 +170,10 @@ public class ItemTreePanel extends DockablePanel {
             if (en != null) en.setLabelName(evt.newName());
         });
 
-        EventFlow.i().subscribe(EventFlow.EntityNameChanged.class, evt -> {
-            EntityNode en = tree.findNode(evt.entityId());
-            if (en == null) return;
-            if (en.isTiledMapNode()) {
-                TiledLayerComponent tiled = mTiled.getSafe(evt.entityId(), null);
-                if (tiled != null) en.setLabelName(tiledMapLabel(tiled, mIdentity.getSafe(evt.entityId(), null)));
-            } else {
-                en.setLabelName(evt.newName());
-            }
-        });
+        EventFlow.i().subscribe(EventFlow.EntityNameChanged.class,
+                evt -> dirtyEntityLabels.add(evt.entityId()));
+        EventFlow.i().subscribe(EventFlow.SpatialHeightChanged.class,
+                evt -> dirtyEntityLabels.add(evt.entityId()));
 
         EventFlow.i().subscribe(EventFlow.LayerOrderChanged.class, evt -> markDirty());
         EventFlow.i().subscribe(EventFlow.EntityZOrderChanged.class, evt -> markDirty());
@@ -209,6 +206,7 @@ public class ItemTreePanel extends DockablePanel {
     public void bindSceneContext(SceneEditorContext context) {
         if (context == null || context.isDisposed()) return;
         itemMoves.cancel();
+        dirtyEntityLabels.clear();
         tree.getSelection().setProgrammaticChangeEvents(false);
         tree.clearNodes();
         tree.getSelection().setProgrammaticChangeEvents(true);
@@ -320,7 +318,24 @@ public class ItemTreePanel extends DockablePanel {
         if (dirty && tree != null) {
             dirty = false;
             rebuildTreeFromWorld();
+        } else if (dirtyEntityLabels.size > 0) {
+            for (IntSet.IntSetIterator it = dirtyEntityLabels.iterator(); it.hasNext;) {
+                int entityId = it.next();
+                EntityNode node = tree.findNode(entityId);
+                if (node == null) {
+                    continue;
+                }
+                if (node.isEntityNode()) {
+                    node.setLabelName(entityLabel(entityId));
+                } else if (node.isTiledMapNode()) {
+                    TiledLayerComponent tiled = mTiled.getSafe(entityId, null);
+                    if (tiled != null) {
+                        node.setLabelName(tiledMapLabel(tiled, mIdentity.getSafe(entityId, null)));
+                    }
+                }
+            }
         }
+        dirtyEntityLabels.clear();
     }
 
     public void attachAutoRefresh() {
@@ -977,7 +992,7 @@ public class ItemTreePanel extends DockablePanel {
         return "Map" + name + " (" + tiled.mapWidthCells + "x" + tiled.mapHeightCells + ")";
     }
 
-    private EntityNode createEntityNode(int entityId, boolean layerLocked) {
+    private String entityLabel(int entityId) {
         PixscapeIdentityComponent identity = mIdentity.getSafe(entityId, null);
         ParticleEmitterComponent emitter = mEmitter.getSafe(entityId, null);
         String name = identity != null ? identity.name : null;
@@ -987,9 +1002,13 @@ public class ItemTreePanel extends DockablePanel {
                     : "Entity " + entityId;
         }
 
+        return SpatialActorShapeSupport.hasActorState(world, entityId) ? name + " (spatial)" : name;
+    }
+
+    private EntityNode createEntityNode(int entityId, boolean layerLocked) {
         boolean selectable = !layerLocked;
         EntityNode entityNode = new EntityNode(
-                name, iconResolver.iconForEntity(entityId), entityId, selectable);
+                entityLabel(entityId), iconResolver.iconForEntity(entityId), entityId, selectable);
         entityNode.getLabel().setColor(layerLocked ? Color.DARK_GRAY : Color.WHITE);
         tree.registerNode(entityNode, entityId);
 
