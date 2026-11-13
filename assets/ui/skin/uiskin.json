@@ -132,7 +132,7 @@
 		"color": {
 			"r": 0.08,
 			"g": 0.42,
-			"b": 0.60,
+			"b": 0.6,
 			"a": 1
 		}
 	},
@@ -718,12 +718,14 @@
 		"checked": "button-down"
 	},
 	"add": {
-		"up": "add",
-		"down": "add-click"
+		"up": "add-up",
+		"down": "add-down",
+		"over": "add-over"
 	},
 	"delete": {
-		"up": "delete",
-		"down": "delete-click"
+		"up": "delete-up",
+		"down": "delete-down",
+		"over": "delete-over"
 	},
 	"up": {
 		"up": "up",
