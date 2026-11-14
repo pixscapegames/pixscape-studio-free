@@ -28,10 +28,10 @@ final class StudioForwardLightingRenderer extends ForwardLightingRenderer {
     private boolean normalMaps = true, preparedNormals;
     private boolean hasStandalone;
     private DynamicEntityRenderState dynamic;
-    private TiledMapRenderState tiled;
+    private TiledRenderState tiled;
     private RenderStats stats;
 
-    void setRenderDomains(DynamicEntityRenderState dynamic, TiledMapRenderState tiled) {
+    void setRenderDomains(DynamicEntityRenderState dynamic, TiledRenderState tiled) {
         this.dynamic = dynamic;
         this.tiled = tiled;
     }

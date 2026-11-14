@@ -1,6 +1,6 @@
 package games.pixscape.studio.ui.main;
 
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
 
@@ -11,7 +11,7 @@ public class WorldCanvasTiledOutsideSelectionTest {
 
     @Test
     public void orthogonalMapDistinguishesInsideFromOutsideCanvasClicks() {
-        TiledMapLayerData map = new TiledMapLayerData(
+        TiledLayerData map = new TiledLayerData(
                 4, 3, 32, 16, 1, TiledProjection.ORTHO);
 
         assertTrue(WorldCanvas.tiledMapContainsWorldPoint(map, 16f, 8f));
@@ -21,7 +21,7 @@ public class WorldCanvasTiledOutsideSelectionTest {
 
     @Test
     public void isometricMapDistinguishesInsideCellFromOutsideDiamond() {
-        TiledMapLayerData map = new TiledMapLayerData(
+        TiledLayerData map = new TiledLayerData(
                 4, 3, 32, 16, 1, TiledProjection.ISO);
         float insideX = map.tileToWorldX(1, 1) + map.tileWidth * 0.5f;
         float insideY = map.tileToWorldY(1, 1) + map.tileHeight * 0.5f;
@@ -32,11 +32,11 @@ public class WorldCanvasTiledOutsideSelectionTest {
 
     @Test
     public void interactionConversionUsesTheProvidedMapConfiguration() {
-        TiledMapLayerData iso = new TiledMapLayerData(
+        TiledLayerData iso = new TiledLayerData(
                 4, 3, 64, 32, 2, TiledProjection.ISO);
         iso.originX = 100f;
         iso.originY = 50f;
-        TiledMapLayerData ortho = new TiledMapLayerData(
+        TiledLayerData ortho = new TiledLayerData(
                 4, 3, 32, 32, 1, TiledProjection.ORTHO);
 
         float isoCellX = iso.tileToWorldX(1, 1) + iso.tileWidth * 0.5f;

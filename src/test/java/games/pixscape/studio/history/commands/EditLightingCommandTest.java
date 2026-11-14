@@ -81,7 +81,7 @@ public class EditLightingCommandTest {
         tiled.tileHeight = 16;
         tiled.mapWidthCells = tiled.mapHeightCells = 4;
         tiled.chunkSize = 4;
-        tiled.data = tiled.createMapData();
+        tiled.data = tiled.createLayerData();
         world.process();
         history.execute(new EditTiledLayerSpatialDefaultsCommand(world, history.historyIds(), map,
                 new EditTiledLayerSpatialDefaultsCommand.Snapshot(0, 0),

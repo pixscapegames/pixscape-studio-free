@@ -3,13 +3,13 @@ package games.pixscape.studio.service.spatial;
 import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.render.lighting.MapLightingGeometry;
+import games.pixscape.runtime.render.lighting.TiledLayerLightingGeometry;
 import games.pixscape.runtime.render.lighting.RoundedWallDescription;
 import games.pixscape.runtime.render.lighting.RoundedWallSupport;
 import games.pixscape.runtime.render.lighting.TileSurfaceDescription;
 import games.pixscape.runtime.spatial.CompiledSpatialStructure;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 /**
  * Read-only overview of published corner supports. Rebuilt only at publication/activation boundaries.
@@ -48,9 +48,9 @@ public final class CornerProfileOverlay {
     private final LongMap<Corner> cornersByCell = new LongMap<>();
     private final IntMap<float[]> wires = new IntMap<>();
     private final IntSet replacedWalls = new IntSet();
-    private MapLightingGeometry geometry;
+    private TiledLayerLightingGeometry geometry;
     private SpatialBlocksComponent blocks;
-    private TiledMapLayerData map;
+    private TiledLayerData map;
     private Object descriptions;
     private int mapId = -1, publication = -1, geometryCount = -1, blockRevision = -1, structureRevision = -1;
     private int rebuilds;
@@ -83,7 +83,7 @@ public final class CornerProfileOverlay {
      * Native sprite picking resolves overlap; the cached support restricts selection to the rounded part.
      */
     public CornerProfileEditSession.Target pickBody(int requestedMap, float x, float y,
-                                                    games.pixscape.runtime.render.TiledMapRenderState state) {
+                                                    games.pixscape.runtime.render.TiledRenderState state) {
         if (requestedMap != mapId) return null;
         SpatialCellPicker.Result cell = new SpatialCellPicker.Result();
         if (!SpatialCellPicker.pickTopmostVisibleOccupiedSprite(map, state, x, y, cell)) return null;
@@ -95,7 +95,7 @@ public final class CornerProfileOverlay {
      * Handles are picked before rectangular volumes, using their retained full tile identity.
      */
     public CornerProfileEditSession.Target pickHandle(int requestedMap, float x, float y, float tolerance,
-                                                      games.pixscape.runtime.render.TiledMapRenderState state) {
+                                                      games.pixscape.runtime.render.TiledRenderState state) {
         if (requestedMap != mapId) return null;
         Corner hit = null;
         int bestRef = -1;
@@ -122,7 +122,7 @@ public final class CornerProfileOverlay {
      * O(1) unchanged check; cold work visits linked memberships and affected structure boundaries only.
      */
     public void synchronize(int id, TiledLayerComponent tiled, SpatialBlocksComponent source,
-                            MapLightingGeometry published, SpatialStructureGeometryCache structures) {
+                            TiledLayerLightingGeometry published, SpatialStructureGeometryCache structures) {
         int revision = published == null ? -1 : published.publicationRevision();
         int compiled = published == null ? -1 : published.roundedGeometryCompilationCount();
         if (mapId == id && map == tiled.data && blocks == source && descriptions == tiled.lightingDescriptions
@@ -184,7 +184,7 @@ public final class CornerProfileOverlay {
     /**
      * Subtract the same corner square replaced by the renderer; retain straight wall continuations.
      */
-    private static float[] clippedWire(TiledMapLayerData map, CompiledSpatialStructure structure, Array<Corner> cuts) {
+    private static float[] clippedWire(TiledLayerData map, CompiledSpatialStructure structure, Array<Corner> cuts) {
         FloatArray result = new FloatArray();
         float[] projected = new float[8];
         LongMap<Boolean> verticals = new LongMap<>();

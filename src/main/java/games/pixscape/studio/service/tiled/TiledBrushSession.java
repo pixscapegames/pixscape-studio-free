@@ -4,7 +4,7 @@ import com.badlogic.gdx.utils.IntIntMap;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.tiled.PackedTileValue;
 import games.pixscape.runtime.tiled.TileTransformFlags;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 /**
  * Transaction-local tiled brush state. The live map is untouched until history execution.
@@ -12,7 +12,7 @@ import games.pixscape.runtime.tiled.TiledMapLayerData;
 public final class TiledBrushSession {
     private final int mapEntityId;
     private final IntIntMap indexByCell = new IntIntMap();
-    private TiledMapLayerData map;
+    private TiledLayerData map;
     private int[] gx = new int[16];
     private int[] gy = new int[16];
     private int[] beforeAssetId = new int[16];

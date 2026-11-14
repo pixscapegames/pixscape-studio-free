@@ -30,7 +30,7 @@ import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.history.HistoryManager;
@@ -57,7 +57,7 @@ final class SpatialLinkGlChecks {
         World world = new World(new WorldConfiguration());
         int map = world.create();
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(map);
-        tiled.data = new TiledMapLayerData(12, 12, 32, 16, 4, TiledProjection.ISO);
+        tiled.data = new TiledLayerData(12, 12, 32, 16, 4, TiledProjection.ISO);
         for (int y = 0; y < 12; y++) for (int x = 0; x < 12; x++) tiled.data.setTile(x, y, 1);
         world.getMapper(TransformComponent.class).create(map).refreshCaches();
         SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(map);
@@ -169,7 +169,7 @@ final class SpatialLinkGlChecks {
 
     private static void verticalDialog(World world, Stage stage, HistoryManager history,
                                        SpatialBlockSelectionService selection, int map, SpatialBlocksComponent blocks,
-                                       PhysicsCompiledFixturesComponent compiled, TiledMapLayerData data,
+                                       PhysicsCompiledFixturesComponent compiled, TiledLayerData data,
                                        String manual, PhysicsShapesComponent shapes) {
         int upper = world.create();
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(upper);
@@ -181,7 +181,7 @@ final class SpatialLinkGlChecks {
         tiled.defaultTileAltitude = 100;
         tiled.originY = 100;
         tiled.defaultTileHeight = 90;
-        tiled.data = tiled.createMapData();
+        tiled.data = tiled.createLayerData();
         for (int y = 0; y < 12; y++) for (int x = 0; x < 12; x++) tiled.data.setTile(x, y, 1);
         SpatialBlocksComponent reference = world.getMapper(SpatialBlocksComponent.class).create(upper);
         SpatialBlockData fixed = wall(1, 1, 1, 1, 3, .3f, 90);
@@ -244,7 +244,7 @@ final class SpatialLinkGlChecks {
         throw new AssertionError(text);
     }
 
-    private static void nativeActorPassage(PhysicsCompiledFixturesComponent compiled, TiledMapLayerData map) {
+    private static void nativeActorPassage(PhysicsCompiledFixturesComponent compiled, TiledLayerData map) {
         Box2D.init();
         com.badlogic.gdx.physics.box2d.World physics = new com.badlogic.gdx.physics.box2d.World(new Vector2(), true);
         try {

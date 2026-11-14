@@ -2,7 +2,7 @@ package games.pixscape.studio.system;
 
 import games.pixscape.runtime.tiled.TileQuadTransforms;
 import games.pixscape.runtime.tiled.TileTransformFlags;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
@@ -67,13 +67,13 @@ public class StudioTiledProfilePlacementTest {
         );
     }
 
-    private static float[] buildQuad(TiledMapLayerData map, RuntimeTilesetProfile profile, byte flags) {
+    private static float[] buildQuad(TiledLayerData map, RuntimeTilesetProfile profile, byte flags) {
         float[] quad = new float[8];
         TileQuadTransforms.buildSpriteQuad(map, 0, 0, 256, 512, profile, flags, quad);
         return quad;
     }
 
-    private static float[] buildTopCenterDefaultQuad(TiledMapLayerData map) {
+    private static float[] buildTopCenterDefaultQuad(TiledLayerData map) {
         float[] quad = new float[8];
         TileProfilePlacement.buildTopCenterDefaultSpriteQuad(
                 map.tileToWorldX(0, 0),
@@ -116,7 +116,7 @@ public class StudioTiledProfilePlacementTest {
         return new Fixture(
                 db,
                 tile,
-                new TiledMapLayerData(1, 1, 256, 128, 4, TiledProjection.ISO),
+                new TiledLayerData(1, 1, 256, 128, 4, TiledProjection.ISO),
                 resolver.resolve(tile.id())
         );
     }
@@ -129,7 +129,7 @@ public class StudioTiledProfilePlacementTest {
 
     private record Fixture(AssetMetaDatabase db,
                            TileAssetMeta tile,
-                           TiledMapLayerData map,
+                           TiledLayerData map,
                            RuntimeTilesetProfile profile) {
     }
 }

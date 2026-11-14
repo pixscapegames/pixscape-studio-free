@@ -6,7 +6,7 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.CompiledSpatialStructure;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialStructureGeometryCache;
@@ -19,7 +19,7 @@ public class SpatialStructureHistoryTest {
         World world = new World(new WorldConfiguration());
         int layer = world.create();
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(layer);
-        tiled.data = new TiledMapLayerData(4, 4, 16, 16, 4);
+        tiled.data = new TiledLayerData(4, 4, 16, 16, 4);
         tiled.data.setTile(1, 1, 1);
         HistoryManager history = new HistoryManager(8);
         history.historyIds().ensureForEntity(layer);
@@ -152,7 +152,7 @@ public class SpatialStructureHistoryTest {
         World world = new World(new WorldConfiguration());
         int layer = world.create();
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(layer);
-        tiled.data = new TiledMapLayerData(12, 12, 16, 16, 4);
+        tiled.data = new TiledLayerData(12, 12, 16, 16, 4);
         for (int gy = 0; gy < 12; gy++) for (int gx = 0; gx < 12; gx++) tiled.data.setTile(gx, gy, 1);
         SpatialBlocksComponent walls = world.getMapper(SpatialBlocksComponent.class).create(layer);
         HistoryManager history = new HistoryManager(8);

@@ -380,7 +380,7 @@ public final class TmxSceneImportService {
         tiled.defaultTileAltitude = 0f;
         tiled.defaultTileHeight = 0f;
         tiled.atlasTag = sceneTag;
-        tiled.data = tiled.createMapData();
+        tiled.data = tiled.createLayerData();
         // The owning Pixscape Layer remains the imported visibility authority.
         tiled.data.visible = true;
         tiled.data.spatialEnabled = tiled.spatialEnabled;

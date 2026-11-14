@@ -9,10 +9,10 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.studio.service.spatial.SpatialBlockProjection;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
@@ -101,7 +101,7 @@ public class PickingSystemSpatialSelectionTest {
         final World world;
         final int map;
         final SpatialBlocksComponent blocks;
-        final TiledMapLayerData data;
+        final TiledLayerData data;
         final List<String> events = new ArrayList<>();
         final Method process;
         int mouseX, mouseY;
@@ -119,7 +119,7 @@ public class PickingSystemSpatialSelectionTest {
                 selected[0] = new SpatialBlockSelectionService();
                 gizmos[0] = new GizmoSystem(null, null, null, null, null, null, null, null, null);
                 system[0] = new PickingSystem(camera, new CoordSpaces(camera, viewport, null, null),
-                        new InputState(), history, history.historyIds(), null, new TiledMapRenderState(),
+                        new InputState(), history, history.historyIds(), null, new TiledRenderState(),
                         new PhysicsSelectionService(), null, selected[0], null, null);
                 EventFlow.i().subscribe(EventFlow.SelectionChanged.class, e -> events.add("entity"));
                 EventFlow.i().subscribe(EventFlow.SpatialBlockSelectionChanged.class,
@@ -137,7 +137,7 @@ public class PickingSystemSpatialSelectionTest {
             picking.setEnabled(false);
             picking.setSelectionService(new SelectionService(world, null));
             map = world.create();
-            data = new TiledMapLayerData(16, 16, 64, 64, 4, TiledProjection.ORTHO);
+            data = new TiledLayerData(16, 16, 64, 64, 4, TiledProjection.ORTHO);
             for (int y = 0; y < 16; y++) for (int x = 0; x < 16; x++) data.setTile(x, y, 1);
             world.getMapper(TiledLayerComponent.class).create(map).data = data;
             blocks = world.getMapper(SpatialBlocksComponent.class).create(map);

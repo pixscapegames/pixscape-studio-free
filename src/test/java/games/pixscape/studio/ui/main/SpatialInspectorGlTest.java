@@ -8,7 +8,7 @@ import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.event.EventFlow;
@@ -76,7 +76,7 @@ public class SpatialInspectorGlTest {
                         var world = context.world();
                         var selection = context.spatialBlockSelectionService();
                         int map = world.create();
-                        var data = new TiledMapLayerData(4, 4, 64, 64, 2, TiledProjection.ORTHO);
+                        var data = new TiledLayerData(4, 4, 64, 64, 2, TiledProjection.ORTHO);
                         data.setTile(1, 1, 1);
                         world.getMapper(TiledLayerComponent.class).create(map).data = data;
                         var blocks = world.getMapper(SpatialBlocksComponent.class).create(map);

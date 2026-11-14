@@ -2,7 +2,7 @@ package games.pixscape.studio.service.spatial;
 
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TileTransformFlags;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.service.tiled.TiledVisualCoverage;
 import org.junit.Assert;
@@ -14,7 +14,7 @@ import java.nio.file.Path;
 public class SpatialBlockPlacementTargetTest {
     @Test
     public void normalTilePlacementTargetMatchesOverlayCell() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
         TiledVisualCoverage.Coverage coverage = TiledVisualCoverage.compute(
                 map,
                 4,
@@ -45,7 +45,7 @@ public class SpatialBlockPlacementTargetTest {
 
     @Test
     public void tallTilePlacementUsesClickedCellAsBlockOrigin() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
         TiledVisualCoverage.Coverage coverage = TiledVisualCoverage.compute(
                 map,
                 4,
@@ -89,7 +89,7 @@ public class SpatialBlockPlacementTargetTest {
 
     @Test
     public void fallbackPlacementUsesWorldToTileCellWhenNoRenderedTileHitExists() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
         float[] mouse = cellCenter(map, 6, 7);
 
         SpatialBlockPlacementTarget target = SpatialBlockPlacementTarget.fromWorld(
@@ -113,7 +113,7 @@ public class SpatialBlockPlacementTargetTest {
 
     @Test
     public void staleCoverageOutsideMouseCellIsIgnoredForPlacementTarget() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
         TiledVisualCoverage.Coverage coverage = TiledVisualCoverage.compute(
                 map,
                 4,
@@ -144,7 +144,7 @@ public class SpatialBlockPlacementTargetTest {
 
     @Test
     public void invalidInputsReturnInvalidTarget() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
         float[] mouse = cellCenter(map, 4, 5);
 
         Assert.assertFalse(SpatialBlockPlacementTarget.fromWorld(
@@ -177,14 +177,14 @@ public class SpatialBlockPlacementTargetTest {
         Assert.assertTrue(source.contains("SpatialCellPicker.pick"));
     }
 
-    private static TiledMapLayerData isoMap() {
-        TiledMapLayerData map = new TiledMapLayerData(16, 16, 256, 128, 4, TiledProjection.ISO);
+    private static TiledLayerData isoMap() {
+        TiledLayerData map = new TiledLayerData(16, 16, 256, 128, 4, TiledProjection.ISO);
         map.originX = 100f;
         map.originY = 50f;
         return map;
     }
 
-    private static float[] cellCenter(TiledMapLayerData map, int gx, int gy) {
+    private static float[] cellCenter(TiledLayerData map, int gx, int gy) {
         float[] verts = new float[8];
         map.tileToCellVertices(gx, gy, verts);
         return new float[]{

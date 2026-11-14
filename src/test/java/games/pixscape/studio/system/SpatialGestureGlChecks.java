@@ -15,9 +15,9 @@ import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.kotcrab.vis.ui.VisUI;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.input.InputState;
@@ -183,17 +183,17 @@ final class SpatialGestureGlChecks {
             coordinates = new CoordSpaces(camera, viewport, null, stage);
             PhysicsSelectionService physics = new PhysicsSelectionService();
             PickingSystem picking = new PickingSystem(camera, coordinates, input, history, history.historyIds(), stage,
-                    new TiledMapRenderState(), physics, new PhysicsSelectionReconciler(physics), selection, new SpatialTileSelectionService(), null);
+                    new TiledRenderState(), physics, new PhysicsSelectionReconciler(physics), selection, new SpatialTileSelectionService(), null);
             GizmoSystem gizmo = new GizmoSystem(new games.pixscape.studio.helper.StudioDrawContext(batch,
                     new space.earlygrey.shapedrawer.ShapeDrawer(batch, VisUI.getSkin().getRegion("white")), camera, viewport),
-                    input, coordinates, new TiledMapRenderState(), physics, selection, new SpatialTileSelectionService(), null, null);
+                    input, coordinates, new TiledRenderState(), physics, selection, new SpatialTileSelectionService(), null, null);
             world = new World(new WorldConfigurationBuilder().with(new games.pixscape.runtime.system.DirtyTrackerSystem(32),
                     new games.pixscape.runtime.system.GameObjectHierarchySystem(), new LightIconOverlaySystem(null, camera), picking, gizmo).build());
             picking.setSelectionService(new SelectionService(world, null));
             map = world.create();
             tiled = world.getMapper(TiledLayerComponent.class).create(map);
             tiled.defaultTileHeight = 128;
-            tiled.data = new TiledMapLayerData(16, 8, 128, 64, 4, TiledProjection.ISO);
+            tiled.data = new TiledLayerData(16, 8, 128, 64, 4, TiledProjection.ISO);
             tiled.data.originX = 200;
             tiled.data.originY = 200;
             for (int y = 0; y < 8; y++) for (int x = 0; x < 16; x++) tiled.data.setTile(x, y, 1);

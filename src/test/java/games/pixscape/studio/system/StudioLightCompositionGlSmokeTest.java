@@ -54,7 +54,7 @@ public class StudioLightCompositionGlSmokeTest {
                         meta.lightingEnabled = false;
                         FrameRenderQueue queue = new FrameRenderQueue(4);
                         LayerStateSOA layers = new LayerStateSOA(1);
-                        var tiledState = new games.pixscape.runtime.render.TiledMapRenderState();
+                        var tiledState = new games.pixscape.runtime.render.TiledRenderState();
                         OrthographicCamera camera = new OrthographicCamera(64, 32);
                         var batch = new games.pixscape.studio.batch.MeshBatchStudio(16);
                         var submit = new StudioRenderSubmitSystem(layers, queue, camera, batch,
@@ -88,7 +88,7 @@ public class StudioLightCompositionGlSmokeTest {
                             tiled.tileWidth = 256;
                             tiled.tileHeight = 128;
                             tiled.chunkSize = tiled.mapWidthCells = tiled.mapHeightCells = 8;
-                            tiled.data = tiled.createMapData();
+                            tiled.data = tiled.createLayerData();
                             tiled.data.setTile(1, 1, 7);
                             var blocks = world.getMapper(games.pixscape.runtime.component.spatial.SpatialBlocksComponent.class).create(entity);
                             var wall = new games.pixscape.runtime.spatial.SpatialBlockData();
@@ -106,7 +106,7 @@ public class StudioLightCompositionGlSmokeTest {
                                     world, meta, true, submit::setLightingEnabled, null));
                             {
                                 enable.run(); // No lights exist, but geometry is still prepared.
-                                MapLightingGeometry old = tiledState.lightingMaps.get(entity);
+                                TiledLayerLightingGeometry old = tiledState.lightingMaps.get(entity);
                                 Assert.assertNotNull(old);
                                 int previous = old.publicationRevision();
                                 history.execute(new games.pixscape.studio.history.commands.SetSceneLightingCommand(
@@ -540,7 +540,7 @@ public class StudioLightCompositionGlSmokeTest {
         profiles.add(profile);
 
         // Publish the actual tile quads, caster contributions, shadow groups and spatial index.
-        var tiledState = new TiledMapRenderState();
+        var tiledState = new TiledRenderState();
         var sync = new RenderTiledSyncSystem(camera, tiledState, assets, queue.shader[0], null, profiles);
         var geometry = new LightingGeometrySystem(new DynamicEntityRenderState(), tiledState, queue, layers);
         World publisher = new World(new WorldConfigurationBuilder().with(sync, geometry).build());
@@ -554,7 +554,7 @@ public class StudioLightCompositionGlSmokeTest {
             tiled.tileHeight = 4;
             tiled.chunkSize = 4;
             tiled.mapWidthCells = tiled.mapHeightCells = 12;
-            tiled.data = tiled.createMapData();
+            tiled.data = tiled.createLayerData();
             for (var cell : single.linkedTileRefs) tiled.data.setTile(cell.gx, cell.gy, cell.tileAssetId);
             var current = publisher.getMapper(SpatialBlocksComponent.class).create(owner);
 

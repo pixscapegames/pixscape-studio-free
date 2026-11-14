@@ -2,7 +2,7 @@ package games.pixscape.studio.service.spatial;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 /**
  * Deterministic authored-volume picking from continuous footprint projection.
@@ -14,7 +14,7 @@ public final class SpatialBlockPicking {
     }
 
     public static int find(SpatialBlocksComponent component,
-                           TiledMapLayerData map,
+                           TiledLayerData map,
                            int selectedBlockId,
                            float worldX,
                            float worldY,
@@ -32,7 +32,7 @@ public final class SpatialBlockPicking {
         return NO_BLOCK;
     }
 
-    public static boolean containsBase(TiledMapLayerData map,
+    public static boolean containsBase(TiledLayerData map,
                                        SpatialBlockData wall,
                                        float worldX,
                                        float worldY,
@@ -43,7 +43,7 @@ public final class SpatialBlockPicking {
                 base8[4], base8[5], base8[6], base8[7]);
     }
 
-    static boolean contains(TiledMapLayerData map,
+    static boolean contains(TiledLayerData map,
                             SpatialBlockData wall,
                             float worldX,
                             float worldY,

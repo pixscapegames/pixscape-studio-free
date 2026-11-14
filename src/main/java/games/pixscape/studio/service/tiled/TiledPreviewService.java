@@ -1,13 +1,13 @@
 package games.pixscape.studio.service.tiled;
 
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 public final class TiledPreviewService {
 
     private boolean coverageVisible;
     private boolean ghostVisible;
     private boolean tintVisible;
-    private TiledMapLayerData map;
+    private TiledLayerData map;
     private String atlasTag;
     private int gx;
     private int gy;
@@ -35,7 +35,7 @@ public final class TiledPreviewService {
         brushSession = null;
     }
 
-    public void showBrushSession(TiledMapLayerData map, String atlasTag, TiledBrushSession session) {
+    public void showBrushSession(TiledLayerData map, String atlasTag, TiledBrushSession session) {
         clear();
         this.map = map;
         this.atlasTag = atlasTag;
@@ -46,7 +46,7 @@ public final class TiledPreviewService {
         return brushSession;
     }
 
-    public void show(TiledMapLayerData map,
+    public void show(TiledLayerData map,
                      String atlasTag,
                      int gx,
                      int gy,
@@ -55,7 +55,7 @@ public final class TiledPreviewService {
         showInternal(map, atlasTag, gx, gy, assetId, flags, true, false, 0f, 0f, 0f, 0f);
     }
 
-    public void showCoverageOnly(TiledMapLayerData map,
+    public void showCoverageOnly(TiledLayerData map,
                                  String atlasTag,
                                  int gx,
                                  int gy,
@@ -64,7 +64,7 @@ public final class TiledPreviewService {
         showInternal(map, atlasTag, gx, gy, assetId, flags, false, false, 0f, 0f, 0f, 0f);
     }
 
-    public void showTintedCoverage(TiledMapLayerData map,
+    public void showTintedCoverage(TiledLayerData map,
                                    String atlasTag,
                                    int gx,
                                    int gy,
@@ -93,7 +93,7 @@ public final class TiledPreviewService {
         return tintVisible && isCoverageVisible();
     }
 
-    public TiledMapLayerData map() {
+    public TiledLayerData map() {
         return map;
     }
 
@@ -150,7 +150,7 @@ public final class TiledPreviewService {
         return visualPixH;
     }
 
-    private void showInternal(TiledMapLayerData map,
+    private void showInternal(TiledLayerData map,
                               String atlasTag,
                               int gx,
                               int gy,

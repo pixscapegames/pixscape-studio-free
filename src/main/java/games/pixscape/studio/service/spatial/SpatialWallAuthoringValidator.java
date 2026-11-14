@@ -3,7 +3,7 @@ package games.pixscape.studio.service.spatial;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialWallGeometry;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 /**
  * Strict Spatial V3 authored-wall and layer topology validation.
@@ -14,7 +14,7 @@ public final class SpatialWallAuthoringValidator {
 
     public enum Status {VALID, INVALID_WALL, INVALID_TOPOLOGY, LINKED_ASSET_ID_MISMATCH}
 
-    public static Result validateWall(SpatialBlockData wall, TiledMapLayerData map) {
+    public static Result validateWall(SpatialBlockData wall, TiledLayerData map) {
         SpatialWallGeometry.CoverageValidation validation = SpatialWallGeometry.validateAuthoredWall(
                 wall, map, new SpatialWallGeometry.Bounds());
         return validation == SpatialWallGeometry.CoverageValidation.VALID
@@ -23,13 +23,13 @@ public final class SpatialWallAuthoringValidator {
                 "authored wall validation failed: " + validation);
     }
 
-    public static Result validateLayer(SpatialBlocksComponent walls, TiledMapLayerData map) {
+    public static Result validateLayer(SpatialBlocksComponent walls, TiledLayerData map) {
         SpatialStructureTopology.Plan plan = SpatialStructureTopology.validate(walls, map);
         return plan.valid ? Result.valid()
                 : new Result(Status.INVALID_TOPOLOGY, -1, -1, -1, plan.error);
     }
 
-    public static Result diagnoseAssetIdMismatch(SpatialBlockData wall, TiledMapLayerData map) {
+    public static Result diagnoseAssetIdMismatch(SpatialBlockData wall, TiledLayerData map) {
         Result blocking = validateWall(wall, map);
         if (!blocking.isValid() || wall.linkedTileRefs == null) return Result.valid();
         for (int i = 0; i < wall.linkedTileRefs.size; i++) {

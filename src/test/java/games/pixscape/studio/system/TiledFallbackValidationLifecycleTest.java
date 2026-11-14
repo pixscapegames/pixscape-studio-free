@@ -8,13 +8,13 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.helper.RuntimeFs;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.TiledAnimationSystem;
 import games.pixscape.runtime.system.TiledEntityAnimationSystem;
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.animation.TileAnimationDef;
 import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
@@ -189,7 +189,7 @@ public class TiledFallbackValidationLifecycleTest {
         int mapEntity = world.create();
         world.getMapper(EntityIndexComponent.class).create(mapEntity).layerIndex = 0;
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(mapEntity);
-        tiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
+        tiled.data = new TiledLayerData(1, 1, 16, 16, 1);
         tiled.data.setTile(0, 0, 42);
         TileChunk chunk = tiled.data.getChunk(0, 0);
         TileAnimationStateSupport.syncWorldCell(chunk, 0, 0, registry);
@@ -223,7 +223,7 @@ public class TiledFallbackValidationLifecycleTest {
 
     private static TiledFallbackSystem fallbackSystem() {
         TiledFallbackSystem system = new TiledFallbackSystem(
-                new TiledMapRenderState(1),
+                new TiledRenderState(1),
                 visualResolver(),
                 id -> null,
                 null

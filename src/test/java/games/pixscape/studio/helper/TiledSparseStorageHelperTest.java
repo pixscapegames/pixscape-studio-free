@@ -2,7 +2,7 @@ package games.pixscape.studio.helper;
 
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.tiled.TileTransformFlags;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
 
@@ -125,7 +125,7 @@ public class TiledSparseStorageHelperTest {
         TiledLayerComponent component = new TiledLayerComponent();
         component.mapWidthCells = width;
         component.mapHeightCells = height;
-        component.data = new TiledMapLayerData(
+        component.data = new TiledLayerData(
                 width,
                 height,
                 16,

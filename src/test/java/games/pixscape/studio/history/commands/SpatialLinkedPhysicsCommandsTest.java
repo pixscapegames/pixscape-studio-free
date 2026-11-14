@@ -13,7 +13,7 @@ import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
@@ -354,7 +354,7 @@ public class SpatialLinkedPhysicsCommandsTest {
             world.getMapper(PhysicsBodyComponent.class).create(owner);
             TiledLayerComponent tiled = world.getMapper(
                     TiledLayerComponent.class).create(owner);
-            tiled.data = new TiledMapLayerData(
+            tiled.data = new TiledLayerData(
                     20, 20, 32, 16, 8,
                     TiledProjection.ORTHO);
             for (int gy = 0; gy < 20; gy++) {

@@ -1,7 +1,7 @@
 package games.pixscape.studio.service.spatial;
 
-import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.render.TiledRenderState;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 /**
  * Exact, deterministic, allocation-free pointer-to-cell resolution for spatial authoring.
@@ -15,7 +15,7 @@ public final class SpatialCellPicker {
         public int gy;
     }
 
-    public static boolean pick(TiledMapLayerData map, float worldX, float worldY, Result out) {
+    public static boolean pick(TiledLayerData map, float worldX, float worldY, Result out) {
         if (map == null || out == null) return false;
 
         int candidateX = map.worldToTileX(worldX, worldY);
@@ -47,8 +47,8 @@ public final class SpatialCellPicker {
      * when it is empty or outside the map, the topmost visible occupied sprite quad
      * under the pointer is preferred. The bounded search uses the map visual padding.
      */
-    public static boolean pickForSpatialSelection(TiledMapLayerData map,
-                                                  TiledMapRenderState tiledState,
+    public static boolean pickForSpatialSelection(TiledLayerData map,
+                                                  TiledRenderState tiledState,
                                                   float worldX,
                                                   float worldY,
                                                   Result out) {
@@ -67,8 +67,8 @@ public final class SpatialCellPicker {
         return logicalFound;
     }
 
-    public static boolean pickTopmostVisibleOccupiedSprite(TiledMapLayerData map,
-                                                           TiledMapRenderState tiledState,
+    public static boolean pickTopmostVisibleOccupiedSprite(TiledLayerData map,
+                                                           TiledRenderState tiledState,
                                                            float worldX,
                                                            float worldY,
                                                            Result out) {
@@ -117,7 +117,7 @@ public final class SpatialCellPicker {
         return found;
     }
 
-    private static boolean containsRenderedQuad(TiledMapRenderState state,
+    private static boolean containsRenderedQuad(TiledRenderState state,
                                                 int ref,
                                                 float worldX,
                                                 float worldY) {

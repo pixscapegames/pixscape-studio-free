@@ -5,7 +5,7 @@ import com.artemis.WorldConfiguration;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.ui.config.EditorOverlayPalette;
 import org.junit.Assert;
@@ -93,7 +93,7 @@ public class SpatialWallWireframeTest {
         Assert.assertArrayEquals(finalPreview, wireframe(fixture.map, find(fixture.walls, 1)), 0f);
     }
 
-    private static void assertCompleteSemanticEdgeGroups(TiledMapLayerData map,
+    private static void assertCompleteSemanticEdgeGroups(TiledLayerData map,
                                                          SpatialBlockData wall,
                                                          float[] actual) {
         float[] base = new float[8];
@@ -127,7 +127,7 @@ public class SpatialWallWireframeTest {
         Assert.assertEquals(to[toVertex * 2 + 1], actual[offset + 3], 0f);
     }
 
-    private static float[] wireframe(TiledMapLayerData map, SpatialBlockData wall) {
+    private static float[] wireframe(TiledLayerData map, SpatialBlockData wall) {
         float[] base = new float[8];
         float[] top = new float[8];
         float[] out = new float[SpatialWallWireframe.REQUIRED_OUTPUT_FLOATS];
@@ -187,7 +187,7 @@ public class SpatialWallWireframeTest {
 
     private record Fixture(World world,
                            int layer,
-                           TiledMapLayerData map,
+                           TiledLayerData map,
                            SpatialBlocksComponent walls,
                            HistoryManager history,
                            SpatialBlockSelectionService selection) {

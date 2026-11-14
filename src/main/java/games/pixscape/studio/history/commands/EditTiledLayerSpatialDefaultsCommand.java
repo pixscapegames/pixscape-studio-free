@@ -10,7 +10,7 @@ import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialCompiledLayerCache;
 import games.pixscape.runtime.spatial.SpatialProjectedFaceCache;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
@@ -117,7 +117,7 @@ public final class EditTiledLayerSpatialDefaultsCommand implements Command, Hist
         boolean linked = shapes != null && FixtureCommandSupport.containsLinkedShape(shapes.shapes);
         PreparedPhysicsBodyCandidate physics = null;
         try {
-            TiledMapLayerData candidate = projectionCandidate(tiled, snapshot.defaultAltitude, height);
+            TiledLayerData candidate = projectionCandidate(tiled, snapshot.defaultAltitude, height);
             SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).getSafe(entityId, null);
             if (blocks != null) {
                 if (SpatialBlockCommandSupport.validateBlocks(world, entityId, blocks.blocks)
@@ -149,9 +149,9 @@ public final class EditTiledLayerSpatialDefaultsCommand implements Command, Hist
         return CommandOutcome.APPLIED;
     }
 
-    private static TiledMapLayerData projectionCandidate(TiledLayerComponent tiled, float altitude, float height) {
-        TiledMapLayerData source = tiled.data;
-        TiledMapLayerData map = source == null ? tiled.createMapData() : new TiledMapLayerData(
+    private static TiledLayerData projectionCandidate(TiledLayerComponent tiled, float altitude, float height) {
+        TiledLayerData source = tiled.data;
+        TiledLayerData map = source == null ? tiled.createLayerData() : new TiledLayerData(
                 source.mapWidth, source.mapHeight, source.tileWidth, source.tileHeight, source.chunkSize, source.projection);
         if (source != null) {
             map.originX = source.originX;

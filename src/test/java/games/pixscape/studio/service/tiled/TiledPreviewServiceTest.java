@@ -1,6 +1,6 @@
 package games.pixscape.studio.service.tiled;
 
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -8,7 +8,7 @@ public class TiledPreviewServiceTest {
     @Test
     public void brushPreviewShowsCoverageAndGhost() {
         TiledPreviewService service = new TiledPreviewService();
-        TiledMapLayerData map = new TiledMapLayerData();
+        TiledLayerData map = new TiledLayerData();
 
         service.show(map, "main", 2, 3, 9, (byte) 0);
 
@@ -23,7 +23,7 @@ public class TiledPreviewServiceTest {
     @Test
     public void erasePreviewShowsCoverageWithoutGhost() {
         TiledPreviewService service = new TiledPreviewService();
-        TiledMapLayerData map = new TiledMapLayerData();
+        TiledLayerData map = new TiledLayerData();
 
         service.showCoverageOnly(map, "main", 4, 5, 11, (byte) 0);
 
@@ -38,7 +38,7 @@ public class TiledPreviewServiceTest {
     @Test
     public void tintedPreviewShowsCoverageTintWithoutGhost() {
         TiledPreviewService service = new TiledPreviewService();
-        TiledMapLayerData map = new TiledMapLayerData();
+        TiledLayerData map = new TiledLayerData();
 
         service.showTintedCoverage(map, "main", 6, 7, 13, (byte) 0, 0.05f, 0.92f, 1f, 0.5f);
 
@@ -58,7 +58,7 @@ public class TiledPreviewServiceTest {
     @Test
     public void clearHidesCoverageAndGhost() {
         TiledPreviewService service = new TiledPreviewService();
-        service.showTintedCoverage(new TiledMapLayerData(), "main", 4, 5, 11, (byte) 0, 0.05f, 0.92f, 1f, 0.5f);
+        service.showTintedCoverage(new TiledLayerData(), "main", 4, 5, 11, (byte) 0, 0.05f, 0.92f, 1f, 0.5f);
 
         service.clear();
 

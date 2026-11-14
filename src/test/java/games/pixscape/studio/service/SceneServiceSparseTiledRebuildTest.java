@@ -32,7 +32,7 @@ public class SceneServiceSparseTiledRebuildTest {
             tiled.mapWidthCells = 8;
             tiled.mapHeightCells = 8;
             tiled.chunkSize = 4;
-            tiled.data = tiled.createMapData();
+            tiled.data = tiled.createLayerData();
             tiled.data.spatialEnabled = false;
             tiled.data.defaultTileAltitude = 3f;
             tiled.data.defaultTileHeight = 12f;

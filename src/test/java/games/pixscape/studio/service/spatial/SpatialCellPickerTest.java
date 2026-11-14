@@ -1,8 +1,8 @@
 package games.pixscape.studio.service.spatial;
 
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -12,7 +12,7 @@ public class SpatialCellPickerTest {
 
     @Test
     public void centerAndFourDiamondEdgesPickExactCells() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
         float cx = centerX(map, 2, 2);
         float cy = centerY(map, 2, 2);
         assertPick(map, cx, cy, 2, 2);
@@ -24,7 +24,7 @@ public class SpatialCellPickerTest {
 
     @Test
     public void edgeAndVertexTiesUseLowestRowMajorCell() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
         float[] vertices = new float[8];
         map.tileToCellVertices(2, 2, vertices);
         assertPick(map, (vertices[0] + vertices[2]) * 0.5f,
@@ -34,15 +34,15 @@ public class SpatialCellPickerTest {
 
     @Test
     public void outsideMapIsNotClampedToEdgeCell() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
         Assert.assertFalse(SpatialCellPicker.pick(map, -10000f, -10000f, result));
     }
 
     @Test
     public void visibleOccupiedSpriteWinsOverEmptyUnderlyingCell() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
         map.setTile(2, 2, 12);
-        TiledMapRenderState state = renderState(map);
+        TiledRenderState state = renderState(map);
         float pointerX = centerX(map, 2, 1);
         float pointerY = centerY(map, 2, 1);
         setVisibleQuad(map, state, 2, 2, pointerX, pointerY, 7L);
@@ -54,10 +54,10 @@ public class SpatialCellPickerTest {
 
     @Test
     public void overlappingVisibleSpritesUseHighestDrawSortKeyDeterministically() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
         map.setTile(2, 2, 12);
         map.setTile(3, 2, 13);
-        TiledMapRenderState state = renderState(map);
+        TiledRenderState state = renderState(map);
         float pointerX = centerX(map, 2, 1);
         float pointerY = centerY(map, 2, 1);
         setVisibleQuad(map, state, 2, 2, pointerX, pointerY, 7L);
@@ -72,10 +72,10 @@ public class SpatialCellPickerTest {
 
     @Test
     public void contextPickingUsesOverflowingImageEvenAboveAnOccupiedLogicalCell() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
         map.setTile(2, 1, 5);
         map.setTile(2, 2, 12);
-        TiledMapRenderState state = renderState(map);
+        TiledRenderState state = renderState(map);
         float x = centerX(map, 2, 1), y = centerY(map, 2, 1);
         setVisibleQuad(map, state, 2, 1, x, y, 1);
         setVisibleQuad(map, state, 2, 2, x, y, 7);
@@ -89,32 +89,32 @@ public class SpatialCellPickerTest {
         Assert.assertEquals(1, result.gy);
     }
 
-    private void assertToward(TiledMapLayerData map, float cx, float cy, int gx, int gy) {
+    private void assertToward(TiledLayerData map, float cx, float cy, int gx, int gy) {
         float nx = centerX(map, gx, gy);
         float ny = centerY(map, gx, gy);
         assertPick(map, cx * 0.45f + nx * 0.55f, cy * 0.45f + ny * 0.55f, gx, gy);
     }
 
-    private void assertPick(TiledMapLayerData map, float x, float y, int gx, int gy) {
+    private void assertPick(TiledLayerData map, float x, float y, int gx, int gy) {
         Assert.assertTrue(SpatialCellPicker.pick(map, x, y, result));
         Assert.assertEquals(gx, result.gx);
         Assert.assertEquals(gy, result.gy);
     }
 
-    private static float centerX(TiledMapLayerData map, int gx, int gy) {
+    private static float centerX(TiledLayerData map, int gx, int gy) {
         return map.tileToWorldX(gx, gy) + map.tileWidth * 0.5f;
     }
 
-    private static float centerY(TiledMapLayerData map, int gx, int gy) {
+    private static float centerY(TiledLayerData map, int gx, int gy) {
         return map.tileToWorldY(gx, gy) + map.tileHeight * 0.5f;
     }
 
-    private static TiledMapLayerData isoMap() {
-        return new TiledMapLayerData(6, 6, 256, 128, 8, TiledProjection.ISO);
+    private static TiledLayerData isoMap() {
+        return new TiledLayerData(6, 6, 256, 128, 8, TiledProjection.ISO);
     }
 
-    private static TiledMapRenderState renderState(TiledMapLayerData map) {
-        TiledMapRenderState state = new TiledMapRenderState(64);
+    private static TiledRenderState renderState(TiledLayerData map) {
+        TiledRenderState state = new TiledRenderState(64);
         for (TileChunk chunk : map.getChunks()) {
             chunk.renderRefStartIndex = state.registerRefs(chunk.cellCount());
             chunk.renderRefCount = chunk.cellCount();
@@ -123,8 +123,8 @@ public class SpatialCellPickerTest {
         return state;
     }
 
-    private static void setVisibleQuad(TiledMapLayerData map,
-                                       TiledMapRenderState state,
+    private static void setVisibleQuad(TiledLayerData map,
+                                       TiledRenderState state,
                                        int gx,
                                        int gy,
                                        float pointerX,

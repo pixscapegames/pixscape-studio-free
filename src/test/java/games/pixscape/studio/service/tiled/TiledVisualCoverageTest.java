@@ -1,7 +1,7 @@
 package games.pixscape.studio.service.tiled;
 
 import games.pixscape.runtime.tiled.TileTransformFlags;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -12,7 +12,7 @@ import java.nio.file.Path;
 public class TiledVisualCoverageTest {
     @Test
     public void normalSizedIsoTileCoversOnlyAnchorCell() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
 
         TiledVisualCoverage.Coverage coverage = TiledVisualCoverage.compute(
                 map,
@@ -34,7 +34,7 @@ public class TiledVisualCoverageTest {
 
     @Test
     public void tallIsoTileCoversMultipleCells() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
 
         TiledVisualCoverage.Coverage coverage = TiledVisualCoverage.compute(
                 map,
@@ -52,7 +52,7 @@ public class TiledVisualCoverageTest {
 
     @Test
     public void tall256By512IsoTileOn256By128GridUsesExpectedVisualRange() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
 
         TiledVisualCoverage.Coverage coverage = TiledVisualCoverage.compute(
                 map,
@@ -75,7 +75,7 @@ public class TiledVisualCoverageTest {
 
     @Test
     public void halfOpenMaxOnIntegerBoundaryDoesNotAddExtraCell() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
 
         TiledVisualCoverage.Coverage coverage = TiledVisualCoverage.compute(
                 map,
@@ -95,7 +95,7 @@ public class TiledVisualCoverageTest {
 
     @Test
     public void coverageClampsToMapBounds() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
 
         TiledVisualCoverage.Coverage coverage = TiledVisualCoverage.compute(
                 map,
@@ -123,8 +123,8 @@ public class TiledVisualCoverageTest {
         Assert.assertFalse(source.contains("tileHeight * 0.5"));
     }
 
-    private static TiledMapLayerData isoMap() {
-        TiledMapLayerData map = new TiledMapLayerData(16, 16, 256, 128, 4, TiledProjection.ISO);
+    private static TiledLayerData isoMap() {
+        TiledLayerData map = new TiledLayerData(16, 16, 256, 128, 4, TiledProjection.ISO);
         map.originX = 0f;
         map.originY = 0f;
         return map;

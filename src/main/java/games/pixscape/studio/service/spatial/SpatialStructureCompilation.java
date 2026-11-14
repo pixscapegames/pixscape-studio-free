@@ -3,7 +3,7 @@ package games.pixscape.studio.service.spatial;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.*;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 /**
  * Studio-safe validation and staging boundary around the strict Runtime compiler.
@@ -40,16 +40,16 @@ public final class SpatialStructureCompilation {
     private SpatialStructureCompilation() {
     }
 
-    public static Result tryCompile(SpatialBlocksComponent component, TiledMapLayerData map) {
+    public static Result tryCompile(SpatialBlocksComponent component, TiledLayerData map) {
         Array<SpatialBlockData> walls = SpatialStructureTopology.copyWalls(component);
         return tryCompile(walls, component != null ? component.links : new Array<>(SpatialBlockLink.class), map);
     }
 
-    public static Result tryCompile(Array<SpatialBlockData> walls, TiledMapLayerData map) {
+    public static Result tryCompile(Array<SpatialBlockData> walls, TiledLayerData map) {
         return tryCompile(walls, new Array<>(SpatialBlockLink.class), map);
     }
 
-    public static Result tryCompile(Array<SpatialBlockData> walls, Array<SpatialBlockLink> links, TiledMapLayerData map) {
+    public static Result tryCompile(Array<SpatialBlockData> walls, Array<SpatialBlockLink> links, TiledLayerData map) {
         SpatialBlocksComponent detached = new SpatialBlocksComponent();
         detached.links = SpatialBlockLinks.copy(links);
         detached.blocks = new Array<>(SpatialBlockData[]::new);

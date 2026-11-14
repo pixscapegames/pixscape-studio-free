@@ -17,10 +17,10 @@ import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.RenderRepeatFlags;
 import games.pixscape.runtime.render.SortKey64;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileQuadTransforms;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.animation.TileAnimationDef;
 import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
@@ -40,7 +40,7 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
     private ComponentMapper<EntityIndexComponent> mEntityIndex;
     private ComponentMapper<TiledLayerComponent> mTiled;
 
-    private final TiledMapRenderState tiledState;
+    private final TiledRenderState tiledState;
     private final StudioAssetVisualResolver visualResolver;
     private final float[] tmpQuad = new float[8];
     private final IntSet reportedMissingProfileTileAssetIds = new IntSet();
@@ -66,7 +66,7 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
         this(null, visualResolver, assetMetaLookup, tileAnimationLookup);
     }
 
-    public TiledFallbackSystem(TiledMapRenderState tiledState,
+    public TiledFallbackSystem(TiledRenderState tiledState,
                                StudioAssetVisualResolver visualResolver,
                                IntFunction<AssetMeta> assetMetaLookup,
                                TileAnimationLookup tileAnimationLookup) {
@@ -120,7 +120,7 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
         TiledLayerComponent tiled = mTiled.get(e);
         if (tiled == null || tiled.data == null) return;
 
-        TiledMapLayerData map = tiled.data;
+        TiledLayerData map = tiled.data;
         if (tiledState == null) return;
 
         EntityIndexComponent index = mEntityIndex.get(e);
@@ -218,7 +218,7 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
                     index.zIndex,
                     e
             );
-            tiledState.addVisibleMap(
+            tiledState.addVisibleTileLayer(
                     e,
                     index.layerIndex,
                     index.zIndex,
@@ -273,7 +273,7 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
     }
 
     void writeTileSlot(int layerIndex,
-                       TiledMapLayerData map,
+                       TiledLayerData map,
                        int tiledRenderRef,
                        int gx,
                        int gy,

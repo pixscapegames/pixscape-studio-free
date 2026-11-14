@@ -2,7 +2,7 @@ package games.pixscape.studio.service.tiled;
 
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.tiled.TileTransformFlags;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -63,7 +63,7 @@ public class TiledBrushSessionTest {
 
     private static TiledLayerComponent tiled() {
         TiledLayerComponent tiled = new TiledLayerComponent();
-        tiled.data = new TiledMapLayerData(8, 8, 32, 16, 4, TiledProjection.ISO);
+        tiled.data = new TiledLayerData(8, 8, 32, 16, 4, TiledProjection.ISO);
         return tiled;
     }
 }

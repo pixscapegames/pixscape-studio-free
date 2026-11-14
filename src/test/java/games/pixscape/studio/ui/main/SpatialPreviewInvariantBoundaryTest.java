@@ -5,7 +5,7 @@ import com.artemis.WorldConfiguration;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.render.lighting.LightingAdmissionException;
 import games.pixscape.runtime.render.lighting.LightingSurface;
 import games.pixscape.runtime.render.lighting.RoundedWallDescription;
@@ -18,7 +18,7 @@ import games.pixscape.runtime.spatial.SpatialConstraintInvariantException;
 import games.pixscape.runtime.spatial.SpatialTileOrderInvariantException;
 import games.pixscape.runtime.spatial.SpatialTileSyncInvariantException;
 import games.pixscape.runtime.system.RenderTiledSyncSystem;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.animation.TileAnimationDef;
 import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
@@ -52,7 +52,7 @@ public class SpatialPreviewInvariantBoundaryTest {
                 return LightingTestBindings.tile(id, 256, id == 2 ? 128 : 512);
             }
         };
-        TiledMapRenderState state = new TiledMapRenderState();
+        TiledRenderState state = new TiledRenderState();
         RenderTiledSyncSystem sync = new RenderTiledSyncSystem(new com.badlogic.gdx.graphics.OrthographicCamera(), state, atlas, 0, null, profiles);
         World world = new World(new WorldConfiguration().setSystem(sync));
         try {
@@ -60,7 +60,7 @@ public class SpatialPreviewInvariantBoundaryTest {
             world.getMapper(EntityIndexComponent.class).create(entity);
             TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(entity);
             tiled.atlasTag = "scene";
-            tiled.data = new TiledMapLayerData(1, 1, 256, 128, 1, TiledProjection.ISO);
+            tiled.data = new TiledLayerData(1, 1, 256, 128, 1, TiledProjection.ISO);
             tiled.data.setTile(0, 0, 1);
             SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(entity);
             for (int i = 0; i < 2; i++) {

@@ -4,7 +4,7 @@ import com.sun.management.ThreadMXBean;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -21,7 +21,7 @@ public class TiledSpatialMutationPerformanceTest {
 
     private static void benchmarkGesture(int count, int width) {
         TiledLayerComponent tiled = new TiledLayerComponent();
-        tiled.data = new TiledMapLayerData(width, Math.max(1, (count + width - 1) / width), 32, 16, 16);
+        tiled.data = new TiledLayerData(width, Math.max(1, (count + width - 1) / width), 32, 16, 16);
         TiledBrushSession warmup = session(tiled, Math.min(count, 100), width);
         warmup.toPlan();
 
@@ -54,7 +54,7 @@ public class TiledSpatialMutationPerformanceTest {
     private static void benchmarkLinkedScan(int refs) {
         int width = 100;
         TiledLayerComponent tiled = new TiledLayerComponent();
-        tiled.data = new TiledMapLayerData(width, refs / width, 32, 16, 16);
+        tiled.data = new TiledLayerData(width, refs / width, 32, 16, 16);
         tiled.data.beginAtomicMutation();
         for (int i = 0; i < refs; i++) tiled.data.setTileStaged(i % width, i / width, 1, (byte) 0);
         tiled.data.commitAtomicMutation();

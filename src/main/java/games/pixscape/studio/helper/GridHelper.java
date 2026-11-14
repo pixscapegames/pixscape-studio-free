@@ -2,7 +2,7 @@ package games.pixscape.studio.helper;
 
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.math.MathUtils;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 public final class GridHelper {
 
@@ -146,7 +146,7 @@ public final class GridHelper {
 
     public static void drawTiledIsoGrid(
             StudioDrawContext ctx,
-            TiledMapLayerData map,
+            TiledLayerData map,
             Color lineColor,
             float linePx
     ) {
@@ -212,7 +212,7 @@ public final class GridHelper {
         }
     }
 
-    private static int includeTileRangeX(TiledMapLayerData map,
+    private static int includeTileRangeX(TiledLayerData map,
                                          float worldX,
                                          float worldY,
                                          int current,
@@ -221,7 +221,7 @@ public final class GridHelper {
         return minimum ? Math.min(current, gx) : Math.max(current, gx);
     }
 
-    private static int includeTileRangeY(TiledMapLayerData map,
+    private static int includeTileRangeY(TiledLayerData map,
                                          float worldX,
                                          float worldY,
                                          int current,

@@ -14,7 +14,7 @@ import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.RenderKind;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.SpatialRenderOrderSystem;
@@ -114,7 +114,7 @@ public class SpatialHeightLivePreviewTest {
     private static final class Harness implements AutoCloseable {
         final DynamicEntityRenderState ecs = new DynamicEntityRenderState(1);
         final DrawList draw = new DrawList(4);
-        final SpatialRenderOrderSystem spatial = new SpatialRenderOrderSystem(ecs, new TiledMapRenderState(1), draw, null, null);
+        final SpatialRenderOrderSystem spatial = new SpatialRenderOrderSystem(ecs, new TiledRenderState(1), draw, null, null);
         final World world;
         final HistoryManager history = new HistoryManager(8);
         final IdentityRegistry identities = new IdentityRegistry();

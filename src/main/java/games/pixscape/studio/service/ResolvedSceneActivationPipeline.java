@@ -135,13 +135,13 @@ final class ResolvedSceneActivationPipeline {
             }
 
             try {
-                tiled.validateMapConfiguration();
+                tiled.validateGridConfiguration();
             } catch (IllegalArgumentException ex) {
                 throw unresolvedTiledMap(projectTitle, sceneName, e,
                         "the serialized Tiled map configuration is incomplete");
             }
 
-            tiled.data = tiled.createMapData();
+            tiled.data = tiled.createLayerData();
 
             if (allocator != null) {
                 allocator.allocateLayer(tiled);

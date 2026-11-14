@@ -2,7 +2,7 @@ package games.pixscape.studio.service.spatial;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.event.EventFlow;
 import org.junit.Assert;
@@ -83,7 +83,7 @@ public class SpatialTileSelectionServiceTest {
     @Test
     public void singleCellSelectionRemainsValid() {
         SpatialTileSelectionService selection = new SpatialTileSelectionService();
-        TiledMapLayerData map = map(4, 4);
+        TiledLayerData map = map(4, 4);
         map.setTile(2, 3, 101);
 
         selection.beginDrag(4, 2, 3);
@@ -109,7 +109,7 @@ public class SpatialTileSelectionServiceTest {
     @Test
     public void rectangularSelectionCreatesLinkedRefsForEveryCell() {
         SpatialTileSelectionService selection = new SpatialTileSelectionService();
-        TiledMapLayerData map = map(8, 8);
+        TiledLayerData map = map(8, 8);
         fillRect(map, 1, 2, 3, 3, 100);
 
         selection.beginDrag(4, 1, 2);
@@ -133,7 +133,7 @@ public class SpatialTileSelectionServiceTest {
     @Test
     public void oneEmptyCellRejectsTheWholeSelectedRectangle() {
         SpatialTileSelectionService selection = new SpatialTileSelectionService();
-        TiledMapLayerData map = map(8, 8);
+        TiledLayerData map = map(8, 8);
         map.setTile(1, 2, 101);
         map.setTile(3, 2, 103);
 
@@ -148,7 +148,7 @@ public class SpatialTileSelectionServiceTest {
     @Test
     public void sparseSelectionIsNotShrunkToOccupiedRows() {
         SpatialTileSelectionService selection = new SpatialTileSelectionService();
-        TiledMapLayerData map = map(8, 8);
+        TiledLayerData map = map(8, 8);
         map.setTile(1, 2, 101);
         map.setTile(3, 3, 102);
         map.setTile(2, 4, 103);
@@ -166,7 +166,7 @@ public class SpatialTileSelectionServiceTest {
     @Test
     public void isoSelectionKeepsExactAuthoredRectangle() {
         SpatialTileSelectionService selection = new SpatialTileSelectionService();
-        TiledMapLayerData map = isoMap(8, 8);
+        TiledLayerData map = isoMap(8, 8);
         map.setTile(1, 2, 101);
         map.setTile(2, 2, 102);
         map.setTile(3, 2, 103);
@@ -188,7 +188,7 @@ public class SpatialTileSelectionServiceTest {
     @Test
     public void fullyEmptySelectionIsInvalidAndDoesNotCreateBrokenRefs() {
         SpatialTileSelectionService selection = new SpatialTileSelectionService();
-        TiledMapLayerData map = map(8, 8);
+        TiledLayerData map = map(8, 8);
 
         selection.beginDrag(4, 1, 2);
         selection.updateDrag(3, 3);
@@ -201,7 +201,7 @@ public class SpatialTileSelectionServiceTest {
     @Test
     public void overlappingSpatialVolumeDoesNotInvalidateAnchorSelection() {
         SpatialTileSelectionService selection = new SpatialTileSelectionService();
-        TiledMapLayerData map = map(8, 8);
+        TiledLayerData map = map(8, 8);
         map.setTile(1, 2, 101);
 
         selection.beginDrag(4, 1, 2);
@@ -214,7 +214,7 @@ public class SpatialTileSelectionServiceTest {
     @Test
     public void prevalidationUsesSharedNextIdWithoutMutatingExistingWalls() {
         SpatialTileSelectionService selection = new SpatialTileSelectionService();
-        TiledMapLayerData map = map(8, 8);
+        TiledLayerData map = map(8, 8);
         map.setTile(0, 0, 99);
         map.setTile(3, 3, 100);
         map.setTile(6, 6, 101);
@@ -235,7 +235,7 @@ public class SpatialTileSelectionServiceTest {
     @Test
     public void createdLinkedRefsContainTileMetadataOnlyAndNoRuntimeCacheData() throws Exception {
         SpatialTileSelectionService selection = new SpatialTileSelectionService();
-        TiledMapLayerData map = map(8, 8);
+        TiledLayerData map = map(8, 8);
         map.setTile(1, 2, 101);
         map.setTile(2, 2, 102);
 
@@ -260,7 +260,7 @@ public class SpatialTileSelectionServiceTest {
     @Test
     public void squareSelectionKeepsExistingLinkedTileRefsArrayFormat() {
         SpatialTileSelectionService selection = new SpatialTileSelectionService();
-        TiledMapLayerData map = map(8, 8);
+        TiledLayerData map = map(8, 8);
         fillRect(map, 2, 3, 3, 4, 200);
 
         selection.beginDrag(4, 3, 4);
@@ -283,7 +283,7 @@ public class SpatialTileSelectionServiceTest {
     @Test
     public void successiveHorizontalThenVerticalEditsDoNotKeepOldDirection() {
         SpatialTileSelectionService selection = new SpatialTileSelectionService();
-        TiledMapLayerData map = map(8, 8);
+        TiledLayerData map = map(8, 8);
         fillHorizontal(map, 1, 2, 3, 100);
         fillVertical(map, 5, 1, 3, 200);
 
@@ -342,27 +342,27 @@ public class SpatialTileSelectionServiceTest {
         Assert.assertFalse(selection.hasSelection());
     }
 
-    private static TiledMapLayerData map(int width, int height) {
-        return new TiledMapLayerData(width, height, 16, 16, 8, TiledProjection.ORTHO);
+    private static TiledLayerData map(int width, int height) {
+        return new TiledLayerData(width, height, 16, 16, 8, TiledProjection.ORTHO);
     }
 
-    private static TiledMapLayerData isoMap(int width, int height) {
-        return new TiledMapLayerData(width, height, 256, 128, 8, TiledProjection.ISO);
+    private static TiledLayerData isoMap(int width, int height) {
+        return new TiledLayerData(width, height, 256, 128, 8, TiledProjection.ISO);
     }
 
-    private static void fillHorizontal(TiledMapLayerData map, int minGx, int gy, int maxGx, int firstTileId) {
+    private static void fillHorizontal(TiledLayerData map, int minGx, int gy, int maxGx, int firstTileId) {
         for (int gx = minGx; gx <= maxGx; gx++) {
             map.setTile(gx, gy, firstTileId + gx - minGx);
         }
     }
 
-    private static void fillVertical(TiledMapLayerData map, int gx, int minGy, int maxGy, int firstTileId) {
+    private static void fillVertical(TiledLayerData map, int gx, int minGy, int maxGy, int firstTileId) {
         for (int gy = minGy; gy <= maxGy; gy++) {
             map.setTile(gx, gy, firstTileId + gy - minGy);
         }
     }
 
-    private static void fillRect(TiledMapLayerData map, int minGx, int minGy, int maxGx, int maxGy, int firstTileId) {
+    private static void fillRect(TiledLayerData map, int minGx, int minGy, int maxGx, int maxGy, int firstTileId) {
         int tileId = firstTileId;
         for (int gy = minGy; gy <= maxGy; gy++) {
             for (int gx = minGx; gx <= maxGx; gx++) {

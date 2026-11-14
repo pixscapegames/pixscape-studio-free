@@ -15,7 +15,7 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.DirtyBits;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.render.lighting.RoundedWallDescription;
 import games.pixscape.runtime.render.lighting.TileSurfaceDescription;
 import games.pixscape.runtime.service.AtlasRuntimeService;
@@ -191,7 +191,7 @@ public class UnlitSpatialCommandsTest {
 
     private static final class Fixture implements AutoCloseable {
         final SceneMetaRuntime scene = new SceneMetaRuntime();
-        final TiledMapRenderState state = new TiledMapRenderState();
+        final TiledRenderState state = new TiledRenderState();
         final World world;
         final HistoryManager history = new HistoryManager(16);
         final int entity;
@@ -213,7 +213,7 @@ public class UnlitSpatialCommandsTest {
             tiled.projection = TiledProjection.ORTHO;
             tiled.tileWidth = tiled.tileHeight = 32;
             tiled.mapWidthCells = tiled.mapHeightCells = tiled.chunkSize = 8;
-            tiled.data = tiled.createMapData();
+            tiled.data = tiled.createLayerData();
             tiled.data.setTile(1, 1, 7);
             blocks = world.getMapper(SpatialBlocksComponent.class).create(entity);
             SpatialBlockData b = new SpatialBlockData();

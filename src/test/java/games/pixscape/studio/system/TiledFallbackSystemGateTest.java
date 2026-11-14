@@ -10,11 +10,11 @@ import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.system.RenderTiledSyncSystem;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
@@ -77,7 +77,7 @@ public class TiledFallbackSystemGateTest {
     @Test
     public void emptySceneRunsOnePassThenDisables() {
         TiledFallbackSystem system = new TiledFallbackSystem(
-                new TiledMapRenderState(1),
+                new TiledRenderState(1),
                 resolver(
                         new VisualResolverTestSupport.TrackingAtlasService("main"),
                         null,
@@ -125,9 +125,9 @@ public class TiledFallbackSystemGateTest {
                 fixture.tiledState.textureHandle[renderRef]
         );
         assertEquals(1, fixture.map.getChunk(0, 0).getRenderableRefCount());
-        assertEquals(1, fixture.tiledState.getVisibleMapCount());
+        assertEquals(1, fixture.tiledState.getVisibleTileLayerCount());
         assertEquals(fixture.mapEntityId,
-                fixture.tiledState.visibleMapEntityId(0));
+                fixture.tiledState.visibleTileLayerEntityId(0));
         fixture.dispose();
     }
 
@@ -157,18 +157,18 @@ public class TiledFallbackSystemGateTest {
                 .getMapper(TiledLayerComponent.class)
                 .create(secondMapEntityId);
         secondTiled.atlasTag = "main";
-        secondTiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
+        secondTiled.data = new TiledLayerData(1, 1, 16, 16, 1);
         secondTiled.data.setTile(0, 0, assets.tileAssetIds[0]);
 
         fixture.world.process();
 
-        assertEquals(2, fixture.tiledState.getVisibleMapCount());
+        assertEquals(2, fixture.tiledState.getVisibleTileLayerCount());
         assertEquals(fixture.mapEntityId,
-                fixture.tiledState.visibleMapEntityId(0));
+                fixture.tiledState.visibleTileLayerEntityId(0));
         assertEquals(secondMapEntityId,
-                fixture.tiledState.visibleMapEntityId(1));
-        assertEquals(1, fixture.tiledState.visibleMapRefCount(0));
-        assertEquals(1, fixture.tiledState.visibleMapRefCount(1));
+                fixture.tiledState.visibleTileLayerEntityId(1));
+        assertEquals(1, fixture.tiledState.visibleTileLayerRefCount(0));
+        assertEquals(1, fixture.tiledState.visibleTileLayerRefCount(1));
         assertEquals(1, fixture.map.getChunk(0, 0).getRenderableRefCount());
         assertEquals(1, secondTiled.data.getChunk(0, 0).getRenderableRefCount());
         fixture.dispose();
@@ -184,7 +184,7 @@ public class TiledFallbackSystemGateTest {
                 assets.database,
                 texture(24, 32)
         );
-        TiledMapRenderState tiledState = new TiledMapRenderState(2);
+        TiledRenderState tiledState = new TiledRenderState(2);
         OrthographicCamera camera = new OrthographicCamera(64f, 64f);
         camera.position.set(16f, 16f, 0f);
         camera.update();
@@ -213,18 +213,18 @@ public class TiledFallbackSystemGateTest {
 
             world.process();
 
-            assertEquals(2, tiledState.getVisibleMapCount());
-            assertEquals(firstMapEntityId, tiledState.visibleMapEntityId(0));
-            assertEquals(secondMapEntityId, tiledState.visibleMapEntityId(1));
+            assertEquals(2, tiledState.getVisibleTileLayerCount());
+            assertEquals(firstMapEntityId, tiledState.visibleTileLayerEntityId(0));
+            assertEquals(secondMapEntityId, tiledState.visibleTileLayerEntityId(1));
 
             world.process();
 
-            assertEquals(2, tiledState.getVisibleMapCount());
+            assertEquals(2, tiledState.getVisibleTileLayerCount());
             assertEquals(2, tiledState.getVisibleRefCount());
-            assertEquals(firstMapEntityId, tiledState.visibleMapEntityId(0));
-            assertEquals(secondMapEntityId, tiledState.visibleMapEntityId(1));
-            assertEquals(1, tiledState.visibleMapRefCount(0));
-            assertEquals(1, tiledState.visibleMapRefCount(1));
+            assertEquals(firstMapEntityId, tiledState.visibleTileLayerEntityId(0));
+            assertEquals(secondMapEntityId, tiledState.visibleTileLayerEntityId(1));
+            assertEquals(1, tiledState.visibleTileLayerRefCount(0));
+            assertEquals(1, tiledState.visibleTileLayerRefCount(1));
         } finally {
             world.dispose();
         }
@@ -417,7 +417,7 @@ public class TiledFallbackSystemGateTest {
                 .getMapper(TiledLayerComponent.class)
                 .create(secondMapEntity);
         secondTiled.atlasTag = "secondary";
-        secondTiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
+        secondTiled.data = new TiledLayerData(1, 1, 16, 16, 1);
         secondTiled.data.setTile(0, 0, 100);
 
         fixture.world.process();
@@ -431,7 +431,7 @@ public class TiledFallbackSystemGateTest {
                                    TileAnimationRegistry animations,
                                    int width,
                                    int height) {
-        TiledMapRenderState tiledState = new TiledMapRenderState(1);
+        TiledRenderState tiledState = new TiledRenderState(1);
         TiledFallbackSystem system = new TiledFallbackSystem(
                 tiledState,
                 resolver,
@@ -447,7 +447,7 @@ public class TiledFallbackSystemGateTest {
         TiledLayerComponent tiled =
                 world.getMapper(TiledLayerComponent.class).create(mapEntityId);
         tiled.atlasTag = "main";
-        tiled.data = new TiledMapLayerData(width, height, 16, 16, 32);
+        tiled.data = new TiledLayerData(width, height, 16, 16, 32);
         return new Fixture(world, system, tiledState, mapEntityId, tiled.data);
     }
 
@@ -485,7 +485,7 @@ public class TiledFallbackSystemGateTest {
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class)
                 .create(mapEntityId);
         tiled.atlasTag = "main";
-        tiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
+        tiled.data = new TiledLayerData(1, 1, 16, 16, 1);
         tiled.data.setTile(0, 0, tileAssetId);
         return mapEntityId;
     }
@@ -533,9 +533,9 @@ public class TiledFallbackSystemGateTest {
 
     private record Fixture(World world,
                            TiledFallbackSystem system,
-                           TiledMapRenderState tiledState,
+                           TiledRenderState tiledState,
                            int mapEntityId,
-                           TiledMapLayerData map) {
+                           TiledLayerData map) {
         void dispose() {
             world.dispose();
         }

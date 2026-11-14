@@ -10,7 +10,7 @@ import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.tiled.TileQuadTransforms;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
@@ -90,7 +90,7 @@ public final class TiledGhostPreviewSystem extends BaseSystem implements Profile
         if (session == null && !previewService.isCoverageVisible()) return;
         if (ctx.cam.zoom <= 0.000001f) return;
 
-        TiledMapLayerData map = previewService.map();
+        TiledLayerData map = previewService.map();
         if (map == null) return;
 
         if (session != null) {
@@ -177,7 +177,7 @@ public final class TiledGhostPreviewSystem extends BaseSystem implements Profile
         }
     }
 
-    private void drawBrushSession(TiledMapLayerData map, TiledBrushSession session, String atlasTag) {
+    private void drawBrushSession(TiledLayerData map, TiledBrushSession session, String atlasTag) {
         SpriteBatch batch = ctx.batch;
         batch.setProjectionMatrix(ctx.cam.combined);
         batch.begin();

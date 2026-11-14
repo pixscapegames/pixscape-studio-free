@@ -130,7 +130,7 @@ public class LayerServiceTiledSwapDirtyTest {
             tiled.mapHeightCells = 4;
             tiled.chunkSize = 4;
             tiled.spatialEnabled = spatial;
-            tiled.data = tiled.createMapData();
+            tiled.data = tiled.createLayerData();
             tiled.data.spatialEnabled = spatial;
             tiled.data.setTile(0, 0, 100 + entity);
             return entity;

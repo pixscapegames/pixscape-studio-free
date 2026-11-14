@@ -49,7 +49,7 @@ public class StudioTiledRefInteractionContractTest {
         assertTrue(source.contains("new PickingSystem("));
         assertTrue(source.contains("new TiledFallbackSystem("));
         assertTrue(source.contains("dynamicEntityState = new DynamicEntityRenderState();"));
-        assertTrue(source.contains("tiledState = new TiledMapRenderState();"));
+        assertTrue(source.contains("tiledState = new TiledRenderState();"));
         assertTrue(source.contains("tiledFallbackSystem = new TiledFallbackSystem(\n                                            tiledState,"));
     }
 

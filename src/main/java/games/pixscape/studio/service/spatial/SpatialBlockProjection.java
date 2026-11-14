@@ -2,31 +2,31 @@ package games.pixscape.studio.service.spatial;
 
 import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 public final class SpatialBlockProjection {
     private SpatialBlockProjection() {
     }
 
-    public static int snapWorldToTileCellX(TiledMapLayerData map, float worldX, float worldY) {
+    public static int snapWorldToTileCellX(TiledLayerData map, float worldX, float worldY) {
         return map != null ? map.worldToTileX(worldX, worldY) : 0;
     }
 
-    public static int snapWorldToTileCellY(TiledMapLayerData map, float worldX, float worldY) {
+    public static int snapWorldToTileCellY(TiledLayerData map, float worldX, float worldY) {
         return map != null ? map.worldToTileY(worldX, worldY) : 0;
     }
 
-    public static void projectBaseFootprint(TiledMapLayerData map, SpatialBlockData block, float[] out8) {
+    public static void projectBaseFootprint(TiledLayerData map, SpatialBlockData block, float[] out8) {
         projectFootprintAtElevation(map, block, block != null ? block.altitude : 0f, out8);
     }
 
-    public static void projectTopFootprint(TiledMapLayerData map, SpatialBlockData block, float[] out8) {
+    public static void projectTopFootprint(TiledLayerData map, SpatialBlockData block, float[] out8) {
         float altitude = block != null ? block.altitude : 0f;
         float height = block != null ? Math.max(0f, block.height) : 0f;
         projectFootprintAtElevation(map, block, altitude + height, out8);
     }
 
-    public static void projectFootprintAtElevation(TiledMapLayerData map,
+    public static void projectFootprintAtElevation(TiledLayerData map,
                                                    SpatialBlockData block,
                                                    float elevation,
                                                    float[] out8) {
@@ -42,7 +42,7 @@ public final class SpatialBlockProjection {
         projectTileLocal(map, x0, y1, elevation, out8, 6);
     }
 
-    public static void projectTileLocal(TiledMapLayerData map,
+    public static void projectTileLocal(TiledLayerData map,
                                         float gx,
                                         float gy,
                                         float yOffset,
@@ -53,7 +53,7 @@ public final class SpatialBlockProjection {
         map.projectSpatialPoint(gx, gy, yOffset, out, offset);
     }
 
-    public static void projectStructurePoint(TiledMapLayerData map,
+    public static void projectStructurePoint(TiledLayerData map,
                                              float gx,
                                              float gy,
                                              float elevation,
@@ -63,7 +63,7 @@ public final class SpatialBlockProjection {
         map.projectSpatialPoint(gx, gy, elevation, out, offset);
     }
 
-    public static void footprintWorldToTileLocal(TiledMapLayerData map,
+    public static void footprintWorldToTileLocal(TiledLayerData map,
                                                  float worldX,
                                                  float worldY,
                                                  float elevation,

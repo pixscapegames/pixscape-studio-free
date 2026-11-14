@@ -112,7 +112,7 @@ public class TilesetImportDialogGlSmokeTest {
                                 world.getMapper(games.pixscape.runtime.component.TransformComponent.class).create(mapEntity);
                                 map = world.getMapper(games.pixscape.runtime.component.TiledLayerComponent.class).create(mapEntity);
                                 map.atlasTag = "scene1";
-                                map.data = new games.pixscape.runtime.tiled.TiledMapLayerData(1, 1, 8, 8, 1);
+                                map.data = new games.pixscape.runtime.tiled.TiledLayerData(1, 1, 8, 8, 1);
                                 map.data.setTile(0, 0, id);
                                 world.process();
                                 var inputs = new games.pixscape.studio.service.atlas.SceneAtlasInputService();
@@ -225,10 +225,10 @@ public class TilesetImportDialogGlSmokeTest {
                     studio.getCanvas().getEcsWorld().getSystem(games.pixscape.runtime.system.RenderTiledSyncSystem.class).prepareRuntimeAvailability();
                 }
 
-                games.pixscape.runtime.render.TiledMapRenderState state() throws Exception {
+                games.pixscape.runtime.render.TiledRenderState state() throws Exception {
                     var field = games.pixscape.studio.ui.main.WorldCanvas.class.getDeclaredField("tiledState");
                     field.setAccessible(true);
-                    return (games.pixscape.runtime.render.TiledMapRenderState) field.get(studio.getCanvas());
+                    return (games.pixscape.runtime.render.TiledRenderState) field.get(studio.getCanvas());
                 }
 
                 int tileHandle() throws Exception {

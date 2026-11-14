@@ -2,14 +2,14 @@ package games.pixscape.studio.service.spatial;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class SpatialWallAuthoringValidatorTest {
     @Test
     public void rejectsMissingStructureIdentityWithoutRepair() {
-        TiledMapLayerData map = map(4, 4);
+        TiledLayerData map = map(4, 4);
         SpatialBlocksComponent walls = component(wall(1, 0, 0, 0, 2, 1, 0f, 10f));
         Assert.assertEquals(SpatialWallAuthoringValidator.Status.INVALID_TOPOLOGY,
                 SpatialWallAuthoringValidator.validateLayer(walls, map).status);
@@ -18,7 +18,7 @@ public class SpatialWallAuthoringValidatorTest {
 
     @Test
     public void acceptsChangedDiagnosticAssetId() {
-        TiledMapLayerData map = map(2, 2);
+        TiledLayerData map = map(2, 2);
         SpatialBlockData wall = wall(1, 1, 0, 0, 1, 1, 0f, 10f);
         wall.linkedTileRefs.get(0).tileAssetId = 99;
         Assert.assertTrue(SpatialWallAuthoringValidator.validateWall(wall, map).isValid());
@@ -28,7 +28,7 @@ public class SpatialWallAuthoringValidatorTest {
 
     @Test
     public void rejectsDuplicateContainmentDisconnectedIdentityAndMixedProperties() {
-        TiledMapLayerData map = map(8, 8);
+        TiledLayerData map = map(8, 8);
         Assert.assertFalse(SpatialWallAuthoringValidator.validateLayer(component(
                 wall(1, 1, 0, 0, 2, 2, 0f, 10f), wall(2, 1, 0, 0, 2, 2, 0f, 10f)), map).isValid());
         Assert.assertFalse(SpatialWallAuthoringValidator.validateLayer(component(
@@ -69,8 +69,8 @@ public class SpatialWallAuthoringValidatorTest {
         return wall;
     }
 
-    static TiledMapLayerData map(int width, int height) {
-        TiledMapLayerData map = new TiledMapLayerData(width, height, 16, 16, 4);
+    static TiledLayerData map(int width, int height) {
+        TiledLayerData map = new TiledLayerData(width, height, 16, 16, 4);
         for (int gy = 0; gy < height; gy++) for (int gx = 0; gx < width; gx++) map.setTile(gx, gy, 1);
         return map;
     }

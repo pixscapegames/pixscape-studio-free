@@ -8,7 +8,7 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialBlockLinks;
 import games.pixscape.runtime.spatial.SpatialWallGeometry;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.spatial.SpatialLinkProposal;
 import games.pixscape.studio.service.spatial.SpatialStructureCompilation;
@@ -334,7 +334,7 @@ public class SpatialBlockLinkCommandTest {
 
         Fixture() {
             tiled.defaultTileHeight = 128;
-            tiled.data = new TiledMapLayerData(16, 16, 256, 128, 4);
+            tiled.data = new TiledLayerData(16, 16, 256, 128, 4);
             for (int y = 0; y < 16; y++) for (int x = 0; x < 16; x++) tiled.data.setTile(x, y, 1);
             world.process();
             history.historyIds().ensureForEntity(map);

@@ -4,7 +4,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.helper.GridHelper;
 import games.pixscape.studio.helper.StudioDrawContext;
@@ -21,7 +21,7 @@ public class GridActor extends Actor {
     private float tiledWidth = 32f;
     private float tiledHeight = 32f;
 
-    private TiledMapLayerData boundMap;
+    private TiledLayerData boundMap;
 
     private boolean hasBounds = false;
 
@@ -69,7 +69,7 @@ public class GridActor extends Actor {
         hasBounds = false;
     }
 
-    public void bindTo(TiledMapLayerData map) {
+    public void bindTo(TiledLayerData map) {
         this.boundMap = map;
     }
 

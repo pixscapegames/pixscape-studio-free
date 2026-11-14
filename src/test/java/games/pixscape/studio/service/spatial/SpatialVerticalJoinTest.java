@@ -9,7 +9,7 @@ import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialBlockLink;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.EditSpatialBlockCommand;
@@ -109,7 +109,7 @@ public class SpatialVerticalJoinTest {
             SpatialVerticalJoinProposal.Search none = SpatialVerticalJoinProposal.search(f.world, f.lower, 1);
             assertEquals(0, none.candidates.size);
             assertNotNull(none.diagnostic);
-            f.map(f.upper).data = new TiledMapLayerData(16, 8, 32, 16, 4, TiledProjection.ORTHO);
+            f.map(f.upper).data = new TiledLayerData(16, 8, 32, 16, 4, TiledProjection.ORTHO);
             none = SpatialVerticalJoinProposal.search(f.world, f.lower, 1);
             assertTrue(none.diagnostic.contains("unsupported"));
         }
@@ -219,7 +219,7 @@ public class SpatialVerticalJoinTest {
             TiledLayerComponent upper = f.map(f.upper);
             upper.tileWidth = 64;
             upper.tileHeight = 32;
-            upper.data = upper.createMapData();
+            upper.data = upper.createLayerData();
             for (int y = 0; y < 8; y++) for (int x = 0; x < 16; x++) upper.data.setTile(x, y, 1);
             f.reference.blocks.clear();
             f.reference.blocks.add(wall(1, 1, .25f, 1.275f, 1.5f, .15f, 80, 90));
@@ -262,7 +262,7 @@ public class SpatialVerticalJoinTest {
                     t.originY = 0;
                     t.defaultTileAltitude = t == lower ? 0 : 158;
                     t.defaultTileHeight = t == lower ? 158 : 160;
-                    t.data = t.createMapData();
+                    t.data = t.createLayerData();
                     for (int y = 0; y < 50; y++) for (int x = 0; x < 50; x++) t.data.setTile(x, y, 1);
                 }
                 f.source.blocks.clear();
@@ -359,7 +359,7 @@ public class SpatialVerticalJoinTest {
             tiled.defaultTileAltitude = altitude;
             tiled.defaultTileHeight = height;
             tiled.originY = altitude;
-            tiled.data = tiled.createMapData();
+            tiled.data = tiled.createLayerData();
             for (int y = 0; y < 8; y++) for (int x = 0; x < 16; x++) tiled.data.setTile(x, y, 1);
             world.getMapper(SpatialBlocksComponent.class).create(e);
             world.getMapper(EntityIndexComponent.class).create(e);

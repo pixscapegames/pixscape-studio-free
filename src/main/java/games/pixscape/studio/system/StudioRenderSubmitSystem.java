@@ -37,7 +37,7 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     private games.pixscape.runtime.render.lighting.LightingRenderer lighting;
     private StudioForwardLightingRenderer forward;
     private DynamicEntityRenderState dynamicDomain;
-    private TiledMapRenderState tiledDomain;
+    private TiledRenderState tiledDomain;
     private LightParameterBinding lightParameters;
     private boolean frameSubmissionAllowed;
     private float time = 0f;
@@ -59,7 +59,7 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
         return this;
     }
 
-    public StudioRenderSubmitSystem setRenderDomains(DynamicEntityRenderState dynamic, TiledMapRenderState tiled) {
+    public StudioRenderSubmitSystem setRenderDomains(DynamicEntityRenderState dynamic, TiledRenderState tiled) {
         dynamicDomain = dynamic;
         tiledDomain = tiled;
         if (tiled != null && sceneSettings != null) tiled.lightingEnabled = sceneSettings.lightingEnabled;

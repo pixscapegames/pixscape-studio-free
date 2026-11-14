@@ -7,7 +7,7 @@ import games.pixscape.runtime.spatial.CompiledSpatialStructure;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialBlockLink;
 import games.pixscape.runtime.spatial.SpatialBlockLinks;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -27,7 +27,7 @@ public final class SpatialLinkProposal {
     public final Set<Integer> reference = new LinkedHashSet<>();
     public float defaultHeight;
     public final float beforeDefaultHeight;
-    private final TiledMapLayerData map;
+    private final TiledLayerData map;
     private final Array<CompiledSpatialStructure> previewStructures = new Array<>(CompiledSpatialStructure.class);
     private final Set<Integer> replacedStructures = new HashSet<>();
 
@@ -43,7 +43,7 @@ public final class SpatialLinkProposal {
         return replacedStructures.contains(id);
     }
 
-    private SpatialLinkProposal(SpatialBlocksComponent source, TiledMapLayerData map, int selectedId, int referenceId, boolean unlink, float defaultHeight) {
+    private SpatialLinkProposal(SpatialBlocksComponent source, TiledLayerData map, int selectedId, int referenceId, boolean unlink, float defaultHeight) {
         before = copy(source);
         after = copy(source);
         this.selectedId = selectedId;
@@ -62,7 +62,7 @@ public final class SpatialLinkProposal {
         diagnostic = error;
     }
 
-    public static SpatialLinkProposal create(SpatialBlocksComponent source, TiledMapLayerData map,
+    public static SpatialLinkProposal create(SpatialBlocksComponent source, TiledLayerData map,
                                              int selected, int reference, boolean unlink, float defaultHeight) {
         SpatialLinkProposal proposal = new SpatialLinkProposal(source, map, selected, reference, unlink, defaultHeight);
         if (!proposal.valid) return proposal;
@@ -106,7 +106,7 @@ public final class SpatialLinkProposal {
      * One cached menu-equivalent preview per stable contact; physical publication runs on release.
      */
     static SpatialLinkProposal gesture(SpatialBlocksComponent original, SpatialBlocksComponent contact,
-                                       TiledMapLayerData map, int selected, int fixed, float height) {
+                                       TiledLayerData map, int selected, int fixed, float height) {
         SpatialLinkProposal result = fixed > 0
                 ? create(contact, map, selected, fixed, false, height)
                 : new SpatialLinkProposal(original, contact, map, selected, height);
@@ -131,7 +131,7 @@ public final class SpatialLinkProposal {
     }
 
     private SpatialLinkProposal(SpatialBlocksComponent original, SpatialBlocksComponent contact,
-                                TiledMapLayerData map, int selected, float height) {
+                                TiledLayerData map, int selected, float height) {
         before = copy(original);
         after = copy(contact);
         this.map = map;
@@ -148,7 +148,7 @@ public final class SpatialLinkProposal {
      * Exact edit snapshot, with no lateral or vertical link created.
      */
     public static SpatialLinkProposal editSnapshot(SpatialBlocksComponent original, SpatialBlocksComponent edited,
-                                                   TiledMapLayerData map, int selected, float beforeHeight, float height) {
+                                                   TiledLayerData map, int selected, float beforeHeight, float height) {
         SpatialLinkProposal result = new SpatialLinkProposal(original, edited, map, selected, beforeHeight);
         result.defaultHeight = height;
         return result;

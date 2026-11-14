@@ -2,14 +2,14 @@ package games.pixscape.studio.service.spatial;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class SpatialStructureTopologyTest {
     @Test
     public void isolatedWallKeepsAssignedIdentityAndExactGeometry() {
-        TiledMapLayerData map = SpatialWallAuthoringValidatorTest.map(8, 8);
+        TiledLayerData map = SpatialWallAuthoringValidatorTest.map(8, 8);
         SpatialBlockData candidate = SpatialWallAuthoringValidatorTest.wall(1, 0, 2, 3, 3, 2, 4f, 12f);
         SpatialStructureTopology.Plan plan = SpatialStructureTopology.add(new SpatialBlocksComponent(), candidate, map);
         Assert.assertTrue(plan.error, plan.valid);
@@ -25,7 +25,7 @@ public class SpatialStructureTopologyTest {
 
     @Test
     public void thickJunctionMergesStructuresAndSmallestIdentityWins() {
-        TiledMapLayerData map = SpatialWallAuthoringValidatorTest.map(12, 12);
+        TiledLayerData map = SpatialWallAuthoringValidatorTest.map(12, 12);
         SpatialBlocksComponent existing = SpatialWallAuthoringValidatorTest.component(
                 SpatialWallAuthoringValidatorTest.wall(5, 7, 0, 2, 5, 3, 1f, 10f),
                 SpatialWallAuthoringValidatorTest.wall(9, 3, 7, 2, 5, 3, 1f, 10f));
@@ -41,7 +41,7 @@ public class SpatialStructureTopologyTest {
 
     @Test
     public void everySupportedJunctionThicknessJoinsTheExistingStructure() {
-        TiledMapLayerData map = SpatialWallAuthoringValidatorTest.map(16, 16);
+        TiledLayerData map = SpatialWallAuthoringValidatorTest.map(16, 16);
         assertJoins(map, wall(1, 4, 0, 2, 5, 1), wall(0, 0, 2, 0, 1, 5));
         assertJoins(map, wall(1, 4, 0, 0, 5, 4), wall(0, 0, 2, 0, 1, 6));
         assertJoins(map, wall(1, 4, 0, 2, 6, 1), wall(0, 0, 1, 0, 4, 4));
@@ -51,7 +51,7 @@ public class SpatialStructureTopologyTest {
 
     @Test
     public void tCrossClosedRoomAndCyclicLabyrinthRemainConnected() {
-        TiledMapLayerData map = SpatialWallAuthoringValidatorTest.map(16, 16);
+        TiledLayerData map = SpatialWallAuthoringValidatorTest.map(16, 16);
         SpatialBlocksComponent walls = SpatialWallAuthoringValidatorTest.component(
                 wall(1, 6, 1, 1, 7, 1),
                 wall(2, 6, 1, 7, 7, 1),
@@ -69,7 +69,7 @@ public class SpatialStructureTopologyTest {
 
     @Test
     public void incompatibleStructuresCannotMerge() {
-        TiledMapLayerData map = SpatialWallAuthoringValidatorTest.map(12, 12);
+        TiledLayerData map = SpatialWallAuthoringValidatorTest.map(12, 12);
         SpatialBlocksComponent existing = SpatialWallAuthoringValidatorTest.component(
                 SpatialWallAuthoringValidatorTest.wall(1, 1, 0, 2, 4, 1, 0f, 10f),
                 SpatialWallAuthoringValidatorTest.wall(2, 2, 6, 2, 4, 1, 1f, 10f));
@@ -82,7 +82,7 @@ public class SpatialStructureTopologyTest {
 
     @Test
     public void deletingBridgeSplitsDeterministicallyAbovePreviousMaximum() {
-        TiledMapLayerData map = SpatialWallAuthoringValidatorTest.map(12, 12);
+        TiledLayerData map = SpatialWallAuthoringValidatorTest.map(12, 12);
         SpatialBlocksComponent structure = SpatialWallAuthoringValidatorTest.component(
                 SpatialWallAuthoringValidatorTest.wall(2, 4, 0, 2, 4, 1, 0f, 10f),
                 SpatialWallAuthoringValidatorTest.wall(8, 4, 6, 2, 4, 1, 0f, 10f),
@@ -95,7 +95,7 @@ public class SpatialStructureTopologyTest {
 
     @Test
     public void arrayOrderDoesNotChangeConnectivityOrAssignedIds() {
-        TiledMapLayerData map = SpatialWallAuthoringValidatorTest.map(10, 10);
+        TiledLayerData map = SpatialWallAuthoringValidatorTest.map(10, 10);
         SpatialBlockData a = SpatialWallAuthoringValidatorTest.wall(3, 2, 0, 2, 5, 1, 0f, 10f);
         SpatialBlockData b = SpatialWallAuthoringValidatorTest.wall(7, 2, 2, 0, 1, 5, 0f, 10f);
         SpatialBlocksComponent first = SpatialWallAuthoringValidatorTest.component(a.copy(), b.copy());
@@ -106,7 +106,7 @@ public class SpatialStructureTopologyTest {
 
     @Test
     public void linkedCellOverlapWithoutPhysicalOverlapDoesNotMerge() {
-        TiledMapLayerData map = SpatialWallAuthoringValidatorTest.map(8, 8);
+        TiledLayerData map = SpatialWallAuthoringValidatorTest.map(8, 8);
         SpatialBlockData horizontal = wall(1, 4, 0, 1, 3, 1);
         horizontal.width = 2.1f;
         horizontal.depth = 0.2f;
@@ -125,7 +125,7 @@ public class SpatialStructureTopologyTest {
 
     @Test
     public void continuousEditCanSplitAndReMergeWithoutChangingLinkedRefs() {
-        TiledMapLayerData map = SpatialWallAuthoringValidatorTest.map(8, 8);
+        TiledLayerData map = SpatialWallAuthoringValidatorTest.map(8, 8);
         SpatialBlockData horizontal = wall(1, 4, 0, 1, 3, 1);
         horizontal.width = 2.4f;
         horizontal.depth = 0.3f;
@@ -170,7 +170,7 @@ public class SpatialStructureTopologyTest {
         return SpatialWallAuthoringValidatorTest.wall(id, structureId, x, y, width, depth, 0f, 10f);
     }
 
-    private static void assertJoins(TiledMapLayerData map, SpatialBlockData existing, SpatialBlockData candidate) {
+    private static void assertJoins(TiledLayerData map, SpatialBlockData existing, SpatialBlockData candidate) {
         SpatialBlocksComponent component =
                 SpatialWallAuthoringValidatorTest.component(existing);
         component.nextSpatialBlockId = existing.id + 1;
@@ -185,7 +185,7 @@ public class SpatialStructureTopologyTest {
 
     @Test
     public void addRejectsUnassignedIdentityWithoutAllocating() {
-        TiledMapLayerData map = SpatialWallAuthoringValidatorTest.map(8, 8);
+        TiledLayerData map = SpatialWallAuthoringValidatorTest.map(8, 8);
         SpatialBlockData candidate = wall(0, 0, 1, 1, 2, 1);
 
         SpatialStructureTopology.Plan plan = SpatialStructureTopology.add(

@@ -42,7 +42,7 @@ import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import games.pixscape.runtime.tiled.TileTransformFlags;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 import games.pixscape.studio.asset.AssetMeta;
@@ -122,7 +122,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private LayerStateSOA layerState;
     private FrameRenderQueue frameQueue;
     private VfxRenderState vfxState;
-    private TiledMapRenderState tiledState;
+    private TiledRenderState tiledState;
     private StudioDisplayOffsetResolver displayOffsetResolver;
 
     // Drawer
@@ -496,7 +496,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         DrawList drawList = new DrawList();
         frameQueue = new FrameRenderQueue(false);
         vfxState = new VfxRenderState();
-        tiledState = new TiledMapRenderState();
+        tiledState = new TiledRenderState();
         tiledAllocatorService = new TiledAllocatorService(tileAnimationRegistry);
         polygonDrawSession = new PolygonDrawSession();
         particleAvailabilityRefresh = new ParticleRuntimeAvailabilityRefreshRequest();
@@ -1037,7 +1037,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         TiledLayerComponent tiled = world().getMapper(TiledLayerComponent.class).getSafe(mapEntity, null);
 
         if (tiled != null && tiled.data != null) {
-            TiledMapLayerData map = tiled.data;
+            TiledLayerData map = tiled.data;
             gridActor.setTiledMode(tiled.projection, tiled.tileWidth, tiled.tileHeight);
 
             if (tiled.projection == TiledProjection.ORTHO) {
@@ -1717,7 +1717,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         return true;
     }
 
-    static boolean tiledMapContainsWorldPoint(TiledMapLayerData map, float worldX, float worldY) {
+    static boolean tiledMapContainsWorldPoint(TiledLayerData map, float worldX, float worldY) {
         if (map == null) return false;
         int gx = map.worldToTileX(worldX, worldY);
         int gy = map.worldToTileY(worldX, worldY);
@@ -2849,7 +2849,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         LayerStateSOA layerState;
         FrameRenderQueue frameQueue;
         VfxRenderState vfxState;
-        TiledMapRenderState tiledState;
+        TiledRenderState tiledState;
         StudioDisplayOffsetResolver displayOffsetResolver;
         ZOrderRuntimeService zOrderRuntimeService;
         PhysicsService physicsService;

@@ -5,7 +5,7 @@ import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialWallGeometry;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.EditSpatialBlockCommand;
 
@@ -61,7 +61,7 @@ public final class SpatialWallEditSession {
     private int layerEntityId = SpatialBlockSelectionService.NO_MAP;
     private int wallId = SpatialBlockSelectionService.NO_BLOCK;
     private SpatialBlocksComponent committed;
-    private TiledMapLayerData map;
+    private TiledLayerData map;
     private SpatialBlockData before;
     private SpatialBlockData candidate;
     private SpatialStructureTopology.Plan candidateTopology;
@@ -74,7 +74,7 @@ public final class SpatialWallEditSession {
     public boolean begin(int layerEntityId,
                          int wallId,
                          SpatialBlocksComponent source,
-                         TiledMapLayerData map) {
+                         TiledLayerData map) {
         cancel();
         SpatialBlockData selected = find(source, wallId);
         if (layerEntityId < 0 || selected == null || map == null) return false;

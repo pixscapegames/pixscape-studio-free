@@ -7,10 +7,10 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.tiled.TileTransformFlags;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
@@ -51,7 +51,7 @@ public class TiledStandalonePreviewContractTest {
                 new EmptyStandaloneAccess()
         );
 
-        TiledMapRenderState tiledState = new TiledMapRenderState(1);
+        TiledRenderState tiledState = new TiledRenderState(1);
         TiledFallbackSystem fallback = new TiledFallbackSystem(
                 tiledState,
                 resolver,
@@ -71,7 +71,7 @@ public class TiledStandalonePreviewContractTest {
             TiledLayerComponent tiled =
                     world.getMapper(TiledLayerComponent.class).create(mapEntityId);
             tiled.atlasTag = "main";
-            tiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
+            tiled.data = new TiledLayerData(1, 1, 16, 16, 1);
             tiled.data.setTile(0, 0, assetId);
 
             world.process();
@@ -125,7 +125,7 @@ public class TiledStandalonePreviewContractTest {
                     }
                 }
         );
-        TiledMapRenderState tiledState = new TiledMapRenderState(1);
+        TiledRenderState tiledState = new TiledRenderState(1);
         TiledFallbackSystem fallback = new TiledFallbackSystem(
                 tiledState,
                 resolver,
@@ -142,7 +142,7 @@ public class TiledStandalonePreviewContractTest {
             TiledLayerComponent tiled =
                     world.getMapper(TiledLayerComponent.class).create(mapEntityId);
             tiled.atlasTag = "main";
-            tiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
+            tiled.data = new TiledLayerData(1, 1, 16, 16, 1);
             byte flags = (byte) (TileTransformFlags.FLIP_H | TileTransformFlags.FLIP_V);
             tiled.data.setTile(0, 0, tile.id(), flags);
 

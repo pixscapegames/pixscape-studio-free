@@ -13,7 +13,7 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
@@ -330,7 +330,7 @@ public class SpatialBlockPropertiesTest {
 
         VisCheckBox toggle = checkBox(properties, "spatialWallSilhouetteShadowCaster");
         Assert.assertNull(toggle);
-        Assert.assertTrue(games.pixscape.runtime.render.lighting.MapLightingGeometry.usesSilhouette(barrel));
+        Assert.assertTrue(games.pixscape.runtime.render.lighting.TiledLayerLightingGeometry.usesSilhouette(barrel));
         Assert.assertFalse(properties.activeBlock().silhouetteShadowCaster);
         Assert.assertFalse(fixture.history.canUndo());
     }
@@ -504,7 +504,7 @@ public class SpatialBlockPropertiesTest {
     private static int tiledLayer(World world) {
         int layerId = world.create();
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(layerId);
-        tiled.data = new TiledMapLayerData(4, 4, 16, 16, 2, TiledProjection.ORTHO);
+        tiled.data = new TiledLayerData(4, 4, 16, 16, 2, TiledProjection.ORTHO);
         for (int gy = 0; gy < 4; gy++) for (int gx = 0; gx < 4; gx++) tiled.data.setTile(gx, gy, 1);
         return layerId;
     }

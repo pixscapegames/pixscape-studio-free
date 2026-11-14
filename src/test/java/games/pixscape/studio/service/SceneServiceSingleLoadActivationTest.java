@@ -17,7 +17,7 @@ import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
@@ -358,7 +358,7 @@ public class SceneServiceSingleLoadActivationTest {
         assertEquals(second, counts[1]);
     }
 
-    private static int occupiedCount(TiledMapLayerData data) {
+    private static int occupiedCount(TiledLayerData data) {
         assertNotNull(data);
         int count = 0;
         for (com.badlogic.gdx.utils.IntMap.Values<TileChunk> chunks = data.getChunks(); chunks.hasNext(); ) {

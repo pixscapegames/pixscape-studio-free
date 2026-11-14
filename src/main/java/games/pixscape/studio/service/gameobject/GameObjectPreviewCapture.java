@@ -75,7 +75,7 @@ public final class GameObjectPreviewCapture implements Disposable {
             var layers = new LayerStateSOA();
             layers.setCapacity(1);
             var queue = new FrameRenderQueue(false);
-            var tiled = new TiledMapRenderState();
+            var tiled = new TiledRenderState();
             var stats = new RenderStats();
             var settings = new SceneMeta();
             settings.lightingEnabled = false;

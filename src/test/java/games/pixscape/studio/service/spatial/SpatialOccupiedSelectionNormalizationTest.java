@@ -5,7 +5,7 @@ import com.artemis.WorldConfiguration;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.history.HistoryManager;
 import org.junit.Assert;
@@ -34,7 +34,7 @@ public class SpatialOccupiedSelectionNormalizationTest {
 
     @Test
     public void emptyBorderOnEverySideIsRemoved() {
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         fill(map, 2, 2, 4, 4);
         SpatialTileSelectionService selection = select(1, 1, 5, 5);
 
@@ -51,7 +51,7 @@ public class SpatialOccupiedSelectionNormalizationTest {
 
     @Test
     public void oneOccupiedCellSurroundedByEmptyCellsNormalizesToOneByOne() {
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         map.setTile(3, 4, 77);
 
         SpatialTileSelectionService.NormalizedSelection range = select(0, 0, 7, 7).normalize(map);
@@ -68,7 +68,7 @@ public class SpatialOccupiedSelectionNormalizationTest {
 
     @Test
     public void internalHoleIsInvalid() {
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         fill(map, 1, 1, 3, 3);
         map.setTile(2, 2, 0);
 
@@ -79,7 +79,7 @@ public class SpatialOccupiedSelectionNormalizationTest {
 
     @Test
     public void disconnectedIslandsAreInvalid() {
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         fill(map, 1, 2, 2, 2);
         fill(map, 5, 2, 6, 2);
 
@@ -92,7 +92,7 @@ public class SpatialOccupiedSelectionNormalizationTest {
 
     @Test
     public void lShapeIsInvalid() {
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         fill(map, 1, 1, 1, 3);
         fill(map, 1, 3, 3, 3);
 
@@ -105,7 +105,7 @@ public class SpatialOccupiedSelectionNormalizationTest {
 
     @Test
     public void reverseDragProducesIdenticalNormalizedBounds() {
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         fill(map, 2, 3, 5, 4);
         SpatialTileSelectionService forward = select(0, 1, 7, 6);
         SpatialTileSelectionService reverse = select(7, 6, 0, 1);
@@ -115,7 +115,7 @@ public class SpatialOccupiedSelectionNormalizationTest {
 
     @Test
     public void addingPeripheralEmptyCellsKeepsTheSameValidPreviewRange() {
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         fill(map, 2, 2, 4, 2);
         SpatialTileSelectionService selection = select(2, 2, 4, 2);
         SpatialTileSelectionService.NormalizedSelection first = selection.normalize(map);
@@ -137,7 +137,7 @@ public class SpatialOccupiedSelectionNormalizationTest {
 
     @Test
     public void mapEdgePeripheralCoordinatesAreIgnoredWhenOccupiedResultIsValid() {
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         fill(map, 0, 0, 1, 1);
 
         SpatialTileSelectionService.NormalizedSelection range = select(-3, -2, 2, 2).normalize(map);
@@ -173,7 +173,7 @@ public class SpatialOccupiedSelectionNormalizationTest {
     private static void assertPeripheralBorderRemoved(int rawMinX, int rawMinY, int rawMaxX, int rawMaxY,
                                                       int occupiedMinX, int occupiedMinY,
                                                       int occupiedMaxX, int occupiedMaxY) {
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         fill(map, occupiedMinX, occupiedMinY, occupiedMaxX, occupiedMaxY);
 
         SpatialTileSelectionService.NormalizedSelection range =
@@ -225,11 +225,11 @@ public class SpatialOccupiedSelectionNormalizationTest {
         return selection;
     }
 
-    private static TiledMapLayerData map() {
-        return new TiledMapLayerData(8, 8, 64, 32, 4, TiledProjection.ISO);
+    private static TiledLayerData map() {
+        return new TiledLayerData(8, 8, 64, 32, 4, TiledProjection.ISO);
     }
 
-    private static void fill(TiledMapLayerData map, int minX, int minY, int maxX, int maxY) {
+    private static void fill(TiledLayerData map, int minX, int minY, int maxX, int maxY) {
         int id = 1;
         for (int gy = minY; gy <= maxY; gy++) {
             for (int gx = minX; gx <= maxX; gx++) map.setTile(gx, gy, id++);

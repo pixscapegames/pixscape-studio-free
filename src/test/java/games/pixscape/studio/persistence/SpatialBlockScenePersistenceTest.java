@@ -14,7 +14,7 @@ import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.spatial.CompiledSpatialStructure;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialStructureCompiler;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.service.LayerService;
@@ -42,7 +42,7 @@ public class SpatialBlockScenePersistenceTest {
             tiled.defaultTileAltitude = i * 80;
             tiled.originY = i * 80;
             tiled.defaultTileHeight = 90;
-            tiled.data = tiled.createMapData();
+            tiled.data = tiled.createLayerData();
             for (int y = 0; y < 8; y++) for (int x = 0; x < 16; x++) tiled.data.setTile(x, y, 1);
             SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(map);
             blocks.nextSpatialBlockId = 2;
@@ -327,7 +327,7 @@ public class SpatialBlockScenePersistenceTest {
 
     @Test
     public void normalizedSelectionRoundtripNeverRestoresRawEmptyBorders() {
-        TiledMapLayerData map = new TiledMapLayerData(
+        TiledLayerData map = new TiledLayerData(
                 8, 8, 64, 32, 4, TiledProjection.ISO);
         map.setTile(2, 3, 201);
         map.setTile(3, 3, 202);

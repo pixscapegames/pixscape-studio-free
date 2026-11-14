@@ -6,7 +6,7 @@ import com.badlogic.gdx.utils.Json;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.history.HistoryManager;
 import org.junit.Test;
@@ -377,7 +377,7 @@ public class SpatialWallLinkGestureTest {
 
         Fixture() {
             tiled.defaultTileHeight = 128;
-            tiled.data = new TiledMapLayerData(16, 8, 32, 16, 4, TiledProjection.ISO);
+            tiled.data = new TiledLayerData(16, 8, 32, 16, 4, TiledProjection.ISO);
             for (int y = 0; y < 8; y++) for (int x = 0; x < 16; x++) tiled.data.setTile(x, y, 1);
             blocks.blocks.add(SpatialWallLinkGestureTest.wall(1, 1, .5f, 2, .75f, .3f, 60));
             blocks.blocks.add(SpatialWallLinkGestureTest.wall(2, 2, 3, 2, 2, .3f, 90));

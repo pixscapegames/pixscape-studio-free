@@ -5,7 +5,7 @@ import com.artemis.WorldConfiguration;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.history.HistoryManager;
 import org.junit.Assert;
@@ -315,7 +315,7 @@ public class SpatialWallCreationServiceTest {
         f.layerId = f.world.create();
         f.history.historyIds().ensureForEntity(f.layerId);
         TiledLayerComponent tiled = f.world.getMapper(TiledLayerComponent.class).create(f.layerId);
-        tiled.data = new TiledMapLayerData(8, 8, 16, 16, 8, TiledProjection.ORTHO);
+        tiled.data = new TiledLayerData(8, 8, 16, 16, 8, TiledProjection.ORTHO);
         tiled.defaultTileHeight = 10f;
         f.map = tiled.data;
         for (int gy = 0; gy < 8; gy++) for (int gx = 0; gx < 8; gx++) f.map.setTile(gx, gy, 1);
@@ -329,7 +329,7 @@ public class SpatialWallCreationServiceTest {
         World world;
         HistoryManager history;
         int layerId;
-        TiledMapLayerData map;
+        TiledLayerData map;
         SpatialBlocksComponent walls;
         SpatialBlockSelectionService blockSelection;
         SpatialTileSelectionService tileSelection;

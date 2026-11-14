@@ -8,11 +8,11 @@ import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.render.lighting.LocalSurfaceDescription;
-import games.pixscape.runtime.render.lighting.MapLightingGeometry;
+import games.pixscape.runtime.render.lighting.TiledLayerLightingGeometry;
 import games.pixscape.runtime.render.lighting.RoundedWallDescription;
 import games.pixscape.runtime.render.lighting.TileSurfaceDescription;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.history.HistoryManager;
@@ -39,7 +39,7 @@ public class EditTileLightingDescriptionsCommandTest {
             }
         };
         return new World(new WorldConfiguration().setSystem(new games.pixscape.runtime.system.RenderTiledSyncSystem(
-                new com.badlogic.gdx.graphics.OrthographicCamera(), new games.pixscape.runtime.render.TiledMapRenderState(), atlas, 0, null, profiles)));
+                new com.badlogic.gdx.graphics.OrthographicCamera(), new games.pixscape.runtime.render.TiledRenderState(), atlas, 0, null, profiles)));
     }
 
     @Test
@@ -58,7 +58,7 @@ public class EditTileLightingDescriptionsCommandTest {
             tiled.tileHeight = 128;
             tiled.mapWidthCells = tiled.mapHeightCells = 8;
             tiled.chunkSize = 8;
-            tiled.data = tiled.createMapData();
+            tiled.data = tiled.createLayerData();
             w.getMapper(EntityIndexComponent.class).create(e);
             w.getMapper(PixscapeIdentityComponent.class).create(e).stableId = 1;
             // A shared asset declaration is valid before its first occurrence is placed.
@@ -101,7 +101,7 @@ public class EditTileLightingDescriptionsCommandTest {
             t.tileHeight = 128;
             t.mapWidthCells = t.mapHeightCells = 8;
             t.chunkSize = 8;
-            t.data = t.createMapData();
+            t.data = t.createLayerData();
             t.data.setTile(1, 1, 7);
             w.process();
             HistoryManager h = new HistoryManager(16);
@@ -134,7 +134,7 @@ public class EditTileLightingDescriptionsCommandTest {
             t.tileHeight = 128;
             t.mapWidthCells = t.mapHeightCells = 8;
             t.chunkSize = 8;
-            t.data = t.createMapData();
+            t.data = t.createLayerData();
             t.data.setTile(1, 1, 7);
             SpatialBlocksComponent blocks = w.getMapper(SpatialBlocksComponent.class).create(e);
             for (int i = 0; i < 2; i++) {
@@ -158,7 +158,7 @@ public class EditTileLightingDescriptionsCommandTest {
             d.rounded = new RoundedWallDescription();
             t.lightingDescriptions.add(d);
             w.process();
-            MapLightingGeometry structural = new MapLightingGeometry();
+            TiledLayerLightingGeometry structural = new TiledLayerLightingGeometry();
             structural.descriptions(t.lightingDescriptions);
             structural.ensure(t.data, blocks);
             EditTileLightingDescriptionsCommand.validate(w, t, blocks, t.lightingDescriptions);
@@ -178,7 +178,7 @@ public class EditTileLightingDescriptionsCommandTest {
         try {
             int e = w.create();
             TiledLayerComponent t = w.getMapper(TiledLayerComponent.class).create(e);
-            t.data = new TiledMapLayerData(8, 8, 256, 128, 8, TiledProjection.ISO);
+            t.data = new TiledLayerData(8, 8, 256, 128, 8, TiledProjection.ISO);
             t.data.setTile(1, 1, 7);
             w.process();
             TileSurfaceDescription d = new TileSurfaceDescription();

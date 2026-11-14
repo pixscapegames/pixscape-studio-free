@@ -1,7 +1,7 @@
 package games.pixscape.studio.helper;
 
 import com.badlogic.gdx.graphics.Color;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
 import games.pixscape.studio.ui.config.CommonLayout;
@@ -140,7 +140,7 @@ public final class GizmoDrawHelper {
 
     public static void drawTiledOverlay(
             StudioDrawContext ctx,
-            TiledMapLayerData map,
+            TiledLayerData map,
             SpatialBlockPlacementTarget target
     ) {
         if (target == null || !target.valid()) return;
@@ -149,7 +149,7 @@ public final class GizmoDrawHelper {
 
     public static void drawTiledRectPreview(
             StudioDrawContext ctx,
-            TiledMapLayerData map,
+            TiledLayerData map,
             int minGX,
             int minGY,
             int maxGX,
@@ -197,7 +197,7 @@ public final class GizmoDrawHelper {
     }
 
     private static void drawOverlayCell(StudioDrawContext ctx,
-                                        TiledMapLayerData map,
+                                        TiledLayerData map,
                                         int gx,
                                         int gy,
                                         float r,

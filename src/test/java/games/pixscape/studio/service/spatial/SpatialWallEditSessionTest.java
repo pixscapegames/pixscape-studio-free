@@ -6,7 +6,7 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialWallGeometry;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.studio.history.HistoryManager;
 import org.junit.Assert;
 import org.junit.Test;
@@ -267,7 +267,7 @@ public class SpatialWallEditSessionTest {
         for (int i = 0; i < walls.blocks.size; i++) Assert.assertEquals(height, walls.blocks.get(i).height, 0f);
     }
 
-    private record Fixture(World world, int layer, TiledMapLayerData map,
+    private record Fixture(World world, int layer, TiledLayerData map,
                            SpatialBlocksComponent walls, HistoryManager history,
                            SpatialBlockSelectionService selection) {
     }

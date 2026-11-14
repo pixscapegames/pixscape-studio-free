@@ -5,11 +5,11 @@ import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.graphics.Texture;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TileTransformFlags;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.SceneService;
@@ -32,7 +32,7 @@ public class TiledBrushCommandTest {
         World world = new World(new WorldConfiguration());
         int layer = world.create();
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(layer);
-        tiled.data = new TiledMapLayerData(8, 8, 32, 16, 4);
+        tiled.data = new TiledLayerData(8, 8, 32, 16, 4);
         tiled.data.setTile(1, 1, 3, TileTransformFlags.FLIP_V);
         int initialRevision = tiled.data.contentRevision();
         TiledBrushSession session = new TiledBrushSession(layer);
@@ -69,7 +69,7 @@ public class TiledBrushCommandTest {
         World world = new World(new WorldConfiguration());
         int layer = world.create();
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(layer);
-        tiled.data = new TiledMapLayerData(8, 8, 32, 16, 4);
+        tiled.data = new TiledLayerData(8, 8, 32, 16, 4);
         tiled.data.setTile(2, 2, 3);
         TiledBrushSession session = new TiledBrushSession(layer);
         session.apply(tiled, 2, 2, 0);
@@ -108,7 +108,7 @@ public class TiledBrushCommandTest {
             int layer = world.create();
             TiledLayerComponent tiled =
                     world.getMapper(TiledLayerComponent.class).create(layer);
-            tiled.data = new TiledMapLayerData(8, 8, 32, 16, 4);
+            tiled.data = new TiledLayerData(8, 8, 32, 16, 4);
             TiledBrushSession session = new TiledBrushSession(layer);
             session.apply(tiled, 1, 1, 8);
 
@@ -168,7 +168,7 @@ public class TiledBrushCommandTest {
                 }
         );
         TiledFallbackSystem system = new TiledFallbackSystem(
-                new TiledMapRenderState(1),
+                new TiledRenderState(1),
                 resolver,
                 id -> null,
                 null

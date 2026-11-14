@@ -211,7 +211,7 @@ public class TmxSceneImportServiceTest {
         assertEquals(0.75f, world.getMapper(LayerParallaxComponent.class)
                 .get(layerEntity).factorY, 0f);
         assertFalse(tiled.spatialEnabled);
-        tiled.data = tiled.createMapData();
+        tiled.data = tiled.createLayerData();
         assertFalse(tiled.data.spatialEnabled);
         assertFalse(world.getMapper(PhysicsBodyComponent.class).has(layerEntity));
         assertFalse(world.getMapper(PhysicsShapesComponent.class).has(layerEntity));

@@ -21,7 +21,7 @@ import games.pixscape.runtime.spatial.SpatialCompiledLayerCache;
 import games.pixscape.runtime.spatial.SpatialProjectedFaceCache;
 import games.pixscape.runtime.spatial.SpatialTileOrderCache;
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.SceneService;
@@ -49,7 +49,7 @@ public class LayerSpatialDepthCommandsTest {
         tiled.mapWidthCells = 4;
         tiled.mapHeightCells = 4;
         tiled.chunkSize = 4;
-        tiled.data = tiled.createMapData();
+        tiled.data = tiled.createLayerData();
 
         history.execute(new ToggleTiledMapSpatialDepthCommand(
                 world, history.historyIds(), mapId, true, 2f, 32f));
@@ -413,7 +413,7 @@ public class LayerSpatialDepthCommandsTest {
         tiled.mapWidthCells = 4;
         tiled.mapHeightCells = 4;
         tiled.chunkSize = 4;
-        tiled.data = new TiledMapLayerData(4, 4, 16, 32, 4);
+        tiled.data = new TiledLayerData(4, 4, 16, 32, 4);
         return mapId;
     }
 
@@ -440,7 +440,7 @@ public class LayerSpatialDepthCommandsTest {
         tiled.chunkSize = 4;
         tiled.spatialEnabled = spatialEnabled;
         tiled.defaultTileHeight = spatialEnabled ? 32f : 0f;
-        tiled.data = tiled.createMapData();
+        tiled.data = tiled.createLayerData();
         return mapId;
     }
 
@@ -471,8 +471,8 @@ public class LayerSpatialDepthCommandsTest {
         return wall;
     }
 
-    private static TiledMapLayerData spatialMap() {
-        TiledMapLayerData map = new TiledMapLayerData(
+    private static TiledLayerData spatialMap() {
+        TiledLayerData map = new TiledLayerData(
                 8, 8, 64, 32, 4, TiledProjection.ISO);
         for (int gy = 0; gy < 8; gy++) {
             for (int gx = 0; gx < 8; gx++) map.setTile(gx, gy, 1);
@@ -490,7 +490,7 @@ public class LayerSpatialDepthCommandsTest {
     }
 
     private static void assertCachesRebuilt(int layerId,
-                                            TiledMapLayerData map,
+                                            TiledLayerData map,
                                             SpatialBlocksComponent blocks,
                                             SpatialCompiledLayerCache compiled,
                                             SpatialProjectedFaceCache projected,

@@ -147,7 +147,7 @@ public final class SpatialBlockCommandSupport {
             candidate.blocks = snapshot;
             candidate.links = links;
             if (tiled != null && (tiled.lightingDescriptions.size > 0
-                    || games.pixscape.runtime.render.lighting.MapLightingGeometry.hasSilhouetteCasters(candidate))) {
+                    || games.pixscape.runtime.render.lighting.TiledLayerLightingGeometry.hasSilhouetteCasters(candidate))) {
                 try {
                     EditTileLightingDescriptionsCommand.validate(world, tiled, candidate, tiled.lightingDescriptions);
                 } catch (IllegalArgumentException invalid) {

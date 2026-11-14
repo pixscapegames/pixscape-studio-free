@@ -11,7 +11,7 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.TileAnimationRegistry;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.configuration.EditorSettings;
 import games.pixscape.studio.configuration.ProjectConfig;
@@ -146,7 +146,7 @@ public class TileDeletionGuardTest {
         SceneEditorContext test2 = open("Test2");
         World world = test2.world();
         TiledLayerComponent layer = world.getMapper(TiledLayerComponent.class).create(world.create());
-        layer.data = new TiledMapLayerData(2, 1, 8, 8, 2);
+        layer.data = new TiledLayerData(2, 1, 8, 8, 2);
         layer.data.setTile(0, 0, grass.id());
         layer.data.setTile(1, 0, wave.id);
         world.process();

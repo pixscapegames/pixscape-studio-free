@@ -3,7 +3,7 @@ package games.pixscape.studio.service.spatial;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.CompiledSpatialStructure;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -14,7 +14,7 @@ public class SpatialStructureGeometryCacheTest {
                 wall(1, 2, 0f, 0f, 2f, 1f),
                 wall(2, 5, 4f, 0f, 2f, 1f));
         SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
 
         cache.synchronize(7, walls, map);
         Assert.assertEquals(2, cache.compilationCount());
@@ -35,7 +35,7 @@ public class SpatialStructureGeometryCacheTest {
         SpatialBlockData second = wall(2, 5, 2f, 0f, 3f, 1f);
         SpatialBlocksComponent walls = component(first, second);
         SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         cache.synchronize(7, walls, map);
 
         second.structureId = 2;
@@ -62,7 +62,7 @@ public class SpatialStructureGeometryCacheTest {
                 wall(1, 3, 0f, 0f, 3f, 1f),
                 wall(2, 3, 2f, 0f, 3f, 1f));
         SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         cache.synchronize(9, walls, map);
         Assert.assertEquals(12f, perimeter(cache.structure(0)), 0f);
         int beforeDelete = cache.compilationCount();
@@ -81,7 +81,7 @@ public class SpatialStructureGeometryCacheTest {
         SpatialBlockData second = wall(2, 4, 0f, 0f, 1f, 4f);
         SpatialBlocksComponent walls = component(first, second);
         SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         cache.synchronize(11, walls, map);
         String before = signature(cache.structure(0));
 
@@ -102,7 +102,7 @@ public class SpatialStructureGeometryCacheTest {
         SpatialBlocksComponent first = component(wall(1, 4, 0f, 0f, 4f, 1f));
         SpatialBlocksComponent second = component(wall(1, 4, 6f, 0f, 2f, 1f));
         SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
 
         Assert.assertTrue(cache.synchronize(13, first, map).published());
         String firstGeometry = signature(cache.structure(0));
@@ -117,7 +117,7 @@ public class SpatialStructureGeometryCacheTest {
         SpatialBlocksComponent walls = component(
                 wall(1, 4, 0f, 0f, 4f, 1f),
                 wall(2, 4, 3f, 0f, 1f, 4f));
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
         Assert.assertTrue(cache.synchronize(13, walls, map).success());
         int revision = cache.publishedRevision();
@@ -150,7 +150,7 @@ public class SpatialStructureGeometryCacheTest {
         SpatialBlocksComponent invalid = component(wall(2, 5, 6f, 0f, 2f, 1f));
         invalid.blocks.get(0).height = 0f;
         SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         Assert.assertTrue(cache.synchronize(13, valid, map).published());
 
         SpatialStructureGeometryCache.SynchronizeResult failure = cache.synchronize(13, invalid, map);
@@ -166,8 +166,8 @@ public class SpatialStructureGeometryCacheTest {
         SpatialBlocksComponent sceneA = component(wall(1, 4, 0f, 0f, 4f, 1f));
         SpatialBlocksComponent sceneB = component(wall(2, 8, 7f, 0f, 2f, 1f));
         SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
-        TiledMapLayerData mapA = map();
-        TiledMapLayerData mapB = map();
+        TiledLayerData mapA = map();
+        TiledLayerData mapB = map();
         cache.synchronize(3, sceneA, mapA);
         String geometryA = signature(cache.structure(0));
 
@@ -183,7 +183,7 @@ public class SpatialStructureGeometryCacheTest {
     public void mapContentFailureInvalidatesPublishedGeometryAndRetriesAfterCorrection() {
         SpatialBlocksComponent walls = component(wall(1, 4, 0f, 0f, 2f, 1f));
         SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         Assert.assertTrue(cache.synchronize(13, walls, map).published());
         map.setTile(0, 0, 0);
 
@@ -213,7 +213,7 @@ public class SpatialStructureGeometryCacheTest {
                 wall(1, 4, 0f, 0f, 4f, 1f),
                 wall(2, 4, 3f, 0f, 1f, 4f));
         SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         Assert.assertTrue(cache.synchronize(13, walls, map).published());
         int compilations = cache.compilationCount();
         int revision = cache.publishedRevision();
@@ -232,7 +232,7 @@ public class SpatialStructureGeometryCacheTest {
         SpatialBlockData second = wall(2, 4, 3f, 0f, 1f, 4f);
         SpatialBlocksComponent walls = component(first, second);
         SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         cache.synchronize(13, walls, map);
         int initial = cache.compilationCount();
 
@@ -276,7 +276,7 @@ public class SpatialStructureGeometryCacheTest {
         return wall;
     }
 
-    private static TiledMapLayerData map() {
+    private static TiledLayerData map() {
         return SpatialWallAuthoringValidatorTest.map(20, 20);
     }
 

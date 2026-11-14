@@ -21,13 +21,13 @@ import games.pixscape.runtime.helper.QuadGeometryHelper;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.spatial.CompiledSpatialStructure;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.SpatialRenderOrderSystem;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.*;
 import games.pixscape.studio.input.InputState;
@@ -59,7 +59,7 @@ public final class GizmoSystem extends BaseSystem {
     private final StudioDrawContext ctx;
     private final InputState inputState;
     private final CoordSpaces coordSpaces;
-    private final TiledMapRenderState tiledState;
+    private final TiledRenderState tiledState;
 
     private LayerService layerService;
     private SelectionService selectionService;
@@ -95,7 +95,7 @@ public final class GizmoSystem extends BaseSystem {
     private final Vector2 tmpMouseWorld = new Vector2();
 
     private boolean tiledRectPreview = false;
-    private TiledMapLayerData tiledRectPreviewMap;
+    private TiledLayerData tiledRectPreviewMap;
     private int tiledRectMinGX;
     private int tiledRectMinGY;
     private int tiledRectMaxGX;
@@ -150,7 +150,7 @@ public final class GizmoSystem extends BaseSystem {
     public GizmoSystem(StudioDrawContext worldCtx,
                        InputState inputState,
                        CoordSpaces coordSpaces,
-                       TiledMapRenderState tiledState,
+                       TiledRenderState tiledState,
                        PhysicsSelectionService physicsSelectionService,
                        SpatialBlockSelectionService spatialBlockSelectionService,
                        SpatialTileSelectionService spatialTileSelectionService,
@@ -268,7 +268,7 @@ public final class GizmoSystem extends BaseSystem {
                         : null;
 
                 if (tiled != null && tiled.data != null) {
-                    TiledMapLayerData map = tiled.data;
+                    TiledLayerData map = tiled.data;
 
                     if (SpatialCellPicker.pick(map, tmpMouseWorld.x, tmpMouseWorld.y, spatialCell)) {
                         int gx = spatialCell.gx;
@@ -577,7 +577,7 @@ public final class GizmoSystem extends BaseSystem {
 
     private SpatialWallEditSession handleSession(int layerEntityId,
                                                  SpatialBlocksComponent component,
-                                                 TiledMapLayerData map,
+                                                 TiledLayerData map,
                                                  int blockId) {
         if (spatialHandleLayer != layerEntityId || spatialHandleBlock != blockId
                 || spatialHandleRevision != component.revision || !spatialHandleSession.isActive()) {
@@ -607,7 +607,7 @@ public final class GizmoSystem extends BaseSystem {
         };
     }
 
-    private void drawCompiledStructure(TiledMapLayerData map,
+    private void drawCompiledStructure(TiledLayerData map,
                                        CompiledSpatialStructure structure,
                                        float lineW) {
         for (int segment = 0; segment < structure.segmentCount(); segment++) {
@@ -706,7 +706,7 @@ public final class GizmoSystem extends BaseSystem {
                 tiled.defaultTileHeight, validSelection);
     }
 
-    private void drawSpatialWallRangeCandidate(TiledMapLayerData map,
+    private void drawSpatialWallRangeCandidate(TiledLayerData map,
                                                SpatialBlocksComponent walls,
                                                float defaultAltitude,
                                                float defaultHeight,
@@ -755,7 +755,7 @@ public final class GizmoSystem extends BaseSystem {
         return null;
     }
 
-    private void drawSpatialTileSelectionTint(TiledMapLayerData map,
+    private void drawSpatialTileSelectionTint(TiledLayerData map,
                                               SpatialTileSelectionService.NormalizedSelection normalized,
                                               boolean validSelection) {
         if (map == null || tiledState == null) return;
@@ -770,7 +770,7 @@ public final class GizmoSystem extends BaseSystem {
         drawSpatialTileSelectionTintRange(map, normalized, colorPacked);
     }
 
-    private void drawSpatialTileSelectionTintRange(TiledMapLayerData map,
+    private void drawSpatialTileSelectionTintRange(TiledLayerData map,
                                                    SpatialTileSelectionService.NormalizedSelection normalized,
                                                    float colorPacked) {
         if (normalized == null || normalized.occupiedCellCount <= 0) return;
@@ -783,7 +783,7 @@ public final class GizmoSystem extends BaseSystem {
         }
     }
 
-    private void drawSpatialBlockLinkedTileTint(TiledMapLayerData map, SpatialBlockData block) {
+    private void drawSpatialBlockLinkedTileTint(TiledLayerData map, SpatialBlockData block) {
         if (map == null || block == null || block.linkedTileRefs == null || tiledState == null) return;
 
         float colorPacked = EditorOverlayPalette.spatialTileHighlightPacked();
@@ -795,7 +795,7 @@ public final class GizmoSystem extends BaseSystem {
         }
     }
 
-    private void drawSpatialTileTintCell(TiledMapLayerData map, int gx, int gy, float colorPacked) {
+    private void drawSpatialTileTintCell(TiledLayerData map, int gx, int gy, float colorPacked) {
         drawSpatialTileTintRef(map.tiledRenderRefForTile(gx, gy), colorPacked);
     }
 
@@ -848,7 +848,7 @@ public final class GizmoSystem extends BaseSystem {
         GizmoDrawHelper.drawShapeVertexHandle(ctx, cx, cy, color);
     }
 
-    private TiledVisualCoverage.Coverage activePreviewCoverage(TiledMapLayerData map, int fallbackGX, int fallbackGY) {
+    private TiledVisualCoverage.Coverage activePreviewCoverage(TiledLayerData map, int fallbackGX, int fallbackGY) {
         if (tiledPreviewService != null
                 && tiledPreviewService.isCoverageVisible()
                 && tiledPreviewService.map() == map
@@ -1720,7 +1720,7 @@ public final class GizmoSystem extends BaseSystem {
         tiledRectPreviewMap = null;
     }
 
-    public void showTiledRectPreview(TiledMapLayerData map,
+    public void showTiledRectPreview(TiledLayerData map,
                                      int minGX,
                                      int minGY,
                                      int maxGX,

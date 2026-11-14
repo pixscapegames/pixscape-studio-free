@@ -9,7 +9,7 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.LayerService;
@@ -519,7 +519,7 @@ public class SpatialBlockCommandsTest {
     private static int tiledLayer(World world) {
         int layerId = world.create();
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(layerId);
-        tiled.data = new TiledMapLayerData(
+        tiled.data = new TiledLayerData(
                 10,
                 10,
                 100,

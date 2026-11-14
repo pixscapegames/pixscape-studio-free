@@ -6,7 +6,7 @@ import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialBlockLink;
 import games.pixscape.runtime.spatial.SpatialBlockLinks;
 import games.pixscape.runtime.spatial.SpatialWallGeometry;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 import java.util.*;
 
@@ -31,7 +31,7 @@ public final class SpatialStructureTopology {
 
     public static Plan add(SpatialBlocksComponent current,
                            SpatialBlockData candidate,
-                           TiledMapLayerData map) {
+                           TiledLayerData map) {
         Array<SpatialBlockData> before = copyWalls(current);
         Array<SpatialBlockData> after = copyWalls(current);
         if (candidate == null) return invalid("Authored wall is missing.", after);
@@ -42,7 +42,7 @@ public final class SpatialStructureTopology {
         return normalize(before, after, SpatialBlockLinks.copy(current != null ? current.links : new Array<>(SpatialBlockLink.class)), map);
     }
 
-    public static Plan delete(SpatialBlocksComponent current, int blockId, TiledMapLayerData map) {
+    public static Plan delete(SpatialBlocksComponent current, int blockId, TiledLayerData map) {
         Array<SpatialBlockData> before = copyWalls(current);
         Array<SpatialBlockData> after = copyWalls(current);
         int index = indexOf(after, blockId);
@@ -59,7 +59,7 @@ public final class SpatialStructureTopology {
     public static Plan edit(SpatialBlocksComponent current,
                             int blockId,
                             SpatialBlockData replacement,
-                            TiledMapLayerData map) {
+                            TiledLayerData map) {
         Array<SpatialBlockData> before = copyWalls(current);
         Array<SpatialBlockData> after = copyWalls(current);
         int index = indexOf(after, blockId);
@@ -93,7 +93,7 @@ public final class SpatialStructureTopology {
      * Uses the committed membership and prepared edges; publication still normalizes/compiles.
      */
     static Plan previewEdit(SpatialBlocksComponent source, int blockId, SpatialBlockData replacement,
-                            TiledMapLayerData map, SpatialWallThicknessPropagation.Prepared prepared) {
+                            TiledLayerData map, SpatialWallThicknessPropagation.Prepared prepared) {
         Array<SpatialBlockData> after = copyWalls(source);
         int index = prepared.positions.get(blockId, -1);
         SpatialBlockData old = source.blocks.get(index);
@@ -134,7 +134,7 @@ public final class SpatialStructureTopology {
         return valid(after);
     }
 
-    public static Plan validate(SpatialBlocksComponent component, TiledMapLayerData map) {
+    public static Plan validate(SpatialBlocksComponent component, TiledLayerData map) {
         Array<SpatialBlockData> walls = copyWalls(component);
         Array<SpatialBlockLink> links = component != null ? component.links : new Array<>(SpatialBlockLink.class);
         String wallFailure = validateWalls(walls, map);
@@ -182,7 +182,7 @@ public final class SpatialStructureTopology {
 
     public static Plan normalize(Array<SpatialBlockData> before,
                                  Array<SpatialBlockData> after,
-                                 Array<SpatialBlockLink> links, TiledMapLayerData map) {
+                                 Array<SpatialBlockLink> links, TiledLayerData map) {
         String wallFailure = validateWallsIgnoringStructure(after, map);
         if (wallFailure != null) return invalid(wallFailure, after);
         List<List<SpatialBlockData>> components = connectedComponents(after, links, true);
@@ -246,14 +246,14 @@ public final class SpatialStructureTopology {
         return validateArray(after, links, map);
     }
 
-    private static Plan validateArray(Array<SpatialBlockData> walls, Array<SpatialBlockLink> links, TiledMapLayerData map) {
+    private static Plan validateArray(Array<SpatialBlockData> walls, Array<SpatialBlockLink> links, TiledLayerData map) {
         SpatialBlocksComponent component = new SpatialBlocksComponent();
         component.blocks = walls;
         component.links = links;
         return validate(component, map);
     }
 
-    private static String validateWalls(Array<SpatialBlockData> walls, TiledMapLayerData map) {
+    private static String validateWalls(Array<SpatialBlockData> walls, TiledLayerData map) {
         Set<Integer> ids = new HashSet<>();
         SpatialWallGeometry.Bounds bounds = new SpatialWallGeometry.Bounds();
         for (int i = 0; i < walls.size; i++) {
@@ -268,7 +268,7 @@ public final class SpatialStructureTopology {
         return null;
     }
 
-    private static String validateWallsIgnoringStructure(Array<SpatialBlockData> walls, TiledMapLayerData map) {
+    private static String validateWallsIgnoringStructure(Array<SpatialBlockData> walls, TiledLayerData map) {
         for (int i = 0; i < walls.size; i++) {
             if (walls.get(i).structureId <= 0) walls.get(i).structureId = 1;
         }

@@ -5,9 +5,9 @@ import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.render.lighting.LightingSurface;
-import games.pixscape.runtime.render.lighting.MapLightingGeometry;
+import games.pixscape.runtime.render.lighting.TiledLayerLightingGeometry;
 import games.pixscape.runtime.render.lighting.RoundedWallDescription;
 import games.pixscape.runtime.render.lighting.TileSurfaceDescription;
 import games.pixscape.runtime.service.AtlasAssetBinding;
@@ -83,7 +83,7 @@ public class CornerProfileEditSessionTest {
             SpatialStructureGeometryCache structures = new SpatialStructureGeometryCache();
             assertTrue(structures.synchronize(f.entity, f.blocks, f.tiled.data).success());
             CornerProfileOverlay overview = new CornerProfileOverlay();
-            MapLightingGeometry geometry = f.state.lightingMaps.get(f.entity);
+            TiledLayerLightingGeometry geometry = f.state.lightingMaps.get(f.entity);
             int cursor = f.history.getCursor(), profiles = geometry.roundedProfileCompilationCount(), compiled = geometry.roundedGeometryCompilationCount();
             Object authored = f.tiled.lightingDescriptions;
             overview.synchronize(f.entity, f.tiled, f.blocks, geometry, structures);
@@ -159,7 +159,7 @@ public class CornerProfileEditSessionTest {
         try (Fixture f = new Fixture(true)) {
             SpatialStructureGeometryCache structures = new SpatialStructureGeometryCache();
             assertTrue(structures.synchronize(f.entity, f.blocks, f.tiled.data).success());
-            MapLightingGeometry geometry = f.state.lightingMaps.get(f.entity);
+            TiledLayerLightingGeometry geometry = f.state.lightingMaps.get(f.entity);
             Object authored = f.tiled.lightingDescriptions;
             int compiled = geometry.roundedGeometryCompilationCount();
             CornerProfileOverlay overview = new CornerProfileOverlay();
@@ -213,7 +213,7 @@ public class CornerProfileEditSessionTest {
             }
             f.blocks.revision++;
             f.prepare();
-            MapLightingGeometry geometry = f.state.lightingMaps.get(f.entity);
+            TiledLayerLightingGeometry geometry = f.state.lightingMaps.get(f.entity);
             float[] secondQuad = f.quad.clone();
             for (int i = 1; i < 8; i += 2) secondQuad[i] += 512;
             geometry.receiver(f.tiled.data, 5, 5, 7, (byte) 0, secondQuad);
@@ -245,7 +245,7 @@ public class CornerProfileEditSessionTest {
     }
 
     private static final class Fixture implements AutoCloseable {
-        final TiledMapRenderState state = new TiledMapRenderState(256);
+        final TiledRenderState state = new TiledRenderState(256);
         final World world;
         final HistoryManager history = new HistoryManager(16);
         final TiledLayerComponent tiled;
@@ -278,7 +278,7 @@ public class CornerProfileEditSessionTest {
             tiled.tileHeight = 128;
             tiled.mapWidthCells = tiled.mapHeightCells = 8;
             tiled.chunkSize = 8;
-            tiled.data = tiled.createMapData();
+            tiled.data = tiled.createLayerData();
             tiled.data.setTile(1, 1, 7);
             blocks = world.getMapper(SpatialBlocksComponent.class).create(entity);
             for (int i = 0; i < 2; i++) {
@@ -323,7 +323,7 @@ public class CornerProfileEditSessionTest {
         }
 
         void prepare() {
-            MapLightingGeometry g = new MapLightingGeometry();
+            TiledLayerLightingGeometry g = new TiledLayerLightingGeometry();
             g.descriptions(tiled.lightingDescriptions);
             g.ensure(tiled.data, blocks);
             LightingSurface s = g.receiver(tiled.data, 1, 1, 7, (byte) 0, quad);
@@ -419,7 +419,7 @@ public class CornerProfileEditSessionTest {
             f.open();
             float x = f.edit.screenX(2), y = f.edit.screenY(2);
             f.edit.press(2, x, y);
-            MapLightingGeometry geometry = f.state.lightingMaps.get(f.entity);
+            TiledLayerLightingGeometry geometry = f.state.lightingMaps.get(f.entity);
             int globalProfiles = geometry.roundedProfileCompilationCount(), globalGeometry = geometry.roundedGeometryCompilationCount();
             for (int i = 0; i < 30; i++) {
                 f.edit.drag(x, y);
@@ -463,7 +463,7 @@ public class CornerProfileEditSessionTest {
     public void animatedQuadChangeDiscardsPreviewWithoutDuplicatingItsBottom() {
         try (Fixture f = new Fixture(true)) {
             f.open();
-            MapLightingGeometry geometry = f.state.lightingMaps.get(f.entity);
+            TiledLayerLightingGeometry geometry = f.state.lightingMaps.get(f.entity);
             int casterCount = geometry.casters.size;
             assertTrue(f.edit.begin(2));
             f.edit.move(f.edit.screenX(2) + 1, f.edit.screenY(2) + .5f);

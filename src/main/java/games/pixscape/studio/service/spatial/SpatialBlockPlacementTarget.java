@@ -1,6 +1,6 @@
 package games.pixscape.studio.service.spatial;
 
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.studio.service.tiled.TiledVisualCoverage;
 
 public record SpatialBlockPlacementTarget(
@@ -23,7 +23,7 @@ public record SpatialBlockPlacementTarget(
         return new SpatialBlockPlacementTarget(false, -1, -1, -1, -1, -1, -1, -1, 0f, 0f, true);
     }
 
-    public static SpatialBlockPlacementTarget fromWorld(TiledMapLayerData map,
+    public static SpatialBlockPlacementTarget fromWorld(TiledLayerData map,
                                                         int tiledLayerEntity,
                                                         float worldX,
                                                         float worldY,

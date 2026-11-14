@@ -2,7 +2,7 @@ package games.pixscape.studio.service.tiled;
 
 import games.pixscape.runtime.tiled.TileQuadTransforms;
 import games.pixscape.runtime.tiled.TileTransformFlags;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 public final class TiledVisualCoverage {
     private static final float TILE_EPSILON = 0.0001f;
@@ -10,7 +10,7 @@ public final class TiledVisualCoverage {
     private TiledVisualCoverage() {
     }
 
-    public static Coverage compute(TiledMapLayerData map,
+    public static Coverage compute(TiledLayerData map,
                                    int anchorGX,
                                    int anchorGY,
                                    int pixW,

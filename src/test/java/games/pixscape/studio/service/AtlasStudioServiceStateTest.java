@@ -8,7 +8,7 @@ import com.badlogic.gdx.backends.headless.HeadlessApplication;
 import com.badlogic.gdx.backends.headless.HeadlessApplicationConfiguration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Texture;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.service.asset.VisualResolverTestSupport;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
@@ -105,7 +105,7 @@ public class AtlasStudioServiceStateTest {
                 }
         );
         TiledFallbackSystem system = new TiledFallbackSystem(
-                new TiledMapRenderState(1),
+                new TiledRenderState(1),
                 resolver,
                 id -> null,
                 null

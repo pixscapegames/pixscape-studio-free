@@ -2,7 +2,7 @@ package games.pixscape.studio.service.spatial;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -13,7 +13,7 @@ public class SpatialBlockPickingTest {
 
     @Test
     public void thinContinuousVolumeCanBePickedAtBaseTopAndSide() {
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         SpatialBlockData wall = wall(1);
         SpatialBlocksComponent walls = new SpatialBlocksComponent();
         walls.blocks.add(wall);
@@ -29,7 +29,7 @@ public class SpatialBlockPickingTest {
 
     @Test
     public void overlappingVolumesPreferSelectedThenDeterministicReverseOrder() {
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         SpatialBlocksComponent walls = new SpatialBlocksComponent();
         walls.blocks.add(wall(1));
         walls.blocks.add(wall(2));
@@ -40,7 +40,7 @@ public class SpatialBlockPickingTest {
         Assert.assertEquals(2, SpatialBlockPicking.find(walls, map, -1, point[0], point[1], base, top));
     }
 
-    private int pick(SpatialBlocksComponent walls, TiledMapLayerData map, float[] point) {
+    private int pick(SpatialBlocksComponent walls, TiledLayerData map, float[] point) {
         return SpatialBlockPicking.find(walls, map, -1, point[0], point[1], base, top);
     }
 
@@ -65,7 +65,7 @@ public class SpatialBlockPickingTest {
         return wall;
     }
 
-    private static TiledMapLayerData map() {
-        return new TiledMapLayerData(8, 8, 100, 50, 4, TiledProjection.ISO);
+    private static TiledLayerData map() {
+        return new TiledLayerData(8, 8, 100, 50, 4, TiledProjection.ISO);
     }
 }

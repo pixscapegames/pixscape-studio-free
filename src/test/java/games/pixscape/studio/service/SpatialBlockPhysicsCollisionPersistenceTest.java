@@ -17,7 +17,7 @@ import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TileTransformFlags;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
@@ -69,7 +69,7 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
         tiled.mapWidthCells = 4;
         tiled.mapHeightCells = 4;
         tiled.chunkSize = 8;
-        tiled.data = new TiledMapLayerData(
+        tiled.data = new TiledLayerData(
                 4, 4, 32, 16, 8, TiledProjection.ORTHO);
         tiled.data.setTile(1, 1, 101);
         tiled.tileXs.add(1);

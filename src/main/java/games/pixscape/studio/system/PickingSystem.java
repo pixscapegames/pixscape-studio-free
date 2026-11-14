@@ -27,12 +27,12 @@ import games.pixscape.runtime.physics.PolygonBuildResult;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.GameObjectHierarchySystem;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.studio.service.entitygraph.CurrentGameObjectRelations;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.*;
@@ -56,7 +56,7 @@ public final class PickingSystem extends BaseSystem {
     private final HistoryManager historyManager;
     private final HistoryIdRegistry historyIds;
     private final Stage uiStage;
-    private final TiledMapRenderState tiledState;
+    private final TiledRenderState tiledState;
 
     private SelectionService selectionService;
     private LayerService layerService;
@@ -227,7 +227,7 @@ public final class PickingSystem extends BaseSystem {
     private final SpatialCellPicker.Result spatialCell = new SpatialCellPicker.Result();
     private final SpatialWallEditSession spatialHandleProbe = new SpatialWallEditSession();
     private SpatialBlocksComponent spatialProbeSource;
-    private TiledMapLayerData spatialProbeMap;
+    private TiledLayerData spatialProbeMap;
     private int spatialProbeRevision = -1, spatialProbeBlock = -1, spatialProbeContent = -1;
     private float spatialProbeOriginX, spatialProbeOriginY, spatialProbeAltitude;
     private final SpatialPointerInteraction spatialPointer = new SpatialPointerInteraction();
@@ -265,7 +265,7 @@ public final class PickingSystem extends BaseSystem {
                          HistoryManager historyManager,
                          HistoryIdRegistry historyIds,
                          Stage uiStage,
-                         TiledMapRenderState tiledState,
+                         TiledRenderState tiledState,
                          PhysicsSelectionService physicsSelectionService,
                          PhysicsSelectionReconciler physicsSelectionReconciler,
                          SpatialBlockSelectionService spatialBlockSelectionService,
@@ -1189,7 +1189,7 @@ public final class PickingSystem extends BaseSystem {
 
     private boolean isSpatialBlockHandleAvailable(int layerEntityId,
                                                   SpatialBlockData block,
-                                                  TiledMapLayerData map,
+                                                  TiledLayerData map,
                                                   int handle) {
         if (handle == SpatialBlockHandle.HEIGHT) return true;
         SpatialBlocksComponent component = mSpatialBlocks.getSafe(layerEntityId, null);

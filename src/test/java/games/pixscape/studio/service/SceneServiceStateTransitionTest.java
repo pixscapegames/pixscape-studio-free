@@ -6,7 +6,7 @@ import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.configuration.ProjectConfig;
 import org.junit.Test;
@@ -103,7 +103,7 @@ public class SceneServiceStateTransitionTest {
     private static int tiledLayer(World world) {
         int layerId = world.create();
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(layerId);
-        tiled.data = new TiledMapLayerData(
+        tiled.data = new TiledLayerData(
                 8,
                 8,
                 16,

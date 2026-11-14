@@ -2,7 +2,7 @@ package games.pixscape.studio.service.spatial;
 
 import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -13,7 +13,7 @@ import java.nio.file.Path;
 public class SpatialBlockProjectionTest {
     @Test
     public void tileCellBaseProjectsToOverlayCellVertices() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
         SpatialBlockData block = block(2f, 3f, 1f, 1f, 0f, 0f);
         float[] out = new float[8];
         float[] cell = new float[8];
@@ -29,7 +29,7 @@ public class SpatialBlockProjectionTest {
 
     @Test
     public void heightMovesTopFootprintUpFromBaseFootprint() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
         SpatialBlockData block = block(2f, 3f, 1f, 1f, 0f, 237f);
         float[] base = new float[8];
         float[] top = new float[8];
@@ -45,7 +45,7 @@ public class SpatialBlockProjectionTest {
 
     @Test
     public void altitudeOffsetsBothBaseAndTop() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
         SpatialBlockData block = block(2f, 3f, 1f, 1f, 12f, 40f);
         SpatialBlockData ground = block(2f, 3f, 1f, 1f, 0f, 0f);
         float[] groundBase = new float[8];
@@ -64,7 +64,7 @@ public class SpatialBlockProjectionTest {
 
     @Test
     public void footprintWorldToTileLocalInvertsProjectedBaseCorners() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
         SpatialBlockData block = block(2f, 3f, 1.75f, 2.25f, 12f, 40f);
         float[] base = new float[8];
         Vector2 out = new Vector2();
@@ -82,7 +82,7 @@ public class SpatialBlockProjectionTest {
 
     @Test
     public void addAtMouseSnapsToContainingCell() {
-        TiledMapLayerData map = isoMap();
+        TiledLayerData map = isoMap();
         float centerX = map.tileToWorldX(4, 5) + map.tileWidth * 0.5f;
         float centerY = map.tileToWorldY(4, 5) + map.tileHeight * 0.5f;
 
@@ -104,8 +104,8 @@ public class SpatialBlockProjectionTest {
         Assert.assertFalse(source.contains("tileToWorldX(0, 1)"));
     }
 
-    private static TiledMapLayerData isoMap() {
-        TiledMapLayerData map = new TiledMapLayerData(16, 16, 256, 128, 4, TiledProjection.ISO);
+    private static TiledLayerData isoMap() {
+        TiledLayerData map = new TiledLayerData(16, 16, 256, 128, 4, TiledProjection.ISO);
         map.originX = 100f;
         map.originY = 50f;
         return map;

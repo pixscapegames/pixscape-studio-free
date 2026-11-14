@@ -10,7 +10,7 @@ import games.pixscape.runtime.render.lighting.LightingCoordinates;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialWallGeometry;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.Comparator;
@@ -24,7 +24,7 @@ public final class SpatialVerticalJoinProposal {
     public static final class MapState {
         public final int entity;
         public final int stableId;
-        public final TiledMapLayerData map;
+        public final TiledLayerData map;
         public final SpatialBlocksComponent blocks;
         public final float defaultHeight;
         public final int revision;
@@ -63,7 +63,7 @@ public final class SpatialVerticalJoinProposal {
         public boolean matches(World world, int entity, int expectedRevision) {
             TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(entity, null);
             if (tiled == null || tiled.data == null || !authored.equals(mapSignature(tiled))) return false;
-            TiledMapLayerData current = tiled.data;
+            TiledLayerData current = tiled.data;
             float[] p = parallax(world, entity);
             return current.contentRevision() == expectedRevision && current.projection == map.projection
                     && current.originX == originX && current.originY == originY && current.defaultTileAltitude == altitude
@@ -259,7 +259,7 @@ public final class SpatialVerticalJoinProposal {
     /**
      * Affine inverse of the production map conversion; altitude is never inferred from image size.
      */
-    public static float[] rectangleIn(TiledMapLayerData reference, SpatialBlockData wall, TiledMapLayerData owner) {
+    public static float[] rectangleIn(TiledLayerData reference, SpatialBlockData wall, TiledLayerData owner) {
         float[] low = new float[3], high = new float[3], origin = new float[3], x = new float[3], y = new float[3];
         LightingCoordinates.mapPoint(reference, wall.x, wall.y, wall.altitude, low, 0);
         LightingCoordinates.mapPoint(reference, wall.x + wall.width, wall.y + wall.depth, wall.altitude, high, 0);

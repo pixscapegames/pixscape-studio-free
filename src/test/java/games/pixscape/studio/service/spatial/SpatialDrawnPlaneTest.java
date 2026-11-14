@@ -15,7 +15,7 @@ import games.pixscape.runtime.spatial.CompiledSpatialStructure;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialCompiledLayerCache;
 import games.pixscape.runtime.spatial.SpatialProjectedFaceCache;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.EditSpatialBlockCommand;
@@ -66,7 +66,7 @@ public class SpatialDrawnPlaneTest {
                         Assert.assertEquals(c[0], tiled.defaultTileAltitude, 0);
                         Assert.assertEquals(c[1], blocks.blocks.first().altitude, 0);
                         Assert.assertEquals(128, blocks.blocks.first().height, 0);
-                        TiledMapLayerData map = tiled.createMapData();
+                        TiledLayerData map = tiled.createLayerData();
                         for (int i = 0; i < tiled.tileAssetIds.size; i++) {
                             map.setTile(tiled.tileXs.get(i), tiled.tileYs.get(i), tiled.tileAssetIds.get(i));
                         }
@@ -143,7 +143,7 @@ public class SpatialDrawnPlaneTest {
         }
     }
 
-    private static void assertProjectionAndManipulation(TiledMapLayerData map,
+    private static void assertProjectionAndManipulation(TiledLayerData map,
                                                         SpatialBlocksComponent blocks,
                                                         SpatialBlockData b, float displacement) {
         float[] base = new float[8], top = new float[8];
@@ -202,7 +202,7 @@ public class SpatialDrawnPlaneTest {
         final SpatialTileSelectionService tiles = new SpatialTileSelectionService();
         final SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
         final int owner = world.create();
-        final TiledMapLayerData map;
+        final TiledLayerData map;
 
         Fixture(float altitude) {
             this(altitude, TiledProjection.ISO);
@@ -221,7 +221,7 @@ public class SpatialDrawnPlaneTest {
             tiled.originY = -83;
             tiled.defaultTileAltitude = altitude;
             tiled.defaultTileHeight = 128;
-            map = tiled.data = tiled.createMapData();
+            map = tiled.data = tiled.createLayerData();
             map.setTile(27, 18, 151);
             map.setTile(27, 19, 139);
             for (int gy = 22; gy <= 24; gy++) map.setTile(36, gy, 1);

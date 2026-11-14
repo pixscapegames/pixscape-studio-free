@@ -6,7 +6,7 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.CompiledSpatialStructure;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialStructureCompiler;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 /**
  * Studio-owned transactional cache for compiled Spatial V3 structure envelopes.
@@ -51,7 +51,7 @@ public final class SpatialStructureGeometryCache {
 
     public SynchronizeResult synchronize(int requestedLayerEntityId,
                                          SpatialBlocksComponent component,
-                                         TiledMapLayerData map) {
+                                         TiledLayerData map) {
         if (isPublishedSnapshotCurrent(requestedLayerEntityId, component, map)) {
             return UNCHANGED;
         }
@@ -140,14 +140,14 @@ public final class SpatialStructureGeometryCache {
 
     private boolean isPublishedSnapshotCurrent(int requestedLayerEntityId,
                                                SpatialBlocksComponent component,
-                                               TiledMapLayerData map) {
+                                               TiledLayerData map) {
         return isPublishedSourceCurrent(requestedLayerEntityId, component, map,
                 component != null ? component.revision : 0);
     }
 
     private SynchronizeResult failure(int requestedLayerEntityId,
                                       SpatialBlocksComponent component,
-                                      TiledMapLayerData map,
+                                      TiledLayerData map,
                                       int requestedSourceRevision,
                                       String diagnostic) {
         String message = diagnostic != null && !diagnostic.isEmpty()
@@ -168,14 +168,14 @@ public final class SpatialStructureGeometryCache {
 
     private boolean isPublishedSourceCurrent(int requestedLayerEntityId,
                                              SpatialBlocksComponent component,
-                                             TiledMapLayerData map,
+                                             TiledLayerData map,
                                              int sourceRevision) {
         return publishedSource.matches(requestedLayerEntityId, component, map, sourceRevision);
     }
 
     private boolean isFailedSourceCurrent(int requestedLayerEntityId,
                                           SpatialBlocksComponent component,
-                                          TiledMapLayerData map,
+                                          TiledLayerData map,
                                           int sourceRevision) {
         return lastFailureResult != null
                 && failedSource.matches(requestedLayerEntityId, component, map, sourceRevision);
@@ -183,14 +183,14 @@ public final class SpatialStructureGeometryCache {
 
     private void capturePublishedSource(int requestedLayerEntityId,
                                         SpatialBlocksComponent component,
-                                        TiledMapLayerData map,
+                                        TiledLayerData map,
                                         int sourceRevision) {
         publishedSource.capture(requestedLayerEntityId, component, map, sourceRevision);
     }
 
     private void captureFailedSource(int requestedLayerEntityId,
                                      SpatialBlocksComponent component,
-                                     TiledMapLayerData map,
+                                     TiledLayerData map,
                                      int sourceRevision) {
         failedSource.capture(requestedLayerEntityId, component, map, sourceRevision);
     }
@@ -255,12 +255,12 @@ public final class SpatialStructureGeometryCache {
         int layerEntityId = -1;
         int sourceRevision = -1;
         SpatialBlocksComponent component;
-        TiledMapLayerData map;
+        TiledLayerData map;
         int mapContentRevision = -1;
 
         boolean matches(int requestedLayerEntityId,
                         SpatialBlocksComponent requestedComponent,
-                        TiledMapLayerData requestedMap,
+                        TiledLayerData requestedMap,
                         int requestedSourceRevision) {
             if (requestedLayerEntityId != layerEntityId
                     || requestedComponent != component
@@ -271,7 +271,7 @@ public final class SpatialStructureGeometryCache {
 
         void capture(int requestedLayerEntityId,
                      SpatialBlocksComponent requestedComponent,
-                     TiledMapLayerData requestedMap,
+                     TiledLayerData requestedMap,
                      int requestedSourceRevision) {
             layerEntityId = requestedLayerEntityId;
             component = requestedComponent;

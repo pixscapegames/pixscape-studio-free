@@ -1,6 +1,6 @@
 package games.pixscape.studio.service.tiled;
 
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 /**
  * Resolves the logical Tiled cell used by Studio editing without allocating per update.
@@ -9,7 +9,7 @@ public final class TiledCursorResolver {
     private TiledCursorResolver() {
     }
 
-    public static void resolve(TiledMapLayerData map, float worldX, float worldY, Result out) {
+    public static void resolve(TiledLayerData map, float worldX, float worldY, Result out) {
         int gx = map.worldToTileX(worldX, worldY);
         int gy = map.worldToTileY(worldX, worldY);
         out.set(map.isInside(gx, gy), gx, gy);

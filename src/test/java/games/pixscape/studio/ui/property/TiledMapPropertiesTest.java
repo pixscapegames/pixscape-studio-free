@@ -322,7 +322,7 @@ public class TiledMapPropertiesTest {
             tiled.mapWidthCells = mapWidth;
             tiled.mapHeightCells = 6;
             tiled.chunkSize = 4;
-            tiled.data = tiled.createMapData();
+            tiled.data = tiled.createLayerData();
             return entityId;
         }
 

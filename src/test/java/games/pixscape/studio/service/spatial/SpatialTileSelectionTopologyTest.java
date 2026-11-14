@@ -2,7 +2,7 @@ package games.pixscape.studio.service.spatial;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -10,7 +10,7 @@ import org.junit.Test;
 public class SpatialTileSelectionTopologyTest {
     @Test
     public void ownedStartCanTransitionInvalidValidInvalidAndValid() {
-        TiledMapLayerData map = new TiledMapLayerData(5, 5, 16, 16, 8, TiledProjection.ORTHO);
+        TiledLayerData map = new TiledLayerData(5, 5, 16, 16, 8, TiledProjection.ORTHO);
         for (int gy = 0; gy < 5; gy++) for (int gx = 0; gx < 5; gx++) map.setTile(gx, gy, 1);
         SpatialBlocksComponent walls = new SpatialBlocksComponent();
         SpatialBlockData horizontal = SpatialTileSelectionService.fromOccupiedRect(map, 0, 1, 2, 1, 0f, 10f);

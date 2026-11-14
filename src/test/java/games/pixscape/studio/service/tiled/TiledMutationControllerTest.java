@@ -6,7 +6,7 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TileTransformFlags;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.studio.history.HistoryManager;
 import org.junit.Assert;
 import org.junit.Test;
@@ -128,7 +128,7 @@ public class TiledMutationControllerTest {
         World world = new World(new WorldConfiguration());
         int map = world.create();
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(map);
-        tiled.data = new TiledMapLayerData(8, 8, 32, 16, 4);
+        tiled.data = new TiledLayerData(8, 8, 32, 16, 4);
         HistoryManager history = new HistoryManager(16);
         TiledMutationController controller = new TiledMutationController(world, history, () -> null);
         return new Fixture(world, map, tiled, history, controller);

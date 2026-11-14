@@ -2,7 +2,7 @@ package games.pixscape.studio.service.spatial;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.studio.event.EventFlow;
 
 public final class SpatialTileSelectionService {
@@ -218,7 +218,7 @@ public final class SpatialTileSelectionService {
                 && gy < getMaxGyExclusive();
     }
 
-    public String validationMessage(TiledMapLayerData map) {
+    public String validationMessage(TiledLayerData map) {
         if (!hasSelection()) return "No spatial tile selection.";
         NormalizationStatus status = normalize(map).status;
         if (status == NormalizationStatus.VALID_FILLED_RECTANGLE) return null;
@@ -227,7 +227,7 @@ public final class SpatialTileSelectionService {
         return INVALID_EMPTY_CELLS;
     }
 
-    public String validationMessage(TiledMapLayerData map,
+    public String validationMessage(TiledLayerData map,
                                     SpatialBlocksComponent existingWalls,
                                     float defaultAltitude,
                                     float defaultHeight) {
@@ -243,11 +243,11 @@ public final class SpatialTileSelectionService {
         return plan.valid ? null : plan.error;
     }
 
-    public boolean canCreateSpatialBlock(TiledMapLayerData map) {
+    public boolean canCreateSpatialBlock(TiledLayerData map) {
         return validationMessage(map) == null;
     }
 
-    public boolean canCreateSpatialBlock(TiledMapLayerData map,
+    public boolean canCreateSpatialBlock(TiledLayerData map,
                                          SpatialBlocksComponent existingWalls,
                                          float defaultAltitude,
                                          float defaultHeight) {
@@ -258,11 +258,11 @@ public final class SpatialTileSelectionService {
         return toSpatialBlockData(null, 0f, defaultHeight);
     }
 
-    public SpatialBlockData toSpatialBlockData(TiledMapLayerData map, float defaultHeight) {
+    public SpatialBlockData toSpatialBlockData(TiledLayerData map, float defaultHeight) {
         return toSpatialBlockData(map, 0f, defaultHeight);
     }
 
-    public SpatialBlockData toSpatialBlockData(TiledMapLayerData map, float defaultAltitude, float defaultHeight) {
+    public SpatialBlockData toSpatialBlockData(TiledLayerData map, float defaultAltitude, float defaultHeight) {
         if (!hasSelection()) return null;
         NormalizedSelection range = normalize(map);
         if (!range.isValid()) return null;
@@ -277,7 +277,7 @@ public final class SpatialTileSelectionService {
      * Treats the raw pointer rectangle as a search window and returns its minimal
      * filled occupied-cell rectangle. Peripheral empty cells are intentionally ignored.
      */
-    public NormalizedSelection normalize(TiledMapLayerData map) {
+    public NormalizedSelection normalize(TiledLayerData map) {
         normalized.minGx = 0;
         normalized.maxGxExclusive = 0;
         normalized.minGy = 0;
@@ -347,7 +347,7 @@ public final class SpatialTileSelectionService {
         return normalized;
     }
 
-    public static SpatialBlockData fromOccupiedRect(TiledMapLayerData map,
+    public static SpatialBlockData fromOccupiedRect(TiledLayerData map,
                                                     int minGx, int minGy,
                                                     int maxGx, int maxGy,
                                                     float defaultAltitude,
@@ -371,7 +371,7 @@ public final class SpatialTileSelectionService {
     }
 
     public static void buildLinkedTileRefsFromRect(SpatialBlockData block,
-                                                   TiledMapLayerData map,
+                                                   TiledLayerData map,
                                                    int minGx,
                                                    int minGy,
                                                    int maxGx,

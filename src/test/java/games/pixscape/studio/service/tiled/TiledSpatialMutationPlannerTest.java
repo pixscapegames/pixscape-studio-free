@@ -4,7 +4,7 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TileTransformFlags;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -75,7 +75,7 @@ public class TiledSpatialMutationPlannerTest {
     private static Fixture fixture() {
         Fixture fixture = new Fixture();
         fixture.tiled = new TiledLayerComponent();
-        fixture.tiled.data = new TiledMapLayerData(8, 8, 64, 32, 4, TiledProjection.ISO);
+        fixture.tiled.data = new TiledLayerData(8, 8, 64, 32, 4, TiledProjection.ISO);
         fixture.tiled.data.setTile(2, 2, 1);
         fixture.tiled.data.setTile(3, 2, 1);
         fixture.blocks = new SpatialBlocksComponent();

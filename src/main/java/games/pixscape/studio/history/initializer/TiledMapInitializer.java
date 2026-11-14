@@ -118,7 +118,7 @@ public final class TiledMapInitializer implements Initializer {
             throw new IllegalArgumentException(
                     "Tiled map snapshot requires EntityIndex, PixscapeIdentity and TiledLayer components.");
         }
-        tiled.validateMapConfiguration();
+        tiled.validateGridConfiguration();
 
         layerIndex = index.layerIndex;
         zIndex = index.zIndex;
@@ -261,7 +261,7 @@ public final class TiledMapInitializer implements Initializer {
         tiled.tileSpatialFlags = tileSpatialFlags != null ? new IntArray(tileSpatialFlags) : null;
         tiled.tileSpatialOverrides = tileSpatialOverrides != null
                 ? new ByteArray(tileSpatialOverrides) : null;
-        tiled.data = tiled.createMapData();
+        tiled.data = tiled.createLayerData();
         if (allocator != null) allocator.allocateLayer(tiled);
         restoreDenseTiles(tiled);
         if (allocator != null) allocator.synchronizeAnimations(tiled);

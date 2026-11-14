@@ -1,9 +1,9 @@
 package games.pixscape.studio.system;
 
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileTransformFlags;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetAnchor;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
@@ -15,10 +15,10 @@ public class TiledFallbackSystemTiledStateTest {
 
     @Test
     public void fallbackWritePublishesDrawReadyTiledRenderRef() {
-        TiledMapRenderState tiledState = new TiledMapRenderState(2);
+        TiledRenderState tiledState = new TiledRenderState(2);
         TiledFallbackSystem system = new TiledFallbackSystem(tiledState, null, id -> null, null);
 
-        TiledMapLayerData map = mapWithRegisteredRef(tiledState);
+        TiledLayerData map = mapWithRegisteredRef(tiledState);
         int tiledRenderRef = map.tiledRenderRefForTile(0, 0);
 
         system.writeTileSlot(
@@ -47,10 +47,10 @@ public class TiledFallbackSystemTiledStateTest {
 
     @Test
     public void fallbackEntryCanBeReplacedByAtlasEntryForSameRef() {
-        TiledMapRenderState tiledState = new TiledMapRenderState(2);
+        TiledRenderState tiledState = new TiledRenderState(2);
         TiledFallbackSystem system = new TiledFallbackSystem(tiledState, null, id -> null, null);
 
-        TiledMapLayerData map = mapWithRegisteredRef(tiledState);
+        TiledLayerData map = mapWithRegisteredRef(tiledState);
         int tiledRenderRef = map.tiledRenderRefForTile(0, 0);
         RuntimeTilesetProfile profile = profile(1);
 
@@ -67,8 +67,8 @@ public class TiledFallbackSystemTiledStateTest {
         Assert.assertEquals(1f, tiledState.v2[tiledRenderRef], 0.0001f);
     }
 
-    private static TiledMapLayerData mapWithRegisteredRef(TiledMapRenderState tiledState) {
-        TiledMapLayerData map = new TiledMapLayerData(1, 1, 16, 16, 1);
+    private static TiledLayerData mapWithRegisteredRef(TiledRenderState tiledState) {
+        TiledLayerData map = new TiledLayerData(1, 1, 16, 16, 1);
         TileChunk chunk = map.getChunk(0, 0);
         chunk.renderRefStartIndex = tiledState.registerRefs(chunk.cellCount());
         chunk.renderRefCount = chunk.cellCount();

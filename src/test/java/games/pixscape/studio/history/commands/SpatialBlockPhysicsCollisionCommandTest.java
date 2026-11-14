@@ -11,7 +11,7 @@ import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
@@ -213,7 +213,7 @@ public class SpatialBlockPhysicsCollisionCommandTest {
         Harness() {
             TiledLayerComponent tiled =
                     world.getMapper(TiledLayerComponent.class).create(owner);
-            tiled.data = new TiledMapLayerData(
+            tiled.data = new TiledLayerData(
                     20, 20, 32, 16, 8, TiledProjection.ORTHO);
             for (int gy = 0; gy < 20; gy++) {
                 for (int gx = 0; gx < 20; gx++) tiled.data.setTile(gx, gy, 1);

@@ -4,7 +4,7 @@ import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.render.lighting.*;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.RenderTiledSyncSystem;
@@ -19,7 +19,7 @@ public final class CornerProfileEditSession {
     }
 
     private World world;
-    private TiledMapRenderState state;
+    private TiledRenderState state;
     private HistoryManager history;
     private Target target;
     private TiledLayerComponent tiled;
@@ -27,14 +27,14 @@ public final class CornerProfileEditSession {
     private RoundedWallPlacement placement;
     private RoundedWallDescription committed, candidate, gestureStart;
     private RoundedWallSupport support, gestureSupport;
-    private MapLightingGeometry geometry;
-    private MapLightingGeometry.Preview preview;
+    private TiledLayerLightingGeometry geometry;
+    private TiledLayerLightingGeometry.Preview preview;
     private Array<TileSurfaceDescription> descriptions;
     private final float[] quad = new float[8];
     private int contentRevision, blockRevision, resourceRevision, geometryRevision, renderRef, dragVertex = -1;
     private long historyRevision;
     private String message = "";
-    private games.pixscape.runtime.tiled.TiledMapLayerData map;
+    private games.pixscape.runtime.tiled.TiledLayerData map;
     private float originX, originY, mapAltitude;
     private int tileWidth, tileHeight;
     private float pressX, pressY, vertexX, vertexY, lastX, lastY;
@@ -45,7 +45,7 @@ public final class CornerProfileEditSession {
     /**
      * Cold menu inspection; never attaches tiles or mutates the selected volume.
      */
-    public String inspect(World world, TiledMapRenderState state, HistoryManager history, Target target) {
+    public String inspect(World world, TiledRenderState state, HistoryManager history, Target target) {
         this.world = world;
         this.state = state;
         this.history = history;
@@ -157,7 +157,7 @@ public final class CornerProfileEditSession {
                 return;
             }
         }
-        MapLightingGeometry current = state.lightingMaps.get(target.mapId);
+        TiledLayerLightingGeometry current = state.lightingMaps.get(target.mapId);
         if (current != geometry || current != null && current.publicationRevision() != geometryRevision) {
             cancelGesture();
             geometry = current;
@@ -469,7 +469,7 @@ public final class CornerProfileEditSession {
         return -1;
     }
 
-    private static void readQuad(TiledMapRenderState s, int r, float[] q) {
+    private static void readQuad(TiledRenderState s, int r, float[] q) {
         q[0] = s.x1[r];
         q[1] = s.y1[r];
         q[2] = s.x2[r];
