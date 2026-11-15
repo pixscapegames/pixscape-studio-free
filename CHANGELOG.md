@@ -17,9 +17,11 @@
 ### Changed
 * Game Object roots can have their own visuals. Physics-backed compositions support explicit placement, and physics-backed entities support visual scaling.
 * The tree and inspector distinguish Tiled maps from tile layers. Tile layers retain their existing editing tools.
-* Simplified the Assets tree and Items toolbar, and refreshed add/delete button states and the HTML player template.
+* Simplified the Assets tree and Items toolbar, and refreshed add/delete button states.
+* Updated the embedded HTML player for schema 4 scenes and Runtime `0.2.5-SNAPSHOT`.
 
 ### Fixed
+* Actors now pass behind scaffold beams correctly when spatial constraints conflict, including through transparent openings.
 * Fixed drawing resource cleanup when closing Studio.
 * Improved hierarchy, identity and joint restoration during deletion, copying and undo/redo, including complete Tiled maps.
 * Fixed docking resize and panel transfers, preview cleanup, and project/scene subscription leaks.
