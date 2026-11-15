@@ -208,6 +208,10 @@ public class AddTiledMapCommandTest {
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(map);
         tiled.originX = 48f;
         tiled.originY = -24f;
+        TransformComponent local = world.getMapper(TransformComponent.class).get(map);
+        local.x = tiled.originX;
+        local.y = tiled.originY;
+        local.refreshCaches();
         tiled.data.originX = tiled.originX;
         tiled.data.originY = tiled.originY;
         tiled.spatialEnabled = true;
@@ -482,7 +486,10 @@ public class AddTiledMapCommandTest {
         EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).get(id);
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(id);
         assertEquals(layer, index.layerIndex);
-        assertEquals(z, index.zIndex);
+        var member = world.getMapper(GameObjectMemberComponent.class).get(id);
+        int parent = identities.findByStableId(member.parentStableId);
+        assertEquals(z, world.getMapper(EntityIndexComponent.class).get(parent).zIndex);
+        assertEquals(0, index.zIndex);
         assertEquals(width, tiled.mapWidthCells);
         assertEquals(height, tiled.mapHeightCells);
         assertEquals(projection, tiled.projection);
@@ -493,7 +500,7 @@ public class AddTiledMapCommandTest {
         assertFalse(tiled.spatialEnabled);
         assertFalse(tiled.data.spatialEnabled);
         assertFalse(world.getMapper(PhysicsBodyComponent.class).has(id));
-        assertEquals(EntityKind.TILED_MAP,
+        assertEquals(EntityKind.TILED_LAYER,
                 world.getMapper(EntityMetaComponent.class).get(id).kind);
     }
 

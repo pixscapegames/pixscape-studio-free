@@ -41,6 +41,12 @@ public final class GameObjectHierarchyCommandSupport {
                                          int parentEntityId, IntMap<IntArray> children) {
         requireActive(world, childEntityId, "child");
         requireActive(world, parentEntityId, "parent");
+        if (world.getMapper(TiledMapComponent.class).has(childEntityId)
+                || world.getMapper(TiledMapLayerComponent.class).has(childEntityId)
+                || world.getMapper(TiledMapComponent.class).has(parentEntityId)) {
+            throw new IllegalArgumentException("Map ownership requires a dedicated layer operation.");
+        }
+
         if (childEntityId == parentEntityId) {
             throw new IllegalArgumentException("A Game Object cannot contain itself.");
         }
@@ -59,6 +65,9 @@ public final class GameObjectHierarchyCommandSupport {
     }
 
     static void requireSupportedMember(World world, int entityId) {
+        if (world.getMapper(TiledMapLayerComponent.class).has(entityId)) {
+            return;
+        }
         if (world.getMapper(TiledLayerComponent.class).has(entityId)
                 || world.getMapper(ParticleEmitterComponent.class).has(entityId)
                 || world.getMapper(SpatialBlocksComponent.class).has(entityId)

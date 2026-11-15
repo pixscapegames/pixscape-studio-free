@@ -16,11 +16,11 @@ public class TiledMapLabelTest {
         tiled.tileHeight = 16;
         PixscapeIdentityComponent identity = new PixscapeIdentityComponent();
         identity.name = "MonSuperNom";
-        assertEquals("Map MonSuperNom (100x75)", ItemTreePanel.tiledMapLabel(tiled, identity));
+        assertEquals("Tile layer MonSuperNom (100x75)", ItemTreePanel.tiledMapLabel(tiled, identity));
         for (String absent : new String[]{null, "", "  "}) {
             identity.name = absent;
-            assertEquals("Map (100x75)", ItemTreePanel.tiledMapLabel(tiled, identity));
+            assertEquals("Tile layer (100x75)", ItemTreePanel.tiledMapLabel(tiled, identity));
         }
-        assertEquals("Map (100x75)", ItemTreePanel.tiledMapLabel(tiled, null));
+        assertEquals("Tile layer (100x75)", ItemTreePanel.tiledMapLabel(tiled, null));
     }
 }

@@ -105,7 +105,7 @@ public final class SpatialBlockProperties extends VisTable {
         left().top();
         defaults().left().pad(1);
 
-        VisLabel title = new VisLabel("SPATIAL WALL");
+        VisLabel title = new VisLabel("SPATIAL VOLUME");
         title.setName("spatialWallTitle");
         add(title)
                 .center()

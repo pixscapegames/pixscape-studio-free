@@ -168,7 +168,7 @@ public final class TiledMapProperties extends VisTable {
             }
         });
 
-        add(new VisLabel("TILED MAP"))
+        add(new VisLabel("TILE LAYER"))
                 .colspan(2)
                 .center()
                 .padBottom(CommonLayout.PROPERTY_SECTION_TITLE_BOTTOM_PAD)
@@ -341,12 +341,23 @@ public final class TiledMapProperties extends VisTable {
                 eid -> Math.round(xAxis ? mTiled.get(eid).originX : mTiled.get(eid).originY),
                 (eid, value) -> {
                     TiledLayerComponent tiled = mTiled.get(eid);
+                    games.pixscape.runtime.component.TransformComponent transform = world.getMapper(
+                            games.pixscape.runtime.component.TransformComponent.class).getSafe(eid, null);
                     if (xAxis) {
                         tiled.originX = value;
                         tiled.data.originX = value;
+                        if (transform != null) {
+                            transform.x = value;
+                        }
                     } else {
                         tiled.originY = value;
                         tiled.data.originY = value;
+                        if (transform != null) {
+                            transform.y = value;
+                        }
+                    }
+                    if (transform != null) {
+                        transform.refreshCaches();
                     }
                     tiled.data.rebuildWithNewSize(tiled.mapWidthCells, tiled.mapHeightCells);
                     DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);

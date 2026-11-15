@@ -12,6 +12,10 @@ public class EntityGraphGameObjectBoundaryTest {
     @Test
     public void genericCaptureDelegatesGameObjectRootsToTheHierarchyAwarePath() {
         World world = new World();
+        var identities = new games.pixscape.runtime.service.IdentityRegistry();
+        var meta = new games.pixscape.runtime.loading.SceneMetaRuntime();
+        meta.nextEntityStableId = 4;
+        identities.bind(world, meta);
         try {
             int ordinary = authored(world, 1);
             int root = authored(world, 2);
@@ -29,6 +33,7 @@ public class EntityGraphGameObjectBoundaryTest {
                 assertTrue(expected.getMessage().contains("member alone"));
             }
         } finally {
+            identities.bind(null, null);
             world.dispose();
         }
     }

@@ -425,7 +425,7 @@ public class SpatialBlockCommandsTest {
         Assert.assertEquals(1, history.getCursor());
         Assert.assertTrue(history.canUndo());
         Assert.assertFalse(history.canRedo());
-        Assert.assertEquals("Edit Spatial Wall", history.peekUndoLabel());
+        Assert.assertEquals("Edit Spatial Volume", history.peekUndoLabel());
 
         world.getMapper(TiledLayerComponent.class).get(layerId).data.setTile(2, 3, 1);
         history.undo();
@@ -457,7 +457,7 @@ public class SpatialBlockCommandsTest {
         Assert.assertEquals(0, history.getCursor());
         Assert.assertFalse(history.canUndo());
         Assert.assertTrue(history.canRedo());
-        Assert.assertEquals("Add Spatial Wall", history.peekRedoLabel());
+        Assert.assertEquals("Add Spatial Volume", history.peekRedoLabel());
 
         world.getMapper(TiledLayerComponent.class).get(layerId).data.setTile(2, 3, 1);
         history.redo();

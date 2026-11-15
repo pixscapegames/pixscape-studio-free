@@ -277,69 +277,73 @@ public final class TmxSceneImportService {
                                Map<Integer, Map<Integer, Integer>> animationIdsByTileset,
                                Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer,
                                String sceneTag) {
-        int layerIndex = 0;
+        int sceneLayer = world.create();
+        world.getMapper(LayerComponent.class).create(sceneLayer).layerIndex = 0;
+        world.getMapper(LayerMetaComponent.class).create(sceneLayer).name = plan.scene().proposedSceneName();
+        world.getMapper(VisibilityComponent.class).create(sceneLayer).visible = true;
+        identityRegistry.ensureStableId(sceneLayer);
+        TmxScenePlan scene = plan.scene();
+        int map = games.pixscape.runtime.tiled.TiledMapHierarchy.createMap(world, identityRegistry,
+                scene.proposedSceneName(), 0, 0, scene.tiledProjection(), scene.tileWidth(),
+                scene.tileHeight(), scene.mapWidthCells(), scene.mapHeightCells());
+        world.getMapper(EntityMetaComponent.class).create(map).kind = EntityKind.TILED_MAP;
+        int order = 0;
         Map<Integer, Integer> stableIdsBySourceObjectId = new HashMap<>();
         List<PendingObjectProperties> pendingProperties = new ArrayList<>();
         for (TmxLayerPlan layerPlan : plan.layers()) {
+            int layer;
+            TiledMapLayerComponent.Kind kind;
+            boolean visible;
+            float parallaxX, parallaxY;
             if (layerPlan instanceof TmxTileLayerPlan tileLayer) {
-                int layerEntity = world.create();
-                createTileLayerComponents(world, layerEntity, layerIndex, tileLayer);
-                identityRegistry.ensureStableId(layerEntity);
-                int mapEntity = world.create();
-                createTileMapComponents(world, mapEntity, layerIndex, tileLayer, plan.scene(), sceneTag);
-                identityRegistry.setName(mapEntity, "Map");
-                identityRegistry.ensureStableId(mapEntity);
-                populateTiles(world, mapEntity, tileLayer, cellLogicalIdsByTileset);
-                layerIndex++;
+                layer = world.create();
+                createTileMapComponents(world, layer, 0, tileLayer, scene, sceneTag);
+                populateTiles(world, layer, tileLayer, cellLogicalIdsByTileset);
+                kind = TiledMapLayerComponent.Kind.TILE;
+                visible = tileLayer.visible();
+                parallaxX = tileLayer.parallaxX();
+                parallaxY = tileLayer.parallaxY();
             } else if (layerPlan instanceof TmxImageLayerPlan imageLayer) {
                 ImportedImageAsset imageAsset = imageAssetsBySourceLayer.get(imageLayer.sourceLayerIndex());
                 if (imageAsset == null) {
                     throw new IllegalStateException("Missing imported image asset for layer " + imageLayer.name());
                 }
-                int layerEntity = world.create();
-                createClassicLayerComponents(world, layerEntity, layerIndex, imageLayer);
-                identityRegistry.ensureStableId(layerEntity);
-                createImageLayerSprite(world, identityRegistry, layerIndex,
-                        plan.scene(), imageLayer, imageAsset, sceneTag);
-                layerIndex++;
+                layer = createImageLayerSprite(world, identityRegistry, 0,
+                        scene, imageLayer, imageAsset, sceneTag);
+                kind = TiledMapLayerComponent.Kind.IMAGE;
+                visible = imageLayer.visible();
+                parallaxX = imageLayer.parallaxX();
+                parallaxY = imageLayer.parallaxY();
             } else if (layerPlan instanceof TmxObjectLayerPlan objectLayer) {
-                int layerEntity = world.create();
-                createObjectLayerComponents(world, layerEntity, layerIndex, objectLayer);
-                identityRegistry.ensureStableId(layerEntity);
-                pendingProperties.add(new PendingObjectProperties(layerEntity,
+                layer = world.create();
+                world.getMapper(GameObjectComponent.class).create(layer);
+                world.getMapper(TransformComponent.class).create(layer).refreshCaches();
+                world.getMapper(EntityIndexComponent.class).create(layer).layerIndex = 0;
+                world.getMapper(EntityMetaComponent.class).create(layer).kind = EntityKind.GAME_OBJECT;
+                identityRegistry.ensureStableId(layer);
+                pendingProperties.add(new PendingObjectProperties(layer,
                         objectLayer.properties(), objectLayer.objectPropertyReferences()));
-                populateObjects(world, identityRegistry, layerIndex, plan.scene(), objectLayer,
+                populateObjects(world, identityRegistry, 0, scene, objectLayer,
                         staticTileAssetIdsByTileset, animationIdsByTileset, sceneTag,
-                        stableIdsBySourceObjectId, pendingProperties);
-                layerIndex++;
+                        stableIdsBySourceObjectId, pendingProperties,
+                        world.getMapper(PixscapeIdentityComponent.class).get(layer).stableId);
+                kind = TiledMapLayerComponent.Kind.OBJECT;
+                visible = objectLayer.visible();
+                parallaxX = objectLayer.parallaxX();
+                parallaxY = objectLayer.parallaxY();
+            } else {
+                throw new IllegalArgumentException("Unsupported Tiled layer plan.");
             }
+            identityRegistry.setName(layer, layerPlan.name());
+            world.getMapper(VisibilityComponent.class).create(layer).visible = visible;
+            LayerParallaxComponent parallax = world.getMapper(LayerParallaxComponent.class).create(layer);
+            parallax.factorX = parallaxX;
+            parallax.factorY = parallaxY;
+            games.pixscape.runtime.tiled.TiledMapHierarchy.attachLayer(world, identityRegistry,
+                    map, layer, kind, order++);
         }
         finalizeObjectProperties(world, pendingProperties, stableIdsBySourceObjectId);
         world.process();
-    }
-
-    private void createTileLayerComponents(World world,
-                                           int layerEntity,
-                                           int layerIndex,
-                                           TmxTileLayerPlan tileLayer) {
-        LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
-        layer.layerIndex = layerIndex;
-        layer.spatialEnabled = false;
-
-        LayerMetaComponent meta = world.getMapper(LayerMetaComponent.class).create(layerEntity);
-        meta.name = tileLayer.name();
-        meta.description = "";
-        meta.locked = false;
-
-        VisibilityComponent visibility = world.getMapper(VisibilityComponent.class).create(layerEntity);
-        visibility.visible = tileLayer.visible();
-        visibility.culledByFrustum = true;
-        visibility.inView = false;
-
-        LayerParallaxComponent parallax = world.getMapper(LayerParallaxComponent.class).create(layerEntity);
-        parallax.factorX = tileLayer.parallaxX();
-        parallax.factorY = tileLayer.parallaxY();
-
     }
 
     private void createTileMapComponents(World world,
@@ -363,7 +367,7 @@ public final class TmxSceneImportService {
         visibility.culledByFrustum = false;
         visibility.inView = true;
         EntityMetaComponent entityMeta = world.getMapper(EntityMetaComponent.class).create(mapEntity);
-        entityMeta.kind = EntityKind.TILED_MAP;
+        entityMeta.kind = EntityKind.TILED_LAYER;
 
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(mapEntity);
         tiled.projection = scene.tiledProjection() != null
@@ -388,53 +392,6 @@ public final class TmxSceneImportService {
         tiled.data.defaultTileHeight = tiled.defaultTileHeight;
     }
 
-    private void createClassicLayerComponents(World world,
-                                              int layerEntity,
-                                              int layerIndex,
-                                              TmxImageLayerPlan imageLayer) {
-        LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
-        layer.layerIndex = layerIndex;
-        layer.spatialEnabled = false;
-
-        LayerMetaComponent meta = world.getMapper(LayerMetaComponent.class).create(layerEntity);
-        meta.name = imageLayer.name();
-        meta.description = "";
-        meta.locked = false;
-
-        VisibilityComponent visibility = world.getMapper(VisibilityComponent.class).create(layerEntity);
-        visibility.visible = imageLayer.visible();
-        visibility.culledByFrustum = true;
-        visibility.inView = false;
-
-        LayerParallaxComponent parallax = world.getMapper(LayerParallaxComponent.class).create(layerEntity);
-        parallax.factorX = imageLayer.parallaxX();
-        parallax.factorY = imageLayer.parallaxY();
-    }
-
-    private void createObjectLayerComponents(World world,
-                                             int layerEntity,
-                                             int layerIndex,
-                                             TmxObjectLayerPlan objectLayer) {
-        LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
-        layer.layerIndex = layerIndex;
-        layer.spatialEnabled = false;
-
-        LayerMetaComponent meta = world.getMapper(LayerMetaComponent.class).create(layerEntity);
-        meta.name = objectLayer.name();
-        meta.description = "";
-        meta.locked = false;
-
-        VisibilityComponent visibility = world.getMapper(VisibilityComponent.class).create(layerEntity);
-        visibility.visible = objectLayer.visible();
-        visibility.culledByFrustum = true;
-        visibility.inView = false;
-
-        LayerParallaxComponent parallax = world.getMapper(LayerParallaxComponent.class).create(layerEntity);
-        parallax.factorX = objectLayer.parallaxX();
-        parallax.factorY = objectLayer.parallaxY();
-
-    }
-
     private void populateObjects(World world,
                                  IdentityRegistry identityRegistry,
                                  int layerIndex,
@@ -444,7 +401,7 @@ public final class TmxSceneImportService {
                                  Map<Integer, Map<Integer, Integer>> animationIdsByTileset,
                                  String sceneTag,
                                  Map<Integer, Integer> stableIdsBySourceObjectId,
-                                 List<PendingObjectProperties> pendingProperties) {
+                                 List<PendingObjectProperties> pendingProperties, int parentStableId) {
         for (TmxObjectPlan object : objectLayer.objects()) {
             int objectEntity = world.create();
             if (object.kind() == TmxObjectKind.TILE) {
@@ -455,6 +412,7 @@ public final class TmxSceneImportService {
                 createDataObjectComponents(world, objectEntity, layerIndex,
                         scene, objectLayer, object);
             }
+            world.getMapper(GameObjectMemberComponent.class).create(objectEntity).parentStableId = parentStableId;
             identityRegistry.setName(objectEntity, object.name());
             identityRegistry.ensureStableId(objectEntity);
             if (object.hasPositiveSourceId()) {
@@ -821,7 +779,7 @@ public final class TmxSceneImportService {
         component.properties.copyFrom(properties);
     }
 
-    private void createImageLayerSprite(World world,
+    private int createImageLayerSprite(World world,
                                         IdentityRegistry identityRegistry,
                                         int layerIndex,
                                         TmxScenePlan scene,
@@ -855,6 +813,7 @@ public final class TmxSceneImportService {
             repeat.repeatX = imageLayer.repeatX();
             repeat.repeatY = imageLayer.repeatY();
         }
+        return spriteEntity;
     }
 
     private static List<ImageCollectionTileSource> imageCollectionSources(TmxTilesetPlan tileset) {

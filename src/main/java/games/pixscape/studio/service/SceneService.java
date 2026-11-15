@@ -18,6 +18,7 @@ import com.badlogic.gdx.utils.JsonValue;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.TiledMapLayerComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
@@ -1351,11 +1352,37 @@ public final class SceneService {
 
         SaveFileFormat format = new SaveFileFormat(entitiesToSave);
         SceneVolatileStateSnapshot volatileState = clearVolatileSceneStateForSave(world, entitiesToSave);
+        Array<TiledGridRuntimeSnapshot> tiledGrids = new Array<>();
+        for (int i = 0; i < entitiesToSave.size(); i++) {
+            int entity = entitiesToSave.get(i);
+            TiledLayerComponent tiles = world.getMapper(TiledLayerComponent.class).getSafe(entity, null);
+            if (tiles != null && world.getMapper(TiledMapLayerComponent.class).has(entity)) {
+                tiledGrids.add(new TiledGridRuntimeSnapshot(tiles, tiles.projection, tiles.tileWidth, tiles.tileHeight,
+                        tiles.originX, tiles.originY));
+                tiles.projection = null;
+                tiles.tileWidth = 0;
+                tiles.tileHeight = 0;
+                tiles.originX = 0;
+                tiles.originY = 0;
+            }
+        }
         try {
             StudioIO.writeAtomic(outFile, out -> wsm.save(out, format));
         } finally {
+            for (TiledGridRuntimeSnapshot grid : tiledGrids) {
+                grid.tiles.projection = grid.projection;
+                grid.tiles.tileWidth = grid.width;
+                grid.tiles.tileHeight = grid.height;
+                grid.tiles.originX = grid.originX;
+                grid.tiles.originY = grid.originY;
+            }
             volatileState.restore(world);
         }
+    }
+
+    private record TiledGridRuntimeSnapshot(TiledLayerComponent tiles,
+                                            games.pixscape.runtime.tiled.TiledProjection projection,
+                                            int width, int height, float originX, float originY) {
     }
 
     private static SceneVolatileStateSnapshot clearVolatileSceneStateForSave(World world, IntBag entitiesToSave) {
@@ -2538,6 +2565,16 @@ public final class SceneService {
                                           TmxSceneImportResult result) {
         reloadTileAnimationsFromProject(projectDir);
         loadScene(cfg, result.sceneName(), projectDir);
+        SceneEditorContext importedContext = sceneContext();
+        IntBag maps = importedContext.world().getAspectSubscriptionManager()
+                .get(Aspect.all(games.pixscape.runtime.component.TiledMapComponent.class)).getEntities();
+        if (maps.size() != 1) {
+            throw new IllegalStateException("TMX import requires one map container.");
+        }
+        importedContext.historyManager().execute(new games.pixscape.studio.history.commands.ImportTiledMapCommand(
+                importedContext.world(), importedContext.historyManager().historyIds(), maps.get(0),
+                importedContext.layerService().getTiledAllocatorService()));
+        importedContext.historyManager().markSaved();
         canvas.centerCamera();
         assertCurrentSceneMetadataIntegrity(cfg, result.sceneName(), "importTmxAsNewScene");
         sceneMetaBridge.pushCurrentSceneMetaToUI();

@@ -40,7 +40,7 @@ public final class SpatialBlockLinkCommand implements Command, OutcomeAwareComma
 
     @Override
     public String label() {
-        return proposal.referenceId == 0 ? "Edit Spatial Wall" : proposal.unlink ? "Délier" : "Lier";
+        return proposal.referenceId == 0 ? "Edit Spatial Volume" : proposal.unlink ? "Délier" : "Lier";
     }
 
     @Override

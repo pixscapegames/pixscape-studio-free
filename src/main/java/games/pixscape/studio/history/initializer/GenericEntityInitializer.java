@@ -37,6 +37,7 @@ import games.pixscape.studio.service.SpatialActorShapeSupport;
  * - CreateEntityCommand (by initializing fields manually)
  */
 public class GenericEntityInitializer extends AbstractCommonInitializer {
+    private TiledEntitySnapshot tiledEntity;
     private PreparedPhysicsBodyCandidate preparedPhysicsCandidate;
     // --- TextureRegion (runtime) ---
     protected boolean hasTextureRegion;
@@ -182,6 +183,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     @Override
     public void syncFrom(int e) {
         super.syncFrom(e);
+        tiledEntity = TiledEntitySnapshot.capture(world, e);
 
         ComponentMapper<TextureRegionComponent> mTR = world.getMapper(TextureRegionComponent.class);
         ComponentMapper<DimensionsComponent> mDim = world.getMapper(DimensionsComponent.class);
@@ -535,9 +537,14 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         PreparedPhysicsBodyCandidate preparedPhysics = preparedPhysicsCandidate;
         preparedPhysicsCandidate = null;
         if (preparedPhysics == null && (hasPhysicsBody || hasPhysicsShapes)) {
-            preparedPhysics = PhysicsService.prepareBodyCandidate(physicsShapes);
+            preparePhysicsCandidate();
+            preparedPhysics = preparedPhysicsCandidate;
+            preparedPhysicsCandidate = null;
         }
         super.init(e);
+        if (tiledEntity != null) {
+            tiledEntity.restore(world, e);
+        }
 
         ComponentMapper<TextureRegionComponent> mTR = world.getMapper(TextureRegionComponent.class);
         ComponentMapper<DimensionsComponent> mDim = world.getMapper(DimensionsComponent.class);
@@ -850,6 +857,22 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     }
 
     public void preparePhysicsCandidate() {
+        if ((hasPhysicsBody || hasPhysicsShapes) && tiledEntity != null && tiledEntity.tiles != null) {
+            var configuration = games.pixscape.studio.configuration.ProjectConfig.getInstance();
+            var scene = configuration != null ? configuration.getCurrentSceneMeta() : null;
+            if (scene == null) {
+                throw new IllegalStateException("Scene metadata is required for tile-layer physics restoration.");
+            }
+            TransformComponent transform = new TransformComponent();
+            transform.x = trX;
+            transform.y = trY;
+            transform.rotationRad = trRotationRad;
+            transform.scaleX = trScaleX;
+            transform.scaleY = trScaleY;
+            preparedPhysicsCandidate = PhysicsService.prepareBodyCandidate(physicsShapes,
+                    tiledEntity.tiles.createLayerData(), tiledEntity.blocks, transform, scene.pixelsPerMeter);
+            return;
+        }
         preparedPhysicsCandidate =
                 hasPhysicsBody || hasPhysicsShapes
                         ? PhysicsService.prepareBodyCandidate(physicsShapes)
@@ -858,6 +881,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
     public GenericEntitySnapshotData toSnapshotData(int sourceEntityId) {
         GenericEntitySnapshotData out = new GenericEntitySnapshotData();
+        out.tiledEntity = tiledEntity != null ? tiledEntity.copy() : null;
         out.sourceEntityId = sourceEntityId;
         out.hasTransform = hasTransform;
         out.x = trX;
@@ -1012,6 +1036,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     }
 
     public GenericEntityInitializer applySnapshotData(GenericEntitySnapshotData in) {
+        tiledEntity = in.tiledEntity != null ? in.tiledEntity.copy() : null;
         hasTransform = in.hasTransform;
         trX = in.x;
         trY = in.y;
@@ -1629,6 +1654,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
      */
     public GenericEntityInitializer duplicateFor(World destination) {
         GenericEntityInitializer copy = new GenericEntityInitializer(destination);
+        copy.tiledEntity = tiledEntity != null ? tiledEntity.copy() : null;
 
         // --- TextureRegion ---
         copy.hasTextureRegion = this.hasTextureRegion;

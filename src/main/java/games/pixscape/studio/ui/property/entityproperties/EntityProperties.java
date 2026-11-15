@@ -250,9 +250,7 @@ public class EntityProperties extends VisTable {
         entityIdValueLabel.setText(String.valueOf(stableId));
         icon.setDrawable(ctx.iconResolver.iconForEntity(entityId));
 
-        EntityMetaComponent meta = ctx.mMeta.getSafe(entityId, null);
-        EntityKind kind = (meta != null && meta.kind != null) ? meta.kind : EntityKind.UNKNOWN;
-        typeLabelValue.setText(kind.name());
+        typeLabelValue.setText(ctx.iconResolver.kindForEntity(entityId).name());
 
         entityName.refresh();
 

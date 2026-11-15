@@ -270,7 +270,7 @@ public class ProjectConfigProjectIOValidationTest {
         SceneMeta reloadedMain = reloaded.getCurrentSceneMeta();
 
         assertNotNull(reloadedMain);
-        assertEquals(3, reloadedMain.sceneSchemaVersion);
+        assertEquals(games.pixscape.runtime.loading.SceneMetaRuntime.CURRENT_SCENE_SCHEMA_VERSION, reloadedMain.sceneSchemaVersion);
         assertTrue(reloadedMain.physicsEnabled);
         assertEquals(0.75f, reloadedMain.gravityX, 0.0001f);
         assertEquals(-15.25f, reloadedMain.gravityY, 0.0001f);

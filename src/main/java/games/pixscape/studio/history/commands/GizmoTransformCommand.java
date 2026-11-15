@@ -139,6 +139,12 @@ public final class GizmoTransformCommand implements Command, SupportsNoop {
         if (same) return;
 
         int entityId = historyIds.entityOfHistoryId(historyId);
+        if (entityId >= 0 && world.getMapper(games.pixscape.runtime.component.TiledMapComponent.class).has(entityId)
+                && (after.rotRad != 0f || after.sx != 1f || after.sy != 1f)) {
+            TransformComponent current = world.getMapper(TransformComponent.class).get(entityId);
+            before.applyTo(current);
+            return;
+        }
         if (entityId >= 0 && world.getMapper(GameObjectComponent.class).has(entityId)) {
             if (op == TransformOp.SCALE) {
                 if (!isValidGameObjectScale(after)

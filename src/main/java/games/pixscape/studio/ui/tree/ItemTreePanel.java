@@ -604,6 +604,11 @@ public class ItemTreePanel extends DockablePanel {
     private EntityNode createGameObjectHierarchyNode(
             int entityId, boolean layerLocked,
             GameObjectTopologyState topology, GameObjectCompositionState composition) {
+        if (mTiled.has(entityId)) {
+            EntityNode node = createTiledMapNode(entityId, layerLocked);
+            tree.registerMapNode(node, entityId);
+            return node;
+        }
         EntityNode node = createEntityNode(entityId, layerLocked);
         if (!mGameObject.has(entityId) || topology == null || composition == null
                 || entityId >= composition.orderedFirstChildEntityId.length) {
@@ -670,7 +675,7 @@ public class ItemTreePanel extends DockablePanel {
 
     private void showTiledMapContextMenu(
             int mapEntityId, Stage stage, float stageX, float stageY) {
-        PopupMenu menu = buildTiledMapContextMenu(() -> editorOps.deleteTiledMap(mapEntityId));
+        PopupMenu menu = buildTiledMapContextMenu(() -> editorOps.deleteTiledMap(mapEntityId), "Delete tile layer");
         menu.showMenu(stage, stageX, stageY);
     }
 
@@ -789,6 +794,11 @@ public class ItemTreePanel extends DockablePanel {
             Stage stage,
             float stageX,
             float stageY) {
+        if (world.getMapper(games.pixscape.runtime.component.TiledMapComponent.class).has(parentEntityId)) {
+            PopupMenu menu = buildTiledMapContextMenu(() -> editorOps.deleteEntities(IntArray.with(parentEntityId)));
+            menu.showMenu(stage, stageX, stageY);
+            return;
+        }
         PopupMenu addMenu = buildGameObjectAddMenu(
                 selectedAsset,
                 new GameObjectChildMenuActions() {
@@ -849,8 +859,12 @@ public class ItemTreePanel extends DockablePanel {
     }
 
     static PopupMenu buildTiledMapContextMenu(TiledMapMenuActions actions) {
+        return buildTiledMapContextMenu(actions, "Delete map");
+    }
+
+    private static PopupMenu buildTiledMapContextMenu(TiledMapMenuActions actions, String label) {
         PopupMenu menu = new PopupMenu();
-        MenuItem deleteMap = new MenuItem("Delete map");
+        MenuItem deleteMap = new MenuItem(label);
         deleteMap.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
@@ -964,7 +978,7 @@ public class ItemTreePanel extends DockablePanel {
         PixscapeIdentityComponent identity = mIdentity.getSafe(mapEntityId, null);
         EntityNode mapNode = new EntityNode(
                 tiledMapLabel(tiled, identity),
-                IconResolver.getDrawable(EntityKind.TILED_MAP), mapEntityId, !layerLocked,
+                IconResolver.getDrawable(EntityKind.TILED_LAYER), mapEntityId, !layerLocked,
                 EntityNode.NodeKind.TILED_MAP);
         mapNode.getLabel().setColor(layerLocked ? Color.DARK_GRAY : Color.WHITE);
 
@@ -989,7 +1003,7 @@ public class ItemTreePanel extends DockablePanel {
     static String tiledMapLabel(TiledLayerComponent tiled, PixscapeIdentityComponent identity) {
         String name = identity != null && identity.name != null && !identity.name.isBlank()
                 ? " " + identity.name : "";
-        return "Map" + name + " (" + tiled.mapWidthCells + "x" + tiled.mapHeightCells + ")";
+        return "Tile layer" + name + " (" + tiled.mapWidthCells + "x" + tiled.mapHeightCells + ")";
     }
 
     private String entityLabel(int entityId) {

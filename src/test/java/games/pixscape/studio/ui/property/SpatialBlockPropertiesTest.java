@@ -227,7 +227,7 @@ public class SpatialBlockPropertiesTest {
         Fixture fixture = fixture();
         SpatialBlockProperties properties = fixture.properties();
 
-        Assert.assertEquals("SPATIAL WALL",
+        Assert.assertEquals("SPATIAL VOLUME",
                 ((VisLabel) properties.findActor("spatialWallTitle")).getText().toString());
         Assert.assertTrue(hasText(properties, "Name (optional)"));
         Assert.assertTrue(hasText(properties, "Structure ID"));

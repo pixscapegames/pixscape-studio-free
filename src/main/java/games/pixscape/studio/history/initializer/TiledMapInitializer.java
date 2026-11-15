@@ -217,7 +217,7 @@ public final class TiledMapInitializer implements Initializer {
         identity.stableId = stableId;
         identity.name = identityName;
         EntityMetaComponent meta = world.getMapper(EntityMetaComponent.class).create(entityId);
-        meta.kind = EntityKind.TILED_MAP;
+        meta.kind = EntityKind.TILED_LAYER;
         meta.note = note;
         // Stage 1 bridge: authored Tiled origin remains authoritative; Transform mirrors it only.
         TransformComponent transform = world.getMapper(TransformComponent.class).create(entityId);

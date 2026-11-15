@@ -264,21 +264,9 @@ public final class EntityGraphCaptureService {
     }
 
     private IntMap<IntArray> collectChildrenByParentStableId() {
-        IntMap<IntArray> childrenByParentStableId = new IntMap<>();
-        IntBag members = world.getAspectSubscriptionManager().get(
-                Aspect.all(GameObjectMemberComponent.class)).getEntities();
-        for (int i = 0; i < members.size(); i++) {
-            int child = members.get(i);
-            GameObjectMemberComponent member = mGameObjectMember.get(child);
-            PixscapeIdentityComponent identity = mIdentity.getSafe(child, null);
-            if (member == null || identity == null || identity.stableId <= 0) continue;
-            IntArray children = childrenByParentStableId.get(member.parentStableId);
-            if (children == null) {
-                children = new IntArray(false, 1);
-                childrenByParentStableId.put(member.parentStableId, children);
-            }
-            children.add(child);
-        }
+        IntMap<IntArray> childrenByParentStableId =
+                CurrentGameObjectRelations.collectCurrentChildrenByParentStableId(world,
+                        games.pixscape.runtime.service.IdentityRegistry.boundTo(world));
         for (IntMap.Entry<IntArray> entry : childrenByParentStableId.entries()) {
             sortChildrenByStableId(entry.value);
         }

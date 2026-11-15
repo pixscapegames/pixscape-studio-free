@@ -343,7 +343,7 @@ public class SpatialWallLinkGestureTest {
             shape.spatialBlockId = 1;
             shapes.shapes.add(shape);
             assertFalse(f.session.commit(f.world, f.history, f.selection));
-            assertEquals("Edit Spatial Wall", f.session.commitTitle());
+            assertEquals("Edit Spatial Volume", f.session.commitTitle());
             assertTrue(f.session.commitMessage(), f.session.commitMessage().contains("physics body"));
             assertFalse(f.session.commitMessage().contains("Stale gesture"));
             assertEquals(.5f, f.wall(1).x, 0);

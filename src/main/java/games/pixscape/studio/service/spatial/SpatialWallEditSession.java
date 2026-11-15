@@ -24,7 +24,7 @@ public final class SpatialWallEditSession {
     private String linkDescription;
     private int proposalBuilds;
     private String commitMessage;
-    private String commitTitle = "Edit Spatial Wall";
+    private String commitTitle = "Edit Spatial Volume";
     private int manipulatedFaces;
     private int mapContentRevision;
     private float mapOriginX, mapOriginY, mapAltitude;
@@ -92,7 +92,7 @@ public final class SpatialWallEditSession {
         prepared = SpatialWallThicknessPropagation.prepare(committed.blocks, committed.links, wallId);
         guard = new SpatialWallContactGuard(committed, before);
         commitMessage = null;
-        commitTitle = "Edit Spatial Wall";
+        commitTitle = "Edit Spatial Volume";
         manipulatedFaces = 0;
         proposalBuilds = 0;
         Evaluation initial = evaluate(candidate, false);
@@ -268,7 +268,7 @@ public final class SpatialWallEditSession {
             cancel();
             return false;
         }
-        commitTitle = gestureProposal() != null ? "Lier" : "Edit Spatial Wall";
+        commitTitle = gestureProposal() != null ? "Lier" : "Edit Spatial Volume";
         games.pixscape.runtime.component.TiledLayerComponent tiled = world.getMapper(
                 games.pixscape.runtime.component.TiledLayerComponent.class).getSafe(layerEntityId, null);
         if (gesture && (tiled == null || tiled.data != map || map.contentRevision() != mapContentRevision

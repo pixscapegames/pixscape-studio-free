@@ -32,7 +32,6 @@ import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.component.EntityMetaComponent;
-import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.RuntimeExport;
 import games.pixscape.studio.configuration.SceneMeta;
@@ -61,6 +60,127 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.*;
 
 public class TmxSceneImportServiceTest {
+
+    @Test
+    public void mixedLayerWitnessPaintsCopiesRestoresAndReloadsStableAssociations() throws Exception {
+        Harness h = harness("tiled-mixed-witness");
+        FileHandle tmx = new FileHandle("src/test/resources/tmx/mixed-layers/mixed-layers.tmx");
+        TmxSceneImportResult imported = h.importer().importScene(new TmxSceneImportRequest(tmx, "Mixed Layers", true));
+        assertTrue(String.valueOf(imported.failure()), imported.imported());
+        World world = loadImportedWorld(h, imported);
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(world, h.cfg.getSceneMeta(imported.sceneName()));
+        identities.rebuild();
+        try {
+            int map = world.getAspectSubscriptionManager().get(Aspect.all(TiledMapComponent.class)).getEntities().get(0);
+            int mapStable = world.getMapper(PixscapeIdentityComponent.class).get(map).stableId;
+            HistoryManager importHistory = new HistoryManager(16);
+            importHistory.execute(new games.pixscape.studio.history.commands.ImportTiledMapCommand(
+                    world, importHistory.historyIds(), map, null));
+            importHistory.undo();
+            world.process();
+            assertEquals(0, world.getAspectSubscriptionManager().get(Aspect.all(TiledMapLayerComponent.class)).getEntities().size());
+            importHistory.redo();
+            world.process();
+            map = identities.findByStableId(mapStable);
+            assertTrue(map >= 0);
+            assertEquals(4, world.getAspectSubscriptionManager().get(Aspect.all(TiledMapLayerComponent.class)).getEntities().size());
+            int[] layerStable = new int[4];
+            for (int i = 0; i < 4; i++) {
+                int layer = layerEntity(world, i, false);
+                layerStable[i] = world.getMapper(PixscapeIdentityComponent.class).get(layer).stableId;
+                assertEquals(mapStable, world.getMapper(GameObjectMemberComponent.class).get(layer).parentStableId);
+            }
+            int bottom = layerEntity(world, 0, true), top = layerEntity(world, 3, true);
+            TiledLayerComponent bottomTiles = world.getMapper(TiledLayerComponent.class).get(bottom);
+            TiledLayerComponent topTiles = world.getMapper(TiledLayerComponent.class).get(top);
+            assertEquals(bottomTiles.tileXs.get(0), topTiles.tileXs.get(0));
+            assertEquals(bottomTiles.tileYs.get(0), topTiles.tileYs.get(0));
+            int bottomAsset = bottomTiles.tileAssetIds.get(0);
+            int topAsset = topTiles.tileAssetIds.get(0);
+            topTiles.data = topTiles.createLayerData();
+            int x = topTiles.tileXs.get(0), y = topTiles.tileYs.get(0);
+            topTiles.data.setTile(x, y, topAsset);
+            HistoryManager history = new HistoryManager(16);
+            var brush = new games.pixscape.studio.service.tiled.TiledBrushSession(top);
+            brush.apply(topTiles, x, y, bottomAsset);
+            history.execute(new games.pixscape.studio.history.commands.TiledBrushCommand(world, null,
+                    history.historyIds(), history.historyIds().ensureForEntity(top), brush.toPlan(),
+                    new games.pixscape.studio.service.tiled.TiledSpatialMutationPlanner()));
+            assertEquals(bottomAsset, topTiles.data.getTile(x, y));
+            assertEquals(bottomAsset, bottomTiles.tileAssetIds.get(0));
+            history.undo();
+            assertEquals(topAsset, topTiles.data.getTile(x, y));
+            history.redo();
+            assertEquals(bottomAsset, topTiles.data.getTile(x, y));
+            history.undo();
+
+            int object = visualEntityByName(world, "Green diamond");
+            world.getMapper(CustomPropertiesComponent.class).get(object).properties.putObjectStableId("map", mapStable);
+            var graph = new games.pixscape.studio.service.entitygraph.EntityGraphCaptureService(world)
+                    .capture(com.badlogic.gdx.utils.IntArray.with(map));
+            var copy = new games.pixscape.studio.service.entitygraph.EntityGraphInstantiationService(
+                    world, history, identities, null, () -> false)
+                    .instantiate(graph, 0, 32, 0, "Duplicate map");
+            assertEquals(6, copy.createdIds().size);
+            int copyMap = copy.createdRootIds().first();
+            assertNotEquals(mapStable, world.getMapper(PixscapeIdentityComponent.class).get(copyMap).stableId);
+            int copiedMapStable = world.getMapper(PixscapeIdentityComponent.class).get(copyMap).stableId;
+            int copiedObject = -1;
+            for (int i = 0; i < copy.createdIds().size; i++) {
+                int entity = copy.createdIds().get(i);
+                if ("Green diamond".equals(world.getMapper(PixscapeIdentityComponent.class).get(entity).name)) {
+                    copiedObject = entity;
+                }
+            }
+            assertTrue(copiedObject >= 0);
+            assertEquals(copiedMapStable, world.getMapper(CustomPropertiesComponent.class).get(copiedObject)
+                    .properties.getObjectStableId("map", -1));
+            // Delete before publication, undo after publication, and repeat with recycled handles.
+            var deletion = new games.pixscape.studio.history.commands.DeleteGameObjectHierarchyCommand(
+                    world, history.historyIds(), com.badlogic.gdx.utils.IntArray.with(copyMap), null);
+            deletion.redo();
+            world.process();
+            deletion.undo();
+            world.process();
+            assertEquals(2, world.getAspectSubscriptionManager().get(Aspect.all(TiledMapComponent.class)).getEntities().size());
+            deletion.redo();
+            world.process();
+            assertEquals(1, world.getAspectSubscriptionManager().get(Aspect.all(TiledMapComponent.class)).getEntities().size());
+
+            world.getMapper(EntityIndexComponent.class).get(top).zIndex = -1;
+            FileHandle saved = h.projectDir.child(StudioFs.DIR_SCENES).child(imported.sceneFileName());
+            games.pixscape.studio.service.SceneService.saveScene(world, saved, false);
+            World restored = loadImportedWorld(h, imported);
+            try {
+                for (int i = 0; i < 4; i++) {
+                    int original = identities.findByStableId(layerStable[i]);
+                    int restoredId = -1;
+                    var all = restored.getAspectSubscriptionManager().get(Aspect.all(PixscapeIdentityComponent.class)).getEntities();
+                    for (int j = 0; j < all.size(); j++) {
+                        if (restored.getMapper(PixscapeIdentityComponent.class).get(all.get(j)).stableId == layerStable[i]) {
+                            restoredId = all.get(j);
+                        }
+                    }
+                    assertTrue(restoredId >= 0);
+                    assertEquals(world.getMapper(EntityIndexComponent.class).get(original).zIndex,
+                            restored.getMapper(EntityIndexComponent.class).get(restoredId).zIndex);
+                    assertEquals(mapStable, restored.getMapper(GameObjectMemberComponent.class).get(restoredId).parentStableId);
+                }
+            } finally {
+                restored.dispose();
+            }
+            // Restore the witness composition before producing the native/HTML export.
+            world.getMapper(EntityIndexComponent.class).get(top).zIndex = 3;
+            games.pixscape.studio.service.SceneService.saveScene(world, saved, false);
+            ProjectConfig.ProjectIO.saveProject(h.cfg, StudioFs.requireStudioProjectFile(h.cfg));
+            RuntimeExport.exportRuntime(h.cfg, h.projectDir, new FileHandle(h.root.resolve("export").toFile()));
+            new FileHandle("build/tiled-map-layers-fixture-path.txt").writeString(h.root.toString(), false, "UTF-8");
+        } finally {
+            identities.bind(null, null);
+            world.dispose();
+        }
+    }
 
     private static HeadlessApplication app;
 
@@ -157,8 +277,8 @@ public class TmxSceneImportServiceTest {
 
         int ground = layerEntity(world, 0, true);
         int above = layerEntity(world, 1, true);
-        assertEquals("Ground", world.getMapper(LayerMetaComponent.class).get(ground).name);
-        assertEquals("Above", world.getMapper(LayerMetaComponent.class).get(above).name);
+        assertEquals("Ground", world.getMapper(PixscapeIdentityComponent.class).get(ground).name);
+        assertEquals("Above", world.getMapper(PixscapeIdentityComponent.class).get(above).name);
         assertFalse(world.getMapper(VisibilityComponent.class).get(above).visible);
         assertEquals(2f, world.getMapper(LayerParallaxComponent.class).get(above).factorX, 0.0001f);
         assertEquals(0.5f, world.getMapper(LayerParallaxComponent.class).get(above).factorY, 0.0001f);
@@ -187,7 +307,7 @@ public class TmxSceneImportServiceTest {
         assertTrue("import failed: " + result.failure() + " " + result.diagnostics(),
                 result.imported());
         World world = loadImportedWorld(h, result);
-        int layerEntity = layerEntity(world, 0, true);
+        int layerEntity = world.getAspectSubscriptionManager().get(Aspect.all(LayerComponent.class)).getEntities().get(0);
         int mapEntity = tiledMapEntity(world, 0);
         LayerComponent layer = world.getMapper(LayerComponent.class).get(layerEntity);
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(mapEntity);
@@ -204,12 +324,12 @@ public class TmxSceneImportServiceTest {
         assertEquals(2, tiled.mapHeightCells);
         assertEquals(6f, tiled.originX, 0f);
         assertEquals(9f, tiled.originY, 0f);
-        assertFalse(world.getMapper(VisibilityComponent.class).get(layerEntity).visible);
-        assertTrue(world.getMapper(VisibilityComponent.class).get(mapEntity).visible);
+        assertTrue(world.getMapper(VisibilityComponent.class).get(layerEntity).visible);
+        assertFalse(world.getMapper(VisibilityComponent.class).get(mapEntity).visible);
         assertEquals(1.5f, world.getMapper(LayerParallaxComponent.class)
-                .get(layerEntity).factorX, 0f);
+                .get(mapEntity).factorX, 0f);
         assertEquals(0.75f, world.getMapper(LayerParallaxComponent.class)
-                .get(layerEntity).factorY, 0f);
+                .get(mapEntity).factorY, 0f);
         assertFalse(tiled.spatialEnabled);
         tiled.data = tiled.createLayerData();
         assertFalse(tiled.data.spatialEnabled);
@@ -286,9 +406,9 @@ public class TmxSceneImportServiceTest {
         int ground = layerEntity(world, 0, true);
         int backdrop = layerEntity(world, 1, false);
         int above = layerEntity(world, 2, true);
-        assertEquals("Ground", world.getMapper(LayerMetaComponent.class).get(ground).name);
-        assertEquals("Backdrop", world.getMapper(LayerMetaComponent.class).get(backdrop).name);
-        assertEquals("Above", world.getMapper(LayerMetaComponent.class).get(above).name);
+        assertEquals("Ground", world.getMapper(PixscapeIdentityComponent.class).get(ground).name);
+        assertEquals("Backdrop", world.getMapper(PixscapeIdentityComponent.class).get(backdrop).name);
+        assertEquals("Above", world.getMapper(PixscapeIdentityComponent.class).get(above).name);
         assertFalse(world.getMapper(VisibilityComponent.class).get(backdrop).visible);
         assertEquals(2f, world.getMapper(LayerParallaxComponent.class).get(backdrop).factorX, 0.0001f);
         assertEquals(0.25f, world.getMapper(LayerParallaxComponent.class).get(backdrop).factorY, 0.0001f);
@@ -339,10 +459,10 @@ public class TmxSceneImportServiceTest {
         World world = loadImportedWorld(h, result);
 
         assertTrue(result.imported());
-        assertEquals("Below", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 0, true)).name);
+        assertEquals("Below", world.getMapper(PixscapeIdentityComponent.class).get(layerEntity(world, 0, true)).name);
         int objectLayer = layerEntity(world, 1, false);
-        assertEquals("Gameplay", world.getMapper(LayerMetaComponent.class).get(objectLayer).name);
-        assertEquals("Above", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 2, true)).name);
+        assertEquals("Gameplay", world.getMapper(PixscapeIdentityComponent.class).get(objectLayer).name);
+        assertEquals("Above", world.getMapper(PixscapeIdentityComponent.class).get(layerEntity(world, 2, true)).name);
         assertEquals(0, objectCountInLayer(world, 1));
     }
 
@@ -384,9 +504,8 @@ public class TmxSceneImportServiceTest {
 
         assertTrue(result.imported());
         int layerEntity = layerEntity(world, 0, false);
-        LayerComponent layer = world.getMapper(LayerComponent.class).get(layerEntity);
-        assertFalse(layer.spatialEnabled);
-        assertEquals("World/Gameplay", world.getMapper(LayerMetaComponent.class).get(layerEntity).name);
+        assertTrue(world.getMapper(TiledMapLayerComponent.class).has(layerEntity));
+        assertEquals("World/Gameplay", world.getMapper(PixscapeIdentityComponent.class).get(layerEntity).name);
         assertFalse(world.getMapper(VisibilityComponent.class).get(layerEntity).visible);
         assertEquals(1f, world.getMapper(LayerParallaxComponent.class).get(layerEntity).factorX, 0.0001f);
         assertEquals(1f, world.getMapper(LayerParallaxComponent.class).get(layerEntity).factorY, 0.0001f);
@@ -763,10 +882,10 @@ public class TmxSceneImportServiceTest {
         TmxSceneImportResult result = h.importer().importScene(request(tmx, "Imported Order"));
         World world = loadImportedWorld(h, result);
 
-        assertEquals("sky", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 0, false)).name);
-        assertEquals("jungle", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 1, false)).name);
-        assertEquals("ground", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 2, true)).name);
-        assertEquals("props", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 3, true)).name);
+        assertEquals("sky", world.getMapper(PixscapeIdentityComponent.class).get(layerEntity(world, 0, false)).name);
+        assertEquals("jungle", world.getMapper(PixscapeIdentityComponent.class).get(layerEntity(world, 1, false)).name);
+        assertEquals("ground", world.getMapper(PixscapeIdentityComponent.class).get(layerEntity(world, 2, true)).name);
+        assertEquals("props", world.getMapper(PixscapeIdentityComponent.class).get(layerEntity(world, 3, true)).name);
     }
 
     @Test
@@ -1067,7 +1186,7 @@ public class TmxSceneImportServiceTest {
             SceneLoader.loadScene(world, scene, false, meta);
             world.process();
             var api = engine.api().entities();
-            var points = api.findAllByLayerName("spawn-points");
+            var points = api.findAllByTiledLayerName("spawn-points");
             assertEquals(1, points.length);
             assertEquals(7, points[0].properties().getInt("role", -1));
             assertEquals(12f, points[0].transform().x(), 0f);
@@ -1080,7 +1199,7 @@ public class TmxSceneImportServiceTest {
             SceneLoader.loadScene(world, scene, true, meta);
             world.process();
             assertFalse(points[0].exists());
-            assertEquals(1, api.findAllByLayerName("spawn-points").length);
+            assertEquals(1, api.findAllByTiledLayerName("spawn-points").length);
         } finally {
             engine.getIdentityRegistry().bind(null, null);
             world.dispose();
@@ -1825,21 +1944,26 @@ public class TmxSceneImportServiceTest {
     }
 
     private static int layerEntity(World world, int index, boolean requireMap) {
-        ComponentMapper<LayerComponent> layers = world.getMapper(LayerComponent.class);
-        Aspect.Builder aspect = Aspect.all(LayerComponent.class);
-        IntBag entities = world.getAspectSubscriptionManager()
-                .get(aspect)
-                .getEntities();
+        IntBag entities = world.getAspectSubscriptionManager().get(Aspect.all(TiledMapLayerComponent.class)).getEntities();
         for (int i = 0; i < entities.size(); i++) {
             int entity = entities.get(i);
-            if (layers.get(entity).layerIndex == index) {
+            if (world.getMapper(EntityIndexComponent.class).get(entity).zIndex == index) {
                 if (requireMap) {
-                    tiledMapEntity(world, index);
+                    assertTrue(world.getMapper(TiledLayerComponent.class).has(entity));
                 }
                 return entity;
             }
         }
-        throw new AssertionError("Missing layer index " + index);
+        throw new AssertionError("Missing Tiled layer order " + index);
+    }
+
+    private static boolean belongsToTiledLayer(World world, int entity, int order) {
+        int layer = layerEntity(world, order, false);
+        if (entity == layer) {
+            return true;
+        }
+        GameObjectMemberComponent member = world.getMapper(GameObjectMemberComponent.class).getSafe(entity, null);
+        return member != null && member.parentStableId == world.getMapper(PixscapeIdentityComponent.class).get(layer).stableId;
     }
 
     private static int tiledMapEntity(World world, int layerIndex) {
@@ -1850,7 +1974,9 @@ public class TmxSceneImportServiceTest {
                 .getEntities();
         for (int i = 0; i < entities.size(); i++) {
             int entity = entities.get(i);
-            if (indexes.get(entity).layerIndex == layerIndex) return entity;
+            if (indexes.get(entity).zIndex == layerIndex) {
+                return entity;
+            }
         }
         throw new AssertionError("Missing Tiled map in layer index " + layerIndex);
     }
@@ -1862,7 +1988,7 @@ public class TmxSceneImportServiceTest {
                 .getEntities();
         for (int i = 0; i < entities.size(); i++) {
             int entity = entities.get(i);
-            if (indices.get(entity).getLayerIndex() == layerIndex) {
+            if (belongsToTiledLayer(world, entity, layerIndex)) {
                 return entity;
             }
         }
@@ -1877,7 +2003,7 @@ public class TmxSceneImportServiceTest {
                 .getEntities();
         for (int i = 0; i < entities.size(); i++) {
             int entity = entities.get(i);
-            if (indices.get(entity).getLayerIndex() == layerIndex) {
+            if (belongsToTiledLayer(world, entity, layerIndex)) {
                 count++;
             }
         }
@@ -1893,7 +2019,8 @@ public class TmxSceneImportServiceTest {
                 .getEntities();
         for (int i = 0; i < entities.size(); i++) {
             int entity = entities.get(i);
-            if (indices.get(entity).layerIndex == layerIndex
+            if (belongsToTiledLayer(world, entity, layerIndex)
+                    && !world.getMapper(TiledMapLayerComponent.class).has(entity)
                     && !world.getMapper(AssetRefComponent.class).has(entity)) {
                 count++;
             }

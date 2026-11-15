@@ -118,10 +118,12 @@ public class TransformPanel extends CollapsibleWidget {
                 && ctx.world.getMapper(GameObjectComponent.class).has(entityId);
         setApplicable(originXCell, originXRow, !particle && !gameObject);
         setApplicable(originYCell, originYRow, !particle && !gameObject);
-        setApplicable(rotationCell, rotationRow, !particle);
+        boolean tiledMap = entityId >= 0
+                && ctx.world.getMapper(games.pixscape.runtime.component.TiledMapComponent.class).has(entityId);
+        setApplicable(rotationCell, rotationRow, !particle && !tiledMap);
         setApplicable(scaleXCell, scaleXRow, !particle && !gameObject);
         setApplicable(scaleYCell, scaleYRow, !particle && !gameObject);
-        setApplicable(uniformScaleCell, uniformScaleRow, gameObject);
+        setApplicable(uniformScaleCell, uniformScaleRow, gameObject && !tiledMap);
         uniformScaleField.setDisabled(gameObject
                 && games.pixscape.studio.history.commands.GameObjectHierarchyCommandSupport
                 .isPhysicsAncestorScaleLocked(ctx.world, entityId));

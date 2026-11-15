@@ -50,7 +50,7 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
 
     @Override
     public String label() {
-        return "Add Spatial Wall";
+        return "Add Spatial Volume";
     }
 
     @Override

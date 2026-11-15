@@ -4,20 +4,35 @@ import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.kotcrab.vis.ui.VisUI;
+import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.TiledMapComponent;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.model.EntityKind;
 
 public class IconResolver {
     private final ComponentMapper<EntityMetaComponent> mMeta;
+    private final ComponentMapper<TiledMapComponent> mMaps;
+    private final ComponentMapper<TiledLayerComponent> mTileLayers;
 
     public IconResolver(World world) {
         this.mMeta = world.getMapper(EntityMetaComponent.class);
+        this.mMaps = world.getMapper(TiledMapComponent.class);
+        this.mTileLayers = world.getMapper(TiledLayerComponent.class);
     }
 
     public Drawable iconForEntity(int e) {
+        return getDrawable(kindForEntity(e));
+    }
+
+    public EntityKind kindForEntity(int e) {
+        if (mMaps.has(e)) {
+            return EntityKind.TILED_MAP;
+        }
+        if (mTileLayers.has(e)) {
+            return EntityKind.TILED_LAYER;
+        }
         EntityMetaComponent meta = mMeta.getSafe(e, null);
-        EntityKind kind = (meta != null && meta.kind != null) ? meta.kind : EntityKind.UNKNOWN;
-        return getDrawable(kind);
+        return (meta != null && meta.kind != null) ? meta.kind : EntityKind.UNKNOWN;
     }
 
     public static Drawable iconForEntity(EntityKind kind) {
@@ -37,6 +52,9 @@ public class IconResolver {
             }
             case TILED_MAP -> {
                 return VisUI.getSkin().getDrawable("icon-tiled");
+            }
+            case TILED_LAYER -> {
+                return VisUI.getSkin().getDrawable("icon-tiled-layer");
             }
             case GAME_OBJECT -> {
                 return VisUI.getSkin().getDrawable("cube");

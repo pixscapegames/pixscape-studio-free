@@ -69,6 +69,7 @@ final class EntityGraphHierarchyInitializer implements Initializer {
         if (customProperties != null) {
             world.getMapper(CustomPropertiesComponent.class).create(entityId).properties = customProperties.copy();
         }
+        games.pixscape.runtime.service.IdentityRegistry.boundTo(world).indexEntityImmediately(entityId);
     }
 
     @Override

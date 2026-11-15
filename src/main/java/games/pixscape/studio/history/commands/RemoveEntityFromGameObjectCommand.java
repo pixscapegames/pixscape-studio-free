@@ -43,6 +43,9 @@ public final class RemoveEntityFromGameObjectCommand implements Command {
         }
         GameObjectHierarchyCommandSupport.requireActive(world, childEntityId, "child");
         GameObjectHierarchyCommandSupport.requireCore(world, childEntityId, "child");
+        if (world.getMapper(games.pixscape.runtime.component.TiledMapLayerComponent.class).has(childEntityId)) {
+            throw new IllegalArgumentException("A Tiled layer cannot be detached from its map.");
+        }
         GameObjectMemberComponent member = world.getMapper(GameObjectMemberComponent.class)
                 .getSafe(childEntityId, null);
         if (member == null) throw new IllegalArgumentException("Entity is not a Game Object member.");

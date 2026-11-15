@@ -22,8 +22,9 @@ public final class AddTiledMapCommand implements Command {
     private final int targetLayerIndex;
     private final IntConsumer onMapSelected;
     private long historyId = -1L;
+    private long mapHistoryId = -1L;
     private boolean capturedAuthoredState;
-    private DeleteTiledMapCommand undoDeletion;
+    private DeleteGameObjectHierarchyCommand undoDeletion;
 
     public AddTiledMapCommand(LayerService layerService, int targetLayerEntityId,
                               int mapWidth, int mapHeight, TiledProjection projection,
@@ -61,6 +62,19 @@ public final class AddTiledMapCommand implements Command {
         if (historyId <= 0L) historyId = historyIds.ensureForEntity(mapEntityId);
         if (!capturedAuthoredState) {
             zOrder.addOnTop(mapEntityId, targetLayerIndex);
+            World world = layerService.getWorld();
+            var tiles = world.getMapper(games.pixscape.runtime.component.TiledLayerComponent.class).get(mapEntityId);
+            var index = world.getMapper(games.pixscape.runtime.component.EntityIndexComponent.class).get(mapEntityId);
+            var identities = games.pixscape.runtime.service.IdentityRegistry.boundTo(world);
+            int map = games.pixscape.runtime.tiled.TiledMapHierarchy.createMap(world, identities,
+                    "Map", targetLayerIndex, index.zIndex, tiles.projection, tiles.tileWidth,
+                    tiles.tileHeight, tiles.mapWidthCells, tiles.mapHeightCells);
+            world.getMapper(games.pixscape.studio.component.EntityMetaComponent.class).create(map).kind =
+                    games.pixscape.studio.model.EntityKind.TILED_MAP;
+            games.pixscape.runtime.tiled.TiledMapHierarchy.attachLayer(world, identities,
+                    map, mapEntityId, games.pixscape.runtime.component.TiledMapLayerComponent.Kind.TILE, 0);
+            identities.setName(mapEntityId, "Tile Layer");
+            mapHistoryId = historyIds.ensureForEntity(map);
             initializer.syncFrom(mapEntityId);
             capturedAuthoredState = true;
         }
@@ -72,7 +86,9 @@ public final class AddTiledMapCommand implements Command {
         int mapEntityId = historyIds.entityOfHistoryId(historyId);
         if (mapEntityId < 0) return;
         if (undoDeletion == null) {
-            undoDeletion = new DeleteTiledMapCommand(layerService, mapEntityId, onMapSelected);
+            undoDeletion = new DeleteGameObjectHierarchyCommand(layerService.getWorld(), historyIds,
+                    com.badlogic.gdx.utils.IntArray.with(historyIds.entityOfHistoryId(mapHistoryId)),
+                    onMapSelected, layerService.getTiledAllocatorService());
         }
         undoDeletion.redo();
     }

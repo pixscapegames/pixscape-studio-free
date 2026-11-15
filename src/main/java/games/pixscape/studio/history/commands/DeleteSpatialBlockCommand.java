@@ -70,7 +70,7 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
 
     @Override
     public String label() {
-        return "Delete Spatial Wall";
+        return "Delete Spatial Volume";
     }
 
     @Override
