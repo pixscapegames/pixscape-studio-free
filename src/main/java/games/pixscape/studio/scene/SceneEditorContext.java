@@ -91,6 +91,9 @@ public final class SceneEditorContext implements Disposable {
                 historyManager.historyIds(),
                 identityRegistry);
         selectionService = new SelectionService(world, layerService, editingModeService);
+        layerService.bindEditorVisibility(
+                games.pixscape.studio.configuration.ProjectConfig.getInstance().projectDirectoryPath,
+                sceneMeta != null ? sceneMeta.file : null);
         physicsSelectionReconciler.bindWorld(world);
         physicsSelectionService.setContextActive(false);
         spatialBlockSelectionService.setContextActive(false);

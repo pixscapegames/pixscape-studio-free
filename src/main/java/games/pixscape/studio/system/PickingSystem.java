@@ -356,6 +356,7 @@ public final class PickingSystem extends BaseSystem {
         }
         if ((movingSpatialBlockActive || resizingSpatialBlockActive) &&
                 (!spatialBlockSelectionService.isEditingActive()
+                        || !isSelectableInViewport(spatialBlockSelectionService.getEditingMapEntityId())
                         || !spatialBlockSelectionService.wallEditSession().isActive()
                         || spatialBlockSelectionService.getEditingMapEntityId() !=
                         (movingSpatialBlockActive ? movingSpatialBlockLayerEid : resizingSpatialBlockLayerEid))) {
@@ -372,8 +373,10 @@ public final class PickingSystem extends BaseSystem {
         CornerProfileEditSession corner = spatialBlockSelectionService.cornerProfile();
         if (corner.active()) {
             if (!spatialBlockSelectionService.isEditingActive()
-                    || spatialBlockSelectionService.getEditingMapEntityId() != corner.target().mapId()) corner.close();
-            else {
+                    || !isSelectableInViewport(spatialBlockSelectionService.getEditingMapEntityId())
+                    || spatialBlockSelectionService.getEditingMapEntityId() != corner.target().mapId()) {
+                corner.close();
+            } else {
                 corner.synchronize();
                 if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
                     if (corner.dragging()) corner.cancelGesture();
@@ -680,6 +683,16 @@ public final class PickingSystem extends BaseSystem {
                                         boolean leftDown,
                                         boolean leftReleased) {
         int layerEntityId = spatialBlockSelectionService.getEditingMapEntityId();
+
+        if (!isSelectableInViewport(layerEntityId)) {
+            if (spatialTileSelectionActive) {
+                spatialTileSelectionActive = false;
+                spatialTileSelectionService.clear();
+            }
+            spatialBlockSelectionService.clearHover();
+            spatialPointer.release();
+            return SpatialBlockHandle.NONE;
+        }
 
         if (resizingSpatialBlockActive) {
             if (leftDown) {

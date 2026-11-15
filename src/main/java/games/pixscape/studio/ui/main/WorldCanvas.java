@@ -590,7 +590,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                                 stats,
                                 statsSink,
                                 sceneMeta != null && sceneMeta.forwardLighting
-                        ).setSceneSettings(sceneMeta).setRenderDomains(dynamicEntityState, tiledState),
+                        ).setSceneSettings(sceneMeta).setRenderDomains(dynamicEntityState, tiledState)
+                                .setAfterWorldDraw(() -> drawGrid(true)),
                         sceneMeta,
                         0,
                         tileAnimationRegistry,
@@ -2446,7 +2447,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return;
         }
 
-        gridStage.draw();
+        drawGrid(false);
         if (gpuSnapshotManager != null && !atlasStudioService.isPackInProgress()) {
             String sceneTag = currentSceneTag();
             if (sceneTag != null && !sceneTag.isBlank()) {
@@ -2486,7 +2487,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         if (spatialInvariantBoundary.isBlocked()) return;
         long totalStart = frameProfiler.begin(StudioFrameProfiler.DRAW_TOTAL);
         try {
-            gridStage.draw();
+            drawGrid(false);
             if (gpuSnapshotManager != null && !atlasStudioService.isPackInProgress()) {
                 String sceneTag = currentSceneTag();
                 if (sceneTag != null && !sceneTag.isBlank()) {
@@ -2635,7 +2636,15 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private boolean isTiledToolInputEnabled() {
         return getAttachedSceneContext() != null
                 && selectionService().isTiledMapEditingTargetActive()
+                && layerService().isPublishedContentVisible(selectionService().getTiledMapEditingTargetEntityId())
                 && !spatialBlockSelectionService().isEditingActive();
+    }
+
+    private void drawGrid(boolean onTop) {
+        var settings = games.pixscape.studio.configuration.EditorSettings.get();
+        if (settings.gridOnTop == onTop) {
+            gridStage.draw();
+        }
     }
 
     private boolean worldInputAllowed() {

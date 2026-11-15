@@ -407,7 +407,7 @@ public class ItemsPanelDragGlTest {
             var content = (com.kotcrab.vis.ui.widget.VisTable) field(studio.getItemTreePanel(), "worldContent");
             var scroll = (ScrollPane) field(studio.getItemTreePanel(), "scroller");
             var feedback = (Actor) field(field(studio.getItemTreePanel(), "itemMoves"), "feedback");
-            assertEquals("Only the tree and transient DnD feedback remain", 2, content.getChildren().size);
+            assertEquals("Visibility gutter, tree and transient DnD feedback", 3, content.getChildren().size);
             assertEquals(0f, feedback.getHeight(), 0f);
             assertEquals("The tree reaches the bottom without an empty toolbar/status strip", content.getPadBottom(), scroll.getY(), .01f);
             var context = studio.getSceneEditorContext();

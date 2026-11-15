@@ -4,6 +4,11 @@ import com.artemis.*;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.IntSet;
+import games.pixscape.runtime.component.TiledMapComponent;
+import games.pixscape.runtime.component.TiledMapLayerComponent;
+import games.pixscape.runtime.system.GameObjectCompositionSystem;
+import games.pixscape.studio.configuration.EditorSettings;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.LayerComponent;
@@ -43,6 +48,65 @@ public final class LayerService {
     private final IdentityRegistry identityRegistry;
     private final TiledAllocatorService tiledAllocatorService;
     private boolean dirty = true;
+    private final IntSet hiddenTiledItems = new IntSet();
+    private String visibilityPreferenceKey;
+
+    /** Cold scene binding. Stable scene filenames survive display-name changes. */
+    public void bindEditorVisibility(String projectDirectory, String sceneFile) {
+        hiddenTiledItems.clear();
+        visibilityPreferenceKey = projectDirectory == null || sceneFile == null ? null
+                : java.nio.file.Path.of(projectDirectory).toAbsolutePath().normalize() + "/" + sceneFile;
+        if (visibilityPreferenceKey != null && java.io.File.separatorChar == '\\') {
+            visibilityPreferenceKey = visibilityPreferenceKey.toLowerCase(java.util.Locale.ROOT);
+        }
+        IntArray saved = visibilityPreferenceKey == null ? null
+                : EditorSettings.get().hiddenTiledItems.get(visibilityPreferenceKey);
+        if (saved != null) {
+            hiddenTiledItems.addAll(saved);
+        }
+        GameObjectCompositionSystem composition = world.getSystem(GameObjectCompositionSystem.class);
+        if (composition != null) {
+            composition.setVisibilityFilter(this::isTiledEditorVisible);
+        }
+    }
+
+    public boolean hasTiledVisibilityControl(int entityId) {
+        return entityId >= 0 && (world.getMapper(TiledMapComponent.class).has(entityId)
+                || world.getMapper(TiledMapLayerComponent.class).has(entityId));
+    }
+
+    /** O(1) lookup; no entity references are cached across deletion/restoration. */
+    public boolean isTiledEditorVisible(int entityId) {
+        return !hiddenTiledItems.contains(identityRegistry.getStableId(entityId));
+    }
+
+    public void setTiledEditorVisible(int entityId, boolean visible) {
+        if (!hasTiledVisibilityControl(entityId) || visibilityPreferenceKey == null) {
+            return;
+        }
+        int stableId = identityRegistry.getStableId(entityId);
+        if (stableId <= 0) {
+            return;
+        }
+        boolean changed = visible ? hiddenTiledItems.remove(stableId) : hiddenTiledItems.add(stableId);
+        if (changed) {
+            EditorSettings.get().hiddenTiledItems.put(visibilityPreferenceKey, hiddenTiledItems.iterator().toArray());
+            EditorSettings.save();
+        }
+    }
+
+    /** Uses the last composition publication, including inherited editor and authored visibility. */
+    public boolean isPublishedContentVisible(int entityId) {
+        GameObjectCompositionSystem composition = world.getSystem(GameObjectCompositionSystem.class);
+        if (composition != null && entityId >= 0 && entityId < composition.state().hierarchyVisible.length
+                && !composition.state().hierarchyVisible[entityId]) {
+            return false;
+        }
+        VisibilityComponent own = mVis.getSafe(entityId, null);
+        int layer = getLayerEntity(getPublishedEffectiveLayerIndex(entityId));
+        VisibilityComponent parent = layer >= 0 ? mVis.getSafe(layer, null) : null;
+        return (own == null || own.visible) && (parent == null || parent.visible);
+    }
 
     /**
      * index -> entityId (dense, sorted by index)

@@ -22,6 +22,9 @@ public final class EditorSettings {
     }
 
     public boolean autoRepackAtlases = true;
+    public boolean gridOnTop = false;
+    public com.badlogic.gdx.utils.ObjectMap<String, com.badlogic.gdx.utils.IntArray> hiddenTiledItems =
+            new com.badlogic.gdx.utils.ObjectMap<>();
     public String lastProjectPath;
     public ArrayList<String> recentProjectPaths = new ArrayList<>();
 

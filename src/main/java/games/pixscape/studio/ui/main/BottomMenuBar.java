@@ -14,6 +14,7 @@ import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.configuration.EditorSettings;
 import games.pixscape.studio.document.EditorDocumentKey;
 import games.pixscape.studio.document.EditorDocumentManager;
 import games.pixscape.studio.document.EditorDocumentType;
@@ -184,7 +185,21 @@ public class BottomMenuBar extends VisTable {
         panYCell = add(panFieldY).right().padRight(30);
         zoomLabelCell = add(zoomLabel).right();
         zoomValueCell = add(zoomValue).right().padRight(30);
-        add(rulersVisibilityCheckBox).right().padRight(100);
+        // Editor view preference; no authored scene mutation or history entry.
+        VisCheckBox gridOnTop = new VisCheckBox("Grid on top");
+        gridOnTop.setName("editor-grid-on-top");
+        gridOnTop.setChecked(EditorSettings.get().gridOnTop);
+        gridOnTop.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                EditorSettings.get().gridOnTop = gridOnTop.isChecked();
+                EditorSettings.save();
+            }
+        });
+        new Tooltip.Builder("Draw the editing grid above world content, below editing tools.")
+                .target(gridOnTop).build();
+        add(rulersVisibilityCheckBox).right().padRight(12);
+        add(gridOnTop).right().padRight(30);
         centerCamCell = add(centerCam).width(120).right();
 
         EventFlow.i().subscribe(EventFlow.StudioEditingModeChanged.class,

@@ -267,7 +267,7 @@ public final class GizmoSystem extends BaseSystem {
                         ? world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null)
                         : null;
 
-                if (tiled != null && tiled.data != null) {
+                if (tiled != null && tiled.data != null && isEntityVisibleForGizmo(layerEntityId)) {
                     TiledLayerData map = tiled.data;
 
                     if (SpatialCellPicker.pick(map, tmpMouseWorld.x, tmpMouseWorld.y, spatialCell)) {
@@ -303,6 +303,9 @@ public final class GizmoSystem extends BaseSystem {
             if (entityGizmoEnabled && !physicsEditMode) {
                 for (int e : selected) {
                     if (mJoint.has(e)) continue;
+                    if (!isEntityVisibleForGizmo(e)) {
+                        continue;
+                    }
                     if (isParticleEntity(e)) {
                         if (!isEntityVisibleForGizmo(e)) continue;
                         TransformComponent transform = mT.getSafe(e, null);
@@ -396,7 +399,8 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private boolean hasSpatialBlockOverlayWork() {
-        return spatialBlockSelectionService != null && spatialBlockSelectionService.isEditingActive();
+        return spatialBlockSelectionService != null && spatialBlockSelectionService.isEditingActive()
+                && isEntityVisibleForGizmo(spatialBlockSelectionService.getEditingMapEntityId());
     }
 
     private boolean hasSpatialTileSelectionWork() {
@@ -1794,6 +1798,9 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private boolean isEntityVisibleForGizmo(int e) {
+        if (layerService != null && !layerService.isPublishedContentVisible(e)) {
+            return false;
+        }
         if (!isLayerVisible(e)) return false;
         return !mVis.has(e) || mVis.get(e).isVisible();
     }
@@ -1811,6 +1818,9 @@ public final class GizmoSystem extends BaseSystem {
 
     private boolean isLayerEntityVisible(int layerEntityId) {
         if (layerEntityId < 0 || mVis == null) return false;
+        if (layerService != null && !layerService.isPublishedContentVisible(layerEntityId)) {
+            return false;
+        }
         VisibilityComponent layerVis = mVis.getSafe(layerEntityId, null);
         return layerVis == null || layerVis.isVisible();
     }

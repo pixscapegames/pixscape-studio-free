@@ -14,6 +14,28 @@ final class ItemMoveTree extends IdVisTree {
 
     private List<Row> preview;
     private Rectangle culling;
+    private final java.util.ArrayList<EntityNode> visibleNodes = new java.util.ArrayList<>();
+
+    @Override
+    public void layout() {
+        super.layout();
+        visibleNodes.clear();
+        collectVisible(getRootNodes());
+    }
+
+    private void collectVisible(com.badlogic.gdx.utils.Array<EntityNode> nodes) {
+        for (EntityNode node : nodes) {
+            visibleNodes.add(node);
+            if (node.isExpanded()) {
+                collectVisible(node.getChildren());
+            }
+        }
+    }
+
+    List<EntityNode> visibleNodes() {
+        validate();
+        return visibleNodes;
+    }
 
     void preview(List<Row> rows) {
         preview = rows;
@@ -49,6 +71,21 @@ final class ItemMoveTree extends IdVisTree {
 
     @Override
     public void draw(Batch batch, float parentAlpha) {
+        if (culling == null) {
+            drawRows(batch, parentAlpha);
+            return;
+        }
+        // Reserve the fixed eye column inside the viewport, including during horizontal scrolling and DnD.
+        batch.flush();
+        if (clipBegin(getX() + culling.x, getY() + culling.y,
+                Math.max(0, culling.width - ItemVisibilityColumn.WIDTH), culling.height)) {
+            drawRows(batch, parentAlpha);
+            batch.flush();
+            clipEnd();
+        }
+    }
+
+    private void drawRows(Batch batch, float parentAlpha) {
         if (preview == null) {
             super.draw(batch, parentAlpha);
             return;

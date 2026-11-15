@@ -232,6 +232,9 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
     }
 
     private boolean isObjectVisible(int entityId) {
+        if (layerService != null && !layerService.isPublishedContentVisible(entityId)) {
+            return false;
+        }
         VisibilityComponent visibility = mVisibility.getSafe(entityId, null);
         return visibility == null || visibility.isVisible();
     }

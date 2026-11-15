@@ -48,6 +48,12 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     private final DirectWorldPass direct = new DirectWorldPass();
     private final games.pixscape.runtime.system.LightingGeometrySystem.ShadowPreparation framePreparation = this::prepareLightingFrame;
     private SceneMeta sceneSettings;
+    private Runnable afterWorldDraw;
+
+    public StudioRenderSubmitSystem setAfterWorldDraw(Runnable draw) {
+        afterWorldDraw = draw;
+        return this;
+    }
 
     public StudioRenderSubmitSystem setSceneSettings(SceneMeta scene) {
         if (sceneSettings != scene) preparedSurfaceRevision = -1;
@@ -125,6 +131,9 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     @Override
     protected void end() {
         statsSink.accumulate(stats, Gdx.graphics.getDeltaTime());
+        if (afterWorldDraw != null) {
+            afterWorldDraw.run();
+        }
     }
 
     /**

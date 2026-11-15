@@ -527,6 +527,9 @@ public final class SelectionService {
 
     private boolean isPublishedLayerVisible(int e) {
         if (layerService == null) return true;
+        if (!layerService.isPublishedContentVisible(e)) {
+            return false;
+        }
         int index = layerService.getPublishedEffectiveLayerIndex(e);
         if (index < 0) return !world.getMapper(GameObjectMemberComponent.class).has(e);
         int layer = layerService.getLayerEntity(index);

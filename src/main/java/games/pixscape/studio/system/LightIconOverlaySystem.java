@@ -341,6 +341,9 @@ public final class LightIconOverlaySystem extends IteratingSystem {
     }
 
     private boolean isEntityVisible(int e) {
+        if (layerService != null && !layerService.isPublishedContentVisible(e)) {
+            return false;
+        }
         if (!isLayerVisible(e)) return false;
         return !mVisibility.has(e) || mVisibility.get(e).isVisible();
     }

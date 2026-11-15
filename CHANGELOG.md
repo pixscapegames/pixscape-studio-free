@@ -7,6 +7,8 @@
 * Uses Runtime `0.2.5-SNAPSHOT` and saves scenes in schema 4. Supported schema 3 scenes are converted on load, with one map per existing tile grid.
 
 ### Added
+* Added persistent Studio-only visibility controls for Tiled maps and their layers, in a fixed Items column before the scrollbar.
+* Added `Grid on top` beside `Rulers`, keeping the grid behind world content by default.
 * TMX imports now create one map containing ordered tile, image and object layers, with map translation and import undo/redo.
 * Added tile custom property editing with persistent local tile IDs.
 * Added image, animation, particle and Game Object asset previews, and unified HUD screen inspection.
@@ -18,6 +20,7 @@
 * Simplified the Assets tree and Items toolbar, and refreshed add/delete button states and the HTML player template.
 
 ### Fixed
+* Fixed drawing resource cleanup when closing Studio.
 * Improved hierarchy, identity and joint restoration during deletion, copying and undo/redo, including complete Tiled maps.
 * Fixed docking resize and panel transfers, preview cleanup, and project/scene subscription leaks.
 * Fixed item drag target stability, mixed-entity placement, and Spatial selection and inspector refresh during editing.

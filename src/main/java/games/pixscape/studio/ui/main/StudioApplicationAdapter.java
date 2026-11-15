@@ -1213,6 +1213,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
             canvas.dispose();
             canvas = null;
         }
+        ShapeHelper.dispose();
         if (uiStage != null) {
             uiStage.dispose();
             uiStage = null;

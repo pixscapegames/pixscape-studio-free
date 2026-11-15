@@ -88,6 +88,7 @@ public class ItemTreePanel extends DockablePanel {
     private GameObjectCompositionSystem gameObjectComposition;
 
     private final ItemMoveTree tree;
+    private final ItemVisibilityColumn visibilityColumn;
     private final ItemTreeMoveController itemMoves;
     private IconResolver iconResolver;
     private final Set<World> refreshBoundWorlds =
@@ -119,6 +120,7 @@ public class ItemTreePanel extends DockablePanel {
 
         tree = new ItemMoveTree();
         tree.setIndentSpacing(25);
+        tree.setPadding(0, ItemVisibilityColumn.WIDTH);
         tree.getSelection().setMultiple(true);
         hookItemContextMenus();
 
@@ -129,11 +131,27 @@ public class ItemTreePanel extends DockablePanel {
         moveFeedback.setEllipsis(true);
         moveFeedback.setTouchable(com.badlogic.gdx.scenes.scene2d.Touchable.disabled);
         itemMoves = new ItemTreeMoveController(app, tree, scroller, moveFeedback);
+        visibilityColumn = new ItemVisibilityColumn(tree);
+        visibilityColumn.bind(layerService);
 
-        VisTable root = new VisTable();
+        VisTable root = new VisTable() {
+            @Override
+            public void layout() {
+                super.layout();
+                scroller.validate();
+                var background = scroller.getStyle().background;
+                float left = background != null ? background.getLeftWidth() : 0;
+                float bottom = background != null ? background.getBottomHeight() : 0;
+                visibilityColumn.setBounds(scroller.getX() + left + scroller.getScrollWidth() - ItemVisibilityColumn.WIDTH,
+                        scroller.getY() + bottom + scroller.getScrollBarHeight(),
+                        ItemVisibilityColumn.WIDTH, scroller.getScrollHeight());
+            }
+        };
 
         root.add(scroller).grow().row();
         root.add(moveFeedback).growX().height(0).row();
+        // A sibling above the viewport keeps eye clicks outside ScrollPane's scrollbar capture listener.
+        root.addActor(visibilityColumn);
 
         worldContent = root;
         hudHierarchy = new HudHierarchyPanel(
@@ -232,6 +250,9 @@ public class ItemTreePanel extends DockablePanel {
         var canvas = app.getCanvas();
         world = context.world();
         layerService = context.layerService();
+        if (visibilityColumn != null) {
+            visibilityColumn.bind(layerService);
+        }
         physicsSelectionService = context.physicsSelectionService();
         spatialBlockSelectionService = context.spatialBlockSelectionService();
         selectionService = context.selectionService();
