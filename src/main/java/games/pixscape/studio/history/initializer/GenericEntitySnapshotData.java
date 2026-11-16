@@ -47,8 +47,8 @@ public final class GenericEntitySnapshotData {
     public String animationCurrentClip = "";
     public boolean hasShaderParams;
     public final Array<ShaderFloatParam> shaderFloats = new Array<>();
-    public boolean hasSpatialHeight;
-    public float spatialAltitude;
+    public boolean hasSpatialRepresentation;
+    public games.pixscape.runtime.component.spatial.SpatialFootprintComponent spatialFootprint;
     public games.pixscape.runtime.spatial.ActorSpatialRectangles actorSpatialRectangles;
     public boolean hasPhysicsBody;
     public int bodyType;

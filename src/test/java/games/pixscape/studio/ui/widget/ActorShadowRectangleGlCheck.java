@@ -11,9 +11,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.physics.PhysicsGeometryData;
-import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.spatial.ActorSpatialRectangleData;
@@ -43,7 +41,7 @@ public final class ActorShadowRectangleGlCheck {
         cfg.projectDirectoryPath = root.path();
         cfg.projectFileName = "fixture.json";
         cfg.createSceneMeta("Volume fixture");
-        cfg.getCurrentSceneMeta().physicsEnabled = true;
+        cfg.getCurrentSceneMeta().physicsEnabled = false;
         ProjectConfig.setInstance(cfg);
         FileHandle image = root.child("orig/images/barrel.png");
         new FileHandle(args[1]).copyTo(image);
@@ -92,13 +90,10 @@ public final class ActorShadowRectangleGlCheck {
                             games.pixscape.runtime.render.BlendMode.ALPHA.id, TextureRegistry.handleOf(texture), "Volume witness", 0).init(e);
                     ctx.identityRegistry().ensureStableId(e);
                     world.process();
-                    PhysicsShapeData foot = new PhysicsShapeData();
-                    foot.geometry = new PhysicsGeometryData();
-                    foot.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
-                    foot.geometry.radius = .2f;
-                    foot.spatialFootprint = true;
+                    games.pixscape.runtime.component.spatial.SpatialFootprintComponent foot = new games.pixscape.runtime.component.spatial.SpatialFootprintComponent();
+                    foot.radiusPx = 20f;
                     ctx.historyManager().execute(new ToggleSpatialActorCommand(world, ctx.historyManager().historyIds(),
-                            canvas.getPhysicsService(), e, true, true, foot));
+                            e, true, true, foot));
                     volume().width = 120;
                     volume().height = 120;
                     volume().x = -60;
@@ -117,7 +112,7 @@ public final class ActorShadowRectangleGlCheck {
             }
 
             ActorSpatialRectangleData volume() {
-                return ctx.world().getMapper(SpatialHeightComponent.class).get(e).rectangles.staticRectangle;
+                return ctx.world().getMapper(SpatialRepresentationComponent.class).get(e).rectangles.staticRectangle;
             }
 
             @Override
@@ -129,6 +124,28 @@ public final class ActorShadowRectangleGlCheck {
                     frame++;
                     if (frame == 15)
                         assertTrue("Volume handles must be available in the normal Studio canvas", positions());
+                    if (frame == 17) {
+                        FloatField radius = studio.getUiStage().getRoot().findActor("spatial-footprint-1");
+                        assertNotNull("Spatial footprint inspector is available without scene physics", radius);
+                        var footprint = ctx.world().getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).get(e);
+                        assertFalse(ctx.world().getMapper(games.pixscape.runtime.component.physics.PhysicsBodyComponent.class).has(e));
+                        assertFalse(ctx.world().getMapper(games.pixscape.runtime.component.physics.PhysicsShapesComponent.class).has(e));
+                        studio.getUiStage().setKeyboardFocus(radius);
+                        radius.setText("41");
+                        studio.getUiStage().keyDown(Input.Keys.ENTER);
+                        assertEquals(41, footprint.radiusPx, 0);
+                        ctx.historyManager().undo();
+                        assertEquals(20, footprint.radiusPx, 0);
+                        ctx.historyManager().redo();
+                        assertEquals(41, footprint.radiusPx, 0);
+                        int cursor = ctx.historyManager().getCursor();
+                        radius.setText("78");
+                        studio.getUiStage().keyDown(Input.Keys.ESCAPE);
+                        assertEquals(41, footprint.radiusPx, 0);
+                        assertEquals(41, Float.parseFloat(radius.getText()), 0);
+                        assertEquals(cursor, ctx.historyManager().getCursor());
+                        studio.getUiStage().setKeyboardFocus(null);
+                    }
                     for (int i = 0; i < pivots.length; i++) if (frame == 20 + i * 6) volume().pivotX = pivots[i];
                     if (frame == 48) {
                         float x = ctx.world().getMapper(TransformComponent.class).get(e).x;

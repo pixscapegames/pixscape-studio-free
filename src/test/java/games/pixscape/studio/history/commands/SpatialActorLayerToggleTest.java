@@ -7,7 +7,7 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.render.DirtyBits;
@@ -52,15 +52,15 @@ public class SpatialActorLayerToggleTest {
         fixture.layer(layerEntity).spatialEnabled = true;
         int actor = fixture.addSpatialPhysicsActor(0);
 
-        SpatialHeightComponent height = fixture.world.getMapper(SpatialHeightComponent.class).get(actor);
+        SpatialRepresentationComponent height = fixture.world.getMapper(SpatialRepresentationComponent.class).get(actor);
         PhysicsBodyComponent body = fixture.world.getMapper(PhysicsBodyComponent.class).get(actor);
         PhysicsShapesComponent shapes = fixture.world.getMapper(PhysicsShapesComponent.class).get(actor);
         PhysicsShapeData footprint = shapes.shapes.first();
 
         fixture.history.execute(fixture.toggle(layerEntity, false));
         assertFalse(fixture.layer(layerEntity).spatialEnabled);
-        assertSame(height, fixture.world.getMapper(SpatialHeightComponent.class).get(actor));
-        assertEquals(2.5f, height.altitude, 0f);
+        assertSame(height, fixture.world.getMapper(SpatialRepresentationComponent.class).get(actor));
+        assertEquals(2.5f, fixture.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(actor).altitude, 0f);
         assertEquals(7f, height.rectangles.staticRectangle.height, 0f);
         assertSame(body, fixture.world.getMapper(PhysicsBodyComponent.class).get(actor));
         assertSame(shapes, fixture.world.getMapper(PhysicsShapesComponent.class).get(actor));
@@ -176,15 +176,16 @@ public class SpatialActorLayerToggleTest {
             int entity = world.create();
             EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(entity);
             index.layerIndex = layerIndex;
-            SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(entity);
-            height.altitude = 2.5f;
+            SpatialRepresentationComponent height = world.getMapper(SpatialRepresentationComponent.class).create(entity);
+            world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(entity).altitude = 2.5f;
             games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height, 7f);
             PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(entity);
             body.gravityScale = 0f;
             PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).create(entity);
             PhysicsShapeData footprint = new PhysicsShapeData();
             footprint.physicsShapeId = 12;
-            footprint.spatialFootprint = true;
+            footprint.useSpatialFootprint = true;
+        footprint.geometry = null;
             shapes.shapes.add(footprint);
             return entity;
         }

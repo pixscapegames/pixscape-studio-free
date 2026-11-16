@@ -257,10 +257,14 @@ public final class EntityGraphInstantiationService {
             if (!entry.gameObjectRoot() && entry.parentSourceEntityId() == -1) continue;
             GenericEntitySnapshotData snapshot = entry.initializer()
                     .toSnapshotData(entry.sourceEntityId());
-            if (snapshot.hasSpatialHeight) return true;
+            if (snapshot.hasSpatialRepresentation || snapshot.spatialFootprint != null) {
+                return true;
+            }
             if (snapshot.shapes == null) continue;
             for (PhysicsShapeData shape : snapshot.shapes) {
-                if (shape != null && shape.spatialFootprint) return true;
+                if (shape != null && shape.useSpatialFootprint) {
+                    return true;
+                }
             }
         }
         return false;

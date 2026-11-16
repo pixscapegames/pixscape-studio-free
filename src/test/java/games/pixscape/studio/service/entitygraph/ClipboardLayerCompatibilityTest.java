@@ -9,7 +9,7 @@ import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.service.IdentityRegistry;
@@ -54,10 +54,10 @@ public class ClipboardLayerCompatibilityTest {
 
         Assert.assertEquals(7, world.getMapper(EntityIndexComponent.class).get(pasted).layerIndex);
         Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(pasted));
-        Assert.assertFalse(world.getMapper(SpatialHeightComponent.class).has(pasted));
+        Assert.assertFalse(world.getMapper(SpatialRepresentationComponent.class).has(pasted));
         PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).get(pasted);
         Assert.assertEquals(1, shapes.shapes.size);
-        Assert.assertFalse(shapes.shapes.first().spatialFootprint);
+        Assert.assertFalse(shapes.shapes.first().useSpatialFootprint);
     }
 
     @Test
@@ -67,7 +67,7 @@ public class ClipboardLayerCompatibilityTest {
                 EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL)
                 .createdIds().first();
 
-        Assert.assertFalse(world.getMapper(SpatialHeightComponent.class).has(pasted));
+        Assert.assertFalse(world.getMapper(SpatialRepresentationComponent.class).has(pasted));
         Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(pasted));
         Assert.assertFalse(world.getMapper(PhysicsShapesComponent.class).has(pasted));
     }
@@ -79,8 +79,8 @@ public class ClipboardLayerCompatibilityTest {
                 capture(source), 8, EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL_ENABLED);
         int pasted = result.createdIds().first();
 
-        SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).get(pasted);
-        Assert.assertEquals(3.5f, height.altitude, 0f);
+        SpatialRepresentationComponent height = world.getMapper(SpatialRepresentationComponent.class).get(pasted);
+        Assert.assertEquals(3.5f, world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(pasted).altitude, 0f);
         Assert.assertEquals(2.25f, height.rectangles.staticRectangle.height, 0f);
         Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(pasted));
         PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).get(pasted);
@@ -100,7 +100,7 @@ public class ClipboardLayerCompatibilityTest {
         Assert.assertEquals(2, world.getMapper(EntityIndexComponent.class).get(pasted).layerIndex);
         Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(pasted));
         Assert.assertTrue(world.getMapper(PhysicsShapesComponent.class).has(pasted));
-        Assert.assertFalse(world.getMapper(SpatialHeightComponent.class).has(pasted));
+        Assert.assertFalse(world.getMapper(SpatialRepresentationComponent.class).has(pasted));
     }
 
     @Test
@@ -167,7 +167,7 @@ public class ClipboardLayerCompatibilityTest {
         Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(pasted));
         PhysicsShapeData after = world.getMapper(PhysicsShapesComponent.class)
                 .get(pasted).shapes.first();
-        Assert.assertFalse(after.spatialFootprint);
+        Assert.assertFalse(after.useSpatialFootprint);
         Assert.assertEquals(before.geometry.shapeType, after.geometry.shapeType);
         Assert.assertEquals(before.density, after.density, 0f);
         Assert.assertNotEquals(before.physicsShapeId, after.physicsShapeId);
@@ -186,13 +186,13 @@ public class ClipboardLayerCompatibilityTest {
                 .createdIds().first();
 
         Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(classicPaste));
-        Assert.assertFalse(world.getMapper(SpatialHeightComponent.class).has(classicPaste));
+        Assert.assertFalse(world.getMapper(SpatialRepresentationComponent.class).has(classicPaste));
         Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(spatialPaste));
-        Assert.assertTrue(world.getMapper(SpatialHeightComponent.class).has(spatialPaste));
+        Assert.assertTrue(world.getMapper(SpatialRepresentationComponent.class).has(spatialPaste));
         Assert.assertTrue(hasFootprint(
                 world.getMapper(PhysicsShapesComponent.class).get(spatialPaste)));
         Assert.assertTrue(clipboardGraph.entries().get(0).initializer()
-                .toSnapshotData(source).hasSpatialHeight);
+                .toSnapshotData(source).hasSpatialRepresentation);
         Assert.assertEquals(2, clipboardGraph.entries().get(0).initializer()
                 .toSnapshotData(source).shapes.size);
     }
@@ -216,7 +216,7 @@ public class ClipboardLayerCompatibilityTest {
         int restored = latestEntityWithLayer(5);
         Assert.assertTrue(restored >= 0);
         Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(restored));
-        Assert.assertFalse(world.getMapper(SpatialHeightComponent.class).has(restored));
+        Assert.assertFalse(world.getMapper(SpatialRepresentationComponent.class).has(restored));
         Assert.assertFalse(hasFootprint(
                 world.getMapper(PhysicsShapesComponent.class).get(restored)));
     }
@@ -226,7 +226,7 @@ public class ClipboardLayerCompatibilityTest {
         sceneMeta.nextEntityStableId = 1_000;
         int root = gameObject(100, -1);
         int nested = gameObject(200, 100);
-        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(world.getMapper(SpatialHeightComponent.class).create(nested), 2f);
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(world.getMapper(SpatialRepresentationComponent.class).create(nested), 2f);
         world.process();
         EntityGraph graph = new EntityGraphCaptureService(world)
                 .captureGameObjectClipboard(new IntArray(new int[]{root}));
@@ -247,7 +247,7 @@ public class ClipboardLayerCompatibilityTest {
                 graph, 6, EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL_ENABLED);
         Assert.assertEquals(2, accepted.createdIds().size);
         int pastedNested = accepted.sourceToCreated().get(2, -1);
-        Assert.assertTrue(world.getMapper(SpatialHeightComponent.class).has(pastedNested));
+        Assert.assertTrue(world.getMapper(SpatialRepresentationComponent.class).has(pastedNested));
     }
 
     @Test
@@ -278,8 +278,8 @@ public class ClipboardLayerCompatibilityTest {
 
     private int spatialActor(boolean ordinaryFixture) {
         int entity = physicalActor(true, ordinaryFixture);
-        SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(entity);
-        height.altitude = 3.5f;
+        SpatialRepresentationComponent height = world.getMapper(SpatialRepresentationComponent.class).create(entity);
+        world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(entity).altitude = 3.5f;
         games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height, 2.25f);
         return entity;
     }
@@ -318,7 +318,10 @@ public class ClipboardLayerCompatibilityTest {
         shape.geometry.shapeType = footprint
                 ? PhysicsGeometryData.SHAPE_CIRCLE
                 : PhysicsGeometryData.SHAPE_BOX;
-        shape.spatialFootprint = footprint;
+        shape.useSpatialFootprint = footprint;
+        if (footprint) {
+            shape.geometry = null;
+        }
         return shape;
     }
 
@@ -334,7 +337,9 @@ public class ClipboardLayerCompatibilityTest {
 
     private boolean hasFootprint(PhysicsShapesComponent shapes) {
         for (PhysicsShapeData shape : shapes.shapes) {
-            if (shape.spatialFootprint) return true;
+            if (shape.useSpatialFootprint) {
+                return true;
+            }
         }
         return false;
     }

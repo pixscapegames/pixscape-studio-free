@@ -8,7 +8,7 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.*;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.render.GeometryDirty;
@@ -97,8 +97,8 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected final Array<ShaderFloatParam> shaderFloats = new Array<>();
 
     // --- Spatial height ---
-    protected boolean hasSpatialHeight;
-    protected float spatialAltitude;
+    protected boolean hasSpatialRepresentation;
+    protected games.pixscape.runtime.component.spatial.SpatialFootprintComponent spatialFootprint;
     protected games.pixscape.runtime.spatial.ActorSpatialRectangles actorSpatialRectangles;
 
     // --- Lights ---
@@ -194,7 +194,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         ComponentMapper<TintComponent> mTint = world.getMapper(TintComponent.class);
         ComponentMapper<ParticleEmitterComponent> mPE = world.getMapper(ParticleEmitterComponent.class);
         ComponentMapper<AnimationComponent> mAnim = world.getMapper(AnimationComponent.class);
-        ComponentMapper<SpatialHeightComponent> mSpatialHeight = world.getMapper(SpatialHeightComponent.class);
+        ComponentMapper<SpatialRepresentationComponent> mSpatialRepresentation = world.getMapper(SpatialRepresentationComponent.class);
         ComponentMapper<PointLightComponent> mPL = world.getMapper(PointLightComponent.class);
         ComponentMapper<ConeLightComponent> mCL = world.getMapper(ConeLightComponent.class);
         ComponentMapper<PhysicsBodyComponent> mPhysBody = world.getMapper(PhysicsBodyComponent.class);
@@ -345,15 +345,17 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             animationAssetIds.clear();
         }
 
-        // --- Spatial height ---
-        if (mSpatialHeight.has(e)) {
-            SpatialHeightComponent spatial = mSpatialHeight.get(e);
-            hasSpatialHeight = true;
-            spatialAltitude = spatial.altitude;
+        var footprint = world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).getSafe(e, null);
+        spatialFootprint = footprint == null ? null : footprint.copy();
+        // --- Spatial representation ---
+        if (mSpatialRepresentation.has(e)) {
+            SpatialRepresentationComponent spatial = mSpatialRepresentation.get(e);
+            hasSpatialRepresentation = true;
+
             actorSpatialRectangles = spatial.rectangles == null ? null : spatial.rectangles.copy();
         } else {
-            hasSpatialHeight = false;
-            spatialAltitude = 0f;
+            hasSpatialRepresentation = false;
+
             actorSpatialRectangles = null;
         }
 
@@ -555,7 +557,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         ComponentMapper<TintComponent> mTint = world.getMapper(TintComponent.class);
         ComponentMapper<ParticleEmitterComponent> mPE = world.getMapper(ParticleEmitterComponent.class);
         ComponentMapper<AnimationComponent> mAnim = world.getMapper(AnimationComponent.class);
-        ComponentMapper<SpatialHeightComponent> mSpatialHeight = world.getMapper(SpatialHeightComponent.class);
+        ComponentMapper<SpatialRepresentationComponent> mSpatialRepresentation = world.getMapper(SpatialRepresentationComponent.class);
         ComponentMapper<PointLightComponent> mPL = world.getMapper(PointLightComponent.class);
         ComponentMapper<ConeLightComponent> mCL = world.getMapper(ConeLightComponent.class);
         ComponentMapper<PhysicsBodyComponent> mPhysBody = world.getMapper(PhysicsBodyComponent.class);
@@ -679,12 +681,16 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
         }
 
-        // --- Spatial height ---
-        if (hasSpatialHeight) {
-            SpatialHeightComponent spatial = mSpatialHeight.has(e)
-                    ? mSpatialHeight.get(e)
-                    : mSpatialHeight.create(e);
-            spatial.altitude = spatialAltitude;
+        if (spatialFootprint != null) {
+            world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class)
+                    .create(e).set(spatialFootprint);
+        }
+        // --- Spatial representation ---
+        if (hasSpatialRepresentation) {
+            SpatialRepresentationComponent spatial = mSpatialRepresentation.has(e)
+                    ? mSpatialRepresentation.get(e)
+                    : mSpatialRepresentation.create(e);
+
             spatial.rectangles = actorSpatialRectangles == null ? null : actorSpatialRectangles.copy();
             if (dirty != null) dirty.order(e);
         }
@@ -875,7 +881,9 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         }
         preparedPhysicsCandidate =
                 hasPhysicsBody || hasPhysicsShapes
-                        ? PhysicsService.prepareBodyCandidate(physicsShapes)
+                        ? PhysicsService.prepareBodyCandidate(physicsShapes, spatialFootprint,
+                                PhysicsService.containsFootprintShape(physicsShapes)
+                                ? games.pixscape.studio.history.commands.FixtureCommandSupport.requireCurrentPixelsPerMeter() : 0f)
                         : null;
     }
 
@@ -954,8 +962,8 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             out.shaderFloats.add(new ShaderFloatParam(param.name, param.value));
         }
         out.surfaceLighting = surfaceLighting == null ? null : surfaceLighting.copy();
-        out.hasSpatialHeight = hasSpatialHeight;
-        out.spatialAltitude = spatialAltitude;
+        out.hasSpatialRepresentation = hasSpatialRepresentation;
+        out.spatialFootprint = spatialFootprint == null ? null : spatialFootprint.copy();
         out.actorSpatialRectangles = actorSpatialRectangles == null ? null : actorSpatialRectangles.copy();
         out.hasPhysicsBody = hasPhysicsBody;
         out.bodyType = physBodyType;
@@ -1106,8 +1114,8 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             shaderFloats.add(new ShaderFloatParam(param.name, param.value));
         }
         surfaceLighting = in.surfaceLighting == null ? null : in.surfaceLighting.copy();
-        hasSpatialHeight = in.hasSpatialHeight;
-        spatialAltitude = in.spatialAltitude;
+        hasSpatialRepresentation = in.hasSpatialRepresentation;
+        spatialFootprint = in.spatialFootprint == null ? null : in.spatialFootprint.copy();
         actorSpatialRectangles = in.actorSpatialRectangles == null ? null : in.actorSpatialRectangles.copy();
         capturedZIndex = in.hasEntityIndex;
         hasPhysicsBody = in.hasPhysicsBody;
@@ -1628,7 +1636,8 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
      */
     public GenericEntityInitializer normalizeClipboardSpatial(boolean targetSpatialEnabled) {
         if (!targetSpatialEnabled) {
-            hasSpatialHeight = false;
+            spatialFootprint = null;
+            hasSpatialRepresentation = false;
             actorSpatialRectangles = null;
             boolean hadFootprint =
                     SpatialActorShapeSupport.findFootprint(physicsShapes, 0) >= 0;
@@ -1727,8 +1736,8 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         }
 
         // --- Spatial height ---
-        copy.hasSpatialHeight = this.hasSpatialHeight;
-        copy.spatialAltitude = this.spatialAltitude;
+        copy.hasSpatialRepresentation = this.hasSpatialRepresentation;
+        copy.spatialFootprint = spatialFootprint == null ? null : spatialFootprint.copy();
         copy.actorSpatialRectangles = actorSpatialRectangles == null ? null : actorSpatialRectangles.copy();
 
         // --- Lights ---

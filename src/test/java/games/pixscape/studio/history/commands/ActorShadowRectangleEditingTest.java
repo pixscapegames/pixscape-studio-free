@@ -4,7 +4,7 @@ import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.utils.Json;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.spatial.ActorSpatialRectangleData;
 import games.pixscape.runtime.spatial.ActorSpatialRectangles;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -24,7 +24,7 @@ public class ActorShadowRectangleEditingTest {
             animation.currentClip = "east";
             var asset = world.getMapper(games.pixscape.runtime.component.AssetRefComponent.class).create(e);
             asset.assetId = 8;
-            var spatial = world.getMapper(SpatialHeightComponent.class).create(e);
+            var spatial = world.getMapper(SpatialRepresentationComponent.class).create(e);
             spatial.rectangles = new ActorSpatialRectangles();
             ActorSpatialRectangleData east = new ActorSpatialRectangleData();
             east.pivotX = 45;
@@ -57,7 +57,7 @@ public class ActorShadowRectangleEditingTest {
             transform.x = 37;
             transform.y = 49;
             transform.rotationRad = .5f;
-            SpatialHeightComponent h = world.getMapper(SpatialHeightComponent.class).create(e);
+            SpatialRepresentationComponent h = world.getMapper(SpatialRepresentationComponent.class).create(e);
             h.rectangles = new ActorSpatialRectangles();
             h.rectangles.put(8, "east", new ActorSpatialRectangleData());
             h.rectangles.put(8, "west", new ActorSpatialRectangleData());

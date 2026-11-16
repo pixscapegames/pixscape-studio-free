@@ -190,7 +190,7 @@ public class ItemTreePanel extends DockablePanel {
 
         EventFlow.i().subscribe(EventFlow.EntityNameChanged.class,
                 evt -> dirtyEntityLabels.add(evt.entityId()));
-        EventFlow.i().subscribe(EventFlow.SpatialHeightChanged.class,
+        EventFlow.i().subscribe(EventFlow.SpatialActorChanged.class,
                 evt -> dirtyEntityLabels.add(evt.entityId()));
 
         EventFlow.i().subscribe(EventFlow.LayerOrderChanged.class, evt -> markDirty());

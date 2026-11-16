@@ -4,7 +4,7 @@ import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.AssetRefComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.spatial.ActorSpatialRectangleData;
 import games.pixscape.studio.history.commands.EditActorSpatialRectangleCommand;
 import games.pixscape.studio.ui.config.CommonLayout;
@@ -53,7 +53,7 @@ final class ActorSpatialRectanglePanel {
     }
 
     private ActorSpatialRectangleData rectangle(int e) {
-        SpatialHeightComponent s = e < 0 ? null : ctx.mSpatialHeight.getSafe(e, null);
+        SpatialRepresentationComponent s = e < 0 ? null : ctx.mSpatialRepresentation.getSafe(e, null);
         return s == null || s.rectangles == null ? null : s.rectangles.get(asset, clip);
     }
 

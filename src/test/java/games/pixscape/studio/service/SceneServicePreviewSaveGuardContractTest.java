@@ -2,6 +2,7 @@ package games.pixscape.studio.service;
 
 import com.badlogic.gdx.tools.texturepacker.TexturePacker;
 import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.studio.configuration.RuntimeExport;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
 import org.junit.Test;
@@ -49,6 +50,22 @@ public class SceneServicePreviewSaveGuardContractTest {
         ProjectConfig cfg = projectConfig(exportRoot);
         writeUsableRuntimeExport(exportRoot);
 
+        assertFalse(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
+    }
+
+    @Test
+    public void obsoleteMissingOrFutureSceneFormatRequiresExportBeforePreview() throws Exception {
+        Path exportRoot = Files.createTempDirectory("preview-incompatible-scene-format");
+        ProjectConfig cfg = projectConfig(exportRoot);
+        writeUsableRuntimeExport(exportRoot);
+        Path project = exportRoot.resolve(RuntimeExport.RUNTIME_DIR_NAME).resolve(RuntimeExport.PROJECT_JSON);
+        String current = Files.readString(project);
+        String version = "\"sceneSchemaVersion\": " + SceneMetaRuntime.CURRENT_SCENE_SCHEMA_VERSION;
+        for (String incompatible : new String[]{"\"sceneSchemaVersion\": 4", "\"sceneSchemaVersion\": 999", "\"unused\": 0"}) {
+            Files.writeString(project, current.replace(version, incompatible));
+            assertTrue(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
+        }
+        Files.writeString(project, current);
         assertFalse(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
     }
 
@@ -422,16 +439,19 @@ public class SceneServicePreviewSaveGuardContractTest {
                   "currentSceneName": "%s",
                   "scenes": {
                     "Main": {
+                      "sceneSchemaVersion": %d,
                       "name": "Main",
                       "file": "scene1.json"
                     },
                     "Other": {
+                      "sceneSchemaVersion": %d,
                       "name": "Other",
                       "file": "scene2.json"
                     }
                   }
                 }
-                """.formatted(currentSceneName);
+                """.formatted(currentSceneName, SceneMetaRuntime.CURRENT_SCENE_SCHEMA_VERSION,
+                        SceneMetaRuntime.CURRENT_SCENE_SCHEMA_VERSION);
     }
 
     private static String tiledSceneJson(int... tileAssetIds) {

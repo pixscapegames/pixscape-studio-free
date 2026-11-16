@@ -7,7 +7,7 @@ import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -141,12 +141,12 @@ public class GenericEntityInitializerStandaloneUvTest {
     }
 
     @Test
-    public void syncFromPreservesSpatialHeightComponent() {
+    public void syncFromPreservesSpatialRepresentationComponent() {
         World world = new World(new WorldConfigurationBuilder().build());
 
         int source = world.create();
-        SpatialHeightComponent spatial = world.getMapper(SpatialHeightComponent.class).create(source);
-        spatial.altitude = 3.5f;
+        SpatialRepresentationComponent spatial = world.getMapper(SpatialRepresentationComponent.class).create(source);
+        world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(source).altitude = 3.5f;
         games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(spatial, 12.25f);
 
         GenericEntityInitializer init = new GenericEntityInitializer(world);
@@ -155,9 +155,9 @@ public class GenericEntityInitializerStandaloneUvTest {
         int restored = world.create();
         init.init(restored);
 
-        SpatialHeightComponent restoredSpatial =
-                world.getMapper(SpatialHeightComponent.class).get(restored);
-        assertEquals(3.5f, restoredSpatial.altitude, 0.0001f);
+        SpatialRepresentationComponent restoredSpatial =
+                world.getMapper(SpatialRepresentationComponent.class).get(restored);
+        assertEquals(3.5f, world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(restored).altitude, 0.0001f);
         assertEquals(12.25f, restoredSpatial.rectangles.staticRectangle.height, 0.0001f);
     }
 

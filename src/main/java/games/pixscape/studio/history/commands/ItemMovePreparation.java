@@ -6,7 +6,7 @@ import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.hierarchy.GameObjectTransformMath;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.IdentityRegistry;
@@ -451,11 +451,12 @@ public final class ItemMovePreparation {
         void validateSpatialSubtree(int id, boolean spatial) {
             int entity = entity(id);
             if (!spatial) {
-                if (world.getMapper(SpatialHeightComponent.class).has(entity))
+                if (world.getMapper(SpatialRepresentationComponent.class).has(entity)
+                        || world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).has(entity))
                     throw new IllegalArgumentException("Spatial actors require a Spatial-enabled destination layer; data will not be removed.");
                 var shapes = world.getMapper(PhysicsShapesComponent.class).getSafe(entity, null);
                 if (shapes != null) for (var shape : shapes.shapes)
-                    if (shape.spatialFootprint)
+                    if (shape.useSpatialFootprint)
                         throw new IllegalArgumentException("Spatial footprints require a Spatial-enabled destination layer.");
             }
             for (int child : order(new Group(0, id))) validateSpatialSubtree(child, spatial);

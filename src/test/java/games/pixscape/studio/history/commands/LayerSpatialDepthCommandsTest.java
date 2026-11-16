@@ -12,7 +12,7 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.service.PhysicsService;
@@ -298,8 +298,8 @@ public class LayerSpatialDepthCommandsTest {
         command.redo();
         Assert.assertEquals(cursorBefore, history.getCursor());
         Assert.assertTrue(world.getMapper(LayerComponent.class).get(layerId).spatialEnabled);
-        SpatialHeightComponent untouched = world.getMapper(SpatialHeightComponent.class).get(actorId);
-        Assert.assertEquals(4f, untouched.altitude, 0.0001f);
+        SpatialRepresentationComponent untouched = world.getMapper(SpatialRepresentationComponent.class).get(actorId);
+        Assert.assertEquals(4f, world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(actorId).altitude, 0.0001f);
         Assert.assertEquals(10f, untouched.rectangles.staticRectangle.height, 0.0001f);
     }
 
@@ -449,8 +449,8 @@ public class LayerSpatialDepthCommandsTest {
         EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(actorId);
         index.layerIndex = layerIndex;
         index.zIndex = 0;
-        SpatialHeightComponent spatial = world.getMapper(SpatialHeightComponent.class).create(actorId);
-        spatial.altitude = altitude;
+        SpatialRepresentationComponent spatial = world.getMapper(SpatialRepresentationComponent.class).create(actorId);
+        world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(actorId).altitude = altitude;
         games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(spatial, height);
         return actorId;
     }

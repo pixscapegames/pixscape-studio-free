@@ -178,8 +178,10 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
         footprint.geometry = new PhysicsGeometryData();
         footprint.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         footprint.geometry.radius = 0.5f;
-        footprint.spatialFootprint = true;
+        footprint.useSpatialFootprint = true;
+        footprint.geometry = null;
         footprint.sensor = true;
+        source.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(entity).radiusPx = 50;
         shapes.shapes.add(footprint);
         source.process();
         FileHandle sceneFile = tempSceneFile("sensor-spatial-footprint-roundtrip.json");
@@ -196,7 +198,7 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
             Assert.assertEquals(1, owners.size());
             PhysicsShapeData restored = loaded.getMapper(PhysicsShapesComponent.class)
                     .get(owners.get(0)).shapes.first();
-            Assert.assertTrue(restored.spatialFootprint);
+            Assert.assertTrue(restored.useSpatialFootprint);
             Assert.assertTrue(restored.sensor);
         } finally {
             loaded.dispose();

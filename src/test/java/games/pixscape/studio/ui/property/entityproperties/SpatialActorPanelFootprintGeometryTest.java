@@ -8,9 +8,7 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.physics.PhysicsGeometryData;
-import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryManager;
@@ -19,7 +17,7 @@ import games.pixscape.studio.model.EntityKind;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class SpatialPhysicsPanelFootprintGeometryTest {
+public class SpatialActorPanelFootprintGeometryTest {
     private static final float PPM = 100f;
 
     @Test
@@ -47,7 +45,7 @@ public class SpatialPhysicsPanelFootprintGeometryTest {
     }
 
     @Test
-    public void physicsDisabledBlocksActivationButDormantStateCanBeRemoved() {
+    public void physicsDisabledAllowsSpatialActivationAndRemoval() {
         SceneMeta scene = new SceneMeta();
         scene.physicsEnabled = false;
         EntityIndexComponent index = new EntityIndexComponent();
@@ -55,40 +53,36 @@ public class SpatialPhysicsPanelFootprintGeometryTest {
         LayerComponent layer = new LayerComponent();
         layer.spatialEnabled = true;
 
-        boolean eligible = SpatialPhysicsPanel.canActivateSpatialPhysics(
+        boolean eligible = SpatialActorPanel.canActivateSpatialActor(
                 scene, EntityKind.SPRITE, index, layer);
 
-        Assert.assertFalse(eligible);
+        Assert.assertTrue(eligible);
 
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);
         PhysicsService physics = new PhysicsService(world, null, scene);
         int entityId = world.create();
-        PhysicsShapeData footprint = new PhysicsShapeData();
-        footprint.geometry = new PhysicsGeometryData();
-        footprint.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
-        footprint.geometry.radius = 0.5f;
+        games.pixscape.runtime.component.spatial.SpatialFootprintComponent footprint = new games.pixscape.runtime.component.spatial.SpatialFootprintComponent();
+        footprint.radiusPx = 50f;
 
         ToggleSpatialActorCommand blockedActivation = new ToggleSpatialActorCommand(
                 world,
                 history.historyIds(),
-                physics,
                 entityId,
                 true,
                 eligible,
                 footprint);
         history.execute(blockedActivation);
 
-        Assert.assertTrue(blockedActivation.isNoop());
+        Assert.assertFalse(blockedActivation.isNoop());
         Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(entityId));
         Assert.assertFalse(world.getMapper(PhysicsShapesComponent.class).has(entityId));
-        Assert.assertFalse(world.getMapper(SpatialHeightComponent.class).has(entityId));
+        Assert.assertTrue(world.getMapper(SpatialRepresentationComponent.class).has(entityId));
 
-        world.getMapper(SpatialHeightComponent.class).create(entityId);
+        world.getMapper(SpatialRepresentationComponent.class).create(entityId);
         ToggleSpatialActorCommand removeDormantState = new ToggleSpatialActorCommand(
                 world,
                 history.historyIds(),
-                physics,
                 entityId,
                 false,
                 false,
@@ -96,7 +90,7 @@ public class SpatialPhysicsPanelFootprintGeometryTest {
         history.execute(removeDormantState);
 
         Assert.assertFalse(removeDormantState.isNoop());
-        Assert.assertFalse(world.getMapper(SpatialHeightComponent.class).has(entityId));
+        Assert.assertFalse(world.getMapper(SpatialRepresentationComponent.class).has(entityId));
         Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(entityId));
         Assert.assertFalse(world.getMapper(PhysicsShapesComponent.class).has(entityId));
         world.dispose();
@@ -123,15 +117,15 @@ public class SpatialPhysicsPanelFootprintGeometryTest {
         transform.scaleX = scaleX;
         transform.scaleY = scaleY;
 
-        PhysicsShapeData footprint =
-                SpatialPhysicsPanel.createDefaultFootprint(dimensions, transform, PPM);
+        games.pixscape.runtime.component.spatial.SpatialFootprintComponent footprint =
+                SpatialActorPanel.createDefaultFootprint(dimensions, transform);
 
         Assert.assertNotNull(footprint);
-        Assert.assertEquals(expectedDiameterM, footprint.geometry.radius * 2f, 0.0001f);
-        Assert.assertEquals(expectedRadiusM, footprint.geometry.radius, 0.0001f);
-        Assert.assertEquals(expectedCenterXM, footprint.geometry.offsetX, 0.0001f);
-        Assert.assertEquals(expectedCenterYM, footprint.geometry.offsetY, 0.0001f);
+        Assert.assertEquals(expectedDiameterM, (footprint.radiusPx / PPM) * 2f, 0.0001f);
+        Assert.assertEquals(expectedRadiusM, (footprint.radiusPx / PPM), 0.0001f);
+        Assert.assertEquals(expectedCenterXM, (footprint.localOffsetXPx / PPM), 0.0001f);
+        Assert.assertEquals(expectedCenterYM, (footprint.localOffsetYPx / PPM), 0.0001f);
         Assert.assertEquals(expectedBottomM,
-                footprint.geometry.offsetY - footprint.geometry.radius, 0.0001f);
+                (footprint.localOffsetYPx / PPM) - (footprint.radiusPx / PPM), 0.0001f);
     }
 }

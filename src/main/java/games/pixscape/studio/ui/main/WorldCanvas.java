@@ -39,7 +39,6 @@ import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
 import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.system.Box2dSyncSystem;
-import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledLayerData;
@@ -203,7 +202,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     // Box2D (lazy init + enable/disable system)
     private Box2dWorldService box2dWorldService;
     private Box2dSyncSystem box2dSyncSystem;
-    private PhysicsSpatialFootprintSyncSystem physicsSpatialFootprintSyncSystem;
     private GizmoSystem gizmoSystem;
     private TiledObjectOverlaySystem tiledObjectOverlaySystem;
     private final GridActor gridActor;
@@ -480,7 +478,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         ProjectConfig cfg = ProjectConfig.getInstance();
         box2dWorldService = null;
         box2dSyncSystem = null;
-        physicsSpatialFootprintSyncSystem = null;
         rectActive = false;
         rectMapEntityId = -1;
         selectionReconciliationPending = false;
@@ -673,8 +670,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         tiledToolService = new TiledToolService();
 
         box2dSyncSystem = world().getSystem(Box2dSyncSystem.class);
-        physicsSpatialFootprintSyncSystem =
-                world().getSystem(PhysicsSpatialFootprintSyncSystem.class);
         if (box2dSyncSystem != null) {
             box2dSyncSystem.setEnabled(false);
             box2dSyncSystem.setStepEnabled(false);
@@ -2093,7 +2088,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     doSleep
             );
             applyPixelsPerMeter(
-                    box2dWorldService, physicsSpatialFootprintSyncSystem, ppm);
+                    box2dWorldService, ppm);
             box2DcameraUpdate();
         }
         // -------------------------------------------------
@@ -2114,7 +2109,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
             if (ppmChanged) {
                 applyPixelsPerMeter(
-                        box2dWorldService, physicsSpatialFootprintSyncSystem, ppm);
+                        box2dWorldService, ppm);
                 box2DcameraUpdate();
             }
         }
@@ -2141,19 +2136,12 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     static void applyPixelsPerMeter(
             Box2dWorldService box2d,
-            PhysicsSpatialFootprintSyncSystem footprintSync,
             float pixelsPerMeter) {
         if (box2d == null) {
             throw new IllegalStateException(
                     "Box2D service is required to apply pixelsPerMeter.");
         }
-        if (footprintSync == null) {
-            throw new IllegalStateException(
-                    "Physics spatial footprint sync system is required "
-                            + "to apply pixelsPerMeter.");
-        }
         box2d.setPpm(pixelsPerMeter);
-        footprintSync.setPixelsPerMeter(pixelsPerMeter);
     }
 
     private void box2DcameraUpdate() {
@@ -2882,7 +2870,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         EditorOps editorOps;
         Box2dWorldService box2dWorldService;
         Box2dSyncSystem box2dSyncSystem;
-        PhysicsSpatialFootprintSyncSystem physicsSpatialFootprintSyncSystem;
         GizmoSystem gizmoSystem;
         TiledObjectOverlaySystem tiledObjectOverlaySystem;
         boolean rectActive;
@@ -2927,7 +2914,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             out.editorOps = canvas.editorOps;
             out.box2dWorldService = canvas.box2dWorldService;
             out.box2dSyncSystem = canvas.box2dSyncSystem;
-            out.physicsSpatialFootprintSyncSystem = canvas.physicsSpatialFootprintSyncSystem;
             out.gizmoSystem = canvas.gizmoSystem;
             out.tiledObjectOverlaySystem = canvas.tiledObjectOverlaySystem;
             out.rectActive = canvas.rectActive;
@@ -2973,7 +2959,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             canvas.editorOps = value.editorOps;
             canvas.box2dWorldService = value.box2dWorldService;
             canvas.box2dSyncSystem = value.box2dSyncSystem;
-            canvas.physicsSpatialFootprintSyncSystem = value.physicsSpatialFootprintSyncSystem;
             canvas.gizmoSystem = value.gizmoSystem;
             canvas.tiledObjectOverlaySystem = value.tiledObjectOverlaySystem;
             canvas.rectActive = value.rectActive;

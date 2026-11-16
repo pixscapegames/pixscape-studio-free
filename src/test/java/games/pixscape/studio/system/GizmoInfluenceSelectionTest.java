@@ -12,8 +12,8 @@ import com.kotcrab.vis.ui.VisUI;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.RenderKind;
@@ -85,7 +85,7 @@ public class GizmoInfluenceSelectionTest {
         final World world;
         final int actor, slot;
         final LayerComponent layer;
-        final SpatialHeightComponent height;
+        final SpatialRepresentationComponent height;
         int draws;
         float top;
 
@@ -129,10 +129,10 @@ public class GizmoInfluenceSelectionTest {
             TransformComponent transform = world.getMapper(TransformComponent.class).create(actor);
             transform.x = 10;
             transform.y = 200;
-            height = world.getMapper(SpatialHeightComponent.class).create(actor);
+            height = world.getMapper(SpatialRepresentationComponent.class).create(actor);
             games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height, 80);
-            SpatialPhysicsFootprintComponent footprint = world.getMapper(SpatialPhysicsFootprintComponent.class).create(actor);
-            footprint.valid = true;
+            SpatialFootprintComponent footprint = world.getMapper(SpatialFootprintComponent.class).create(actor);
+
             footprint.radiusPx = 9;
             slot = ecs.acquireSlotForEntity(actor);
             ecs.enabled[slot] = ecs.visible[slot] = true;

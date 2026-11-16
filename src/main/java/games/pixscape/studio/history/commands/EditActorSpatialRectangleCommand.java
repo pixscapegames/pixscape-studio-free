@@ -1,7 +1,7 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.spatial.ActorSpatialRectangleData;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -27,7 +27,7 @@ public final class EditActorSpatialRectangleCommand implements Command, HistoryM
         this.asset = asset;
         this.clip = clip;
         this.save = save;
-        SpatialHeightComponent spatial = world.getMapper(SpatialHeightComponent.class).get(entity);
+        SpatialRepresentationComponent spatial = world.getMapper(SpatialRepresentationComponent.class).get(entity);
         before = spatial.rectangles.get(asset, clip).copy();
         this.after = after.copy();
         this.after.validate();
@@ -52,7 +52,7 @@ public final class EditActorSpatialRectangleCommand implements Command, HistoryM
     private void apply(ActorSpatialRectangleData value) {
         int entity = ids.entityOfHistoryId(id);
         if (entity < 0 || !world.getEntityManager().isActive(entity)) return;
-        SpatialHeightComponent spatial = world.getMapper(SpatialHeightComponent.class).getSafe(entity, null);
+        SpatialRepresentationComponent spatial = world.getMapper(SpatialRepresentationComponent.class).getSafe(entity, null);
         if (spatial == null || spatial.rectangles == null) return;
         spatial.rectangles.put(asset, clip, value.copy());
         games.pixscape.runtime.system.DirtyTrackerSystem dirty = world.getSystem(games.pixscape.runtime.system.DirtyTrackerSystem.class);
@@ -61,6 +61,6 @@ public final class EditActorSpatialRectangleCommand implements Command, HistoryM
             dirty.order(entity);
         }
         if (save != null) save.run();
-        EventFlow.i().publish(new EventFlow.SpatialHeightChanged(entity, EventFlow.tag(this)));
+        EventFlow.i().publish(new EventFlow.SpatialActorChanged(entity, EventFlow.tag(this)));
     }
 }

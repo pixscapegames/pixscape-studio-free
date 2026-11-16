@@ -100,7 +100,7 @@ public final class EditAnimationCommand implements Command, HistoryManager.Suppo
                                 IntConsumer refreshPreview,
                                 Runnable markSaveRequired) {
         this.world = world;
-        var spatial = world == null ? null : world.getMapper(games.pixscape.runtime.component.spatial.SpatialHeightComponent.class).getSafe(entityId, null);
+        var spatial = world == null ? null : world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class).getSafe(entityId, null);
         rectanglesBefore = spatial == null || spatial.rectangles == null ? null : spatial.rectangles.copy();
         rectanglesAfter = rectanglesBefore == null ? null : rectanglesBefore.copy();
         if (rectanglesAfter != null && after != null && rectanglesAfter.get(after.activeAssetId, after.currentClip) == null)
@@ -157,7 +157,7 @@ public final class EditAnimationCommand implements Command, HistoryManager.Suppo
         animation.loop = snapshot.loop;
         animation.stateTime = snapshot.stateTime;
         animation.frame = snapshot.frame;
-        var spatial = world.getMapper(games.pixscape.runtime.component.spatial.SpatialHeightComponent.class).getSafe(entityId, null);
+        var spatial = world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class).getSafe(entityId, null);
         var rectangles = snapshot == before ? rectanglesBefore : rectanglesAfter;
         if (spatial != null && rectangles != null) spatial.rectangles = rectangles.copy();
 

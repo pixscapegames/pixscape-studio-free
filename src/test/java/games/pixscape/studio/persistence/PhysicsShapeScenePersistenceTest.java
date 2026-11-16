@@ -6,7 +6,7 @@ import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
@@ -37,11 +37,10 @@ public class PhysicsShapeScenePersistenceTest {
         PhysicsService.publishPreparedCandidate(
                 sources, cache, PhysicsService.prepareBodyCandidate(sources.shapes));
         int generation = cache.generation;
-        SpatialPhysicsFootprintComponent footprint =
-                world.getMapper(SpatialPhysicsFootprintComponent.class).create(entityId);
-        footprint.valid = true;
+        SpatialFootprintComponent footprint =
+                world.getMapper(SpatialFootprintComponent.class).create(entityId);
+
         footprint.radiusPx = 2f;
-        footprint.physicsGeneration = generation;
         world.process();
 
         FileHandle file = new FileHandle(new File(
@@ -53,17 +52,16 @@ public class PhysicsShapeScenePersistenceTest {
         Assert.assertTrue(json.contains("\"physicsShapeId\":1"));
         Assert.assertTrue(json.contains("\"geometry\":"));
         Assert.assertFalse(json.contains("PhysicsCompiledFixturesComponent"));
-        Assert.assertFalse(json.contains("SpatialPhysicsFootprintComponent"));
+        Assert.assertTrue(json.contains("SpatialFootprintComponent"));
         PhysicsCompiledFixturesComponent restoredCache =
                 world.getMapper(PhysicsCompiledFixturesComponent.class).get(entityId);
         Assert.assertTrue(restoredCache.valid);
         Assert.assertEquals(generation, restoredCache.generation);
         Assert.assertEquals(1, restoredCache.fixtures.size);
-        SpatialPhysicsFootprintComponent restoredFootprint =
-                world.getMapper(SpatialPhysicsFootprintComponent.class).get(entityId);
-        Assert.assertTrue(restoredFootprint.valid);
+        SpatialFootprintComponent restoredFootprint =
+                world.getMapper(SpatialFootprintComponent.class).get(entityId);
+        restoredFootprint.validate();
         Assert.assertEquals(2f, restoredFootprint.radiusPx, 0f);
-        Assert.assertEquals(generation, restoredFootprint.physicsGeneration);
 
         World loaded = world();
         SceneMetaRuntime meta = new SceneMetaRuntime();
@@ -81,8 +79,8 @@ public class PhysicsShapeScenePersistenceTest {
                         .get(loadedEntity).shapes.first().spatialBlockId);
         Assert.assertFalse(
                 loaded.getMapper(PhysicsCompiledFixturesComponent.class).has(loadedEntity));
-        Assert.assertFalse(
-                loaded.getMapper(SpatialPhysicsFootprintComponent.class).has(loadedEntity));
+        Assert.assertTrue(
+                loaded.getMapper(SpatialFootprintComponent.class).has(loadedEntity));
     }
 
     @Test

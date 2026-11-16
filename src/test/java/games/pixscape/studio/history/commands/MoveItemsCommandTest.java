@@ -9,7 +9,7 @@ import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.*;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.service.PhysicsService;
@@ -318,9 +318,9 @@ public class MoveItemsCommandTest {
             f.context.layerService().meta(1).locked = true;
             assertFalse(f.result(1, 0, 0, good).accepted());
             f.context.layerService().meta(1).locked = false;
-            f.world.getMapper(SpatialHeightComponent.class).create(good);
+            f.world.getMapper(SpatialRepresentationComponent.class).create(good);
             assertFalse(f.result(1, 0, 0, good).accepted());
-            assertTrue(f.world.getMapper(SpatialHeightComponent.class).has(good));
+            assertTrue(f.world.getMapper(SpatialRepresentationComponent.class).has(good));
             assertEquals(0, f.context.historyManager().getCursor());
         }
     }

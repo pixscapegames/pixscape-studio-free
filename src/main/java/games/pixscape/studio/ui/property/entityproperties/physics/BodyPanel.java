@@ -349,6 +349,7 @@ public final class BodyPanel extends CollapsibleWidget {
             if (f == null) continue;
             int shapeType = f.spatialBlockId > 0
                     ? PhysicsGeometryData.SHAPE_POLYGON
+                    : f.useSpatialFootprint ? PhysicsGeometryData.SHAPE_CIRCLE
                     : f.geometry != null
                     ? f.geometry.shapeType
                     : -1;

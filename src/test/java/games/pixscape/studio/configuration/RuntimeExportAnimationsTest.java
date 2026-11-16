@@ -427,7 +427,7 @@ public class RuntimeExportAnimationsTest {
                 "\"games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent\":\"PhysicsRuntimeBodyComponent\"," +
                 "\"games.pixscape.runtime.component.physics.PhysicsRuntimeJointComponent\":\"PhysicsRuntimeJointComponent\"," +
                 "\"games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent\":\"PhysicsCompiledFixturesComponent\"," +
-                "\"games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent\":\"SpatialPhysicsFootprintComponent\"}," +
+                "\"games.pixscape.runtime.component.spatial.SpatialFootprintComponent\":\"SpatialFootprintComponent\"}," +
                 "\"entities\":{\"0\":{\"archetype\":1,\"components\":{" +
                 "\"EntityMetaComponent\":{\"kind\":\"SPRITE\"}," +
                 "\"TransformComponent\":{\"x\":10,\"y\":20}," +
@@ -436,8 +436,8 @@ public class RuntimeExportAnimationsTest {
                 "\"PhysicsRuntimeBodyComponent\":{}," +
                 "\"PhysicsRuntimeJointComponent\":{}," +
                 "\"PhysicsCompiledFixturesComponent\":{}," +
-                "\"SpatialPhysicsFootprintComponent\":{}}}}," +
-                "\"archetypes\":{\"1\":[\"EntityMetaComponent\",\"TransformComponent\",\"PolygonComponent\",\"PolylineComponent\",\"PhysicsRuntimeBodyComponent\",\"PhysicsRuntimeJointComponent\",\"PhysicsCompiledFixturesComponent\",\"SpatialPhysicsFootprintComponent\"]}}";
+                "\"SpatialFootprintComponent\":{}}}}," +
+                "\"archetypes\":{\"1\":[\"EntityMetaComponent\",\"TransformComponent\",\"PolygonComponent\",\"PolylineComponent\",\"PhysicsRuntimeBodyComponent\",\"PhysicsRuntimeJointComponent\",\"PhysicsCompiledFixturesComponent\",\"SpatialFootprintComponent\"]}}";
         Files.writeString(studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"), scene,
                 StandardCharsets.UTF_8);
         new AssetMetaDatabase().save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
@@ -453,7 +453,7 @@ public class RuntimeExportAnimationsTest {
         assertFalse(exported.contains("PhysicsRuntimeBodyComponent"));
         assertFalse(exported.contains("PhysicsRuntimeJointComponent"));
         assertFalse(exported.contains("PhysicsCompiledFixturesComponent"));
-        assertFalse(exported.contains("SpatialPhysicsFootprintComponent"));
+        assertTrue(exported.contains("SpatialFootprintComponent"));
     }
 
     private static String legacyAnchorField(String axis) {

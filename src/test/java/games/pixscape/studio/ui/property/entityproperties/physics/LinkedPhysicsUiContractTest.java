@@ -44,8 +44,10 @@ public class LinkedPhysicsUiContractTest {
                 new games.pixscape.studio.configuration.ProjectConfig());
         try (Harness harness = new Harness()) {
             harness.meta.pixelsPerMeter = 32f;
-            harness.world.getMapper(PhysicsShapesComponent.class).get(harness.body).shapes.get(3).geometry.radius = 0.5f;
-            harness.select(4);
+            var independent = harness.world.getMapper(PhysicsShapesComponent.class).get(harness.body).shapes.get(2);
+            independent.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+            independent.geometry.radius = 0.5f;
+            harness.select(3);
             var fieldHandle = FixturesPanel.class.getDeclaredField("diameterWUField");
             fieldHandle.setAccessible(true);
             var field = (VisValidatableTextField) fieldHandle.get(harness.panel);
@@ -159,15 +161,15 @@ public class LinkedPhysicsUiContractTest {
                 "src/main/java/games/pixscape/studio/ui/contextmenu/"
                         + "StudioContextMenu.java");
 
-        Assert.assertTrue(fixtures.contains("shapeBox.setDisabled(linked || spatialFootprint);"));
-        Assert.assertTrue(fixtures.contains("sensorBox.setDisabled(linked);"));
+        Assert.assertTrue(fixtures.contains("shapeBox.setDisabled(linked || useSpatialFootprint);"));
+        Assert.assertTrue(fixtures.contains("sensorBox.setDisabled(f.spatialBlockId > 0);"));
         Assert.assertTrue(fixtures.contains("offsetsBlock.show(false);"));
         Assert.assertTrue(fixtures.contains(
-                "return fixture != null && !isLinked(fixture) && !fixture.spatialFootprint;"));
+                "return fixture != null && !isLinked(fixture) && !fixture.useSpatialFootprint;"));
         Assert.assertTrue(fixtures.contains(
                 "current == null || current.geometry == null"));
         Assert.assertTrue(fixtures.contains(
-                "linkedSpatialBlockBlock.show(linked || spatialFootprint);"));
+                "linkedSpatialBlockBlock.show(linked || useSpatialFootprint);"));
         Assert.assertFalse(fixtures.contains(
                 "densityField.setDisabled(linked)"));
         Assert.assertFalse(fixtures.contains(
@@ -185,7 +187,7 @@ public class LinkedPhysicsUiContractTest {
     }
 
     @Test
-    public void spatialFootprintHidesFixtureActionsButKeepsItsFieldsEditable()
+    public void footprintCollisionLocksGeometryButAllowsMaterialAndRemoval()
             throws Exception {
         try (Harness harness = new Harness()) {
             VisTextButton duplicate = button(harness.panel, "duplicateFixtureBtn");
@@ -194,11 +196,11 @@ public class LinkedPhysicsUiContractTest {
 
             harness.select(4);
             Assert.assertFalse(duplicate.isVisible());
-            Assert.assertFalse(delete.isVisible());
+            Assert.assertTrue(delete.isVisible());
             Assert.assertEquals("Delete", delete.getText().toString());
-            Assert.assertFalse(fieldDisabled(harness.panel, "diameterWUField"));
-            Assert.assertFalse(fieldDisabled(harness.panel, "offsetXWUField"));
-            Assert.assertFalse(fieldDisabled(harness.panel, "offsetYWUField"));
+            Assert.assertTrue(fieldDisabled(harness.panel, "diameterWUField"));
+            Assert.assertTrue(fieldDisabled(harness.panel, "offsetXWUField"));
+            Assert.assertTrue(fieldDisabled(harness.panel, "offsetYWUField"));
             Assert.assertFalse(fieldDisabled(harness.panel, "densityField"));
             Assert.assertFalse(fieldDisabled(harness.panel, "frictionField"));
             Assert.assertFalse(fieldDisabled(harness.panel, "restitutionField"));
@@ -320,7 +322,8 @@ public class LinkedPhysicsUiContractTest {
         private static PhysicsShapeData spatialFootprint(int physicsShapeId) {
             PhysicsShapeData shape = PhysicsService.createDefaultShape(physicsShapeId);
             shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
-            shape.spatialFootprint = true;
+            shape.useSpatialFootprint = true;
+            shape.geometry = null;
             return shape;
         }
     }

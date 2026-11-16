@@ -13,7 +13,7 @@ import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
@@ -562,8 +562,8 @@ public class ClipboardServiceFlowTest {
         Harness h = new Harness();
         int spatialLayer = h.addLayer(1, true);
         int source = physicalEntity(h.world, 0, true);
-        SpatialHeightComponent height = h.world.getMapper(SpatialHeightComponent.class).create(source);
-        height.altitude = 4f;
+        SpatialRepresentationComponent height = h.world.getMapper(SpatialRepresentationComponent.class).create(source);
+        h.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(source).altitude = 4f;
         games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height, 2f);
         h.selection.selectOnly(source);
         Assert.assertTrue(h.clipboard.copySelection());
@@ -573,7 +573,7 @@ public class ClipboardServiceFlowTest {
         int pasted = h.selection.getFirstSelectedEntityId();
         Assert.assertEquals(1, h.world.getMapper(EntityIndexComponent.class).get(pasted).layerIndex);
         Assert.assertTrue(h.world.getMapper(PhysicsBodyComponent.class).has(pasted));
-        Assert.assertTrue(h.world.getMapper(SpatialHeightComponent.class).has(pasted));
+        Assert.assertTrue(h.world.getMapper(SpatialRepresentationComponent.class).has(pasted));
         Assert.assertTrue(hasFootprint(h.world.getMapper(PhysicsShapesComponent.class).get(pasted)));
     }
 
@@ -720,7 +720,10 @@ public class ClipboardServiceFlowTest {
         shape.geometry.shapeType = footprint
                 ? PhysicsGeometryData.SHAPE_CIRCLE
                 : PhysicsGeometryData.SHAPE_BOX;
-        shape.spatialFootprint = footprint;
+        shape.useSpatialFootprint = footprint;
+        if (footprint) {
+            shape.geometry = null;
+        }
         shapes.shapes.add(shape);
         return entity;
     }
@@ -737,7 +740,9 @@ public class ClipboardServiceFlowTest {
 
     private static boolean hasFootprint(PhysicsShapesComponent shapes) {
         for (PhysicsShapeData shape : shapes.shapes) {
-            if (shape != null && shape.spatialFootprint) return true;
+            if (shape != null && shape.useSpatialFootprint) {
+                return true;
+            }
         }
         return false;
     }

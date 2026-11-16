@@ -9,8 +9,8 @@ import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.RenderKind;
@@ -50,7 +50,7 @@ public class SpatialHeightLivePreviewTest {
     @Test
     public void rectangleRowsUseAltitudeColumnsAtDifferentPanelWidths() throws Exception {
         try (Harness h = new Harness()) {
-            Field altitude = SpatialPhysicsPanel.class.getDeclaredField("altitudeField");
+            Field altitude = SpatialActorPanel.class.getDeclaredField("altitudeField");
             altitude.setAccessible(true);
             FloatField altitudeField = (FloatField) altitude.get(h.panel);
             com.badlogic.gdx.scenes.scene2d.ui.Table table = (com.badlogic.gdx.scenes.scene2d.ui.Table) h.field.getParent();
@@ -85,7 +85,7 @@ public class SpatialHeightLivePreviewTest {
             h.world.process();
             h.assertRectangle(150);
             Assert.assertEquals(40, h.height.rectangles.staticRectangle.width, 0);
-            Assert.assertEquals(160, h.height.altitude, 0);
+            Assert.assertEquals(160, h.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).get(h.actor).altitude, 0);
             h.history.undo();
             h.world.process();
             h.assertRectangle(80);
@@ -119,8 +119,8 @@ public class SpatialHeightLivePreviewTest {
         final HistoryManager history = new HistoryManager(8);
         final IdentityRegistry identities = new IdentityRegistry();
         final int actor, slot;
-        final SpatialHeightComponent height;
-        final SpatialPhysicsPanel panel;
+        final SpatialRepresentationComponent height;
+        final SpatialActorPanel panel;
         final FloatField field;
 
         Harness() throws Exception {
@@ -140,15 +140,15 @@ public class SpatialHeightLivePreviewTest {
             TransformComponent transform = world.getMapper(TransformComponent.class).create(actor);
             transform.x = 10;
             transform.y = 200;
-            height = world.getMapper(SpatialHeightComponent.class).create(actor);
-            height.altitude = 160;
+            height = world.getMapper(SpatialRepresentationComponent.class).create(actor);
+            world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(actor).altitude = 160;
             height.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
             height.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
             height.rectangles.staticRectangle.width = 40;
             height.rectangles.staticRectangle.height = 80;
             height.rectangles.staticRectangle.x = -20;
-            SpatialPhysicsFootprintComponent footprint = world.getMapper(SpatialPhysicsFootprintComponent.class).create(actor);
-            footprint.valid = true;
+            SpatialFootprintComponent footprint = world.getMapper(SpatialFootprintComponent.class).create(actor);
+
             footprint.radiusPx = 9;
             slot = ecs.acquireSlotForEntity(actor);
             ecs.enabled[slot] = ecs.visible[slot] = true;
@@ -163,7 +163,7 @@ public class SpatialHeightLivePreviewTest {
             identities.bind(world, meta);
             LayerService layers = new LayerService(world, null, history.historyIds(), identities);
             AssetMetaDatabase assets = new AssetMetaDatabase();
-            panel = new SpatialPhysicsPanel(new EntityPropertiesContext(world, history,
+            panel = new SpatialActorPanel(new EntityPropertiesContext(world, history,
                     new PhysicsSelectionService(), new PhysicsService(world, null, meta), layers,
                     new AtlasStudioService(null), new SelectionService(world, layers), identities,
                     new IconResolver(world), () -> {

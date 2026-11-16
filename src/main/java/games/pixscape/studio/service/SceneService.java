@@ -21,10 +21,10 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TiledMapLayerComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.hud.HudScreenAsset;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEmitter;
 import games.pixscape.runtime.physics.CompiledFixtureData;
@@ -422,6 +422,9 @@ public final class SceneService {
             }
             JsonValue scene = scenes.get(currentSceneName);
             if (scene == null || !scene.isObject()) {
+                return true;
+            }
+            if (scene.getInt("sceneSchemaVersion", -1) != SceneMetaRuntime.CURRENT_SCENE_SCHEMA_VERSION) {
                 return true;
             }
 
@@ -1389,12 +1392,9 @@ public final class SceneService {
         ComponentMapper<VisibilityComponent> mVisibility = world.getMapper(VisibilityComponent.class);
         ComponentMapper<PhysicsCompiledFixturesComponent> mCompiled =
                 world.getMapper(PhysicsCompiledFixturesComponent.class);
-        ComponentMapper<SpatialPhysicsFootprintComponent> mSpatialFootprint =
-                world.getMapper(SpatialPhysicsFootprintComponent.class);
 
         Array<VisibilityRuntimeSnapshot> visibilityStates = new Array<>();
         Array<CompiledPhysicsSnapshot> compiledStates = new Array<>();
-        Array<SpatialPhysicsFootprintSnapshot> spatialFootprintStates = new Array<>();
 
         int[] data = entitiesToSave.getData();
         for (int i = 0, n = entitiesToSave.size(); i < n; i++) {
@@ -1426,34 +1426,19 @@ public final class SceneService {
                 mCompiled.remove(entityId);
             }
 
-            SpatialPhysicsFootprintComponent spatialFootprint =
-                    mSpatialFootprint.getSafe(entityId, null);
-            if (spatialFootprint != null) {
-                spatialFootprintStates.add(new SpatialPhysicsFootprintSnapshot(
-                        entityId,
-                        spatialFootprint.valid,
-                        spatialFootprint.localOffsetXPx,
-                        spatialFootprint.localOffsetYPx,
-                        spatialFootprint.radiusPx,
-                        spatialFootprint.physicsGeneration));
-                mSpatialFootprint.remove(entityId);
-            }
         }
 
         return new SceneVolatileStateSnapshot(
-                visibilityStates, compiledStates, spatialFootprintStates);
+                visibilityStates, compiledStates);
     }
 
     private record SceneVolatileStateSnapshot(
             Array<VisibilityRuntimeSnapshot> visibilityStates,
-            Array<CompiledPhysicsSnapshot> compiledStates,
-            Array<SpatialPhysicsFootprintSnapshot> spatialFootprintStates) {
+            Array<CompiledPhysicsSnapshot> compiledStates) {
         void restore(World world) {
             ComponentMapper<VisibilityComponent> mVisibility = world.getMapper(VisibilityComponent.class);
             ComponentMapper<PhysicsCompiledFixturesComponent> mCompiled =
                     world.getMapper(PhysicsCompiledFixturesComponent.class);
-            ComponentMapper<SpatialPhysicsFootprintComponent> mSpatialFootprint =
-                    world.getMapper(SpatialPhysicsFootprintComponent.class);
 
             for (VisibilityRuntimeSnapshot snapshot : visibilityStates) {
                 VisibilityComponent visibility = mVisibility.getSafe(snapshot.entityId(), null);
@@ -1473,15 +1458,6 @@ public final class SceneService {
                 compiled.valid = snapshot.valid();
             }
 
-            for (SpatialPhysicsFootprintSnapshot snapshot : spatialFootprintStates) {
-                SpatialPhysicsFootprintComponent footprint =
-                        mSpatialFootprint.create(snapshot.entityId());
-                footprint.valid = snapshot.valid();
-                footprint.localOffsetXPx = snapshot.localOffsetXPx();
-                footprint.localOffsetYPx = snapshot.localOffsetYPx();
-                footprint.radiusPx = snapshot.radiusPx();
-                footprint.physicsGeneration = snapshot.physicsGeneration();
-            }
         }
     }
 
@@ -1492,14 +1468,6 @@ public final class SceneService {
             boolean valid) {
     }
 
-    private record SpatialPhysicsFootprintSnapshot(
-            int entityId,
-            boolean valid,
-            float localOffsetXPx,
-            float localOffsetYPx,
-            float radiusPx,
-            int physicsGeneration) {
-    }
 
     private record VisibilityRuntimeSnapshot(int entityId, boolean culledByFrustum, boolean inView) {
     }

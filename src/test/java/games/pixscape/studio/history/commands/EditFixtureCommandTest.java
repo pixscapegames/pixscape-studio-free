@@ -68,27 +68,28 @@ public class EditFixtureCommandTest {
         FixtureHarness harness = FixtureHarness.create();
         harness.fixture().geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         harness.fixture().geometry.radius = 0.5f;
-        harness.fixture().spatialFootprint = true;
+        harness.fixture().useSpatialFootprint = true;
+        harness.fixture().geometry = null;
+        harness.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(harness.bodyEid).radiusPx = 50;
         PhysicsShapeData original = harness.fixture().copy();
         games.pixscape.runtime.service.PhysicsService.publishPreparedCandidate(
                 harness.world.getMapper(PhysicsShapesComponent.class).get(harness.bodyEid),
                 harness.compiled(),
-                games.pixscape.runtime.service.PhysicsService.prepareBodyCandidate(
-                        harness.world.getMapper(PhysicsShapesComponent.class)
-                                .get(harness.bodyEid).shapes));
+                games.pixscape.runtime.service.PhysicsService.prepareBodyCandidate(harness.world, harness.bodyEid,
+                        harness.world.getMapper(PhysicsShapesComponent.class).get(harness.bodyEid).shapes, 100));
 
         EditFixtureCommand command = harness.newEdit(cmd -> cmd.sensor = true, false);
 
         Assert.assertFalse(command.isNoop());
         command.redo();
-        Assert.assertTrue(harness.fixture().spatialFootprint);
+        Assert.assertTrue(harness.fixture().useSpatialFootprint);
         Assert.assertTrue(harness.fixture().sensor);
 
         command.undo();
         Assert.assertTrue(harness.fixture().contentEquals(original));
 
         command.redo();
-        Assert.assertTrue(harness.fixture().spatialFootprint);
+        Assert.assertTrue(harness.fixture().useSpatialFootprint);
         Assert.assertTrue(harness.fixture().sensor);
         Assert.assertTrue(harness.compiled().fixtures.first().sensor);
     }

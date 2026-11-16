@@ -225,7 +225,7 @@ public final class EventFlow {
     ) {
     }
 
-    public record SpatialHeightChanged(
+    public record SpatialActorChanged(
             int entityId,
             int sourceTag
     ) {

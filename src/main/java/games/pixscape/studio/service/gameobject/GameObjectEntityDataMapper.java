@@ -193,14 +193,15 @@ final class GameObjectEntityDataMapper {
                 target.maskBits = source.maskBits;
                 target.groupIndex = source.groupIndex;
                 target.enabled = source.enabled;
-                target.spatialFootprint = source.spatialFootprint;
+                target.useSpatialFootprint = source.useSpatialFootprint;
                 snapshot.shapes.add(target);
             }
         }
-        if (data.spatialHeight != null) {
-            snapshot.hasSpatialHeight = true;
-            snapshot.spatialAltitude = data.spatialHeight.altitude;
-            snapshot.actorSpatialRectangles = data.spatialHeight.rectangles == null ? null : data.spatialHeight.rectangles.copy();
+        snapshot.spatialFootprint = data.spatialFootprint == null ? null : data.spatialFootprint.copy();
+        if (data.spatialRepresentation != null) {
+            snapshot.hasSpatialRepresentation = true;
+
+            snapshot.actorSpatialRectangles = data.spatialRepresentation.rectangles == null ? null : data.spatialRepresentation.rectangles.copy();
         }
         GenericEntityInitializer initializer = new GenericEntityInitializer(world)
                 .applySnapshotData(snapshot);
@@ -316,14 +317,15 @@ final class GameObjectEntityDataMapper {
                 target.maskBits = shape.maskBits;
                 target.groupIndex = shape.groupIndex;
                 target.enabled = shape.enabled;
-                target.spatialFootprint = shape.spatialFootprint;
+                target.useSpatialFootprint = shape.useSpatialFootprint;
                 data.physicsShapes.add(target);
             }
         }
-        if (source.hasSpatialHeight) {
-            data.spatialHeight = new GameObjectAsset.SpatialHeightData();
-            data.spatialHeight.altitude = source.spatialAltitude;
-            data.spatialHeight.rectangles = source.actorSpatialRectangles == null ? null : source.actorSpatialRectangles.copy();
+        data.spatialFootprint = source.spatialFootprint == null ? null : source.spatialFootprint.copy();
+        if (source.hasSpatialRepresentation) {
+            data.spatialRepresentation = new GameObjectAsset.SpatialRepresentationData();
+
+            data.spatialRepresentation.rectangles = source.actorSpatialRectangles == null ? null : source.actorSpatialRectangles.copy();
         }
     }
 

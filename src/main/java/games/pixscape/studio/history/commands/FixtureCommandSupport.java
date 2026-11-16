@@ -97,7 +97,7 @@ public final class FixtureCommandSupport {
         PhysicsService.publishPreparedCandidate(targetShapes, targetCompiled, prepared);
     }
 
-    static float requireCurrentPixelsPerMeter() {
+    public static float requireCurrentPixelsPerMeter() {
         ProjectConfig config = ProjectConfig.getInstance();
         if (config == null) {
             throw new IllegalStateException(
@@ -123,7 +123,9 @@ public final class FixtureCommandSupport {
         if (shapes == null) return false;
         for (int i = 0; i < shapes.size; i++) {
             PhysicsShapeData shape = shapes.get(i);
-            if (shape != null && shape.spatialBlockId > 0) return true;
+            if (shape != null && (shape.spatialBlockId > 0 || shape.useSpatialFootprint)) {
+                return true;
+            }
         }
         return false;
     }

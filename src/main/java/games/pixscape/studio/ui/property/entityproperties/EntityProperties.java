@@ -53,7 +53,7 @@ public class EntityProperties extends VisTable {
     private final AnimationPanel animationPanel;
     private final ParticleFxPanel particleFxPanel;
     private final RepeatablePanel repeatablePanel;
-    private final SpatialPhysicsPanel spatialPanel;
+    private final SpatialActorPanel spatialPanel;
     private final BodyPanel bodyPanel;
 
     private final ToggleSection transformSection;
@@ -107,7 +107,7 @@ public class EntityProperties extends VisTable {
         animationPanel = new AnimationPanel(ctx);
         particleFxPanel = new ParticleFxPanel(ctx);
         repeatablePanel = new RepeatablePanel(ctx);
-        spatialPanel = new SpatialPhysicsPanel(ctx);
+        spatialPanel = new SpatialActorPanel(ctx);
         bodyPanel = new BodyPanel(ctx, true);
 
         entityName.bind(
@@ -172,7 +172,7 @@ public class EntityProperties extends VisTable {
             spatialPanel.refreshFromModel(currentEntityId);
             updateSectionsVisibility();
         });
-        EventFlow.i().subscribe(EventFlow.SpatialHeightChanged.class, evt -> {
+        EventFlow.i().subscribe(EventFlow.SpatialActorChanged.class, evt -> {
             if (evt.entityId() != currentEntityId) return;
             spatialPanel.setEntityId(currentEntityId);
             updateSectionsVisibility();

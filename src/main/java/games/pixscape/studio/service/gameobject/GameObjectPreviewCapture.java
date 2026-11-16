@@ -89,7 +89,6 @@ public final class GameObjectPreviewCapture implements Disposable {
             // A zero delta alone does not prevent animation initialization/physics side effects.
             world.getSystem(Box2dSyncSystem.class).setEnabled(false);
             world.getSystem(GameObjectPhysicsWritebackSystem.class).setEnabled(false);
-            world.getSystem(PhysicsSpatialFootprintSyncSystem.class).setEnabled(false);
             world.getSystem(AnimationSystem.class).setEnabled(false);
             world.getSystem(TiledEntityAnimationSystem.class).setEnabled(false);
             world.getSystem(TiledAnimationSystem.class).setEnabled(false);

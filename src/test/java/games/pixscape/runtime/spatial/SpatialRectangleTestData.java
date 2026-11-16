@@ -1,6 +1,6 @@
 package games.pixscape.runtime.spatial;
 
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 
 /**
  * Historical sorting fixtures retain their envelopes through explicit rectangles.
@@ -15,7 +15,7 @@ public final class SpatialRectangleTestData {
         return r;
     }
 
-    public static void setHeight(SpatialHeightComponent spatial, float height) {
+    public static void setHeight(SpatialRepresentationComponent spatial, float height) {
         spatial.rectangles = rectangles(height);
     }
 }

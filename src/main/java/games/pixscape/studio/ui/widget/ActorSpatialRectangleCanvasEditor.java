@@ -13,8 +13,8 @@ import com.badlogic.gdx.scenes.scene2d.Stage;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.render.lighting.LightingCoordinates;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.spatial.ActorSpatialRectangleData;
@@ -137,15 +137,15 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
         return a == null ? null : a.currentClip;
     }
 
-    private static SpatialHeightComponent spatial(SceneEditorContext c, int e) {
-        return c == null || c.isDisposed() || e < 0 || !c.world().getEntityManager().isActive(e) ? null : c.world().getMapper(SpatialHeightComponent.class).getSafe(e, null);
+    private static SpatialRepresentationComponent spatial(SceneEditorContext c, int e) {
+        return c == null || c.isDisposed() || e < 0 || !c.world().getEntityManager().isActive(e) ? null : c.world().getMapper(SpatialRepresentationComponent.class).getSafe(e, null);
     }
 
     private boolean positions() {
         if (!available.getAsBoolean() || getStage() == null) return false;
         SceneEditorContext ctx = canvas.getAttachedSceneContext();
         int e = selected(ctx);
-        SpatialHeightComponent h = spatial(ctx, e);
+        SpatialRepresentationComponent h = spatial(ctx, e);
         if (h == null || h.rectangles == null) return false;
         current = h.rectangles.get(asset(ctx, e), clip(ctx, e));
         if (current == null) return false;
@@ -159,9 +159,11 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
         var state = hierarchy == null ? null : hierarchy.worldTransforms();
         boolean resolved = state != null && state.isResolved(e);
         float sx = resolved ? state.x[e] : t.x, sy = resolved ? state.y[e] : t.y, angle = resolved ? state.rotationRad[e] : t.rotationRad;
-        var foot = ctx.world().getMapper(SpatialPhysicsFootprintComponent.class).getSafe(e, null);
-        if (foot == null || !foot.valid) return false;
-        games.pixscape.runtime.spatial.ActorSpatialRectanglePlacement.anchor(sx, sy, angle, foot.localOffsetXPx, foot.localOffsetYPx, h.altitude, worldAnchor);
+        var foot = ctx.world().getMapper(SpatialFootprintComponent.class).getSafe(e, null);
+        if (foot == null) {
+            return false;
+        }
+        games.pixscape.runtime.spatial.ActorSpatialRectanglePlacement.anchor(sx, sy, angle, foot.localOffsetXPx, foot.localOffsetYPx, foot.altitude, worldAnchor);
         anchorX = worldAnchor[0];
         anchorY = worldAnchor[1];
         anchorZ = worldAnchor[2];

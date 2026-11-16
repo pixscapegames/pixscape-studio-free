@@ -2,8 +2,7 @@ package games.pixscape.studio.service;
 
 import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
-import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 
 /**
@@ -18,11 +17,8 @@ public final class SpatialActorShapeSupport {
         if (world == null || entityId < 0) {
             return false;
         }
-        if (world.getMapper(SpatialHeightComponent.class).has(entityId)) {
-            return true;
-        }
-        PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).getSafe(entityId, null);
-        return shapes != null && findFootprint(shapes.shapes, 0) >= 0;
+        return world.getMapper(SpatialRepresentationComponent.class).has(entityId)
+                || world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).has(entityId);
     }
 
     /**
@@ -41,7 +37,9 @@ public final class SpatialActorShapeSupport {
     public static int findFootprint(Array<PhysicsShapeData> shapes, int start) {
         for (int i = start; i < shapes.size; i++) {
             PhysicsShapeData shape = shapes.get(i);
-            if (shape != null && shape.spatialFootprint) return i;
+            if (shape != null && shape.useSpatialFootprint) {
+                return i;
+            }
         }
         return -1;
     }

@@ -27,7 +27,7 @@ public final class DuplicateFixtureCommand implements Command, HistoryManager.Su
                 ? null
                 : FixtureCommandSupport.deepCopyWithFreshId(physicsService, source);
         if (duplicate != null) {
-            duplicate.spatialFootprint = false;
+            duplicate.useSpatialFootprint = false;
         }
 
         this.noop = (source == null || linked || duplicate == null);

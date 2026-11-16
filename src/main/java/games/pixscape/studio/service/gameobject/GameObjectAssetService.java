@@ -151,10 +151,14 @@ public final class GameObjectAssetService {
         if (asset == null || asset.entities == null) return false;
         for (GameObjectAsset.GameObjectEntityData entity : asset.entities) {
             if (entity == null) continue;
-            if (entity.spatialHeight != null) return true;
+            if (entity.spatialRepresentation != null || entity.spatialFootprint != null) {
+                return true;
+            }
             if (entity.physicsShapes == null) continue;
             for (GameObjectAsset.PhysicsShapeData shape : entity.physicsShapes) {
-                if (shape != null && shape.spatialFootprint) return true;
+                if (shape != null && shape.useSpatialFootprint) {
+                    return true;
+                }
             }
         }
         return false;

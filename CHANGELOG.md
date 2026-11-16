@@ -4,9 +4,11 @@
 ## [0.4.3-SNAPSHOT]
 
 ### Compatibility
-* Uses Runtime `0.2.5-SNAPSHOT` and saves scenes in schema 4. Supported schema 3 scenes are converted on load, with one map per existing tile grid.
+* Game Object definitions/fragments now use schema 4; old physics-owned actor footprints must be reconfigured explicitly.
+* Uses Runtime `0.2.5-SNAPSHOT` and saves scenes in schema 5. Supported schema 3 scenes are converted on load, with one map per existing tile grid.
 
 ### Added
+* Spatial Actor activation and circle editing now work with scene physics disabled. Physics removal preserves spatial data; collision geometry can explicitly follow the footprint. Undo/redo, save, export and Game Object snapshots preserve both independent capabilities. See [the spatial/physics contract](docs/spatial-physics-decoupling.txt).
 * Added persistent Studio-only visibility controls for Tiled maps and their layers, in a fixed Items column before the scrollbar.
 * Added `Grid on top` beside `Rulers`, keeping the grid behind world content by default.
 * TMX imports now create one map containing ordered tile, image and object layers, with map translation and import undo/redo.
@@ -18,9 +20,10 @@
 * Game Object roots can have their own visuals. Physics-backed compositions support explicit placement, and physics-backed entities support visual scaling.
 * The tree and inspector distinguish Tiled maps from tile layers. Tile layers retain their existing editing tools.
 * Simplified the Assets tree and Items toolbar, and refreshed add/delete button states.
-* Updated the embedded HTML player for schema 4 scenes and Runtime `0.2.5-SNAPSHOT`.
+* Updated the embedded HTML player for schema 5 scenes and schema 4 Game Objects and Runtime `0.2.5-SNAPSHOT`.
 
 ### Fixed
+* Desktop Preview requires a fresh export when the exported scene format differs from the current schema; obsolete exports are never treated as ready.
 * Actors now pass behind scaffold beams correctly when spatial constraints conflict, including through transparent openings.
 * Fixed drawing resource cleanup when closing Studio.
 * Improved hierarchy, identity and joint restoration during deletion, copying and undo/redo, including complete Tiled maps.
