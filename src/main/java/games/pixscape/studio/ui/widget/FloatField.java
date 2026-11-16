@@ -125,6 +125,17 @@ public class FloatField extends BaseField<Float> {
         }
     }
 
+    public static InputValidator finiteValidator(boolean positive) {
+        return input -> {
+            try {
+                float value = Float.parseFloat(input.trim());
+                return Float.isFinite(value) && (!positive || value > 0f);
+            } catch (NumberFormatException | NullPointerException invalid) {
+                return false;
+            }
+        };
+    }
+
     private static InputValidator defaultValidator() {
         return input -> {
             if (input == null) return false;

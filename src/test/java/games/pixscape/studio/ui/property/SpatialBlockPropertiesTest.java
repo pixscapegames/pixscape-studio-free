@@ -54,12 +54,55 @@ public class SpatialBlockPropertiesTest {
                 fixture.history,
                 fixture.selection,
                 fixture.physics,
+                fixture.meta,
                 () -> {
                 }
         );
 
         Assert.assertFalse(properties.hasValidSelection());
         Assert.assertNull(properties.activeBlock());
+    }
+
+    @Test
+    public void disabledPhysicsExplainsRefusalAndStillAllowsExistingCollisionRemoval() {
+        Fixture fixture = fixture();
+        try {
+            int layerId = tiledLayer(fixture.world);
+            fixture.world.getMapper(SpatialBlocksComponent.class)
+                    .create(layerId).blocks.add(wall(1, 1, 1, 1, 1, 1));
+            SpatialBlockProperties properties = fixture.properties();
+            fixture.meta.physicsEnabled = false;
+            properties.setSpatialBlock(layerId, 1);
+            VisCheckBox collision = checkBox(properties, "spatialWallPhysicsCollision");
+            Assert.assertTrue(collision.isDisabled());
+            VisLabel reason = properties.findActor("spatialWallPhysicsCollisionStatus");
+            Assert.assertTrue(reason.getText().toString().contains("Physics in Scene settings"));
+
+            fixture.meta.physicsEnabled = true;
+            properties.refreshNow();
+            Assert.assertFalse(collision.isDisabled());
+            // The scene changes after the last panel refresh: the command still refuses.
+            fixture.meta.physicsEnabled = false;
+            collision.setChecked(true);
+            Assert.assertFalse(collision.isChecked());
+            Assert.assertTrue(collision.isDisabled());
+            Assert.assertFalse(fixture.history.canUndo());
+            Assert.assertFalse(fixture.world.getMapper(PhysicsShapesComponent.class).has(layerId));
+
+            fixture.meta.physicsEnabled = true;
+            properties.refreshNow();
+            collision.setChecked(true);
+            fixture.meta.physicsEnabled = false;
+            properties.refreshNow();
+            Assert.assertTrue(collision.isChecked());
+            Assert.assertFalse(collision.isDisabled());
+            collision.setChecked(false);
+            Assert.assertFalse(fixture.world.getMapper(PhysicsShapesComponent.class).has(layerId));
+            Assert.assertNotNull(properties.activeBlock());
+            Assert.assertTrue(collision.isDisabled());
+        } finally {
+            fixture.world.dispose();
+        }
     }
 
     @Test
@@ -468,11 +511,13 @@ public class SpatialBlockPropertiesTest {
 
     private static Fixture fixture() {
         World world = new World(new WorldConfiguration());
+        SceneMeta meta = new SceneMeta();
+        meta.physicsEnabled = true;
         return new Fixture(
                 world,
                 new HistoryManager(8),
                 new SpatialBlockSelectionService(),
-                new PhysicsService(world, null, new SceneMeta()));
+                new PhysicsService(world, null, meta), meta);
     }
 
     private static SpatialBlockData block(int id) {
@@ -513,9 +558,10 @@ public class SpatialBlockPropertiesTest {
             World world,
             HistoryManager history,
             SpatialBlockSelectionService selection,
-            PhysicsService physics) {
+            PhysicsService physics,
+            SceneMeta meta) {
         SpatialBlockProperties properties() {
-            return new SpatialBlockProperties(world, history, selection, physics, () -> {
+            return new SpatialBlockProperties(world, history, selection, physics, meta, () -> {
             });
         }
     }

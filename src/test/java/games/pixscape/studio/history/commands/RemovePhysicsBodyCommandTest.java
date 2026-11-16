@@ -23,6 +23,112 @@ import org.junit.Test;
 
 public class RemovePhysicsBodyCommandTest {
     @Test
+    public void independentCollisionsSurviveRepeatedBodyRemovalWithSpatialStateAndJoint() {
+        var previous = games.pixscape.studio.configuration.ProjectConfig.getInstance();
+        var config = new games.pixscape.studio.configuration.ProjectConfig();
+        config.createSceneMeta("Footprint");
+        config.getCurrentSceneMeta().pixelsPerMeter = 100f;
+        games.pixscape.studio.configuration.ProjectConfig.setInstance(config);
+        Harness h = new Harness();
+        try {
+            int owner = h.body(10f);
+            int other = h.body(20f);
+            var foot = h.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(owner);
+            foot.radiusPx = 35f;
+            foot.localOffsetXPx = 12f;
+            var candidate = FixtureCommandSupport.copyFixtures(h.world, owner);
+            var linked = PhysicsService.createDefaultShape(h.physics.allocateNewPhysicsShapeId());
+            linked.geometry = new games.pixscape.runtime.physics.PhysicsGeometryData();
+            linked.friction = .75f;
+            linked.sensor = true;
+            candidate.add(linked);
+            PhysicsService.publishPreparedCandidate(
+                    h.world.getMapper(PhysicsShapesComponent.class).get(owner),
+                    h.world.getMapper(PhysicsCompiledFixturesComponent.class).create(owner),
+                    PhysicsService.prepareBodyCandidate(h.world, owner, candidate, 100f));
+            h.world.getMapper(PhysicsBodyComponent.class).get(owner).linearDamping = 2.5f;
+            int joint = h.physics.createDistanceJoint(owner, other);
+            h.world.getMapper(PhysicsDistanceJointComponent.class).get(joint).lengthM = 3.5f;
+            long jointId = h.historyIds.ensureForEntity(joint);
+            long ownerId = h.historyIds.ensureForEntity(owner);
+            int highWater = h.meta.nextPhysicsShapeId;
+            h.history.execute(new RemovePhysicsBodyCommand(h.world, h.historyIds, h.physics, owner));
+            h.world.process();
+            for (int cycle = 0; cycle < 3; cycle++) {
+                assertRemoved(h, owner, jointId);
+                h.history.undo();
+                h.world.process();
+                Assert.assertEquals(owner, h.historyIds.entityOfHistoryId(ownerId));
+                Assert.assertSame(foot, h.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).get(owner));
+                Assert.assertEquals(2.5f, h.world.getMapper(PhysicsBodyComponent.class).get(owner).linearDamping, 0f);
+                var restored = h.world.getMapper(PhysicsShapesComponent.class).get(owner).shapes;
+                Assert.assertEquals(candidate.size, restored.size);
+                for (int i = 0; i < candidate.size; i++) {
+                    Assert.assertTrue(candidate.get(i).contentEquals(restored.get(i)));
+                }
+                var compiled = h.world.getMapper(PhysicsCompiledFixturesComponent.class).get(owner);
+                Assert.assertTrue(compiled.valid);
+                Assert.assertEquals(2, compiled.fixtures.size);
+                int restoredJoint = h.historyIds.entityOfHistoryId(jointId);
+                Assert.assertEquals(owner, h.world.getMapper(PhysicsJointComponent.class).get(restoredJoint).aEid);
+                Assert.assertEquals(3.5f, h.world.getMapper(PhysicsDistanceJointComponent.class).get(restoredJoint).lengthM, 0f);
+                Assert.assertEquals(highWater, h.meta.nextPhysicsShapeId);
+                h.history.redo();
+                h.world.process();
+            }
+        } finally {
+            h.world.dispose();
+            games.pixscape.studio.configuration.ProjectConfig.setInstance(previous);
+        }
+    }
+
+    @Test
+    public void failedTiledRestoreLeavesBodyAbsentAndUndoRetryable() {
+        var previous = games.pixscape.studio.configuration.ProjectConfig.getInstance();
+        var config = new games.pixscape.studio.configuration.ProjectConfig();
+        config.createSceneMeta("Footprint");
+        config.getCurrentSceneMeta().pixelsPerMeter = 100f;
+        games.pixscape.studio.configuration.ProjectConfig.setInstance(config);
+        Harness h = new Harness();
+        try {
+            int owner = h.body(10f);
+            var tiled = h.world.getMapper(TiledLayerComponent.class).create(owner);
+            tiled.data = new games.pixscape.runtime.tiled.TiledLayerData(4, 4, 32, 32, 2, games.pixscape.runtime.tiled.TiledProjection.ORTHO);
+            var block = new games.pixscape.runtime.spatial.SpatialBlockData();
+            block.id = block.structureId = 1;
+            block.width = block.depth = 1;
+            var blocks = h.world.getMapper(games.pixscape.runtime.component.spatial.SpatialBlocksComponent.class).create(owner);
+            blocks.blocks.add(block);
+            var candidate = FixtureCommandSupport.copyFixtures(h.world, owner);
+            h.world.getMapper(PhysicsBodyComponent.class).get(owner).type = PhysicsBodyComponent.STATIC;
+            candidate.first().spatialBlockId = 1;
+            candidate.first().geometry = null;
+            PhysicsService.publishPreparedCandidate(
+                    h.world.getMapper(PhysicsShapesComponent.class).get(owner),
+                    h.world.getMapper(PhysicsCompiledFixturesComponent.class).create(owner),
+                    PhysicsService.prepareBodyCandidate(h.world, owner, candidate, 100f));
+            h.history.execute(new RemovePhysicsBodyCommand(h.world, h.historyIds, h.physics, owner, true));
+            h.world.process();
+            int cursor = h.history.getCursor();
+            blocks.blocks.clear();
+            Assert.assertThrows(IllegalArgumentException.class, h.history::undo);
+            Assert.assertFalse(h.world.getMapper(PhysicsBodyComponent.class).has(owner));
+            Assert.assertFalse(h.world.getMapper(PhysicsShapesComponent.class).has(owner));
+            Assert.assertFalse(h.world.getMapper(PhysicsCompiledFixturesComponent.class).has(owner));
+            Assert.assertEquals(cursor, h.history.getCursor());
+            Assert.assertTrue(h.history.canUndo());
+            Assert.assertFalse(h.history.canRedo());
+            blocks.blocks.add(block);
+            h.history.undo();
+            Assert.assertTrue(h.world.getMapper(PhysicsBodyComponent.class).has(owner));
+            Assert.assertTrue(h.history.canRedo());
+        } finally {
+            h.world.dispose();
+            games.pixscape.studio.configuration.ProjectConfig.setInstance(previous);
+        }
+    }
+
+    @Test
     public void deletingGameObjectDestroysWheelJointsInBox2dAndUndoRecreatesThem() {
         GdxNativesLoader.load();
         GearHarness harness = new GearHarness();

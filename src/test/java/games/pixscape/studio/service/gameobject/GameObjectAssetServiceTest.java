@@ -205,8 +205,6 @@ public class GameObjectAssetServiceTest {
         PhysicsShapeData footprint = manualShape(77, 2f);
         footprint.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         footprint.geometry.radius = 2f;
-        footprint.useSpatialFootprint = true;
-        footprint.geometry = null;
         world.getMapper(PhysicsShapesComponent.class).create(root).shapes.add(footprint);
         SpatialRepresentationComponent height = world.getMapper(SpatialRepresentationComponent.class).create(root);
         world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(root).altitude = 4f;
@@ -222,7 +220,7 @@ public class GameObjectAssetServiceTest {
                         new IntArray(new int[]{root})));
 
         GameObjectAsset.GameObjectEntityData restored = new GameObjectAssetLoader().load(file).entities.get(0);
-        Assert.assertTrue(restored.physicsShapes.get(0).useSpatialFootprint);
+        Assert.assertNotNull(restored.physicsShapes.get(0).geometry);
         Assert.assertEquals(4f, restored.spatialFootprint.altitude, 0f);
         Assert.assertEquals(6f, restored.spatialRepresentation.rectangles.staticRectangle.height, 0f);
         Assert.assertEquals(37.25f, restored.spatialRepresentation.rectangles.staticRectangle.pivotX, 0f);
@@ -241,7 +239,7 @@ public class GameObjectAssetServiceTest {
         Assert.assertTrue(service.requiresSpatialLayer(asset));
 
         nested.spatialRepresentation = null;
-        nested.physicsShapes.get(0).useSpatialFootprint = true;
+        nested.spatialFootprint = new games.pixscape.runtime.component.spatial.SpatialFootprintComponent();
         Assert.assertTrue(service.requiresSpatialLayer(asset));
     }
 

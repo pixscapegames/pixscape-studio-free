@@ -57,6 +57,8 @@ public class SpatialActorPanelFootprintGeometryTest {
                 scene, EntityKind.SPRITE, index, layer);
 
         Assert.assertTrue(eligible);
+        Assert.assertTrue(SpatialActorPanel.canActivateSpatialActor(
+                scene, EntityKind.ANIMATION, index, layer));
 
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);

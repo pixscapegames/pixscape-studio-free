@@ -59,37 +59,48 @@ public class ToggleSpatialActorCommandTest {
         } finally { world.dispose(); }
     }
     @Test
-    public void footprintEditUndoRedoPublishesItsLinkedCollision() {
+    public void footprintEditUndoRedoLeavesCollisionAndCompiledGenerationUnchanged() {
         World world = new World(new WorldConfiguration());
         try {
             int actor = world.create();
             HistoryManager history = new HistoryManager(16);
-            SpatialFootprintComponent footprint = world.getMapper(SpatialFootprintComponent.class).create(actor);
-            footprint.radiusPx = 20;
             PhysicsService physics = new PhysicsService(world, null, new SceneMeta());
             physics.ensurePhysics(actor);
             PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).get(actor);
-            shapes.shapes.first().useSpatialFootprint = true;
-            shapes.shapes.first().geometry = null;
+            var shape = PhysicsService.createDefaultShape(physics.allocateNewPhysicsShapeId());
+            shape.geometry.halfWidth = 3f;
+            shape.density = 2f;
+            shape.friction = .6f;
+            shape.restitution = .25f;
+            shape.sensor = true;
+            shape.maskBits = 7;
+            shapes.shapes.add(shape);
+            FixtureCommandSupport.prepareAndPublish(world, actor, shapes.shapes);
             var compiled = world.getMapper(games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent.class).get(actor);
-            PhysicsService.publishPreparedCandidate(shapes, compiled,
-                    PhysicsService.prepareBodyCandidate(world, actor, shapes.shapes, 40));
+            int generation = compiled.generation;
+            var collisionBefore = shapes.shapes.first().copy();
+            history.execute(new ToggleSpatialActorCommand(world, history.historyIds(), actor, true, true, new SpatialFootprintComponent()));
+            SpatialFootprintComponent footprint = world.getMapper(SpatialFootprintComponent.class).get(actor);
             var before = EditSpatialFootprintCommand.Snapshot.capture(footprint);
-            history.execute(new EditSpatialFootprintCommand(world, history.historyIds(), actor,
-                    before, before.withRadius(60).withAltitude(9), 40));
-            for (int i = 0; i < 4; i++) {
-                Assert.assertEquals(60, footprint.radiusPx, 0);
-                Assert.assertEquals(1.5f, compiled.fixtures.first().radius, 0);
-                Assert.assertEquals(9, footprint.altitude, 0);
+            history.execute(new EditSpatialFootprintCommand(world, history.historyIds(), actor, before,
+                    before.withRadius(32).withOffsetX(85).withOffsetY(-12)));
+            for (int i = 0; i < 3; i++) {
+                Assert.assertEquals(32, footprint.radiusPx, 0);
+                Assert.assertEquals(85, footprint.localOffsetXPx, 0);
+                Assert.assertEquals(generation, compiled.generation);
+                Assert.assertTrue(collisionBefore.contentEquals(shapes.shapes.first()));
                 history.undo();
-                Assert.assertEquals(20, footprint.radiusPx, 0);
-                Assert.assertEquals(.5f, compiled.fixtures.first().radius, 0);
-                Assert.assertEquals(0, footprint.altitude, 0);
+                Assert.assertEquals(before.radius(), footprint.radiusPx, 0);
                 history.redo();
             }
+            history.execute(new ToggleSpatialActorCommand(world, history.historyIds(), actor, false, true, null));
+            Assert.assertFalse(world.getMapper(SpatialFootprintComponent.class).has(actor));
+            Assert.assertTrue(collisionBefore.contentEquals(shapes.shapes.first()));
+            Assert.assertEquals(generation, compiled.generation);
+            history.undo();
+            Assert.assertEquals(85, world.getMapper(SpatialFootprintComponent.class).get(actor).localOffsetXPx, 0);
         } finally {
             world.dispose();
         }
     }
-
 }

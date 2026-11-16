@@ -40,6 +40,7 @@ public abstract class BaseField<T> extends VisValidatableTextField implements Te
     private int entityId = -1;
     private boolean internalUpdate = false;
     private boolean trimOnCommit = true;
+    private boolean keepInvalidInput;
 
     private Supplier<Actor> nextFocusSupplier;
 
@@ -98,6 +99,11 @@ public abstract class BaseField<T> extends VisValidatableTextField implements Te
         this.nextFocusSupplier = supplier;
     }
 
+    /** Retain rejected input so VisUI can display its invalid border until corrected. */
+    public final void setKeepInvalidInput(boolean keep) {
+        keepInvalidInput = keep;
+    }
+
     protected final void attachValidator(InputValidator validator) {
         if (validator != null) {
             addValidator(validator);
@@ -130,6 +136,12 @@ public abstract class BaseField<T> extends VisValidatableTextField implements Te
     public final void commit() {
         if (internalUpdate) return;
         if (!canEditCurrentEntity()) return;
+        if (!isInputValid()) {
+            if (!keepInvalidInput) {
+                refreshFromModel();
+            }
+            return;
+        }
 
         if (applier == null) {
             refreshFromModel();

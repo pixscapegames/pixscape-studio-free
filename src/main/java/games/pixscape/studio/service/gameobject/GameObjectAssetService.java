@@ -154,12 +154,7 @@ public final class GameObjectAssetService {
             if (entity.spatialRepresentation != null || entity.spatialFootprint != null) {
                 return true;
             }
-            if (entity.physicsShapes == null) continue;
-            for (GameObjectAsset.PhysicsShapeData shape : entity.physicsShapes) {
-                if (shape != null && shape.useSpatialFootprint) {
-                    return true;
-                }
-            }
+
         }
         return false;
     }

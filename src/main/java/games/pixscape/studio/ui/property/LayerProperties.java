@@ -13,8 +13,6 @@ import com.kotcrab.vis.ui.widget.spinner.SimpleFloatSpinnerModel;
 import com.kotcrab.vis.ui.widget.spinner.Spinner;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.LayerParallaxComponent;
-import games.pixscape.studio.configuration.ProjectConfig;
-import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.Command;
@@ -178,10 +176,6 @@ public class LayerProperties extends VisTable {
                     return;
                 }
 
-                if (requestedActive && !isScenePhysicsEnabled()) {
-                    refreshFromModel(layerEntityId);
-                    return;
-                }
                 executeOrdinarySpatialToggle(layerEntityId, requestedActive);
                 refreshFromModel(layerEntityId);
             }
@@ -253,10 +247,8 @@ public class LayerProperties extends VisTable {
         }
 
         indexValueLabel.setText(lic.layerIndex);
-        boolean scenePhysicsEnabled = isScenePhysicsEnabled();
         boolean ordinarySpatialVisible = shouldShowOrdinarySpatialProperty(
                 lic.spatialEnabled,
-                scenePhysicsEnabled,
                 layerService.hasOtherSpatialActorLayer(layerEntityId));
         boolean spatialSupported = ordinarySpatialVisible;
         boolean spatialActive = lic.spatialEnabled;
@@ -292,16 +284,6 @@ public class LayerProperties extends VisTable {
         invalidateHierarchy();
     }
 
-    private SceneMeta currentSceneMeta() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        return cfg != null ? cfg.getCurrentSceneMeta() : null;
-    }
-
-    private boolean isScenePhysicsEnabled() {
-        SceneMeta meta = currentSceneMeta();
-        return meta != null && meta.physicsEnabled;
-    }
-
     private boolean supportsEditableParallax(int layerEntityId) {
         LayerComponent lic = mIndex.getSafe(layerEntityId, null);
         return supportsEditableParallax(lic);
@@ -321,9 +303,8 @@ public class LayerProperties extends VisTable {
 
     static boolean shouldShowOrdinarySpatialProperty(
             boolean currentlyEnabled,
-            boolean scenePhysicsEnabled,
             boolean anotherOrdinaryLayerEnabled) {
-        return currentlyEnabled || (scenePhysicsEnabled && !anotherOrdinaryLayerEnabled);
+        return currentlyEnabled || !anotherOrdinaryLayerEnabled;
     }
 
     private void executeOrdinarySpatialToggle(int layerEntityId, boolean enabled) {

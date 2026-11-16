@@ -184,8 +184,7 @@ public class SpatialActorLayerToggleTest {
             PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).create(entity);
             PhysicsShapeData footprint = new PhysicsShapeData();
             footprint.physicsShapeId = 12;
-            footprint.useSpatialFootprint = true;
-        footprint.geometry = null;
+            footprint.geometry = new games.pixscape.runtime.physics.PhysicsGeometryData();
             shapes.shapes.add(footprint);
             return entity;
         }

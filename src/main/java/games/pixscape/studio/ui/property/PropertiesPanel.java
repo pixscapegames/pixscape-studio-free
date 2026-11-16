@@ -291,7 +291,11 @@ public class PropertiesPanel extends DockablePanel {
         });
 
         EventFlow.i().subscribe(EventFlow.ScenePhysicsEnabledChanged.class, evt -> {
-            if (boundTiledMap >= 0) {
+            if (boundSpatialBlockMap >= 0 && boundSpatialBlockId > 0) {
+                pendingSpatialBlockMap = boundSpatialBlockMap;
+                pendingSpatialBlockId = boundSpatialBlockId;
+                pendingView = PendingView.SPATIAL_BLOCK;
+            } else if (boundTiledMap >= 0) {
                 pendingTiledMap = boundTiledMap;
                 pendingView = PendingView.TILED_MAP;
             } else if (boundLayer >= 0) {
@@ -456,6 +460,7 @@ public class PropertiesPanel extends DockablePanel {
                 sceneContext.historyManager(),
                 sceneContext.spatialBlockSelectionService(),
                 canvas.getPhysicsService(),
+                sceneContext.sceneMeta(),
                 sceneContext::markExplicitSaveRequired);
         Runnable markSaveRequired = sceneContext::markExplicitSaveRequired;
         layerProperties = new LayerProperties(

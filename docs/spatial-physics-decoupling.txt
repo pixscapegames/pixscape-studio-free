@@ -1,81 +1,84 @@
 Spatial / physics separation
 ============================
 
-SpatialFootprintComponent is the authored circle owner: localOffsetXPx,
-localOffsetYPx, radiusPx (> 0), altitude, all finite and expressed in pixels /
-existing spatial altitude units. It requires neither a body nor physics shapes.
-The existing resolved world pose supplies position and rotation. Visual origin,
-scale and flip do not resize or move the authored circle. The Studio initializer
-may calculate one initial circle from visual bounds; subsequent edits are independent.
+The three geometries are independent authored sources on the same entity:
+- PhysicsShapesComponent owns ordinary collision geometry in metres (Body + shapes).
+- SpatialFootprintComponent owns a nonphysical circle: localOffsetXPx,
+  localOffsetYPx, radiusPx (> 0) and altitude, all finite.
+- SpatialRepresentationComponent owns static or animation asset/clip rectangles.
+  Width/height are positive finite projected pixels. Rectangle x/y are projected
+  pixel offsets from the resolved entity origin, not from the footprint.
 
-SpatialRepresentationComponent owns ActorSpatialRectangles: static rectangle or
-animation asset/clip rectangles, including width, effective height, placement and
-shadow pivot. These are not inferred from texture size, circle diameter or clip
-frames. Sorting algorithms, wall continuations and coordinate conventions remain
-unchanged. SpatialActorPose resolves the same owner pose for sorting and shadows
-without allocation. Consumers currently use the representation entity as owner.
-A later explicit child-to-owner association can call this helper with a different
-owner without changing footprint geometry or building another hierarchy.
+The circle's local offset rotates with the resolved owner pose. Its radius is
+unaffected by visual scale, origin and flip. The rectangle remains axis-aligned
+in projected pixels; visual scale/rotation do not resize it. Both follow entity
+translation, including resolved Game Object placement. Render display offsets
+are applied once by the existing render consumers. No world-frozen geometry or
+silent compensation of authored offsets is introduced.
 
-PhysicsShapeData.useSpatialFootprint selects the optional same-owner collision
-source. Its geometry must be null and spatialBlockId must be zero. Materials,
-filters, sensor and enabled state still belong to the physics shape. At most one
-such source is allowed per body. A distinct manual collision retains its own
-geometry; Tiled block links retain their existing collision checkbox and resolver.
-The compiler derives circle dimensions in metres using scene PPM. Compiled
-fixtures are caches, not another editable geometry. Native Box2D remains pose
-authority for simulated bodies and remains a binary dependency of distributions.
+Shadow pivot offsets remain relative to the resolved footprint, in projected
+pixels. This is the existing shadow orientation anchor, distinct from rectangle
+placement. Moving the footprint changes this logical pivot anchor and the circle
+used for spatial relationships, but not the rectangle's resolved position or
+alpha mapping. A rectangle edit never changes footprint data. Sorting rules and
+wall continuations retain their existing geometric meaning.
 
-PhysicsService.setSpatialFootprint accepts a detached candidate. Geometry changes
-prepare and validate a linked body's complete fixture candidate before publishing
-the authored circle and compiled cache. Altitude-only edits, pose changes and
-visual transforms do not compile collision geometry. Use this cold mutation
-boundary (or SpatialEntityFacade.setFootprint) when a collision is linked; do not
-mutate live geometry fields behind its prepared cache. Reads and frame pose
-resolution are indexed, allocation-free operations. Sorting consumes authored
-scalars in its existing drawable traversal; the former fixture-projection and
-orphan-footprint synchronization pass has been removed.
+SpatialEntityFacade.enable and Studio Spatial Actor activation create the circle
+and representation data without adding or editing physics. setFootprint validates
+and publishes spatial data directly; no PhysicsService footprint mutation API,
+derived collision source, automatic copy, uniqueness rule or compiler branch
+remains. Editing/removing spatial state never recompiles or edits collisions.
+Editing/removing collisions never edits spatial state. Native Box2D remains pose
+authority for simulated bodies and remains a distribution dependency.
 
-PhysicsService.removePhysics and Studio physics purge leave the circle,
-representation rectangles and Tiled spatial blocks intact. Removing a footprint
-with a linked collision is rejected: explicitly delete or unlink the collision
-first. Studio's collision source checkbox copies the current derived circle once
-when unlinked, after which the manual collision can be edited independently.
-
-SpatialEntityFacade.enable creates a default circle and active rectangle without
-creating physics. setFootprint(x, y, radius) edits the owner circle in pixels;
-altitude() / setAltitude address the owner, while height and rectangle/pivot APIs
-address the active representation. Stale entity handles retain the established
-inert behavior. Enabling additional animation clips still requires preparing their
-rectangles, as before.
+Tiled spatialBlockId collisions are a separate, preserved mechanism. Their
+optional collision checkbox requires scene Physics for creation; existing linked
+collisions can still be removed/restored. Body restoration prepares the complete
+collision candidate before publishing the restored Body, then restores joints.
 
 Persistence
 -----------
-New scenes are schema 5. Existing schema-3 Tiled conversion remains unchanged;
-schema-3/4 scenes without obsolete actor data may load and are published as schema
-5. Old SpatialHeightComponent, SpatialPhysicsFootprintComponent and the old
-physics-shape spatialFootprint boolean are rejected before replacing the current
-scene. No automatic actor-footprint migration is provided.
-Game Object definitions and runtime fragments now use schema 4. Earlier versions
-are rejected. DTOs, Studio snapshots, clipboard, ID remapping and prepared spawns
-copy footprint and representation separately; no new identity domain is introduced.
-The authored footprint is included in scene save and Runtime export. Only compiled
-physics and native runtime state are stripped. JSON schemas and the minimal export
-example reflect the new versions. GWT reflection includes the new components.
+New scenes use schema 6; Game Object definitions/fragments use schema 5. The
+unpublished old footprint-relative format and removed useSpatialFootprint field
+are rejected (including false), with no migration or fallback. Older schema-3/4
+Tiled-only conversion remains supported; old actor spatial data is rejected before
+replacing the current scene. Compiled/native physics caches are never authored.
+Scene save/export, clipboard, Game Object capture/spawn copy each source separately.
+Static and per-animation/clip rectangles retain their distinct authored values.
 
 Studio
 ------
-Spatial Actor activation is available on supported spatial sprite/animation layers
-with physics disabled. Its inspector edits radius, offsets and altitude in pixels;
-Enter/focus loss commits a history command and Escape cancels uncommitted input.
-The existing rectangle/pivot canvas preview remains cancelable and retains its
-undo/redo lifecycle. Collision geometry linked to the footprint is read-only in
-the physical fixture inspector, while material/filter/sensor edits and deletion
-remain available. Spatial activation leaves existing body settings untouched.
+Spatial works without scene Physics on supported sprite/animation spatial layers.
+Selecting one spatial actor in Normal mode exposes all six handles directly.
+Footprint center/radius use a cyan cross/circle, rectangle center/width/height
+use green squares, and the footprint-relative shadow pivot uses a purple target.
+White hover and yellow drag rings mark the single pending/active handle.
+The nearest handle within nine UI units wins, independently of world zoom.
+Exact distance ties use this stable order: shadow pivot, rectangle center,
+rectangle width, rectangle height, footprint center, footprint radius.
+The target stays fixed until release/cancellation, even across other handles.
+Handles stay at their true anchors: zoom separates nearby handles; exact
+coincidence can be resolved by moving the first geometry slightly to reach the
+next. No automatic handle displacement, exclusive selector, or extra mode.
+Physics edit mode owns collision gestures, and spatial handles cannot intercept
+them. Picking uses the existing native Stage overlay, without a second global loop.
+
+Circle center dragging edits its owner-local offsets; the radius handle edits its
+positive radius. Numeric fields follow the preview. A completed gesture produces
+one history command; Escape and canceled native touch focus restore the snapshot.
+Rectangle/pivot gestures retain their history lifecycle. Shift retains fine motion.
+Radius and rectangle dimensions require finite positive values; offsets/altitude/
+pivot allow finite signed values. Invalid spatial input retains the standard VisUI
+red border and text, publishes nothing and creates no history. Enter/focus loss
+commit valid input; Escape restores uncommitted input from the model.
+
+Scene Physics disable remains a confirmed complete purge of physics, preserving
+spatial data. Cancel preserves physics. No dormant physics state is introduced.
+Ordinary collisions retain geometry/material editing, duplication and deletion;
+Tiled-linked collisions retain their existing restrictions.
 
 Limits
 ------
-Only circular footprints and same-entity owner/representation are delivered.
-No root-to-child spatial binding, new parent model, rectangular footprint editor,
-new collision engine or Box2D packaging removal is introduced. Direct expert ECS
-writes must obey the same publication boundaries as other prepared physics data.
+Only circles and same-entity owner/representation are delivered. No root-to-child
+spatial binding, rectangular footprint, new hierarchy, collision engine or action
+composition is introduced. Additional animation clips require authored rectangles.

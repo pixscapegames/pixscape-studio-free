@@ -99,6 +99,11 @@ public class ScenePropertiesPhysicsPurgeTest {
         history.historyIds().ensureForEntity(unrelatedEntity);
         int bodyA = body(world, history, physics, 0f);
         int bodyB = body(world, history, physics, 100f);
+        var footprint = world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(bodyA);
+        footprint.localOffsetXPx = 75f;
+        var representation = world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class).create(bodyA);
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(representation, 90f);
+        representation.rectangles.staticRectangle.x = -35f;
         int joint = physics.createDistanceJoint(bodyA, bodyB);
         long jointHistoryId = history.historyIds().ensureForEntity(joint);
         long bodyHistoryId = history.historyIds().historyIdOfEntity(bodyA);
@@ -156,6 +161,10 @@ public class ScenePropertiesPhysicsPurgeTest {
                 .get(com.artemis.Aspect.all(PhysicsBodyComponent.class)).getEntities().size());
         Assert.assertEquals(0, world.getAspectSubscriptionManager()
                 .get(com.artemis.Aspect.all(PhysicsJointComponent.class)).getEntities().size());
+        Assert.assertSame(footprint, world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).get(bodyA));
+        Assert.assertEquals(75f, footprint.localOffsetXPx, 0f);
+        Assert.assertSame(representation, world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class).get(bodyA));
+        Assert.assertEquals(-35f, representation.rectangles.staticRectangle.x, 0f);
         Assert.assertEquals(2, layers.count());
         Assert.assertTrue(world.getEntityManager().isActive(firstLayer));
         Assert.assertTrue(world.getEntityManager().isActive(activeLayer));

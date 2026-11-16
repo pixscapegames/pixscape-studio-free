@@ -55,10 +55,9 @@ public class LayerPropertiesCollisionVisibilityContractTest {
 
     @Test
     public void ordinarySpatialVisibilityHonorsEligibilityUniquenessAndAuthoredState() {
-        assertTrue(LayerProperties.shouldShowOrdinarySpatialProperty(false, true, false));
-        assertFalse(LayerProperties.shouldShowOrdinarySpatialProperty(false, true, true));
-        assertFalse(LayerProperties.shouldShowOrdinarySpatialProperty(false, false, false));
-        assertTrue(LayerProperties.shouldShowOrdinarySpatialProperty(true, false, true));
+        assertTrue(LayerProperties.shouldShowOrdinarySpatialProperty(false, false));
+        assertFalse(LayerProperties.shouldShowOrdinarySpatialProperty(false, true));
+        assertTrue(LayerProperties.shouldShowOrdinarySpatialProperty(true, true));
     }
 
     @Test

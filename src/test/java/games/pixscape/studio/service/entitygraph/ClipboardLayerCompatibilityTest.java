@@ -56,25 +56,26 @@ public class ClipboardLayerCompatibilityTest {
         Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(pasted));
         Assert.assertFalse(world.getMapper(SpatialRepresentationComponent.class).has(pasted));
         PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).get(pasted);
-        Assert.assertEquals(1, shapes.shapes.size);
-        Assert.assertFalse(shapes.shapes.first().useSpatialFootprint);
+        Assert.assertEquals(2, shapes.shapes.size);
     }
 
     @Test
-    public void soleSpatialFootprintToOrdinaryLayerRemovesOrphanedBody() {
+    public void spatialActorWithOneCollisionToOrdinaryLayerKeepsBody() {
         int source = spatialActor(false);
         int pasted = paste(capture(source), 7,
                 EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL)
                 .createdIds().first();
 
         Assert.assertFalse(world.getMapper(SpatialRepresentationComponent.class).has(pasted));
-        Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(pasted));
-        Assert.assertFalse(world.getMapper(PhysicsShapesComponent.class).has(pasted));
+        Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(pasted));
+        Assert.assertTrue(world.getMapper(PhysicsShapesComponent.class).has(pasted));
     }
 
     @Test
     public void spatialActorToSpatialLayerPreservesHeightAndFootprint() {
         int source = spatialActor(true);
+        world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).get(source).localOffsetXPx = 47f;
+        world.getMapper(SpatialRepresentationComponent.class).get(source).rectangles.staticRectangle.x = -81f;
         EntityGraphInstantiationResult result = paste(
                 capture(source), 8, EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL_ENABLED);
         int pasted = result.createdIds().first();
@@ -82,10 +83,12 @@ public class ClipboardLayerCompatibilityTest {
         SpatialRepresentationComponent height = world.getMapper(SpatialRepresentationComponent.class).get(pasted);
         Assert.assertEquals(3.5f, world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(pasted).altitude, 0f);
         Assert.assertEquals(2.25f, height.rectangles.staticRectangle.height, 0f);
+        Assert.assertEquals(-81f, height.rectangles.staticRectangle.x, 0f);
+        Assert.assertEquals(47f, world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).get(pasted).localOffsetXPx, 0f);
         Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(pasted));
         PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).get(pasted);
         Assert.assertEquals(2, shapes.shapes.size);
-        Assert.assertTrue(hasFootprint(shapes));
+        Assert.assertTrue(hasCircleCollision(shapes));
     }
 
     @Test
@@ -167,7 +170,6 @@ public class ClipboardLayerCompatibilityTest {
         Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(pasted));
         PhysicsShapeData after = world.getMapper(PhysicsShapesComponent.class)
                 .get(pasted).shapes.first();
-        Assert.assertFalse(after.useSpatialFootprint);
         Assert.assertEquals(before.geometry.shapeType, after.geometry.shapeType);
         Assert.assertEquals(before.density, after.density, 0f);
         Assert.assertNotEquals(before.physicsShapeId, after.physicsShapeId);
@@ -189,7 +191,7 @@ public class ClipboardLayerCompatibilityTest {
         Assert.assertFalse(world.getMapper(SpatialRepresentationComponent.class).has(classicPaste));
         Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(spatialPaste));
         Assert.assertTrue(world.getMapper(SpatialRepresentationComponent.class).has(spatialPaste));
-        Assert.assertTrue(hasFootprint(
+        Assert.assertTrue(hasCircleCollision(
                 world.getMapper(PhysicsShapesComponent.class).get(spatialPaste)));
         Assert.assertTrue(clipboardGraph.entries().get(0).initializer()
                 .toSnapshotData(source).hasSpatialRepresentation);
@@ -217,7 +219,7 @@ public class ClipboardLayerCompatibilityTest {
         Assert.assertTrue(restored >= 0);
         Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(restored));
         Assert.assertFalse(world.getMapper(SpatialRepresentationComponent.class).has(restored));
-        Assert.assertFalse(hasFootprint(
+        Assert.assertTrue(hasCircleCollision(
                 world.getMapper(PhysicsShapesComponent.class).get(restored)));
     }
 
@@ -255,8 +257,7 @@ public class ClipboardLayerCompatibilityTest {
         sceneMeta.nextEntityStableId = 1_000;
         int root = gameObject(100, -1);
         int member = gameObject(200, 100);
-        PhysicsShapeData footprint = shape(true);
-        world.getMapper(PhysicsShapesComponent.class).create(member).shapes.add(footprint);
+        world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(member);
         world.process();
         EntityGraph graph = new EntityGraphCaptureService(world)
                 .captureGameObjectClipboard(new IntArray(new int[]{root}));
@@ -299,7 +300,7 @@ public class ClipboardLayerCompatibilityTest {
         return entity;
     }
 
-    private int physicalActor(boolean footprint, boolean ordinaryFixture) {
+    private int physicalActor(boolean circleCollision, boolean ordinaryFixture) {
         int entity = world.create();
         world.getMapper(TransformComponent.class).create(entity);
         world.getMapper(DimensionsComponent.class).create(entity);
@@ -307,21 +308,17 @@ public class ClipboardLayerCompatibilityTest {
         world.getMapper(PhysicsBodyComponent.class).create(entity);
         PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).create(entity);
         if (ordinaryFixture) shapes.shapes.add(shape(false));
-        if (footprint) shapes.shapes.add(shape(true));
+        if (circleCollision) shapes.shapes.add(shape(true));
         return entity;
     }
 
-    private PhysicsShapeData shape(boolean footprint) {
+    private PhysicsShapeData shape(boolean circleCollision) {
         PhysicsShapeData shape = new PhysicsShapeData();
         shape.physicsShapeId = nextSourceShapeId++;
         shape.geometry = new PhysicsGeometryData();
-        shape.geometry.shapeType = footprint
+        shape.geometry.shapeType = circleCollision
                 ? PhysicsGeometryData.SHAPE_CIRCLE
                 : PhysicsGeometryData.SHAPE_BOX;
-        shape.useSpatialFootprint = footprint;
-        if (footprint) {
-            shape.geometry = null;
-        }
         return shape;
     }
 
@@ -335,9 +332,9 @@ public class ClipboardLayerCompatibilityTest {
         return entity;
     }
 
-    private boolean hasFootprint(PhysicsShapesComponent shapes) {
+    private boolean hasCircleCollision(PhysicsShapesComponent shapes) {
         for (PhysicsShapeData shape : shapes.shapes) {
-            if (shape.useSpatialFootprint) {
+            if (shape.geometry.shapeType == PhysicsGeometryData.SHAPE_CIRCLE) {
                 return true;
             }
         }

@@ -29,7 +29,6 @@ public final class RemovePhysicsBodyCommand
     private final Array<PhysicsShapeData> shapeSnapshots =
             new Array<>(true, 4, PhysicsShapeData.class);
     private final DeleteEntitiesCommand jointDeleteCommand;
-    private final boolean containsLinkedShape;
     private final boolean noop;
 
     public RemovePhysicsBodyCommand(
@@ -83,8 +82,7 @@ public final class RemovePhysicsBodyCommand
                 break;
             }
         }
-        this.containsLinkedShape = linkedShapeFound;
-        boolean linkedRemovalAllowed = !containsLinkedShape
+        boolean linkedRemovalAllowed = !linkedShapeFound
                 || (allowTiledLinkedShapes
                 && valid
                 && world.getMapper(TiledLayerComponent.class).has(bodyEntityId));
@@ -149,22 +147,22 @@ public final class RemovePhysicsBodyCommand
             return CommandOutcome.NO_CHANGE;
         }
 
-        PhysicsBodyComponent body =
-                world.getMapper(PhysicsBodyComponent.class).create(entityId);
-        bodySnapshot.apply(body);
-
         Array<PhysicsShapeData> candidate =
                 new Array<>(true, shapeSnapshots.size, PhysicsShapeData.class);
         for (int i = 0; i < shapeSnapshots.size; i++) {
             candidate.add(shapeSnapshots.get(i).copy());
         }
-        PreparedPhysicsBodyCandidate prepared = containsLinkedShape
+        PreparedPhysicsBodyCandidate prepared = FixtureCommandSupport.containsLinkedShape(candidate)
                 ? PhysicsService.prepareBodyCandidate(
                 world,
                 entityId,
                 candidate,
                 FixtureCommandSupport.requireCurrentPixelsPerMeter())
                 : PhysicsService.prepareBodyCandidate(candidate);
+        // Preparation must succeed before restoring any authored or derived component.
+        PhysicsBodyComponent body =
+                world.getMapper(PhysicsBodyComponent.class).create(entityId);
+        bodySnapshot.apply(body);
         PhysicsShapesComponent shapes =
                 world.getMapper(PhysicsShapesComponent.class).has(entityId)
                         ? world.getMapper(PhysicsShapesComponent.class).get(entityId)

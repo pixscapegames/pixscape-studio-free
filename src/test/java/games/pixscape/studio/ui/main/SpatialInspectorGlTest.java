@@ -95,6 +95,18 @@ public class SpatialInspectorGlTest {
                         assertEquals(1, field(panel, "boundSpatialBlockId"));
                         Object properties = field(panel, "spatialBlockProperties");
                         SimpleFloatField height = (SimpleFloatField) field(properties, "heightField");
+                        var collision = (com.kotcrab.vis.ui.widget.VisCheckBox)
+                                field(properties, "physicsCollisionBox");
+                        assertTrue(collision.isDisabled());
+                        context.sceneMeta().physicsEnabled = true;
+                        EventFlow.i().publish(new EventFlow.ScenePhysicsEnabledChanged(true, 0));
+                        assertTrue(collision.isDisabled());
+                        flush(panel);
+                        assertFalse(collision.isDisabled());
+                        context.sceneMeta().physicsEnabled = false;
+                        EventFlow.i().publish(new EventFlow.ScenePhysicsEnabledChanged(false, 0));
+                        flush(panel);
+                        assertTrue(collision.isDisabled());
                         assertEquals(40f, Float.parseFloat(height.getText()), 0f);
                         assertTrue(selection.wallEditSession().begin(map, 1, blocks, data));
                         assertTrue(selection.wallEditSession().updateHeight(65));

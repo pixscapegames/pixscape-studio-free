@@ -24,12 +24,17 @@ final class ActorSpatialRectanglePanel {
 
     ActorSpatialRectanglePanel(EntityPropertiesContext ctx, VisTable table) {
         this.ctx = ctx;
-        table.add(new VisLabel("Spatial rectangle (local pixels)")).colspan(2).row();
-        String[] names = {"Width:", "Height:", "Rectangle X:", "Rectangle Y:", "Shadow pivot X:", "Shadow pivot Y:"};
+        table.add(new VisLabel("Occlusion rectangle (entity pixels)")).colspan(2).row();
+        String[] names = {"Width:", "Height:", "Rectangle X:", "Rectangle Y:", "Pivot X:", "Pivot Y:"};
         for (int i = 0; i < fields.length; i++) {
+            if (i == 4) {
+                table.add(new VisLabel("Shadow pivot (footprint pixels)")).colspan(2).row();
+            }
             final int property = i;
             FloatField field = new FloatField(ctx.world, e -> read(rectangle(e), property), e -> rectangle(e) != null).setDisplayDecimals(2);
             field.setName("actor-spatial-rectangle-" + i);
+            field.setKeepInvalidInput(true);
+            field.setValidator(FloatField.finiteValidator(i < 2));
             field.addListener(new com.badlogic.gdx.scenes.scene2d.InputListener() {
                 @Override
                 public boolean keyDown(com.badlogic.gdx.scenes.scene2d.InputEvent event, int key) {

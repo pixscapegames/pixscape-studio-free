@@ -351,7 +351,7 @@ public class TiledMapPropertiesTest {
                     physics,
                     mapEntityId,
                     blockId,
-                    true));
+                    true, ProjectConfig.getInstance().getCurrentSceneMeta()));
             PhysicsShapeData linked = world.getMapper(PhysicsShapesComponent.class)
                     .get(mapEntityId).shapes.first();
             assertEquals(blockId, linked.spatialBlockId);

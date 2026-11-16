@@ -123,7 +123,7 @@ public final class FixtureCommandSupport {
         if (shapes == null) return false;
         for (int i = 0; i < shapes.size; i++) {
             PhysicsShapeData shape = shapes.get(i);
-            if (shape != null && (shape.spatialBlockId > 0 || shape.useSpatialFootprint)) {
+            if (shape != null && shape.spatialBlockId > 0) {
                 return true;
             }
         }

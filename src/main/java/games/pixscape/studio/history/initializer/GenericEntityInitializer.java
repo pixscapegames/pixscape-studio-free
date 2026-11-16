@@ -17,7 +17,6 @@ import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.model.EntityKind;
-import games.pixscape.studio.service.SpatialActorShapeSupport;
 
 
 /**
@@ -881,9 +880,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         }
         preparedPhysicsCandidate =
                 hasPhysicsBody || hasPhysicsShapes
-                        ? PhysicsService.prepareBodyCandidate(physicsShapes, spatialFootprint,
-                                PhysicsService.containsFootprintShape(physicsShapes)
-                                ? games.pixscape.studio.history.commands.FixtureCommandSupport.requireCurrentPixelsPerMeter() : 0f)
+                        ? PhysicsService.prepareBodyCandidate(physicsShapes)
                         : null;
     }
 
@@ -1639,17 +1636,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             spatialFootprint = null;
             hasSpatialRepresentation = false;
             actorSpatialRectangles = null;
-            boolean hadFootprint =
-                    SpatialActorShapeSupport.findFootprint(physicsShapes, 0) >= 0;
-            if (!SpatialActorShapeSupport.removeFootprint(physicsShapes)) {
-                throw new IllegalArgumentException(
-                        "Clipboard source contains multiple Spatial Actor footprints.");
-            }
-            hasPhysicsShapes = physicsShapes.size > 0;
-            if (hadFootprint && !hasPhysicsShapes) {
-                hasPhysicsBody = false;
-            }
-            preparedPhysicsCandidate = null;
+
         }
         return this;
     }

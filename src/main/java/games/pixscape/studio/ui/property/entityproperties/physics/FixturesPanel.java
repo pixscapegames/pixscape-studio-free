@@ -42,7 +42,6 @@ public final class FixturesPanel extends CollapsibleWidget {
 
     private final VisSelectBox<String> shapeBox = new VisSelectBox<>();
     private final VisLabel linkedSpatialBlockLabel = new VisLabel("");
-    private final VisCheckBox footprintSourceBox = new VisCheckBox("Use Spatial footprint");
     private final VisCheckBox sensorBox = new VisCheckBox("Sensor");
     private final FloatField densityField;
     private final FloatField frictionField;
@@ -84,31 +83,6 @@ public final class FixturesPanel extends CollapsibleWidget {
         super();
         this.ctx = ctx;
         this.polygonAuthoringService = ctx.physicsPolygonAuthoringService;
-        footprintSourceBox.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
-                if (internalRefresh || entityId < 0) {
-                    return;
-                }
-                var footprint = ctx.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class)
-                        .getSafe(entityId, null);
-                if (footprint == null) {
-                    return;
-                }
-                boolean linked = footprintSourceBox.isChecked();
-                applyFixtureEdit(entityId, PhysicsDirtyBits.FIXTURE, true, shape -> {
-                    shape.useSpatialFootprint = linked;
-                    shape.geometry = null;
-                    if (!linked) {
-                        shape.geometry = new PhysicsGeometryData();
-                        shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
-                        shape.geometry.radius = footprint.radiusPx / resolvePixelsPerMeter();
-                        shape.geometry.offsetX = footprint.localOffsetXPx / resolvePixelsPerMeter();
-                        shape.geometry.offsetY = footprint.localOffsetYPx / resolvePixelsPerMeter();
-                    }
-                });
-                refreshShapeUi(entityId);
-            }
-        });
         autoSizeBtn.setColor(CommonLayout.BUTTON_COLOR);
         duplicateFixtureBtn.setColor(CommonLayout.BUTTON_COLOR);
         deleteFixtureBtn.setColor(CommonLayout.BUTTON_COLOR);
@@ -217,7 +191,6 @@ public final class FixturesPanel extends CollapsibleWidget {
         });
 
         setTable(root);
-        root.add(footprintSourceBox).left().row();
         root.left().top();
         root.defaults().left().pad(1);
 
@@ -475,12 +448,8 @@ public final class FixturesPanel extends CollapsibleWidget {
                 return;
             }
 
-            footprintSourceBox.setChecked(f.useSpatialFootprint);
-            footprintSourceBox.setDisabled(f.spatialBlockId > 0 || !ctx.world.getMapper(
-                    games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).has(eid));
-            boolean linked = isLinked(f) || f.useSpatialFootprint;
-            boolean useSpatialFootprint = f.useSpatialFootprint;
-            shapeBox.setDisabled(linked || useSpatialFootprint);
+            boolean linked = isLinked(f);
+            shapeBox.setDisabled(linked);
             sensorBox.setDisabled(f.spatialBlockId > 0);
 
             if (linked) {
@@ -532,27 +501,24 @@ public final class FixturesPanel extends CollapsibleWidget {
 
     private void updateLinkedSpatialBlockIndicator(PhysicsShapeData fixture) {
         boolean linked = isLinked(fixture);
-        boolean useSpatialFootprint = fixture != null && fixture.useSpatialFootprint;
         linkedSpatialBlockLabel.setText(
-                useSpatialFootprint ? "Spatial footprint"
-                        : linked ? "Linked to Spatial Block #" + fixture.spatialBlockId : "");
-        linkedSpatialBlockLabel.setVisible(linked || useSpatialFootprint);
-        linkedSpatialBlockBlock.show(linked || useSpatialFootprint);
+                linked ? "Linked to Spatial Block #" + fixture.spatialBlockId : "");
+        linkedSpatialBlockLabel.setVisible(linked);
+        linkedSpatialBlockBlock.show(linked);
     }
 
     private void updateActionButtons(boolean hasActive) {
         PhysicsShapeData fixture = activeFixture(entityId);
-        boolean useSpatialFootprint = fixture != null && fixture.useSpatialFootprint;
         deleteFixtureBtn.setText("Delete");
         duplicateFixtureBtn.setDisabled(!canDuplicateActiveFixture(entityId));
         deleteFixtureBtn.setDisabled(!canDeleteActiveFixture(entityId));
-        duplicateFixtureBtn.setVisible(hasActive && !useSpatialFootprint);
+        duplicateFixtureBtn.setVisible(hasActive);
         deleteFixtureBtn.setVisible(hasActive);
     }
 
     private boolean canDuplicateActiveFixture(int eid) {
         PhysicsShapeData fixture = activeFixture(eid);
-        return fixture != null && !isLinked(fixture) && !fixture.useSpatialFootprint;
+        return fixture != null && !isLinked(fixture);
     }
 
     private boolean canDeleteActiveFixture(int eid) {
@@ -571,7 +537,6 @@ public final class FixturesPanel extends CollapsibleWidget {
 
         int result = Long.hashCode(fixture.physicsShapeId);
         result = 31 * result + fixture.spatialBlockId;
-        result = 31 * result + (fixture.useSpatialFootprint ? 1 : 0);
         PhysicsGeometryData geometry = fixture.geometry;
         result = 31 * result + effectiveShapeType(fixture);
         if (geometry != null) {
@@ -722,9 +687,6 @@ public final class FixturesPanel extends CollapsibleWidget {
     }
 
     static int effectiveShapeType(PhysicsShapeData fixture) {
-        if (fixture != null && fixture.useSpatialFootprint) {
-            return PhysicsGeometryData.SHAPE_CIRCLE;
-        }
         if (isLinked(fixture)) return PhysicsGeometryData.SHAPE_POLYGON;
         return fixture != null && fixture.geometry != null
                 ? fixture.geometry.shapeType

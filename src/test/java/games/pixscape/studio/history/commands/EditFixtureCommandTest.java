@@ -64,13 +64,17 @@ public class EditFixtureCommandTest {
     }
 
     @Test
-    public void toggleSpatialFootprintSensorUndoRedoPreservesOwnership() {
+    public void editingAndDeletingIndependentCollisionPreservesSpatialSettings() {
         FixtureHarness harness = FixtureHarness.create();
         harness.fixture().geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         harness.fixture().geometry.radius = 0.5f;
-        harness.fixture().useSpatialFootprint = true;
-        harness.fixture().geometry = null;
         harness.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(harness.bodyEid).radiusPx = 50;
+        var foot = harness.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).get(harness.bodyEid);
+        foot.localOffsetXPx = 37f;
+        var spatial = harness.world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class).create(harness.bodyEid);
+        spatial.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        spatial.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+        spatial.rectangles.staticRectangle.x = -63f;
         PhysicsShapeData original = harness.fixture().copy();
         games.pixscape.runtime.service.PhysicsService.publishPreparedCandidate(
                 harness.world.getMapper(PhysicsShapesComponent.class).get(harness.bodyEid),
@@ -82,16 +86,26 @@ public class EditFixtureCommandTest {
 
         Assert.assertFalse(command.isNoop());
         command.redo();
-        Assert.assertTrue(harness.fixture().useSpatialFootprint);
+        Assert.assertNotNull(harness.fixture().geometry);
         Assert.assertTrue(harness.fixture().sensor);
 
         command.undo();
         Assert.assertTrue(harness.fixture().contentEquals(original));
 
         command.redo();
-        Assert.assertTrue(harness.fixture().useSpatialFootprint);
+        Assert.assertNotNull(harness.fixture().geometry);
         Assert.assertTrue(harness.fixture().sensor);
         Assert.assertTrue(harness.compiled().fixtures.first().sensor);
+        DeleteFixtureCommand deletion = new DeleteFixtureCommand(harness.world, harness.historyIds,
+                new PhysicsSelectionService(), harness.bodyEid, original.physicsShapeId);
+        deletion.redo();
+        Assert.assertTrue(harness.world.getMapper(PhysicsShapesComponent.class).get(harness.bodyEid).shapes.isEmpty());
+        Assert.assertSame(foot, harness.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).get(harness.bodyEid));
+        Assert.assertEquals(37f, foot.localOffsetXPx, 0f);
+        Assert.assertEquals(-63f, spatial.rectangles.staticRectangle.x, 0f);
+        deletion.undo();
+        Assert.assertEquals(50f, foot.radiusPx, 0f);
+        Assert.assertEquals(-63f, spatial.rectangles.staticRectangle.x, 0f);
     }
 
     @Test

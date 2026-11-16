@@ -10,7 +10,6 @@ import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.configuration.SceneMeta;
@@ -35,6 +34,8 @@ public final class SpatialActorPanel extends CollapsibleWidget {
     private final FloatField altitudeField;
     private final FloatField radiusField, offsetXField, offsetYField;
     private final ActorSpatialRectanglePanel rectanglePanel;
+    private final FloatField[] footprintFields;
+    private final float[] displayedFootprint = new float[4];
 
     private int entityId = -1;
     private boolean internalRefresh = false;
@@ -60,10 +61,12 @@ public final class SpatialActorPanel extends CollapsibleWidget {
         radiusField.setApplier((eid, value) -> submitSpatialEdit(eid, s -> s.withRadius(value)));
         offsetXField.setApplier((eid, value) -> submitSpatialEdit(eid, s -> s.withOffsetX(value)));
         offsetYField.setApplier((eid, value) -> submitSpatialEdit(eid, s -> s.withOffsetY(value)));
-        FloatField[] footprintFields = {altitudeField, radiusField, offsetXField, offsetYField};
+        footprintFields = new FloatField[]{altitudeField, radiusField, offsetXField, offsetYField};
         for (int i = 0; i < footprintFields.length; i++) {
             final FloatField field = footprintFields[i];
             field.setName("spatial-footprint-" + i);
+            field.setKeepInvalidInput(true);
+            field.setValidator(FloatField.finiteValidator(i == 1));
             field.addListener(new com.badlogic.gdx.scenes.scene2d.InputListener() {
                 @Override public boolean keyDown(com.badlogic.gdx.scenes.scene2d.InputEvent event, int key) {
                     if (key != com.badlogic.gdx.Input.Keys.ESCAPE) {
@@ -83,13 +86,6 @@ public final class SpatialActorPanel extends CollapsibleWidget {
                 }
 
                 boolean enable = enabledBox.isChecked();
-                PhysicsShapesComponent collision = ctx.mPhysFixtures.getSafe(entityId, null);
-                if (!enable && collision != null && games.pixscape.runtime.service.PhysicsService.containsFootprintShape(collision.shapes)) {
-                    refreshFromModel(entityId);
-                    showValidation("Remove or unlink the footprint collision before disabling Spatial Actor.");
-                    event.handle();
-                    return;
-                }
                 boolean eligibleForActivation = isEligibleForActivation(entityId);
                 ToggleSpatialActorCommand command = new ToggleSpatialActorCommand(
                         ctx.world,
@@ -119,10 +115,8 @@ public final class SpatialActorPanel extends CollapsibleWidget {
                 }
                 executeCommand(command);
                 refreshFromModel(entityId);
-                if (command.isNoop()) {
-                    showValidation(enable
-                            ? "Spatial Actor requires valid visual bounds and one valid footprint."
-                            : "Spatial Actor state contains conflicting footprints.");
+                if (enable && command.isNoop()) {
+                    showValidation("Spatial Actor requires valid visual bounds and a valid footprint.");
                 }
                 event.handle();
             }
@@ -139,7 +133,7 @@ public final class SpatialActorPanel extends CollapsibleWidget {
         details.add(new VisLabel("Altitude:")).width(CommonLayout.LABEL_WIDTH).left();
         details.add(altitudeField).width(CommonLayout.FIELD_WIDTH).left().row();
 
-        details.add(new VisLabel("Footprint radius (px):")).width(CommonLayout.LABEL_WIDTH);
+        details.add(new VisLabel("Radius (px):")).width(CommonLayout.LABEL_WIDTH);
         details.add(radiusField).width(CommonLayout.FIELD_WIDTH).row();
         details.add(new VisLabel("Footprint X (px):")).width(CommonLayout.LABEL_WIDTH);
         details.add(offsetXField).width(CommonLayout.FIELD_WIDTH).row();
@@ -159,6 +153,16 @@ public final class SpatialActorPanel extends CollapsibleWidget {
     public void act(float delta) {
         super.act(delta);
         rectanglePanel.refreshCurrentRepresentation();
+        if (hasMarkedFootprint(entityId)) {
+            var footprint = ctx.world.getMapper(SpatialFootprintComponent.class).get(entityId);
+            for (int i = 0; i < footprintFields.length; i++) {
+                float value = footprintValue(footprint, i);
+                if (!footprintFields[i].hasKeyboardFocus() && displayedFootprint[i] != value) {
+                    footprintFields[i].refreshFromModel();
+                    displayedFootprint[i] = value;
+                }
+            }
+        }
     }
 
     public void setEntityId(int entityId) {
@@ -193,6 +197,15 @@ public final class SpatialActorPanel extends CollapsibleWidget {
             internalRefresh = false;
         }
         invalidateHierarchy();
+    }
+
+    private static float footprintValue(SpatialFootprintComponent footprint, int property) {
+        return switch (property) {
+            case 0 -> footprint.altitude;
+            case 1 -> footprint.radiusPx;
+            case 2 -> footprint.localOffsetXPx;
+            default -> footprint.localOffsetYPx;
+        };
     }
 
     private void showValidation(String message) {
@@ -311,7 +324,6 @@ public final class SpatialActorPanel extends CollapsibleWidget {
         EditSpatialFootprintCommand.Snapshot before = EditSpatialFootprintCommand.Snapshot.capture(component);
         EditSpatialFootprintCommand.Snapshot after = edit.apply(before);
         if (!finite(after.altitude()) || !finite(after.offsetX()) || !finite(after.offsetY()) || !finitePositive(after.radius())) {
-            refreshFromModel(eid);
             return;
         }
         executeCommand(new EditSpatialFootprintCommand(
@@ -319,8 +331,7 @@ public final class SpatialActorPanel extends CollapsibleWidget {
                 ctx.history.historyIds(),
                 eid,
                 before,
-                after,
-                ctx.sceneMeta == null ? 0f : ctx.sceneMeta.pixelsPerMeter
+                after
         ));
         refreshFromModel(eid);
     }

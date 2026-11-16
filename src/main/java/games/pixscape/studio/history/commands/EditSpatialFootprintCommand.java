@@ -47,15 +47,13 @@ public final class EditSpatialFootprintCommand implements Command, HistoryManage
     private final Snapshot before;
     private final Snapshot after;
     private final boolean noop;
-    private final float pixelsPerMeter;
 
     public EditSpatialFootprintCommand(World world,
                                     HistoryIdRegistry historyIds,
                                     int entityId,
                                     Snapshot before,
-                                    Snapshot after, float pixelsPerMeter) {
+                                    Snapshot after) {
         this.world = world;
-        this.pixelsPerMeter = pixelsPerMeter;
         this.historyIds = historyIds;
         this.before = before;
         this.after = after;
@@ -108,7 +106,8 @@ public final class EditSpatialFootprintCommand implements Command, HistoryManage
         candidate.localOffsetXPx = snapshot.offsetX;
         candidate.localOffsetYPx = snapshot.offsetY;
         candidate.radiusPx = snapshot.radius;
-        games.pixscape.runtime.service.PhysicsService.setSpatialFootprint(world, entityId, candidate, pixelsPerMeter);
+        candidate.validate();
+        component.set(candidate);
 
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
         if (dirty != null) {

@@ -260,12 +260,7 @@ public final class EntityGraphInstantiationService {
             if (snapshot.hasSpatialRepresentation || snapshot.spatialFootprint != null) {
                 return true;
             }
-            if (snapshot.shapes == null) continue;
-            for (PhysicsShapeData shape : snapshot.shapes) {
-                if (shape != null && shape.useSpatialFootprint) {
-                    return true;
-                }
-            }
+
         }
         return false;
     }

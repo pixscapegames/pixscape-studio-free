@@ -11,6 +11,7 @@ import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.event.EventFlow;
+import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
@@ -24,6 +25,7 @@ public final class SetSpatialBlockPhysicsCollisionCommand
     private final HistoryIdRegistry historyIds;
     private final SpatialBlockSelectionService selection;
     private final PhysicsService physicsService;
+    private final SceneMeta sceneMeta;
     private final long layerHistoryId;
     private final int spatialBlockId;
     private final boolean before;
@@ -40,11 +42,13 @@ public final class SetSpatialBlockPhysicsCollisionCommand
             PhysicsService physicsService,
             int layerEntityId,
             int spatialBlockId,
-            boolean enabled) {
+            boolean enabled,
+            SceneMeta sceneMeta) {
         this.world = world;
         this.historyIds = historyIds;
         this.selection = selection;
         this.physicsService = physicsService;
+        this.sceneMeta = java.util.Objects.requireNonNull(sceneMeta, "sceneMeta");
         this.spatialBlockId = spatialBlockId;
         boolean valid = world != null
                 && historyIds != null
@@ -83,12 +87,12 @@ public final class SetSpatialBlockPhysicsCollisionCommand
 
     @Override
     public CommandOutcome executeOutcome() {
-        return apply(after);
+        return apply(after, false);
     }
 
     @Override
     public CommandOutcome redoOutcome() {
-        return apply(after);
+        return apply(after, false);
     }
 
     @Override
@@ -98,11 +102,17 @@ public final class SetSpatialBlockPhysicsCollisionCommand
 
     @Override
     public CommandOutcome undoOutcome() {
-        return apply(before);
+        return apply(before, true);
     }
 
-    private CommandOutcome apply(boolean enabled) {
-        if (isNoop()) return CommandOutcome.NO_CHANGE;
+    private CommandOutcome apply(boolean enabled, boolean restoring) {
+        if (isNoop()) {
+            return CommandOutcome.NO_CHANGE;
+        }
+        // Cleanup and undo restore existing state; creating a collision requires Scene Physics.
+        if (enabled && !restoring && !sceneMeta.physicsEnabled) {
+            return CommandOutcome.REJECTED;
+        }
         int layerEntityId = resolveLayer();
         if (layerEntityId < 0) return CommandOutcome.NO_CHANGE;
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class)

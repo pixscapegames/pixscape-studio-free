@@ -161,15 +161,15 @@ public class LinkedPhysicsUiContractTest {
                 "src/main/java/games/pixscape/studio/ui/contextmenu/"
                         + "StudioContextMenu.java");
 
-        Assert.assertTrue(fixtures.contains("shapeBox.setDisabled(linked || useSpatialFootprint);"));
+        Assert.assertTrue(fixtures.contains("shapeBox.setDisabled(linked);"));
         Assert.assertTrue(fixtures.contains("sensorBox.setDisabled(f.spatialBlockId > 0);"));
         Assert.assertTrue(fixtures.contains("offsetsBlock.show(false);"));
         Assert.assertTrue(fixtures.contains(
-                "return fixture != null && !isLinked(fixture) && !fixture.useSpatialFootprint;"));
+                "return fixture != null && !isLinked(fixture);"));
         Assert.assertTrue(fixtures.contains(
                 "current == null || current.geometry == null"));
         Assert.assertTrue(fixtures.contains(
-                "linkedSpatialBlockBlock.show(linked || useSpatialFootprint);"));
+                "linkedSpatialBlockBlock.show(linked);"));
         Assert.assertFalse(fixtures.contains(
                 "densityField.setDisabled(linked)"));
         Assert.assertFalse(fixtures.contains(
@@ -187,7 +187,7 @@ public class LinkedPhysicsUiContractTest {
     }
 
     @Test
-    public void footprintCollisionLocksGeometryButAllowsMaterialAndRemoval()
+    public void independentCircleAllowsGeometryMaterialDuplicationAndRemoval()
             throws Exception {
         try (Harness harness = new Harness()) {
             VisTextButton duplicate = button(harness.panel, "duplicateFixtureBtn");
@@ -195,12 +195,12 @@ public class LinkedPhysicsUiContractTest {
             VisCheckBox sensor = checkBox(harness.panel, "sensorBox");
 
             harness.select(4);
-            Assert.assertFalse(duplicate.isVisible());
+            Assert.assertTrue(duplicate.isVisible());
             Assert.assertTrue(delete.isVisible());
             Assert.assertEquals("Delete", delete.getText().toString());
-            Assert.assertTrue(fieldDisabled(harness.panel, "diameterWUField"));
-            Assert.assertTrue(fieldDisabled(harness.panel, "offsetXWUField"));
-            Assert.assertTrue(fieldDisabled(harness.panel, "offsetYWUField"));
+            Assert.assertFalse(fieldDisabled(harness.panel, "diameterWUField"));
+            Assert.assertFalse(fieldDisabled(harness.panel, "offsetXWUField"));
+            Assert.assertFalse(fieldDisabled(harness.panel, "offsetYWUField"));
             Assert.assertFalse(fieldDisabled(harness.panel, "densityField"));
             Assert.assertFalse(fieldDisabled(harness.panel, "frictionField"));
             Assert.assertFalse(fieldDisabled(harness.panel, "restitutionField"));
@@ -294,7 +294,7 @@ public class LinkedPhysicsUiContractTest {
             shapes.shapes.add(linked(1, 7));
             shapes.shapes.add(linked(2, 19));
             shapes.shapes.add(PhysicsService.createDefaultShape(3));
-            shapes.shapes.add(spatialFootprint(4));
+            shapes.shapes.add(independentCircle(4));
             selection.focusBody(body);
             panel = new FixturesPanel(context);
             panel.setEntityId(body);
@@ -319,11 +319,9 @@ public class LinkedPhysicsUiContractTest {
             return shape;
         }
 
-        private static PhysicsShapeData spatialFootprint(int physicsShapeId) {
+        private static PhysicsShapeData independentCircle(int physicsShapeId) {
             PhysicsShapeData shape = PhysicsService.createDefaultShape(physicsShapeId);
             shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
-            shape.useSpatialFootprint = true;
-            shape.geometry = null;
             return shape;
         }
     }

@@ -3,7 +3,6 @@ package games.pixscape.studio.history.commands;
 import com.artemis.World;
 import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
-import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.ActorSpatialRectangles;
 import games.pixscape.runtime.spatial.ActorSpatialRectangleData;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -86,11 +85,7 @@ public final class ToggleSpatialActorCommand implements Command, HistoryManager.
             return CommandOutcome.NO_CHANGE;
         }
         if (footprint == null) {
-            try {
-                PhysicsService.removeSpatialFootprint(world, entity);
-            } catch (IllegalStateException linked) {
-                return CommandOutcome.NO_CHANGE;
-            }
+            world.getMapper(SpatialFootprintComponent.class).remove(entity);
         } else {
             world.getMapper(SpatialFootprintComponent.class).create(entity).set(footprint);
         }

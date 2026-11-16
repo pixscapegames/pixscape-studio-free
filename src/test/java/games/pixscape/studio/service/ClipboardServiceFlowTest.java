@@ -574,7 +574,7 @@ public class ClipboardServiceFlowTest {
         Assert.assertEquals(1, h.world.getMapper(EntityIndexComponent.class).get(pasted).layerIndex);
         Assert.assertTrue(h.world.getMapper(PhysicsBodyComponent.class).has(pasted));
         Assert.assertTrue(h.world.getMapper(SpatialRepresentationComponent.class).has(pasted));
-        Assert.assertTrue(hasFootprint(h.world.getMapper(PhysicsShapesComponent.class).get(pasted)));
+        Assert.assertTrue(hasCircleCollision(h.world.getMapper(PhysicsShapesComponent.class).get(pasted)));
     }
 
     @Test
@@ -710,20 +710,16 @@ public class ClipboardServiceFlowTest {
         return -1;
     }
 
-    private static int physicalEntity(World world, int layerIndex, boolean footprint) {
+    private static int physicalEntity(World world, int layerIndex, boolean circleCollision) {
         int entity = createEntity(world, 0f, 0f, layerIndex);
         world.getMapper(PhysicsBodyComponent.class).create(entity);
         PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).create(entity);
         PhysicsShapeData shape = new PhysicsShapeData();
         shape.physicsShapeId = 100 + entity;
         shape.geometry = new PhysicsGeometryData();
-        shape.geometry.shapeType = footprint
+        shape.geometry.shapeType = circleCollision
                 ? PhysicsGeometryData.SHAPE_CIRCLE
                 : PhysicsGeometryData.SHAPE_BOX;
-        shape.useSpatialFootprint = footprint;
-        if (footprint) {
-            shape.geometry = null;
-        }
         shapes.shapes.add(shape);
         return entity;
     }
@@ -738,9 +734,9 @@ public class ClipboardServiceFlowTest {
         return shape;
     }
 
-    private static boolean hasFootprint(PhysicsShapesComponent shapes) {
+    private static boolean hasCircleCollision(PhysicsShapesComponent shapes) {
         for (PhysicsShapeData shape : shapes.shapes) {
-            if (shape != null && shape.useSpatialFootprint) {
+            if (shape != null && shape.geometry.shapeType == PhysicsGeometryData.SHAPE_CIRCLE) {
                 return true;
             }
         }

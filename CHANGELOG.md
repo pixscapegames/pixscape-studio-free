@@ -4,11 +4,11 @@
 ## [0.4.3-SNAPSHOT]
 
 ### Compatibility
-* Game Object definitions/fragments now use schema 4; old physics-owned actor footprints must be reconfigured explicitly.
-* Uses Runtime `0.2.5-SNAPSHOT` and saves scenes in schema 5. Supported schema 3 scenes are converted on load, with one map per existing tile grid.
+* Game Object definitions/fragments now use schema 5; old physics-owned actor footprints must be reconfigured explicitly.
+* Uses Runtime `0.2.5-SNAPSHOT` and saves scenes in schema 6. Supported schema 3 scenes are converted on load, with one map per existing tile grid.
 
 ### Added
-* Spatial Actor activation and circle editing now work with scene physics disabled. Physics removal preserves spatial data; collision geometry can explicitly follow the footprint. Undo/redo, save, export and Game Object snapshots preserve both independent capabilities. See [the spatial/physics contract](docs/spatial-physics-decoupling.txt).
+* Spatial Actor activation and circle editing now work with scene physics disabled. Physics removal preserves spatial data; collision geometry, circle and occlusion rectangle have independent settings. Native canvas gestures edit circle center/radius, rectangle or shadow pivot with undo/redo and Escape cancellation. Undo/redo, save, export and Game Object snapshots preserve all three geometries. See [the spatial/physics contract](docs/spatial-physics-decoupling.txt).
 * Added persistent Studio-only visibility controls for Tiled maps and their layers, in a fixed Items column before the scrollbar.
 * Added `Grid on top` beside `Rulers`, keeping the grid behind world content by default.
 * TMX imports now create one map containing ordered tile, image and object layers, with map translation and import undo/redo.
@@ -20,9 +20,14 @@
 * Game Object roots can have their own visuals. Physics-backed compositions support explicit placement, and physics-backed entities support visual scaling.
 * The tree and inspector distinguish Tiled maps from tile layers. Tile layers retain their existing editing tools.
 * Simplified the Assets tree and Items toolbar, and refreshed add/delete button states.
-* Updated the embedded HTML player for schema 5 scenes and schema 4 Game Objects and Runtime `0.2.5-SNAPSHOT`.
+* HTML player sources use the corresponding Runtime and current scene/Game Object schemas. Rebuild the embedded template through the existing release workflow.
 
 ### Fixed
+* Normal canvas selection exposes footprint, occlusion rectangle and shadow pivot handles together, with distinct colors/shapes and hover feedback. Removed the Edit on canvas selector; nearest-handle picking uses stable ties and locks the target for the gesture. Coincident handles remain at their true anchors and can be separated by moving the first geometry.
+* Spatial numeric fields reject invalid values with the standard VisUI red border, without publishing or automatically correcting the input.
+* Layer Spatial activation no longer requires scene Physics, including reactivation; the single ordinary spatial layer rule is preserved.
+* Undoing Body removal restores independent shapes, Tiled-linked collisions and joints, preparing collisions before publishing the restored Body.
+* Spatial volume collision creation requires scene Physics and explains where to enable it. Existing collisions can still be removed and restored during cleanup.
 * Desktop Preview requires a fresh export when the exported scene format differs from the current schema; obsolete exports are never treated as ready.
 * Actors now pass behind scaffold beams correctly when spatial constraints conflict, including through transparent openings.
 * Fixed drawing resource cleanup when closing Studio.

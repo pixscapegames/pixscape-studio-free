@@ -99,7 +99,7 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
                 physics,
                 layer,
                 1,
-                true));
+                true, meta));
         TransformComponent createdTransform = source.getMapper(
                 TransformComponent.class).getSafe(layer, null);
         Assert.assertNotNull(createdTransform);
@@ -161,7 +161,7 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
     }
 
     @Test
-    public void sensorSpatialFootprintSurvivesStudioSaveAndLoad() {
+    public void independentSensorCircleAndSpatialSettingsSurviveStudioSaveExportAndLoad() throws Exception {
         meta.nextPhysicsShapeId = 2;
         World source = serializationWorld();
         int entity = source.create();
@@ -178,14 +178,28 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
         footprint.geometry = new PhysicsGeometryData();
         footprint.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         footprint.geometry.radius = 0.5f;
-        footprint.useSpatialFootprint = true;
-        footprint.geometry = null;
         footprint.sensor = true;
         source.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(entity).radiusPx = 50;
         shapes.shapes.add(footprint);
+        var authoredFoot = source.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).get(entity);
+        authoredFoot.localOffsetXPx = 47f;
+        var representation = source.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class).create(entity);
+        representation.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        representation.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+        representation.rectangles.staticRectangle.x = -83f;
         source.process();
-        FileHandle sceneFile = tempSceneFile("sensor-spatial-footprint-roundtrip.json");
+        FileHandle sceneFile = tempSceneFile("independent-spatial-roundtrip.json");
         SceneService.saveScene(source, sceneFile, false);
+        FileHandle project = new FileHandle(java.nio.file.Files.createTempDirectory("spatial-independent-studio").toFile());
+        FileHandle export = new FileHandle(java.nio.file.Files.createTempDirectory("spatial-independent-runtime").toFile());
+        project.child("scenes").mkdirs();
+        sceneFile.copyTo(project.child("scenes").child(meta.getFile()));
+        new games.pixscape.studio.asset.AssetMetaDatabase().save(project.child("assets.json"));
+        config.projectFileName = "independent-spatial";
+        config.exportRootPathDir = export.path();
+        games.pixscape.studio.configuration.RuntimeExport.exportRuntime(config, project, export);
+        sceneFile = export.child(games.pixscape.studio.configuration.RuntimeExport.RUNTIME_DIR_NAME)
+                .child("scenes").child(meta.getFile());
 
         World loaded = serializationWorld();
         try {
@@ -198,8 +212,11 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
             Assert.assertEquals(1, owners.size());
             PhysicsShapeData restored = loaded.getMapper(PhysicsShapesComponent.class)
                     .get(owners.get(0)).shapes.first();
-            Assert.assertTrue(restored.useSpatialFootprint);
+            Assert.assertNotNull(restored.geometry);
             Assert.assertTrue(restored.sensor);
+            Assert.assertEquals(.5f, restored.geometry.radius, 0f);
+            Assert.assertEquals(47f, loaded.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).get(owners.get(0)).localOffsetXPx, 0f);
+            Assert.assertEquals(-83f, loaded.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class).get(owners.get(0)).rectangles.staticRectangle.x, 0f);
         } finally {
             loaded.dispose();
             source.dispose();

@@ -240,7 +240,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         gridStage.addActor(gridActor);
 
         inputState = new InputState();
-        actorShadowRectangleEditor = new games.pixscape.studio.ui.widget.ActorSpatialRectangleCanvasEditor(this, () -> worldInputAllowed() && !resourceImportBusy);
+        actorShadowRectangleEditor = new games.pixscape.studio.ui.widget.ActorSpatialRectangleCanvasEditor(this, () -> worldInputAllowed() && !resourceImportBusy
+                && studioEditingModeService.getCurrentMode() == games.pixscape.studio.service.StudioEditingMode.NORMAL);
         app.getUiStage().addActor(actorShadowRectangleEditor);
         frameProfiler = StudioFrameProfiler.fromSystemProperties();
         systemProfiler = frameProfiler.createSystemProfiler();

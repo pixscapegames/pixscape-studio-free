@@ -193,7 +193,6 @@ final class GameObjectEntityDataMapper {
                 target.maskBits = source.maskBits;
                 target.groupIndex = source.groupIndex;
                 target.enabled = source.enabled;
-                target.useSpatialFootprint = source.useSpatialFootprint;
                 snapshot.shapes.add(target);
             }
         }
@@ -317,7 +316,6 @@ final class GameObjectEntityDataMapper {
                 target.maskBits = shape.maskBits;
                 target.groupIndex = shape.groupIndex;
                 target.enabled = shape.enabled;
-                target.useSpatialFootprint = shape.useSpatialFootprint;
                 data.physicsShapes.add(target);
             }
         }

@@ -23,7 +23,79 @@ import org.junit.Before;
 import org.junit.Test;
 
 public class SpatialBlockPhysicsCollisionCommandTest {
+    @Test
+    public void disabledSceneRejectsCreationWithoutMutationOrHistory() {
+        Harness h = new Harness();
+        try {
+            h.meta.physicsEnabled = false;
+            ProjectConfig.getInstance().getCurrentSceneMeta().physicsEnabled = false;
+            int highWater = h.meta.nextPhysicsShapeId;
+            int revision = h.blocks().revision;
+            h.history.execute(h.command(7, true));
+            Assert.assertFalse(h.hasBody());
+            Assert.assertFalse(h.world.getMapper(TransformComponent.class).has(h.owner));
+            Assert.assertFalse(h.world.getMapper(PhysicsShapesComponent.class).has(h.owner));
+            Assert.assertFalse(h.world.getMapper(PhysicsCompiledFixturesComponent.class).has(h.owner));
+            Assert.assertEquals(highWater, h.meta.nextPhysicsShapeId);
+            Assert.assertEquals(revision, h.blocks().revision);
+            Assert.assertEquals(2, h.blocks().blocks.size);
+            Assert.assertFalse(h.history.canUndo());
+            Assert.assertEquals(SpatialBlockSelectionService.NO_BLOCK, h.selection.getSelectedBlockId());
+        } finally {
+            h.world.dispose();
+        }
+    }
+
     private ProjectConfig previousConfig;
+
+    @Test
+    public void disabledSceneAllowsCleanupAndRepeatedRestorationOfExistingCollision() {
+        Harness h = new Harness();
+        try {
+            h.execute(7, true);
+            PhysicsShapeData original = h.linked(7).copy();
+            int highWater = h.meta.nextPhysicsShapeId;
+            h.meta.physicsEnabled = false;
+            h.execute(7, false);
+            for (int cycle = 0; cycle < 3; cycle++) {
+                Assert.assertFalse(h.hasBody());
+                Assert.assertNotNull(h.block(7));
+                h.history.undo();
+                Assert.assertTrue(h.hasBody());
+                Assert.assertTrue(original.contentEquals(h.linked(7)));
+                h.history.redo();
+            }
+            Assert.assertEquals(highWater, h.meta.nextPhysicsShapeId);
+        } finally {
+            h.world.dispose();
+        }
+    }
+
+    @Test
+    public void creationRechecksScenePhysicsAtExecutionAndRedo() {
+        Harness h = new Harness();
+        try {
+            SetSpatialBlockPhysicsCollisionCommand command = h.command(7, true);
+            h.meta.physicsEnabled = false;
+            Assert.assertEquals(CommandOutcome.REJECTED, command.executeOutcome());
+            Assert.assertFalse(h.hasBody());
+            h.meta.physicsEnabled = true;
+            h.history.execute(command);
+            int shapeId = h.linked(7).physicsShapeId;
+            h.history.undo();
+            int cursor = h.history.getCursor();
+            h.meta.physicsEnabled = false;
+            h.history.redo();
+            Assert.assertFalse(h.hasBody());
+            Assert.assertEquals(cursor, h.history.getCursor());
+            Assert.assertTrue(h.history.canRedo());
+            h.meta.physicsEnabled = true;
+            h.history.redo();
+            Assert.assertEquals(shapeId, h.linked(7).physicsShapeId);
+        } finally {
+            h.world.dispose();
+        }
+    }
 
     @Before
     public void configureScene() {
@@ -211,6 +283,7 @@ public class SpatialBlockPhysicsCollisionCommandTest {
         final PhysicsService physics = new PhysicsService(world, null, meta);
 
         Harness() {
+            meta.physicsEnabled = true;
             TiledLayerComponent tiled =
                     world.getMapper(TiledLayerComponent.class).create(owner);
             tiled.data = new TiledLayerData(
@@ -232,7 +305,7 @@ public class SpatialBlockPhysicsCollisionCommandTest {
         SetSpatialBlockPhysicsCollisionCommand command(int blockId, boolean enabled) {
             return new SetSpatialBlockPhysicsCollisionCommand(
                     world, history.historyIds(), selection, physics,
-                    owner, blockId, enabled);
+                    owner, blockId, enabled, meta);
         }
 
         SpatialBlocksComponent blocks() {

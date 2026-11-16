@@ -111,6 +111,37 @@ public class SpatialHeightLivePreviewTest {
         }
     }
 
+    @Test
+    public void invalidSpatialNumbersStayRedAndNeverPublishWhileSignedOffsetsRemainEditable() throws Exception {
+        try (Harness h = new Harness()) {
+            String[] names = {"spatial-footprint-1", "actor-spatial-rectangle-0", "actor-spatial-rectangle-1"};
+            for (String name : names) {
+                FloatField field = h.panel.findActor(name);
+                for (String invalid : new String[]{"0", "-2", "NaN", "Infinity", "1e99", ""}) {
+                    field.setText(invalid);
+                    Assert.assertFalse(name + " " + invalid, field.isInputValid());
+                    field.commit();
+                    Assert.assertEquals(invalid, field.getText());
+                    Assert.assertFalse(h.history.canUndo());
+                    Assert.assertEquals(9, h.world.getMapper(SpatialFootprintComponent.class).get(h.actor).radiusPx, 0);
+                    Assert.assertEquals(40, h.height.rectangles.staticRectangle.width, 0);
+                    Assert.assertEquals(80, h.height.rectangles.staticRectangle.height, 0);
+                }
+                field.refreshFromModel();
+                Assert.assertTrue(field.isInputValid());
+            }
+            FloatField offset = h.panel.findActor("spatial-footprint-2");
+            offset.setText("-35.5");
+            Assert.assertTrue(offset.isInputValid());
+            offset.commit();
+            h.world.process();
+            Assert.assertEquals(-35.5f, h.world.getMapper(SpatialFootprintComponent.class).get(h.actor).localOffsetXPx, 0);
+            h.assertRectangle(80);
+            h.history.undo();
+            Assert.assertEquals(0, h.world.getMapper(SpatialFootprintComponent.class).get(h.actor).localOffsetXPx, 0);
+        }
+    }
+
     private static final class Harness implements AutoCloseable {
         final DynamicEntityRenderState ecs = new DynamicEntityRenderState(1);
         final DrawList draw = new DrawList(4);

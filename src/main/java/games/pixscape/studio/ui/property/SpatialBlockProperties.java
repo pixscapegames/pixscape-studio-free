@@ -16,6 +16,7 @@ import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.commands.EditSpatialBlockCommand;
 import games.pixscape.studio.history.commands.SetSpatialBlockPhysicsCollisionCommand;
 import games.pixscape.studio.service.spatial.SpatialBlockInteractiveEditSupport;
@@ -33,6 +34,7 @@ public final class SpatialBlockProperties extends VisTable {
     private final HistoryManager history;
     private final SpatialBlockSelectionService selection;
     private final PhysicsService physicsService;
+    private final SceneMeta sceneMeta;
     private final Runnable markCurrentSceneSaveRequired;
     private final ComponentMapper<SpatialBlocksComponent> mBlocks;
 
@@ -46,6 +48,7 @@ public final class SpatialBlockProperties extends VisTable {
     private final SimpleFloatField heightField = new SimpleFloatField();
     private final VisCheckBox actorOccluderBox = new VisCheckBox("Actor occluder");
     private final VisCheckBox physicsCollisionBox = new VisCheckBox("Physics collision");
+    private final CollapsibleVisTable physicsCollisionStatusBlock = new CollapsibleVisTable(true, true);
     private final VisCheckBox lightOccluderBox = new VisCheckBox("Light occluder");
     private final VisCheckBox shadeUnlitFacesBox = new VisCheckBox("Shade unlit faces");
     private final VisCheckBox shadowCasterBox = new VisCheckBox("Shadow caster");
@@ -59,12 +62,14 @@ public final class SpatialBlockProperties extends VisTable {
                                   HistoryManager history,
                                   SpatialBlockSelectionService selection,
                                   PhysicsService physicsService,
+                                  SceneMeta sceneMeta,
                                   Runnable markCurrentSceneSaveRequired) {
         super(true);
         this.world = world;
         this.history = history;
         this.selection = selection;
         this.physicsService = physicsService;
+        this.sceneMeta = sceneMeta;
         this.markCurrentSceneSaveRequired = markCurrentSceneSaveRequired;
         this.mBlocks = world.getMapper(SpatialBlocksComponent.class);
 
@@ -144,6 +149,12 @@ public final class SpatialBlockProperties extends VisTable {
         data.addSeparator().colspan(2).growX().padTop(4).padBottom(4).row();
         data.add(actorOccluderBox).colspan(2).left().row();
         data.add(physicsCollisionBox).colspan(2).left().row();
+        VisLabel physicsCollisionStatus = new VisLabel("Enable Physics in Scene settings to add collision.");
+        physicsCollisionStatus.setName("spatialWallPhysicsCollisionStatus");
+        physicsCollisionStatus.setWrap(true);
+        physicsCollisionStatusBlock.content().add(physicsCollisionStatus)
+                .width(CommonLayout.LABEL_WIDTH + CommonLayout.FIELD_WIDTH).left().row();
+        data.add(physicsCollisionStatusBlock).colspan(2).growX().left().row();
         data.add(lightOccluderBox).colspan(2).left().row();
         data.add(shadowCasterBox).colspan(2).left().row();
         data.add(shadeUnlitFacesBox).colspan(2).left().row();
@@ -250,7 +261,7 @@ public final class SpatialBlockProperties extends VisTable {
 
     private void submitPhysicsCollision(boolean enabled) {
         SpatialBlockData current = activeBlock();
-        if (current == null || physicsService == null) {
+        if (current == null || physicsService == null || sceneMeta == null) {
             refreshFromModel();
             return;
         }
@@ -262,7 +273,8 @@ public final class SpatialBlockProperties extends VisTable {
                         physicsService,
                         layerEntityId,
                         blockId,
-                        enabled);
+                        enabled,
+                        sceneMeta);
         int cursorBefore = history.getCursor();
         if (!command.isNoop()) history.execute(command);
         if (history.getCursor() != cursorBefore && markCurrentSceneSaveRequired != null) {
@@ -365,7 +377,10 @@ public final class SpatialBlockProperties extends VisTable {
             heightField.setDisabled(!active);
             actorOccluderBox.setDisabled(!active);
             physicsCollisionBox.setDisabled(
-                    !active || physicsService == null || tiled == null || tiled.data == null);
+                    !active || physicsService == null || tiled == null || tiled.data == null
+                            || sceneMeta == null
+                            || (!sceneMeta.physicsEnabled && !hasLinkedPhysicsShape(layerEntityId, blockId)));
+            physicsCollisionStatusBlock.show(active && sceneMeta != null && !sceneMeta.physicsEnabled);
             lightOccluderBox.setDisabled(!active);
             shadowCasterBox.setDisabled(!active);
             shadeUnlitFacesBox.setDisabled(!active);
