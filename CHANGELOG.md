@@ -27,7 +27,7 @@
 * Runtime export retains dormant spatial settings for later API activation and publishes only available Game Object definitions and declared scene atlas pages. Normal-map preparation uses the unpublished export candidate; orphan atlas packs and authoring inputs are excluded.
 * The tree and inspector distinguish Tiled maps from tile layers. Tile layers retain their existing editing tools.
 * Simplified the Assets tree and Items toolbar, and refreshed add/delete button states.
-* HTML player sources use the corresponding Runtime and current scene/Game Object schemas. Rebuild the embedded template through the existing release workflow.
+* Refreshed the distributed HTML Preview player for the current Game Object composition formats and the Runtime physics bootstrap correction.
 
 ### Fixed
 * Wired the Edit menu's Cut, Copy and Paste entries to the active document's existing clipboard commands and undo history.
