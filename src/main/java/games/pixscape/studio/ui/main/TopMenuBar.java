@@ -173,8 +173,11 @@ public class TopMenuBar extends MenuBar {
         editMenu = new Menu("Edit");
 
         cut = new MenuItem("Cut            ctrl+X");
+        onClick(cut, () -> app.getCanvas().getClipboardService().cutSelection());
         copy = new MenuItem("Copy         ctrl+C");
+        onClick(copy, () -> app.getCanvas().getClipboardService().copySelection());
         paste = new MenuItem("Paste         ctrl+V");
+        onClick(paste, () -> app.getCanvas().getClipboardService().paste());
 
         undo = new MenuItem("Undo         ctrl+Z");
         onClick(undo, app::undoActiveDocument);

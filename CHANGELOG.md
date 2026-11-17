@@ -30,6 +30,8 @@
 * HTML player sources use the corresponding Runtime and current scene/Game Object schemas. Rebuild the embedded template through the existing release workflow.
 
 ### Fixed
+* Wired the Edit menu's Cut, Copy and Paste entries to the active document's existing clipboard commands and undo history.
+* Pasting without a valid active layer now refuses the operation before accessing layer data, preserving the clipboard, selection and history.
 * Footprint addition/removal and undo/redo now refresh inherited spatial labels throughout the affected Items subtree without replacing its tree rows.
 * Adding a child to a parent with an incompatible transform now displays the refusal reason directly in the menu.
 * Repeated subtree deletion and undo/redo preserve descendants in both the Items tree and canvas, using the corrected Runtime child-order invalidation.

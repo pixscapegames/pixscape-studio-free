@@ -43,6 +43,36 @@ import java.nio.file.Path;
 
 public class ClipboardServiceFlowTest {
     @Test
+    public void pasteWithoutActiveLayerPreservesClipboardHistoryAndEntities() throws Exception {
+        Harness h = new Harness();
+        try {
+            int source = createEntity(h.world, 10f, 20f, 0);
+            h.selection.selectOnly(source);
+            Assert.assertTrue(h.clipboard.copySelection());
+            int layer = h.selection.getActivelayerId();
+            int cursor = h.history.getCursor();
+            IntBag entities = h.world.getAspectSubscriptionManager().get(Aspect.all()).getEntities();
+            int count = entities.size();
+
+            h.selection.setActivelayerId(-1);
+            Assert.assertFalse(h.clipboard.paste());
+            Assert.assertTrue(h.clipboard.hasContent());
+            Assert.assertEquals(cursor, h.history.getCursor());
+            Assert.assertEquals(count, entities.size());
+            Assert.assertEquals(source, h.selection.getFirstSelectedEntityId());
+
+            h.selection.setActivelayerId(layer);
+            Assert.assertTrue(h.clipboard.paste());
+            TransformComponent pasted = h.world.getMapper(TransformComponent.class)
+                    .get(h.selection.getFirstSelectedEntityId());
+            Assert.assertEquals(26f, pasted.x, 0f);
+            Assert.assertEquals(4f, pasted.y, 0f);
+        } finally {
+            h.world.dispose();
+        }
+    }
+
+    @Test
     public void sceneMetadataEventsPreserveClipboardButProjectReplacementClearsIt() throws Exception {
         Harness h = new Harness();
         try {

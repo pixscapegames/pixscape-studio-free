@@ -193,20 +193,18 @@ public final class ClipboardService {
         LayerService layers = editingContext.layerService();
         if (layers == null) return null;
 
-        int layerIndex = selectionService.getActiveLayerIndex();
-        int layerEntityId = layers.getLayerEntity(layerIndex);
+        int layerEntityId = selectionService.getActivelayerId();
         if (layerEntityId < 0
-                || layerEntityId != selectionService.getActivelayerId()
                 || !world.getEntityManager().isActive(layerEntityId)) {
             return null;
         }
 
         LayerComponent layer = world.getMapper(LayerComponent.class).getSafe(layerEntityId, null);
-        if (layer == null || layer.layerIndex != layerIndex) {
+        if (layer == null || layers.getLayerEntity(layer.layerIndex) != layerEntityId) {
             return null;
         }
 
-        return new ResolvedClipboardDestination(layerIndex);
+        return new ResolvedClipboardDestination(layer.layerIndex);
     }
 
     private record ResolvedClipboardDestination(int layerIndex) {
