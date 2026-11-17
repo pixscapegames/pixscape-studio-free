@@ -73,16 +73,6 @@ public final class RuntimeExport {
         }
 
         validateContentLayerInputs(studioCfg, studioProjectDir);
-        FileHandle catalog = studioProjectDir.child(StudioFs.FILE_ASSETS_JSON);
-        if (catalog.exists()) {
-            AssetMetaDatabase db = AssetMetaDatabase.load(catalog);
-            for (ObjectMap.Entry<String, SceneMeta> entry : studioCfg.getScenesMap()) {
-                String tag = studioCfg.canonicalSceneTag(entry.key);
-                if (tag != null && studioProjectDir.child(StudioFs.DIR_ATLASES).child(tag + ".atlas").exists())
-                    games.pixscape.studio.service.atlas.AtlasStudioService.prepareSceneNormals(studioProjectDir, tag, null, db);
-            }
-        }
-
         FileHandle target = userProjectDir.child(RUNTIME_DIR_NAME);
         try (var hud = new SceneHudRuntimeExport().prepare(studioProjectDir, studioCfg)) {
             FileHandle candidate = AtomicDirectoryPublication.createCandidate(target);
@@ -113,13 +103,39 @@ public final class RuntimeExport {
                 }
             }
         }
+        GameObjectAssetLoader loader = new GameObjectAssetLoader();
         FileHandle gameObjects = studioProjectDir.child(StudioFs.DIR_GAME_OBJECTS);
-        if (gameObjects.exists()) {
-            GameObjectAssetLoader loader = new GameObjectAssetLoader();
-            for (FileHandle file : gameObjects.list()) {
-                if (file.name().endsWith(GameObjectAsset.EXTENSION)) loader.load(file);
+        for (String name : runtimeGameObjectNames(cfg)) {
+            FileHandle file = gameObjects.child(name);
+            if (!file.exists()) {
+                throw new GdxRuntimeException("Missing runtime available Game Object: " + file.path());
+            }
+            loader.load(file);
+        }
+    }
+
+    /** Matches scene atlas availability. Authored instances carry their visual dependencies inline;
+     * sourceAssetId is editor provenance, not a request to retain an unspawnable definition. */
+    private static Array<String> runtimeGameObjectNames(ProjectConfig cfg) {
+        ObjectSet<String> unique = new ObjectSet<>();
+        if (cfg.getScenesMap() != null) {
+            for (ObjectMap.Entry<String, SceneMeta> entry : cfg.getScenesMap()) {
+                SceneRuntimeAvailabilityData availability = entry.value == null ? null : entry.value.runtimeAvailability;
+                if (availability == null || availability.gameObjectIds == null) {
+                    continue;
+                }
+                for (String id : availability.gameObjectIds) {
+                    String canonical = games.pixscape.runtime.gameobject.GameObjectAssetId.normalize(id);
+                    unique.add(RuntimeFs.filenameOnly(canonical));
+                }
             }
         }
+        Array<String> names = new Array<>();
+        for (String name : unique) {
+            names.add(name);
+        }
+        names.sort();
+        return names;
     }
 
     private static RuntimeConfig exportPrepared(ProjectConfig studioCfg, FileHandle studioProjectDir,
@@ -227,10 +243,11 @@ public final class RuntimeExport {
         // 6) Copier les ressources runtime
         // Do not export Studio animation source frames.
         // Runtime sprite animations are atlas-backed.
-        copyAtlasesWithoutInput(
+        copySceneAtlases(studioCfg,
                 studioProjectDir.child(StudioFs.DIR_ATLASES),
                 runtimeDir.child(out.atlasesDir)
         );
+        prepareExportNormals(studioCfg, studioProjectDir, runtimeDir);
         copyDirIfExists(
                 studioProjectDir.child(StudioFs.DIR_ORIG_EFFECTS),
                 runtimeDir.child(out.effectsDir)
@@ -245,7 +262,7 @@ public final class RuntimeExport {
                 runtimeDir.child(out.audioDir)
         );
         copyGameObjectFiles(
-                studioProjectDir.child(StudioFs.DIR_GAME_OBJECTS),
+                studioCfg, studioProjectDir.child(StudioFs.DIR_GAME_OBJECTS),
                 runtimeDir.child(out.gameObjectsDir)
         );
 
@@ -297,23 +314,56 @@ public final class RuntimeExport {
         }
     }
 
-    private static void copyGameObjectFiles(FileHandle sourceDir, FileHandle targetDir) {
-        if (sourceDir == null || !sourceDir.exists() || !sourceDir.isDirectory()) {
+    private static void copyGameObjectFiles(ProjectConfig config, FileHandle sourceDir, FileHandle targetDir) {
+        for (String name : runtimeGameObjectNames(config)) {
+            FileHandle file = sourceDir.child(name);
+            if (!file.exists() || file.isDirectory()) {
+                throw new GdxRuntimeException("Missing runtime available Game Object: " + file.path());
+            }
+            // Preserve authored dormant spatial parameters. Absence of a footprint cannot prove
+            // that API activation will never occur. This is a copy into the unpublished candidate.
+            file.copyTo(targetDir.child(name));
+        }
+    }
+
+    private static void prepareExportNormals(ProjectConfig config, FileHandle sourceProject, FileHandle runtimeDir) {
+        FileHandle catalog = sourceProject.child(StudioFs.FILE_ASSETS_JSON);
+        if (!catalog.exists()) {
             return;
         }
-
-        targetDir.mkdirs();
-
-        for (FileHandle file : sourceDir.list()) {
-            if (file == null || file.isDirectory()) {
+        AssetMetaDatabase db = AssetMetaDatabase.load(catalog);
+        FileHandle output = runtimeDir.child(RuntimeFs.DIR_ATLASES);
+        for (ObjectMap.Entry<String, SceneMeta> entry : config.getScenesMap()) {
+            String tag = config.canonicalSceneTag(entry.key);
+            if (tag == null || !output.child(tag + ".atlas").exists()) {
                 continue;
             }
-            if (ProjectFileCleanupService.shouldSkipRuntimeExportFile(file)) {
-                continue;
-            }
-
-            if (file.name().endsWith(GameObjectAsset.EXTENSION)) {
-                file.copyTo(targetDir.child(file.name()));
+            java.util.Set<String> required = new java.util.HashSet<>();
+            var descriptor = new com.badlogic.gdx.graphics.g2d.TextureAtlas.TextureAtlasData(output.child(tag + ".atlas"), output, false);
+            FileHandle sourceColors = sourceProject.child(StudioFs.DIR_ATLASES).child(StudioFs.DIR_INPUT).child(tag);
+            FileHandle scratch = AtomicDirectoryPublication.createCandidate(runtimeDir.child("normal-input"));
+            try {
+                FileHandle colors = scratch.child("colors");
+                for (var region : descriptor.getRegions()) {
+                    int marker = region.name.lastIndexOf("__a");
+                    if (marker < 0) {
+                        continue;
+                    }
+                    var asset = db.findById(Integer.parseInt(region.name.substring(marker + 3)));
+                    if (asset instanceof TileAssetMeta tile && tile.normalSourceRelPath != null
+                            && required.add(tile.sourceRelPath())) {
+                        FileHandle color = sourceColors.child(new FileHandle(tile.sourceRelPath()).name());
+                        if (!color.exists()) {
+                            throw new IllegalStateException("Normal export requires color input for asset " + tile.id());
+                        }
+                        color.copyTo(colors.child(color.name()));
+                    }
+                }
+                games.pixscape.studio.service.atlas.NormalAtlasPackingService.sync(sourceProject, colors, db, required);
+                ProjectFileCleanupService.deleteSceneAtlasFiles(runtimeDir, tag + games.pixscape.runtime.service.NormalMapAtlas.SUFFIX);
+                games.pixscape.studio.service.atlas.NormalAtlasPackingService.pack(colors, output, tag);
+            } finally {
+                AtomicDirectoryPublication.discardCandidate(scratch);
             }
         }
     }
@@ -618,25 +668,10 @@ public final class RuntimeExport {
         }
 
         GameObjectAssetLoader loader = new GameObjectAssetLoader();
-        ObjectSet<String> gameObjectFiles = new ObjectSet<>();
-        for (ObjectMap.Entry<String, SceneMeta> entry : studioCfg.getScenesMap()) {
-            SceneRuntimeAvailabilityData availability = entry.value != null
-                    ? entry.value.runtimeAvailability
-                    : null;
-            if (availability == null || availability.gameObjectIds == null) {
-                continue;
-            }
-            for (String gameObjectId : availability.gameObjectIds) {
-                String fileName = RuntimeFs.filenameOnly(gameObjectId);
-                if (fileName != null && fileName.endsWith(GameObjectAsset.EXTENSION)) {
-                    gameObjectFiles.add(fileName);
-                }
-            }
-        }
-        for (String fileName : gameObjectFiles) {
+        for (String fileName : runtimeGameObjectNames(studioCfg)) {
             FileHandle file = runtimeGameObjectsDir.child(fileName);
             if (!file.exists()) {
-                continue;
+                throw new GdxRuntimeException("Missing exported Game Object: " + file.path());
             }
             GameObjectAsset asset = loader.load(file);
             for (GameObjectAsset.GameObjectEntityData entity : asset.entities) {
@@ -1095,37 +1130,35 @@ public final class RuntimeExport {
         }
     }
 
-    private static void copyAtlasesWithoutInput(FileHandle srcAtlasesDir, FileHandle dstAtlasesDir) {
-        if (srcAtlasesDir == null || !srcAtlasesDir.exists()) return;
-        if (dstAtlasesDir == null) return;
-
-        dstAtlasesDir.mkdirs();
-
-        FileHandle[] list = srcAtlasesDir.list();
-        if (list == null) return;
-
-        for (FileHandle f : list) {
-            if (f == null) continue;
-
-            if (f.isDirectory()) {
-                if (ProjectFileCleanupService.shouldSkipRuntimeExportDirectory(f)) {
-                    continue;
-                }
-
-                // Scene HUD artifacts enter only through SceneHudRuntimeExport's explicit manifest.
-                if (!f.name().equalsIgnoreCase(
-                        games.pixscape.studio.service.runtimeavailability.SceneHudEnvironmentPaths.HUD_DIRECTORY)) {
-                    copyDirIfExists(f, dstAtlasesDir.child(f.name()));
-                }
-                continue;
-            }
-
-            if (ProjectFileCleanupService.shouldSkipRuntimeExportFile(f)) {
-                continue;
-            }
-
-            f.copyTo(dstAtlasesDir.child(f.name()));
+    /** Scene packs already contain authored usage plus that scene's runtime availability.
+     * Copy only their manifests/pages; orphan packs and authoring inputs are not runtime resources.
+     * HUD resources are published separately by SceneHudRuntimeExport. */
+    private static void copySceneAtlases(ProjectConfig config, FileHandle source, FileHandle destination) {
+        if (!source.exists()) {
+            return;
         }
+        for (ObjectMap.Entry<String, SceneMeta> entry : config.getScenesMap()) {
+            String tag = config.canonicalSceneTag(entry.key);
+            copyAtlas(source, destination, tag);
+            copyAtlas(source, destination, tag + games.pixscape.runtime.service.NormalMapAtlas.SUFFIX);
+        }
+    }
+
+    private static void copyAtlas(FileHandle source, FileHandle destination, String tag) {
+        FileHandle descriptor = source.child(tag + ".atlas");
+        if (!descriptor.exists()) {
+            return;
+        }
+        var data = new com.badlogic.gdx.graphics.g2d.TextureAtlas.TextureAtlasData(descriptor, source, false);
+        java.nio.file.Path root = source.file().toPath().toAbsolutePath().normalize();
+        for (var page : data.getPages()) {
+            java.nio.file.Path path = page.textureFile.file().toPath().toAbsolutePath().normalize();
+            if (!path.startsWith(root)) {
+                throw new IllegalArgumentException("Atlas page escapes its resource directory: " + path);
+            }
+            page.textureFile.copyTo(destination.child(root.relativize(path).toString()));
+        }
+        descriptor.copyTo(destination.child(descriptor.name()));
     }
 
     private static void removeFromStringArray(JsonValue array, ObjectSet<String> toRemove) {

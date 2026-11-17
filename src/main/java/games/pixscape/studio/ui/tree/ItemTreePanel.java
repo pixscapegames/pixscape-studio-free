@@ -97,6 +97,7 @@ public class ItemTreePanel extends DockablePanel {
             Collections.newSetFromMap(new IdentityHashMap<>());
     private volatile boolean dirty = true;
     private final IntSet dirtyEntityLabels = new IntSet();
+    private final IntSet dirtySpatialLabelRoots = new IntSet();
     private boolean suppressTreeSelectionEvents = false;
     private boolean handlingTreeSelection = false;
 
@@ -190,9 +191,6 @@ public class ItemTreePanel extends DockablePanel {
 
         EventFlow.i().subscribe(EventFlow.EntityNameChanged.class,
                 evt -> dirtyEntityLabels.add(evt.entityId()));
-        EventFlow.i().subscribe(EventFlow.SpatialActorChanged.class,
-                evt -> dirtyEntityLabels.add(evt.entityId()));
-
         EventFlow.i().subscribe(EventFlow.LayerOrderChanged.class, evt -> markDirty());
         EventFlow.i().subscribe(EventFlow.EntityZOrderChanged.class, evt -> markDirty());
         EventFlow.i().subscribe(EventFlow.LayerLockChanged.class, evt -> markDirty());
@@ -225,6 +223,7 @@ public class ItemTreePanel extends DockablePanel {
         if (context == null || context.isDisposed()) return;
         itemMoves.cancel();
         dirtyEntityLabels.clear();
+        dirtySpatialLabelRoots.clear();
         tree.getSelection().setProgrammaticChangeEvents(false);
         tree.clearNodes();
         tree.getSelection().setProgrammaticChangeEvents(true);
@@ -339,7 +338,10 @@ public class ItemTreePanel extends DockablePanel {
         if (dirty && tree != null) {
             dirty = false;
             rebuildTreeFromWorld();
-        } else if (dirtyEntityLabels.size > 0) {
+        } else {
+            for (IntSet.IntSetIterator it = dirtySpatialLabelRoots.iterator(); it.hasNext;) {
+                collectSubtreeLabels(tree.findNode(it.next()));
+            }
             for (IntSet.IntSetIterator it = dirtyEntityLabels.iterator(); it.hasNext;) {
                 int entityId = it.next();
                 EntityNode node = tree.findNode(entityId);
@@ -357,6 +359,23 @@ public class ItemTreePanel extends DockablePanel {
             }
         }
         dirtyEntityLabels.clear();
+        dirtySpatialLabelRoots.clear();
+    }
+
+    /** Visit only the affected subtree after ECS publication; keep existing rows and gestures. */
+    private void collectSubtreeLabels(EntityNode node) {
+        if (node == null) {
+            return;
+        }
+        if (node.isEntityNode()) {
+            dirtyEntityLabels.add(node.getEntityId());
+        }
+        var children = node.getChildren();
+        for (int i = 0; i < children.size; i++) {
+            if (children.get(i) instanceof EntityNode child) {
+                collectSubtreeLabels(child);
+            }
+        }
     }
 
     public void attachAutoRefresh() {
@@ -388,6 +407,25 @@ public class ItemTreePanel extends DockablePanel {
         layerItemsSub.addSubscriptionListener(refsListener);
         jointsSub.addSubscriptionListener(refsListener);
         gameObjectMembersSub.addSubscriptionListener(refsListener);
+        // Only footprint presence changes participation. Geometry previews must not
+        // refresh every descendant label on each pointer move.
+        world.getAspectSubscriptionManager().get(Aspect.all(
+                games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class))
+                .addSubscriptionListener(new EntitySubscription.SubscriptionListener() {
+                    @Override
+                    public void inserted(IntBag entities) {
+                        for (int i = 0; i < entities.size(); i++) {
+                            dirtySpatialLabelRoots.add(entities.get(i));
+                        }
+                    }
+
+                    @Override
+                    public void removed(IntBag entities) {
+                        for (int i = 0; i < entities.size(); i++) {
+                            dirtySpatialLabelRoots.add(entities.get(i));
+                        }
+                    }
+                });
     }
 
     private void hookTreeSelection() {
@@ -677,7 +715,9 @@ public class ItemTreePanel extends DockablePanel {
         if (node == null) return false;
         if (node.isLayerNode()) return layerService.isLayerEntity(node.getEntityId());
         if (node.isTiledMapNode()) return mTiled.has(node.getEntityId());
-        return node.isEntityNode() && mGameObject.has(node.getEntityId());
+        return node.isEntityNode() && world.getMapper(TransformComponent.class).has(node.getEntityId())
+                && !world.getMapper(PhysicsJointComponent.class).has(node.getEntityId())
+                && !world.getMapper(ParticleEmitterComponent.class).has(node.getEntityId());
     }
 
     private void activateContextMenuNode(EntityNode node) {
@@ -851,11 +891,23 @@ public class ItemTreePanel extends DockablePanel {
                     }
                 }, lightingEnabled());
 
+        String rejection = games.pixscape.studio.history.commands.CreateGameObjectChildCommand.parentRejection(world, parentEntityId);
+        buildGameObjectContextMenu(addMenu, rejection).showMenu(stage, stageX, stageY);
+    }
+
+    static PopupMenu buildGameObjectContextMenu(PopupMenu addMenu, String rejection) {
         PopupMenu menu = new PopupMenu();
         MenuItem add = new MenuItem("Add");
         add.setSubMenu(addMenu);
         menu.addItem(add);
-        menu.showMenu(stage, stageX, stageY);
+        if (rejection != null) {
+            add.setDisabled(true);
+            // Disabled items do not reliably receive hover; keep the refusal visible.
+            MenuItem explanation = new MenuItem(rejection);
+            explanation.setDisabled(true);
+            menu.addItem(explanation);
+        }
+        return menu;
     }
 
     private boolean lightingEnabled() {

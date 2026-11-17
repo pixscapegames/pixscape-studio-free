@@ -32,14 +32,9 @@ public class LayerPropertiesCollisionVisibilityContractTest {
         String source = read("src/main/java/games/pixscape/studio/ui/property/LayerProperties.java");
         String refresh = methodBody(source, "private void refreshFromModel(int layerEntityId)");
 
-        assertTrue(refresh.contains("boolean ordinarySpatialVisible = shouldShowOrdinarySpatialProperty("));
-        assertTrue(refresh.contains("layerService.hasOtherSpatialActorLayer(layerEntityId)"));
-        assertTrue(refresh.contains("boolean spatialSupported = ordinarySpatialVisible;"));
-        assertTrue(refresh.contains("boolean spatialActive = lic.spatialEnabled;"));
-        assertTrue(refresh.contains("spatialSection.show(spatialSupported);"));
         assertFalse(source.contains("new VisCheckBox(\"Spatial Depth\")"));
-        assertTrue(source.contains("new VisCheckBox(\"Spatial\")"));
-        assertTrue(source.contains("new ToggleSpatialActorLayerCommand("));
+        assertFalse(source.contains("new VisCheckBox(\"Spatial\")"));
+        assertFalse(source.contains("new ToggleSpatialActorLayerCommand("));
         assertFalse(source.contains("ToggleTiledMapSpatialDepthCommand"));
         assertFalse(source.contains("TiledMapProperties"));
         assertFalse(source.contains("StudioEditingMode.SPATIAL"));
@@ -51,13 +46,6 @@ public class LayerPropertiesCollisionVisibilityContractTest {
         assertTrue(map.contains("new ToggleTiledMapSpatialDepthCommand("));
         assertTrue(map.contains("Altitude:"));
         assertTrue(map.contains("Default height:"));
-    }
-
-    @Test
-    public void ordinarySpatialVisibilityHonorsEligibilityUniquenessAndAuthoredState() {
-        assertTrue(LayerProperties.shouldShowOrdinarySpatialProperty(false, false));
-        assertFalse(LayerProperties.shouldShowOrdinarySpatialProperty(false, true));
-        assertTrue(LayerProperties.shouldShowOrdinarySpatialProperty(true, true));
     }
 
     @Test
@@ -76,7 +64,7 @@ public class LayerPropertiesCollisionVisibilityContractTest {
         assertTrue(source.contains("new ToggleSection(\"Spatial\""));
         assertTrue(source.contains("boolean isSprite = ctx.world.getMapper(TextureRegionComponent.class).has(currentEntityId) && !isAnim;"));
         assertTrue(source.contains("spatialSection.setApplicable(isSpatialApplicable(isSprite, isAnim));"));
-        assertTrue(source.contains("&& isEntityInSpatialEnabledLayer())"));
+        assertFalse(source.contains("isEntityInSpatialEnabledLayer"));
         assertFalse(source.contains("EventFlow.LayerSpatialDepthChanged.class"));
         assertTrue(source.contains("EventFlow.SpatialActorChanged.class"));
     }

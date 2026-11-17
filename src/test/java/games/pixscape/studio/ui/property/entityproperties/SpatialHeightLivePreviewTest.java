@@ -84,7 +84,7 @@ public class SpatialHeightLivePreviewTest {
             h.key(Input.Keys.ENTER);
             h.world.process();
             h.assertRectangle(150);
-            Assert.assertEquals(40, h.height.rectangles.staticRectangle.width, 0);
+            Assert.assertEquals(40, h.height.rectangles.staticRectangle.width * 40, .001f);
             Assert.assertEquals(160, h.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).get(h.actor).altitude, 0);
             h.history.undo();
             h.world.process();
@@ -124,8 +124,8 @@ public class SpatialHeightLivePreviewTest {
                     Assert.assertEquals(invalid, field.getText());
                     Assert.assertFalse(h.history.canUndo());
                     Assert.assertEquals(9, h.world.getMapper(SpatialFootprintComponent.class).get(h.actor).radiusPx, 0);
-                    Assert.assertEquals(40, h.height.rectangles.staticRectangle.width, 0);
-                    Assert.assertEquals(80, h.height.rectangles.staticRectangle.height, 0);
+                    Assert.assertEquals(40, h.height.rectangles.staticRectangle.width * 40, .001f);
+                    Assert.assertEquals(80, h.height.rectangles.staticRectangle.height * 300, .001f);
                 }
                 field.refreshFromModel();
                 Assert.assertTrue(field.isInputValid());
@@ -165,7 +165,6 @@ public class SpatialHeightLivePreviewTest {
             int layer = world.create();
             LayerComponent layerComponent = world.getMapper(LayerComponent.class).create(layer);
             layerComponent.layerIndex = 0;
-            layerComponent.spatialEnabled = true;
             actor = world.create();
             world.getMapper(EntityIndexComponent.class).create(actor).layerIndex = 0;
             TransformComponent transform = world.getMapper(TransformComponent.class).create(actor);
@@ -175,9 +174,12 @@ public class SpatialHeightLivePreviewTest {
             world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(actor).altitude = 160;
             height.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
             height.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
-            height.rectangles.staticRectangle.width = 40;
-            height.rectangles.staticRectangle.height = 80;
-            height.rectangles.staticRectangle.x = -20;
+            height.rectangles.staticRectangle.width = 1;
+            height.rectangles.staticRectangle.height = 80f / 300;
+            height.rectangles.staticRectangle.x = 0;
+            var dimensions = world.getMapper(games.pixscape.runtime.component.DimensionsComponent.class).create(actor);
+            dimensions.width = 40;
+            dimensions.height = 300;
             SpatialFootprintComponent footprint = world.getMapper(SpatialFootprintComponent.class).create(actor);
 
             footprint.radiusPx = 9;
@@ -186,10 +188,11 @@ public class SpatialHeightLivePreviewTest {
             ecs.kind[slot] = RenderKind.SPRITE;
             ecs.textureHandle[slot] = 1;
             ecs.layerIndex[slot] = 0;
-            ecs.x1[slot] = ecs.x4[slot] = 0;
-            ecs.x2[slot] = ecs.x3[slot] = 20;
-            ecs.y1[slot] = ecs.y2[slot] = 200;
-            ecs.y3[slot] = ecs.y4[slot] = 300;
+            ecs.x1[slot] = ecs.x2[slot] = -10;
+            ecs.x3[slot] = ecs.x4[slot] = 30;
+            ecs.y1[slot] = ecs.y4[slot] = 200;
+            ecs.y2[slot] = ecs.y3[slot] = 500;
+            ecs.u2[slot] = ecs.v2[slot] = 1;
             SceneMeta meta = new SceneMeta();
             identities.bind(world, meta);
             LayerService layers = new LayerService(world, null, history.historyIds(), identities);

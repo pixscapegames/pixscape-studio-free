@@ -11,9 +11,40 @@ import games.pixscape.studio.history.HistoryIdRegistry;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 
 public class ActorShadowRectangleEditingTest {
+    @Test
+    public void commandRejectsZeroConfiguredDimensionsWithoutCreatingRepresentation() {
+        World world = new World();
+        try {
+            int entity = world.create();
+            world.process();
+            HistoryIdRegistry ids = new HistoryIdRegistry();
+            for (boolean width : new boolean[]{false, true}) {
+                ActorSpatialRectangleData zone = new ActorSpatialRectangleData();
+                if (width) {
+                    zone.width = 0;
+                } else {
+                    zone.height = 0;
+                }
+                assertThrows(IllegalArgumentException.class,
+                        () -> new EditActorSpatialRectangleCommand(world, ids, entity, 0, null, zone, null));
+                assertFalse(world.getMapper(SpatialRepresentationComponent.class).has(entity));
+            }
+            ActorSpatialRectangleData outside = new ActorSpatialRectangleData();
+            outside.x = 2;
+            new EditActorSpatialRectangleCommand(world, ids, entity, 0, null, outside, null).redo();
+            assertTrue(outside.same(world.getMapper(SpatialRepresentationComponent.class)
+                    .get(entity).rectangles.staticRectangle));
+        } finally {
+            world.dispose();
+        }
+    }
+
     @Test
     public void clipSwitchSelectsItsAuthoredVolumeAndUndoRestoresSelection() {
         World world = new World(new WorldConfiguration());
@@ -78,7 +109,7 @@ public class ActorShadowRectangleEditingTest {
             assertEquals(49, transform.y, 0);
             assertEquals(.5f, transform.rotationRad, 0);
             h.rectangles = new Json().fromJson(ActorSpatialRectangles.class, new Json().toJson(h.rectangles));
-            assertEquals(32, h.rectangles.get(8, "east").width, 0);
+            assertEquals(1, h.rectangles.get(8, "east").width, 0);
         } finally {
             world.dispose();
         }

@@ -5,7 +5,6 @@ import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
-import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.hierarchy.GameObjectTransformMath;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.IdentityRegistry;
@@ -103,7 +102,7 @@ public final class ItemMovePreparation {
         }
     }
 
-    private record Layer(int stableId, int index, boolean locked, boolean spatial) {
+    private record Layer(int stableId, int index, boolean locked) {
     }
 
     public static final class Prepared {
@@ -346,7 +345,7 @@ public final class ItemMovePreparation {
                 LayerComponent layer = world.getMapper(LayerComponent.class).getSafe(entity, null);
                 if (layer != null) {
                     LayerMetaComponent meta = world.getMapper(LayerMetaComponent.class).getSafe(entity, null);
-                    Layer value = new Layer(stable, layer.layerIndex, meta != null && meta.locked, layer.spatialEnabled);
+                    Layer value = new Layer(stable, layer.layerIndex, meta != null && meta.locked);
                     layers.put(stable, value);
                     layersByIndex.put(layer.layerIndex, value);
                     continue;
@@ -444,17 +443,8 @@ public final class ItemMovePreparation {
                 GameObjectHierarchyCommandSupport.requireReparentCandidate(world, ids, entity, entity(parent), children);
             else if (world.getMapper(GameObjectComponent.class).has(entity))
                 GameObjectHierarchyCommandSupport.validateCurrentSubtree(world, ids, entity, children);
-            validateSpatialSubtree(source, target.spatial);
         }
 
-        void validateSpatialSubtree(int id, boolean spatial) {
-            int entity = entity(id);
-            if (!spatial) {
-                if (world.getMapper(SpatialRepresentationComponent.class).has(entity)
-                        || world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).has(entity))
-                    throw new IllegalArgumentException("Spatial actors require a Spatial-enabled destination layer; data will not be removed.");
-            }
-            for (int child : order(new Group(0, id))) validateSpatialSubtree(child, spatial);
-        }
+
     }
 }

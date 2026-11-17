@@ -13,7 +13,6 @@ import games.pixscape.studio.helper.MetaTagsHelper;
 import games.pixscape.studio.history.commands.ChangeEntityNameCommand;
 import games.pixscape.studio.history.commands.TransformOp;
 import games.pixscape.studio.model.EntityKind;
-import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.property.entityproperties.physics.BodyPanel;
 import games.pixscape.studio.ui.widget.SimpleTextField;
@@ -355,8 +354,7 @@ public class EntityProperties extends VisTable {
     }
 
     private boolean isSpatialApplicable(boolean isSprite, boolean isAnim) {
-        return ((isSprite || isAnim) && isEntityInSpatialEnabledLayer())
-                || hasSpatialActorState();
+        return currentEntityId >= 0 && ctx.mTransform.has(currentEntityId);
     }
 
     private boolean isPhysicsApplicable() {
@@ -422,23 +420,6 @@ public class EntityProperties extends VisTable {
         if (!command.isNoop()) {
             ctx.history.execute(command);
         }
-    }
-
-    private boolean isEntityInSpatialEnabledLayer() {
-        if (currentEntityId < 0 || ctx.layerService == null || mEntityIndex == null) {
-            return false;
-        }
-        int layerEntityId = ctx.layerService.getEffectiveLayerEntity(currentEntityId);
-        if (layerEntityId < 0) {
-            return false;
-        }
-
-        LayerComponent layer = ctx.world.getMapper(LayerComponent.class).getSafe(layerEntityId, null);
-        return LayerService.isSpatialActorLayer(layer);
-    }
-
-    private boolean hasSpatialActorState() {
-        return games.pixscape.studio.service.SpatialActorShapeSupport.hasActorState(ctx.world, currentEntityId);
     }
 
     public void dispose() {

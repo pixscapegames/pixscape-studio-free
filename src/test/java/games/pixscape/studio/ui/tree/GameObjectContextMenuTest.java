@@ -49,6 +49,20 @@ public class GameObjectContextMenuTest {
     }
 
     @Test
+    public void incompatibleParentShowsReasonWithoutHoveringDisabledAdd() {
+        String reason = "Parent scale must be uniform";
+        PopupMenu menu = ItemTreePanel.buildGameObjectContextMenu(
+                ItemTreePanel.buildGameObjectAddMenu(null, NO_OP_ACTIONS), reason);
+        assertTrue(item(menu, "Add").isDisabled());
+        assertTrue(item(menu, reason).isDisabled());
+        assertEquals(2, menu.getChildren().size);
+        PopupMenu allowed = ItemTreePanel.buildGameObjectContextMenu(
+                ItemTreePanel.buildGameObjectAddMenu(null, NO_OP_ACTIONS), null);
+        assertFalse(item(allowed, "Add").isDisabled());
+        assertEquals(1, allowed.getChildren().size);
+    }
+
+    @Test
     public void noSelectedAssetDisablesSpriteAndAnimationOnly() {
         PopupMenu menu = ItemTreePanel.buildGameObjectAddMenu(null, NO_OP_ACTIONS);
 

@@ -52,8 +52,6 @@ public class LayerServiceTiledSwapDirtyTest {
                     h.compositionKey(mapB1), h.compositionKey(mapA1)) < 0);
             assertTrue(Long.compareUnsigned(
                     h.compositionKey(mapB1), h.compositionKey(mapA2)) < 0);
-            assertTrue(h.layer(layerA).spatialEnabled);
-            assertFalse(h.layer(layerB).spatialEnabled);
             assertEquals(0.75f, h.parallax(layerA).factorX, 0f);
             assertEquals(1.25f, h.parallax(layerB).factorX, 0f);
             assertFalse(h.visibility(layerA).visible);
@@ -99,7 +97,6 @@ public class LayerServiceTiledSwapDirtyTest {
             int index = layers.addLayerTop(name);
             int entity = layers.getLayerEntity(index);
             LayerComponent layer = layer(entity);
-            layer.spatialEnabled = spatial;
             LayerParallaxComponent parallaxComponent = world.getMapper(
                     LayerParallaxComponent.class).create(entity);
             parallaxComponent.factorX = parallax;

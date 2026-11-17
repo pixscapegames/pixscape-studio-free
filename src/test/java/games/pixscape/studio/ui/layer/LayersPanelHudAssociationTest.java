@@ -38,9 +38,9 @@ public class LayersPanelHudAssociationTest {
     public void projectionKeepsHudAboveWorldWithoutChangingWorldIndices() {
         Array<LayerService.LayerUI> layers = new Array<>();
         layers.add(new LayerService.LayerUI(10, "Bottom", "", 0,
-                false, true, false));
+                false, true));
         layers.add(new LayerService.LayerUI(20, "Top", "", 1,
-                false, true, false));
+                false, true));
 
         Array<LayersPanel.PanelEntry> entries = LayersPanel.entriesFor("hud/status", layers);
 

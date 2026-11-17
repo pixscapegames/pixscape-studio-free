@@ -96,20 +96,20 @@ public class ProjectConfigProjectIOValidationTest {
     }
 
     @Test
-    public void sceneSchemaVersionThreeIsAcceptedByStudioProjectIO() throws Exception {
+    public void currentSceneSchemaVersionIsAcceptedByStudioProjectIO() throws Exception {
         Path dir = Files.createTempDirectory("project-config-valid-kind");
         FileHandle projectFile = writeProjectFile(dir, validProjectJson("Main", "scene1.json"));
 
         ProjectConfig cfg = ProjectConfig.ProjectIO.loadProject(projectFile);
         assertEquals(ProjectConfig.STUDIO_PROJECT_KIND, cfg.projectKind);
-        assertEquals(3, cfg.getCurrentSceneMeta().sceneSchemaVersion);
+        assertEquals(7, cfg.getCurrentSceneMeta().sceneSchemaVersion);
     }
 
     @Test(expected = RuntimeException.class)
     public void missingSceneSchemaVersionIsRejected() throws Exception {
         Path dir = Files.createTempDirectory("project-config-missing-scene-schema");
         String json = validProjectJson("Main", "scene1.json")
-                .replace("\"sceneSchemaVersion\":3,", "");
+                .replace("\"sceneSchemaVersion\":7,", "");
         ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
     }
 
@@ -117,7 +117,7 @@ public class ProjectConfigProjectIOValidationTest {
     public void sceneSchemaVersionZeroIsRejected() throws Exception {
         Path dir = Files.createTempDirectory("project-config-zero-scene-schema");
         String json = validProjectJson("Main", "scene1.json")
-                .replace("\"sceneSchemaVersion\":3", "\"sceneSchemaVersion\":0");
+                .replace("\"sceneSchemaVersion\":7", "\"sceneSchemaVersion\":0");
         ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
     }
 
@@ -125,7 +125,7 @@ public class ProjectConfigProjectIOValidationTest {
     public void sceneSchemaVersionOneIsRejected() throws Exception {
         Path dir = Files.createTempDirectory("project-config-future-scene-schema");
         String json = validProjectJson("Main", "scene1.json")
-                .replace("\"sceneSchemaVersion\":3", "\"sceneSchemaVersion\":1");
+                .replace("\"sceneSchemaVersion\":7", "\"sceneSchemaVersion\":1");
         ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
     }
 
@@ -133,7 +133,7 @@ public class ProjectConfigProjectIOValidationTest {
     public void sceneSchemaVersionTwoIsRejected() throws Exception {
         Path dir = Files.createTempDirectory("project-config-old-scene-schema");
         String json = validProjectJson("Main", "scene1.json")
-                .replace("\"sceneSchemaVersion\":3", "\"sceneSchemaVersion\":2");
+                .replace("\"sceneSchemaVersion\":7", "\"sceneSchemaVersion\":2");
         ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
     }
 
@@ -512,7 +512,7 @@ public class ProjectConfigProjectIOValidationTest {
                 "\"nextSceneIndex\":2," +
                 "\"scenes\":{" +
                 "\"Main\":{" +
-                "\"sceneSchemaVersion\":3," +
+                "\"sceneSchemaVersion\":7," +
                 "\"name\":\"Main\"," +
                 "\"file\":\"" + currentSceneFile + "\"," +
                 "\"nextEntityStableId\":1," +

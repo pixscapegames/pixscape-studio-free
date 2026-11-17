@@ -4,8 +4,8 @@
 ## [0.4.3-SNAPSHOT]
 
 ### Compatibility
-* Game Object definitions/fragments now use schema 5; old physics-owned actor footprints must be reconfigured explicitly.
-* Uses Runtime `0.2.5-SNAPSHOT` and saves scenes in schema 6. Supported schema 3 scenes are converted on load, with one map per existing tile grid.
+* Uses Runtime `0.2.5-SNAPSHOT`, scene schema 7 and Game Object definition/fragment schema 6. Older formats are rejected without historical readers, conversion or migration.
+* Occlusion zones now use normalized image-local storage and are edited in logical image pixels. Existing files using the previous rectangle coordinates must be adapted explicitly.
 
 ### Added
 * Spatial Actor activation and circle editing now work with scene physics disabled. Physics removal preserves spatial data; collision geometry, circle and occlusion rectangle have independent settings. Native canvas gestures edit circle center/radius, rectangle or shadow pivot with undo/redo and Escape cancellation. Undo/redo, save, export and Game Object snapshots preserve all three geometries.
@@ -15,17 +15,26 @@
 * Added tile custom property editing with persistent local tile IDs.
 * Added image, animation, particle and Game Object asset previews, and unified HUD screen inspection.
 * Added drag-and-drop scene-layer ordering, item ordering and reparenting, and tile animation frame ordering, with undo/redo.
+* Added direct child creation on compatible visual entities, preserving their appearance and promoting them to Game Object parents in one undoable operation.
+* Added explicit `Copy visual only`, which omits physics while retaining included spatial capabilities and representation settings.
 
 ### Changed
 * Game Object roots can have their own visuals. Physics-backed compositions support explicit placement, and physics-backed entities support visual scaling.
+* The inspector distinguishes an entity's own footprint from the nearest inherited owner. Editing a shared footprint updates its identified owner; each selected visual keeps its own optional occlusion zone and footprint-relative shadow pivot. Removing a footprint preserves custom representation settings.
+* Removed ordinary-layer spatial activation and layer-dependent spatial cleanup. Spatial participation follows footprint ownership through empty and physical hierarchy nodes; Tiled map/layer structures keep their specialized behavior.
+* Occlusion zones and canvas handles follow visual rotation, signed scale, flips and deformation. Missing zone settings cover the full image; configured dimensions remain finite and strictly positive even when clipping produces empty geometry.
+* Physical copy and Game Object asset capture require the complete joint-connected group, including Gear dependencies. Incomplete transfers fail before mutation and preserve the previous clipboard instead of silently omitting joints or adding Bodies.
+* Runtime export retains dormant spatial settings for later API activation and publishes only available Game Object definitions and declared scene atlas pages. Normal-map preparation uses the unpublished export candidate; orphan atlas packs and authoring inputs are excluded.
 * The tree and inspector distinguish Tiled maps from tile layers. Tile layers retain their existing editing tools.
 * Simplified the Assets tree and Items toolbar, and refreshed add/delete button states.
 * HTML player sources use the corresponding Runtime and current scene/Game Object schemas. Rebuild the embedded template through the existing release workflow.
 
 ### Fixed
+* Footprint addition/removal and undo/redo now refresh inherited spatial labels throughout the affected Items subtree without replacing its tree rows.
+* Adding a child to a parent with an incompatible transform now displays the refusal reason directly in the menu.
+* Repeated subtree deletion and undo/redo preserve descendants in both the Items tree and canvas, using the corrected Runtime child-order invalidation.
 * Normal canvas selection exposes footprint, occlusion rectangle and shadow pivot handles together, with distinct colors/shapes and hover feedback. Removed the Edit on canvas selector; nearest-handle picking uses stable ties and locks the target for the gesture. Coincident handles remain at their true anchors and can be separated by moving the first geometry.
 * Spatial numeric fields reject invalid values with the standard VisUI red border, without publishing or automatically correcting the input.
-* Layer Spatial activation no longer requires scene Physics, including reactivation; the single ordinary spatial layer rule is preserved.
 * Undoing Body removal restores independent shapes, Tiled-linked collisions and joints, preparing collisions before publishing the restored Body.
 * Spatial volume collision creation requires scene Physics and explains where to enable it. Existing collisions can still be removed and restored during cleanup.
 * Desktop Preview requires a fresh export when the exported scene format differs from the current schema; obsolete exports are never treated as ready.

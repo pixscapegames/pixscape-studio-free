@@ -1628,16 +1628,14 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         return this;
     }
 
-    /**
-     * Removes Spatial-only actor state when copying into a non-Spatial-enabled layer.
-     */
-    public GenericEntityInitializer normalizeClipboardSpatial(boolean targetSpatialEnabled) {
-        if (!targetSpatialEnabled) {
-            spatialFootprint = null;
-            hasSpatialRepresentation = false;
-            actorSpatialRectangles = null;
-
-        }
+    /** Explicit visual-only transfer; never edits the source entity or its spatial capabilities. */
+    public GenericEntityInitializer withoutPhysics() {
+        hasPhysicsBody = hasPhysicsShapes = hasPhysicsJoint = false;
+        physicsShapes.clear();
+        preparedPhysicsCandidate = null;
+        hasDistanceJoint = hasRevoluteJoint = hasPrismaticJoint = hasWheelJoint = false;
+        hasFrictionJoint = hasMotorJoint = hasWeldJoint = hasPulleyJoint = hasGearJoint = false;
+        jointAEid = jointBEid = gearJoint1Eid = gearJoint2Eid = -1;
         return this;
     }
 

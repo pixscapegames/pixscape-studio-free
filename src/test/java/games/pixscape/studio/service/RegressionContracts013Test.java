@@ -132,7 +132,7 @@ public class RegressionContracts013Test {
         assertFalse("Previous export must survive HUD preparation failure.", entry.contains("deleteDirectory()"));
         String body = methodBody(source, "private static RuntimeConfig exportPrepared(");
 
-        assertTrue(body.contains("copyAtlasesWithoutInput("));
+        assertTrue(body.contains("copySceneAtlases("));
         assertTrue(body.contains("StudioFs.DIR_ORIG_EFFECTS"));
         assertTrue(body.contains("StudioFs.DIR_ORIG_SHADERS"));
         assertTrue(body.contains("StudioFs.DIR_ORIG_AUDIO"));

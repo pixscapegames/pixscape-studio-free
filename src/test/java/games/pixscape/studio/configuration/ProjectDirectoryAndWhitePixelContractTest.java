@@ -69,7 +69,7 @@ public class ProjectDirectoryAndWhitePixelContractTest {
                 "\"currentSceneName\":\"Main\"," +
                 "\"nextSceneIndex\":2," +
                 "\"scenes\":{\"Main\":{\"name\":\"Main\",\"file\":\"scene1.json\","
-                + "\"sceneSchemaVersion\":3,"
+                + "\"sceneSchemaVersion\":7,"
                 + "\"nextEntityStableId\":1,\"nextPhysicsShapeId\":1}}" +
                 "}";
         Path projectFile = customDir.resolve("moved-project.json");

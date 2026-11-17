@@ -1199,9 +1199,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 .getSafe(activeLayerId, null);
         if (targetLayer == null) return DropAllowedResult.forbidden();
         GameObjectAsset asset = loadGameObjectAssetForDropValidation(p);
-        if (asset == null || !isGameObjectAssetAllowedForLayer(
-                LayerService.isSpatialActorLayer(targetLayer),
-                gameObjectAssetService.requiresSpatialLayer(asset))) {
+        if (asset == null) {
             return DropAllowedResult.forbidden();
         }
         return DropAllowedResult.allowed();
@@ -1231,10 +1229,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         return layerTarget;
     }
 
-    static boolean isGameObjectAssetAllowedForLayer(
-            boolean spatialLayer, boolean assetRequiresSpatialLayer) {
-        return spatialLayer || !assetRequiresSpatialLayer;
-    }
+
 
     private void cleanupDndPayload(DragPayload p) {
         if (p != null && p.ghostPixmap != null) {

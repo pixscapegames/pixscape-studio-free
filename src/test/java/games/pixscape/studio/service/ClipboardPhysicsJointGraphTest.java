@@ -53,39 +53,39 @@ public class ClipboardPhysicsJointGraphTest {
     }
 
     @Test
-    public void oneSelectedBodyDoesNotAutoIncludeDistanceJoint() {
+    public void oneSelectedBodyRejectsIncompleteGroupWithDistanceJoint() {
         W w = new W();
         int a = w.bodyWithDefaultFixture();
         int b = w.bodyWithDefaultFixture();
         int joint = w.distanceJoint(a, b);
-        assertNotContains(ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(a)), joint);
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(a)));
     }
 
     @Test
-    public void oneSelectedBodyDoesNotAutoIncludeWheelJoint() {
+    public void oneSelectedBodyRejectsIncompleteGroupWithWheelJoint() {
         W w = new W();
         int a = w.bodyWithDefaultFixture();
         int b = w.bodyWithDefaultFixture();
         int joint = w.wheelJoint(a, b);
-        assertNotContains(ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(a)), joint);
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(a)));
     }
 
     @Test
-    public void selectedBodyPlusJointButMissingOtherBodySkipsJoint() {
+    public void selectedBodyPlusJointButMissingOtherBodyRejectsWholeCopy() {
         W w = new W();
         int a = w.bodyWithDefaultFixture();
         int b = w.bodyWithDefaultFixture();
         int joint = w.revoluteJoint(a, b);
-        assertNotContains(ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(a, joint)), joint);
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(a, joint)));
     }
 
     @Test
-    public void selectedJointAloneIsSkipped() {
+    public void selectedJointAloneIsRejected() {
         W w = new W();
         int a = w.bodyWithDefaultFixture();
         int b = w.bodyWithDefaultFixture();
         int joint = w.prismaticJoint(a, b);
-        assertNotContains(ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(joint)), joint);
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(joint)));
     }
 
     @Test
@@ -121,7 +121,7 @@ public class ClipboardPhysicsJointGraphTest {
     }
 
     @Test
-    public void gearNotIncludedIfOneSourceJointIsNotAccepted() {
+    public void gearRejectsCopyIfOneSourceJointIsInvalid() {
         W w = new W();
         int a = w.bodyWithDefaultFixture();
         int b = w.bodyWithDefaultFixture();
@@ -130,15 +130,12 @@ public class ClipboardPhysicsJointGraphTest {
         int badPrismatic = w.baseJoint(PhysicsJointComponent.TYPE_PRISMATIC, b, c);
         int gear = w.gearJoint(a, c, revolute, badPrismatic);
 
-        IntArray out = ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(a, b, c));
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(a, b, c)));
 
-        assertContains(out, revolute);
-        assertNotContains(out, badPrismatic);
-        assertNotContains(out, gear);
     }
 
     @Test
-    public void gearExplicitlySelectedButMissingSourceJointIsSkipped() {
+    public void gearExplicitlySelectedButMissingSourceJointIsRejected() {
         W w = new W();
         int a = w.bodyWithDefaultFixture();
         int b = w.bodyWithDefaultFixture();
@@ -147,9 +144,8 @@ public class ClipboardPhysicsJointGraphTest {
         int missingSpecific = w.baseJoint(PhysicsJointComponent.TYPE_PRISMATIC, b, c);
         int gear = w.gearJoint(a, c, revolute, missingSpecific);
 
-        IntArray out = ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(a, b, c, gear));
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(a, b, c, gear)));
 
-        assertNotContains(out, gear);
     }
 
     @Test
@@ -173,11 +169,11 @@ public class ClipboardPhysicsJointGraphTest {
     }
 
     @Test
-    public void jointWithSameBodyEndpointsIsSkipped() {
+    public void jointWithSameBodyEndpointsIsRejected() {
         W w = new W();
         int a = w.bodyWithDefaultFixture();
         int j = w.distanceJoint(a, a);
-        assertNotContains(ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(a, j)), j);
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(a, j)));
     }
 
     @Test
@@ -186,35 +182,35 @@ public class ClipboardPhysicsJointGraphTest {
         int a = w.bodyWithoutFixtures();
         int b = w.bodyWithDefaultFixture();
         int j = w.distanceJoint(a, b);
-        assertNotContains(ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(a, b, j)), j);
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(a, b, j)));
     }
 
     @Test
-    public void missingSpecificComponentIsSkippedForDistance() {
+    public void missingSpecificComponentIsRejectedForDistance() {
         missingSpecific(PhysicsJointComponent.TYPE_DISTANCE);
     }
 
     @Test
-    public void missingSpecificComponentIsSkippedForWheel() {
+    public void missingSpecificComponentIsRejectedForWheel() {
         missingSpecific(PhysicsJointComponent.TYPE_WHEEL);
     }
 
     @Test
-    public void missingSpecificComponentIsSkippedForGear() {
+    public void missingSpecificComponentIsRejectedForGear() {
         W w = new W();
         int a = w.bodyWithDefaultFixture();
         int b = w.bodyWithDefaultFixture();
         int j = w.baseJoint(PhysicsJointComponent.TYPE_GEAR, a, b);
-        assertNotContains(ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(a, b, j)), j);
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(a, b, j)));
     }
 
     @Test
-    public void unknownJointTypeIsSkipped() {
+    public void unknownJointTypeIsRejected() {
         W w = new W();
         int a = w.bodyWithDefaultFixture();
         int b = w.bodyWithDefaultFixture();
         int j = w.baseJoint(999, a, b);
-        assertNotContains(ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(a, b, j)), j);
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(a, b, j)));
     }
 
     @Test
@@ -356,7 +352,7 @@ public class ClipboardPhysicsJointGraphTest {
         int a = w.bodyWithDefaultFixture();
         int b = w.bodyWithDefaultFixture();
         int joint = w.baseJoint(type, a, b);
-        assertNotContains(ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(a, b, joint)), joint);
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClipboardPhysicsJointGraph.filterCopyableSelection(w.world, arr(a, b, joint)));
     }
 
     private static final class W {

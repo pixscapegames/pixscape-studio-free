@@ -17,6 +17,50 @@ import static org.junit.Assert.*;
 
 public class CreateGameObjectChildCommandTest {
     @Test
+    public void addingToOrdinarySpritePromotesInOneUndoWithoutMovingItsPixels() {
+        Fixture fixture = new Fixture();
+        try {
+            int top = fixture.root(10, 2, 0);
+            fixture.setTransform(top, 100, -40, .7f, 2, 2);
+            int sprite = fixture.core(11, 2, 1);
+            fixture.world.getMapper(TextureRegionComponent.class).create(sprite);
+            fixture.world.getMapper(GameObjectMemberComponent.class).create(sprite).parentStableId = 10;
+            fixture.setTransform(sprite, 17, -5, .4f, 1.5f, 1.5f);
+            fixture.transform(sprite).originX = 13;
+            fixture.transform(sprite).originY = 7;
+            fixture.process();
+            TransformComponent before = copy(fixture.transform(sprite));
+            TransformComponent worldBefore = GameObjectTransformMath.localToWorld(
+                    fixture.transform(top), before, false, new TransformComponent());
+            TestChildInitializer initializer = new TestChildInitializer(fixture.world, EntityKind.SPRITE);
+            initializer.setIdentityStableId(30);
+            CreateGameObjectChildCommand command = new CreateGameObjectChildCommand(
+                    fixture.world, fixture.history.historyIds(), fixture.identities, sprite, initializer, null);
+            fixture.history.execute(command);
+            fixture.process();
+            for (int cycle = 0; cycle < 3; cycle++) {
+                assertTrue(fixture.world.getMapper(GameObjectComponent.class).has(sprite));
+                TransformComponent worldAfter = GameObjectTransformMath.localToWorld(
+                        fixture.transform(top), fixture.transform(sprite), true, new TransformComponent());
+                assertArrayEquals(visualBounds(worldBefore, 40, 24, null), visualBounds(worldAfter, 40, 24, null), .0001f);
+                assertEquals(0, fixture.transform(command.getCreatedEntityId()).x, 0);
+                fixture.history.undo();
+                fixture.process();
+                assertFalse(fixture.world.getMapper(GameObjectComponent.class).has(sprite));
+                assertTransformEquals(before, fixture.transform(sprite));
+                assertFalse(fixture.history.canUndo());
+                fixture.history.redo();
+                fixture.process();
+            }
+            fixture.transform(sprite).scaleX = -1;
+            assertNotNull(CreateGameObjectChildCommand.parentRejection(fixture.world, sprite));
+            assertEquals(-1, fixture.transform(sprite).scaleX, 0);
+        } finally {
+            fixture.close();
+        }
+    }
+
+    @Test
     public void createsSpriteChild() {
         assertCreates(EntityKind.SPRITE);
     }
@@ -42,18 +86,18 @@ public class CreateGameObjectChildCommandTest {
     }
 
     @Test
-    public void firstVisualChildEstablishesStablePivotWithoutChangingItsWorldPose() {
+    public void firstVisualChildKeepsParentPoseAndUsesLocalOrigin() {
         for (EntityKind kind : new EntityKind[]{
                 EntityKind.SPRITE,
                 EntityKind.ANIMATION,
                 EntityKind.POINT_LIGHT,
                 EntityKind.CONE_LIGHT}) {
-            assertFirstVisualChildEstablishesPivot(kind);
+            assertFirstVisualChildKeepsParentPose(kind);
         }
     }
 
     @Test
-    public void nestedFirstVisualChildMovesOnlyTheNestedPivotInParentSpace() {
+    public void nestedFirstVisualChildKeepsBothParentFrames() {
         Fixture fixture = new Fixture();
         try {
             int top = fixture.root(10, 6, 12);
@@ -71,8 +115,7 @@ public class CreateGameObjectChildCommandTest {
                     3f, 5f, 30f, 18f);
             initializer.setIdentityStableId(30);
             TransformComponent originalChildWorld = initializer.transformSnapshot();
-            float[] expectedLocalBounds = visualBounds(
-                    originalChildWorld, 30f, 18f, fixture.transform(top));
+            TransformComponent nestedBefore = copy(fixture.transform(nested));
 
             CreateGameObjectChildCommand command = new CreateGameObjectChildCommand(
                     fixture.world, fixture.history.historyIds(), fixture.identities,
@@ -85,18 +128,11 @@ public class CreateGameObjectChildCommandTest {
                     fixture.transform(top), fixture.transform(nested), true,
                     new TransformComponent());
             TransformComponent nestedLocal = fixture.transform(nested);
-            assertEquals(expectedLocalBounds[0], nestedLocal.x, 0.0001f);
-            assertEquals(expectedLocalBounds[1], nestedLocal.y, 0.0001f);
-            assertEquals(
-                    (expectedLocalBounds[2] - expectedLocalBounds[0]) * 0.5f,
-                    nestedLocal.originX, 0.0001f);
-            assertEquals(
-                    (expectedLocalBounds[3] - expectedLocalBounds[1]) * 0.5f,
-                    nestedLocal.originY, 0.0001f);
-            TransformComponent childWorld = GameObjectTransformMath.localToWorld(
-                    nestedWorld, fixture.transform(command.getCreatedEntityId()),
-                    new TransformComponent());
-            assertTransformEquals(originalChildWorld, childWorld);
+            assertTransformEquals(nestedBefore, nestedLocal);
+            TransformComponent child = fixture.transform(command.getCreatedEntityId());
+            assertEquals(0, child.x, 0);
+            assertEquals(0, child.y, 0);
+            assertEquals(0, child.rotationRad, 0);
         } finally {
             fixture.close();
         }
@@ -270,7 +306,7 @@ public class CreateGameObjectChildCommandTest {
         }
     }
 
-    private static void assertFirstVisualChildEstablishesPivot(EntityKind kind) {
+    private static void assertFirstVisualChildKeepsParentPose(EntityKind kind) {
         Fixture fixture = new Fixture();
         try {
             int parent = fixture.root(10, 6, 12);
@@ -283,7 +319,6 @@ public class CreateGameObjectChildCommandTest {
                     4f, 6f, 80f, 40f);
             initializer.setIdentityStableId(30);
             TransformComponent originalChildWorld = initializer.transformSnapshot();
-            float[] expectedBounds = visualBounds(originalChildWorld, 80f, 40f, null);
             CreateGameObjectChildCommand command = new CreateGameObjectChildCommand(
                     fixture.world, fixture.history.historyIds(), fixture.identities,
                     parent, initializer, null);
@@ -293,20 +328,13 @@ public class CreateGameObjectChildCommandTest {
             TransformComponent rootAfter = copy(fixture.transform(parent));
             TransformComponent childLocalAfter = copy(
                     fixture.transform(command.getCreatedEntityId()));
-            assertEquals(expectedBounds[0], rootAfter.x, 0.0001f);
-            assertEquals(expectedBounds[1], rootAfter.y, 0.0001f);
-            assertEquals(
-                    (expectedBounds[2] - expectedBounds[0]) * 0.5f,
-                    rootAfter.originX, 0.0001f);
-            assertEquals(
-                    (expectedBounds[3] - expectedBounds[1]) * 0.5f,
-                    rootAfter.originY, 0.0001f);
-            assertEquals(rootBefore.rotationRad, rootAfter.rotationRad, 0f);
-            assertEquals(rootBefore.scaleX, rootAfter.scaleX, 0f);
-            assertEquals(rootBefore.scaleY, rootAfter.scaleY, 0f);
+            assertTransformEquals(rootBefore, rootAfter);
+            assertEquals(0, childLocalAfter.x, 0);
+            assertEquals(0, childLocalAfter.y, 0);
+            assertEquals(0, childLocalAfter.rotationRad, 0);
             TransformComponent reconstructed = GameObjectTransformMath.localToWorld(
                     rootAfter, childLocalAfter, new TransformComponent());
-            assertTransformEquals(originalChildWorld, reconstructed);
+            TransformComponent expectedWorld = copy(reconstructed);
 
             fixture.history.undo();
             fixture.process();
@@ -322,7 +350,7 @@ public class CreateGameObjectChildCommandTest {
                 reconstructed = GameObjectTransformMath.localToWorld(
                         fixture.transform(parent), fixture.transform(restored),
                         new TransformComponent());
-                assertTransformEquals(originalChildWorld, reconstructed);
+                assertTransformEquals(expectedWorld, reconstructed);
                 fixture.history.undo();
                 fixture.process();
                 assertTransformEquals(rootBefore, fixture.transform(parent));

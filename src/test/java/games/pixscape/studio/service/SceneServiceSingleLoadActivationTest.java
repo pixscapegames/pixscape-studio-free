@@ -255,7 +255,6 @@ public class SceneServiceSingleLoadActivationTest {
                     .create(layerEntity).stableId = i + 1;
             LayerComponent layer = authored.getMapper(LayerComponent.class).create(layerEntity);
             layer.layerIndex = i;
-            layer.spatialEnabled = true;
             authored.getMapper(LayerMetaComponent.class).create(layerEntity).name = "Layer " + i;
             int mapEntity = authored.create();
             authored.getMapper(PixscapeIdentityComponent.class)
@@ -319,7 +318,6 @@ public class SceneServiceSingleLoadActivationTest {
                     .create(layerEntity).stableId = i + 1;
             LayerComponent layer = authored.getMapper(LayerComponent.class).create(layerEntity);
             layer.layerIndex = i;
-            layer.spatialEnabled = false;
             authored.getMapper(LayerMetaComponent.class).create(layerEntity).name = "Layer " + i;
             int mapEntity = authored.create();
             authored.getMapper(PixscapeIdentityComponent.class)

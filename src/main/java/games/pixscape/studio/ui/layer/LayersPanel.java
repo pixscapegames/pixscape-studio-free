@@ -466,7 +466,6 @@ public class LayersPanel extends DockablePanel {
                     ui.layerEntityId(),
                     ui.index(),
                     ui.name(),
-                    ui.spatialEnabled(),
                     ui.visible(),
                     ui.locked()
             );
@@ -533,7 +532,7 @@ public class LayersPanel extends DockablePanel {
     private LayerRow createHudRow(String hudScreenId) {
         LayerRow row = new LayerRow();
         row.setData(-1, -1, "HUD — " + hudDisplayName(hudScreenId),
-                false, app.isSceneHudCompositionVisible(sceneContext.sceneIdentity()), false);
+                app.isSceneHudCompositionVisible(sceneContext.sceneIdentity()), false);
         row.setLayerControlsVisible(true, false);
         row.setListener(new LayerRow.Listener() {
             @Override
@@ -596,7 +595,7 @@ public class LayersPanel extends DockablePanel {
                 movingOrder = new int[layerService.count()];
                 for (int i = 0; i < movingOrder.length; i++) movingOrder[i] = layerService.getLayerEntity(i);
                 movingGhost = new LayerRow();
-                movingGhost.setData(ui.layerEntityId(), ui.index(), ui.name(), ui.spatialEnabled(), ui.visible(), ui.locked());
+                movingGhost.setData(ui.layerEntityId(), ui.index(), ui.name(), ui.visible(), ui.locked());
                 movingGhost.setSelected(true);
                 dragStage = getStage();
                 dragStage.addCaptureListener(cancelDragKey);

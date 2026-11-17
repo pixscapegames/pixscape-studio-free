@@ -24,11 +24,6 @@ import java.util.List;
 
 public final class EntityGraphCaptureService {
     private final World world;
-    private String diagnostic = "";
-
-    public String diagnostic() {
-        return diagnostic;
-    }
 
     private final ComponentMapper<TransformComponent> mTransform;
     private final ComponentMapper<EntityIndexComponent> mEntityIndex;
@@ -84,17 +79,27 @@ public final class EntityGraphCaptureService {
      * Captures already-normalized V1 clipboard roots without changing Scene state.
      */
     public EntityGraph captureNormalizedClipboard(IntArray roots) {
-        diagnostic = "";
+        return captureNormalizedClipboard(roots, false);
+    }
+
+    public EntityGraph captureVisualOnly(IntArray selection) {
+        return captureNormalizedClipboard(new ClipboardSelectionNormalizer(world).normalize(selection), true);
+    }
+
+    public EntityGraph captureNormalizedClipboard(IntArray roots, boolean visualOnly) {
         if (roots.size == 0) return EntityGraph.empty();
         if (!containsGameObjectRoot(roots)) {
-            return captureSupportedSelection(collectSupportedSelection(roots));
+            return captureSupportedSelection(collectSupportedSelection(roots), visualOnly);
         }
-        IntArray captureRoots = augmentStandalonePhysicsRoots(roots);
+        IntArray captureRoots = roots;
         IntArray entities = new IntArray(false, captureRoots.size);
         IntArray parents = new IntArray(false, captureRoots.size);
         IntSet knownStableIds = new IntSet();
         IntMap<IntArray> childrenByParentStableId = collectChildrenByParentStableId();
         for (int i = 0; i < captureRoots.size; i++) {
+            if (visualOnly && mJointBase.has(captureRoots.get(i))) {
+                continue;
+            }
             if (!mGameObject.has(captureRoots.get(i)) && !isCaptureSupported(captureRoots.get(i))) {
                 throw new IllegalArgumentException(
                         "Clipboard selection contains an unsupported standalone entity.");
@@ -102,7 +107,7 @@ public final class EntityGraphCaptureService {
             collectClipboardSubtree(captureRoots.get(i), -1, entities, parents, knownStableIds,
                     childrenByParentStableId);
         }
-        IntArray internalJoints = requireSupportedGameObjectHierarchyPhysics(entities);
+        IntArray internalJoints = visualOnly ? new IntArray() : requireSupportedGameObjectHierarchyPhysics(entities);
         IntMap<Integer> stableToSource = new IntMap<>();
         for (int i = 0; i < entities.size; i++) stableToSource.put(mIdentity.get(entities.get(i)).stableId, i + 1);
         List<EntityGraphEntry> entries = new ArrayList<>(entities.size);
@@ -110,8 +115,10 @@ public final class EntityGraphCaptureService {
             int entityId = entities.get(i);
             GenericEntityInitializer initializer = new GenericEntityInitializer(world);
             initializer.syncFrom(entityId);
-            if (parents.get(i) == -1 && mGameObjectMember.has(entityId))
-                normalizeNestedRootToWorldPose(entityId, initializer);
+            normalizeCapturedPose(entityId, parents.get(i) < 0 ? -1 : entities.get(parents.get(i) - 1), initializer);
+            if (visualOnly) {
+                initializer.withoutPhysics();
+            }
             CustomPropertiesComponent properties = world.getMapper(CustomPropertiesComponent.class).getSafe(entityId, null);
             GameObjectComponent gameObject = mGameObject.getSafe(entityId, null);
             entries.add(new EntityGraphEntry(
@@ -137,8 +144,10 @@ public final class EntityGraphCaptureService {
         // Standalone clipboard has its own permissive identity contract.  Do not route
         // it through hierarchy collection, which correctly requires stable identities
         // for Game Object ownership but would reject ordinary standalone entities.
-        if (!containsGameObjectRoot(roots)) return augmentStandalonePhysicsRoots(roots);
-        IntArray captureRoots = augmentStandalonePhysicsRoots(roots);
+        if (!containsGameObjectRoot(roots)) {
+            return ClipboardPhysicsJointGraph.filterCopyableSelection(world, roots);
+        }
+        IntArray captureRoots = roots;
         IntArray entities = new IntArray(false, captureRoots.size);
         IntArray parents = new IntArray(false, captureRoots.size);
         IntSet knownStableIds = new IntSet();
@@ -162,32 +171,6 @@ public final class EntityGraphCaptureService {
         return entities;
     }
 
-    /**
-     * Preserves ordinary clipboard joint augmentation for standalone roots in a mixed
-     * selection. Game Object roots and their descendants are deliberately excluded:
-     * Physics remains a standalone clipboard domain in V1.
-     */
-    private IntArray augmentStandalonePhysicsRoots(IntArray roots) {
-        IntArray standaloneRoots = new IntArray(false, roots.size);
-        for (int i = 0; i < roots.size; i++) {
-            int entityId = roots.get(i);
-            if (!mGameObject.has(entityId)) standaloneRoots.add(entityId);
-        }
-        IntArray augmentedStandalone = ClipboardPhysicsJointGraph.filterCopyableSelection(
-                world, standaloneRoots);
-        IntSet included = new IntSet();
-        IntArray result = new IntArray(false, roots.size + augmentedStandalone.size);
-        for (int i = 0; i < roots.size; i++) {
-            int entityId = roots.get(i);
-            if (included.add(entityId)) result.add(entityId);
-        }
-        for (int i = 0; i < augmentedStandalone.size; i++) {
-            int entityId = augmentedStandalone.get(i);
-            if (included.add(entityId)) result.add(entityId);
-        }
-        return result;
-    }
-
     private boolean containsGameObjectRoot(IntArray roots) {
         for (int i = 0; i < roots.size; i++) {
             if (mGameObject.has(roots.get(i))) return true;
@@ -196,14 +179,12 @@ public final class EntityGraphCaptureService {
     }
 
     /**
-     * Captures internal joints and reports dependencies excluded from the selected scope.
+     * Requires the full joint-connected scope before capturing any physical data.
      */
     private IntArray requireSupportedGameObjectHierarchyPhysics(IntArray capturedEntities) {
-        IntSet hierarchyEntities = new IntSet(capturedEntities.size);
         for (int i = 0; i < capturedEntities.size; i++) {
             int entityId = capturedEntities.get(i);
             if (mGameObject.has(entityId) || mGameObjectMember.has(entityId)) {
-                hierarchyEntities.add(entityId);
                 PhysicsShapesComponent shapes = mPhysicsShapes.getSafe(entityId, null);
                 if (shapes != null && shapes.shapes != null) {
                     for (int shapeIndex = 0; shapeIndex < shapes.shapes.size; shapeIndex++) {
@@ -221,9 +202,7 @@ public final class EntityGraphCaptureService {
         for (int i = 0; i < capturedEntities.size; i++) {
             scope.add(capturedEntities.get(i));
         }
-        CompositionJointScope.Result result = CompositionJointScope.classify(world, scope);
-        diagnostic = result.diagnostic();
-        return result.internal();
+        return CompositionJointScope.classify(world, scope);
     }
 
     private void appendClipboardJoints(List<EntityGraphEntry> entries, IntArray entityIds, IntArray jointEntities) {
@@ -308,29 +287,70 @@ public final class EntityGraphCaptureService {
         }
     }
 
-    private void normalizeNestedRootToWorldPose(int entityId, GenericEntityInitializer initializer) {
+    private void normalizeCapturedPose(int entityId, int parentEntity, GenericEntityInitializer initializer) {
+        games.pixscape.runtime.system.PhysicsPoseAuthority authority =
+                world.getSystem(games.pixscape.runtime.system.PhysicsPoseAuthority.class);
+        boolean simulated = authority != null && authority.isRuntimePhysics();
+        if (!simulated && (parentEntity >= 0 || !mGameObjectMember.has(entityId))) {
+            return;
+        }
         GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
-        WorldTransformState state = hierarchy != null ? hierarchy.worldTransforms() : null;
-        if (state == null || !state.isResolved(entityId))
-            throw new IllegalStateException("Nested Game Object clipboard root has no resolved world transform.");
+        WorldTransformState poses = hierarchy == null ? null : hierarchy.worldTransforms();
+        if (poses == null || !poses.isResolved(entityId)) {
+            if (parentEntity < 0 && mGameObjectMember.has(entityId)) {
+                throw new IllegalStateException("Copied member has no resolved world pose.");
+            }
+            return;
+        }
+        TransformComponent pose = resolvedTransform(entityId, poses);
+        if (parentEntity >= 0) {
+            if (!poses.isResolved(parentEntity)) {
+                throw new IllegalStateException("Copied parent has no resolved world pose.");
+            }
+            pose = games.pixscape.runtime.hierarchy.GameObjectTransformMath.worldToLocal(
+                    resolvedTransform(parentEntity, poses), pose, mGameObject.has(entityId), new TransformComponent());
+        }
         GenericEntitySnapshotData snapshot = initializer.toSnapshotData(0);
-        snapshot.x = state.x[entityId];
-        snapshot.y = state.y[entityId];
-        snapshot.rotationRad = state.rotationRad[entityId];
-        snapshot.scaleX = state.scaleX[entityId];
-        snapshot.scaleY = state.scaleY[entityId];
+        snapshot.x = pose.x;
+        snapshot.y = pose.y;
+        snapshot.rotationRad = pose.rotationRad;
+        snapshot.scaleX = pose.scaleX;
+        snapshot.scaleY = pose.scaleY;
         initializer.applySnapshotData(snapshot);
     }
 
-    private EntityGraph captureSupportedSelection(IntArray supported) {
-        supported = ClipboardPhysicsJointGraph.filterCopyableSelection(world, supported);
-        if (supported.size == 0) return EntityGraph.empty();
+    private TransformComponent resolvedTransform(int entity, WorldTransformState poses) {
+        TransformComponent result = new TransformComponent();
+        result.x = poses.x[entity];
+        result.y = poses.y[entity];
+        result.rotationRad = poses.rotationRad[entity];
+        result.scaleX = poses.scaleX[entity];
+        result.scaleY = poses.scaleY[entity];
+        TransformComponent authored = mTransform.get(entity);
+        result.originX = authored.originX;
+        result.originY = authored.originY;
+        result.refreshCaches();
+        return result;
+    }
 
+    private EntityGraph captureSupportedSelection(IntArray supported, boolean visualOnly) {
+        if (!visualOnly) {
+            supported = ClipboardPhysicsJointGraph.filterCopyableSelection(world, supported);
+        }
         List<EntityGraphEntry> entries = new ArrayList<>(supported.size);
         for (int i = 0; i < supported.size; i++) {
             int entityId = supported.get(i);
+            if (visualOnly && mJointBase.has(entityId)) {
+                continue;
+            }
             GenericEntityInitializer init = new GenericEntityInitializer(world);
             init.syncFrom(entityId);
+            if (!mJointBase.has(entityId)) {
+                normalizeCapturedPose(entityId, -1, init);
+            }
+            if (visualOnly) {
+                init.withoutPhysics();
+            }
             entries.add(new EntityGraphEntry(entityId, init));
         }
         return new EntityGraph(entries);
@@ -391,8 +411,9 @@ public final class EntityGraphCaptureService {
         if (entityId < 0 || !world.getEntityManager().isActive(entityId)) return false;
         // Tiled maps require their dedicated deep snapshot; generic capture would be partial.
         if (mTiled.has(entityId)) return false;
-        // Ordinary Game Object members cannot be independent clipboard roots in V1.
-        if (mGameObject.has(entityId) || mGameObjectMember.has(entityId)) return false;
+        if (mGameObject.has(entityId)) {
+            return false;
+        }
         if (mJointBase.has(entityId)) return true;
         if (!mEntityIndex.has(entityId)) return false;
         return mTransform.has(entityId);

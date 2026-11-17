@@ -7,18 +7,12 @@ import com.kotcrab.vis.ui.widget.VisCheckBox;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.runtime.component.DimensionsComponent;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
-import games.pixscape.studio.component.EntityMetaComponent;
-import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.Command;
 import games.pixscape.studio.history.commands.EditSpatialFootprintCommand;
 import games.pixscape.studio.history.commands.ToggleSpatialActorCommand;
-import games.pixscape.studio.model.EntityKind;
-import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SpatialActorShapeSupport;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
@@ -27,7 +21,7 @@ import games.pixscape.studio.ui.widget.FloatField;
 public final class SpatialActorPanel extends CollapsibleWidget {
     private final EntityPropertiesContext ctx;
     private final VisTable root = new VisTable(true);
-    private final VisCheckBox enabledBox = new VisCheckBox("Spatial Actor");
+    private final VisCheckBox enabledBox = new VisCheckBox("Own footprint");
     private final VisLabel validationLabel = new VisLabel("");
     private final CollapsibleVisTable validationBlock = new CollapsibleVisTable(true, true);
     private final CollapsibleVisTable detailsBlock = new CollapsibleVisTable(true);
@@ -38,6 +32,8 @@ public final class SpatialActorPanel extends CollapsibleWidget {
     private final float[] displayedFootprint = new float[4];
 
     private int entityId = -1;
+    private int footprintOwner = -1;
+    private final VisLabel ownerLabel = new VisLabel("");
     private boolean internalRefresh = false;
 
     public SpatialActorPanel(EntityPropertiesContext ctx) {
@@ -95,28 +91,10 @@ public final class SpatialActorPanel extends CollapsibleWidget {
                         eligibleForActivation,
                         enable && eligibleForActivation ? createDefaultFootprint(entityId) : null
                 );
-                if (enable && eligibleForActivation) {
-                    games.pixscape.runtime.spatial.ActorSpatialRectangles rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
-                    var animation = ctx.mAnim.getSafe(entityId, null);
-                    if (animation == null) {
-                        rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
-                    } else {
-                        for (int i = 0; i < animation.animationAssetIds.size; i++) {
-                            int asset = animation.animationAssetIds.get(i);
-                            if (!(ctx.assetMetaLookup.apply(asset) instanceof games.pixscape.studio.asset.AnimationAssetMeta meta)) {
-                                throw new IllegalStateException("Missing animation asset " + asset);
-                            }
-                            for (String clip : meta.clips.keys()) {
-                                rectangles.put(asset, clip, new games.pixscape.runtime.spatial.ActorSpatialRectangleData());
-                            }
-                        }
-                    }
-                    command.withRectangles(rectangles);
-                }
                 executeCommand(command);
                 refreshFromModel(entityId);
                 if (enable && command.isNoop()) {
-                    showValidation("Spatial Actor requires valid visual bounds and a valid footprint.");
+                    showValidation("A footprint requires a transform and a positive radius.");
                 }
                 event.handle();
             }
@@ -144,6 +122,7 @@ public final class SpatialActorPanel extends CollapsibleWidget {
         validationLabel.setWrap(true);
         validationBlock.content().add(validationLabel).growX().left().row();
         root.add(enabledBox).left().row();
+        root.add(ownerLabel).left().row();
         root.add(validationBlock).width(CommonLayout.LABEL_WIDTH + CommonLayout.FIELD_WIDTH).left().row();
         root.add(detailsBlock).padLeft(CommonLayout.PAD_LEFT_SUBMENU).growX().left().row();
         detailsBlock.show(false);
@@ -153,8 +132,12 @@ public final class SpatialActorPanel extends CollapsibleWidget {
     public void act(float delta) {
         super.act(delta);
         rectanglePanel.refreshCurrentRepresentation();
-        if (hasMarkedFootprint(entityId)) {
-            var footprint = ctx.world.getMapper(SpatialFootprintComponent.class).get(entityId);
+        int owner = SpatialActorShapeSupport.owner(ctx.world, entityId);
+        if (owner != footprintOwner) {
+            refreshFromModel(entityId);
+        }
+        if (hasMarkedFootprint(footprintOwner)) {
+            var footprint = ctx.world.getMapper(SpatialFootprintComponent.class).get(footprintOwner);
             for (int i = 0; i < footprintFields.length; i++) {
                 float value = footprintValue(footprint, i);
                 if (!footprintFields[i].hasKeyboardFocus() && displayedFootprint[i] != value) {
@@ -174,29 +157,30 @@ public final class SpatialActorPanel extends CollapsibleWidget {
     public void refreshFromModel(int eid) {
         internalRefresh = true;
         try {
-            boolean height = hasSpatialRepresentation(eid);
-            boolean footprint = hasMarkedFootprint(eid);
-            boolean actor = SpatialActorShapeSupport.hasActorState(ctx.world, eid);
-            if (height && !footprint) {
-                String missing = "Spatial footprint missing.";
-                showValidation(missing + " Undo the removal, or turn Spatial Actor off and on to create a footprint.");
-            } else {
-                showValidation("");
-            }
-            enabledBox.setChecked(actor);
-            enabledBox.setDisabled(!isEligibleForActivation(eid) && !actor);
-            detailsBlock.show(actor);
+            footprintOwner = SpatialActorShapeSupport.owner(ctx.world, eid);
+            boolean own = hasMarkedFootprint(eid);
+            showValidation("");
+            enabledBox.setChecked(own);
+            enabledBox.setDisabled(!isEligibleForActivation(eid) && !own);
+            ownerLabel.setText(footprintOwner < 0 ? "No footprint (representation settings are retained)"
+                    : footprintOwner == eid ? "Footprint owned by this object"
+                    : "Shared footprint: " + ownerName(footprintOwner));
+            detailsBlock.show(true);
             rectanglePanel.refresh(eid);
-            altitudeField.setEntityId(eid);
-            altitudeField.refreshFromModel();
-            for (FloatField field : new FloatField[]{radiusField, offsetXField, offsetYField}) {
-                field.setEntityId(eid);
+            for (FloatField field : footprintFields) {
+                field.setEntityId(footprintOwner);
                 field.refreshFromModel();
             }
         } finally {
             internalRefresh = false;
         }
         invalidateHierarchy();
+    }
+
+    private String ownerName(int owner) {
+        var identity = ctx.mIdentity.getSafe(owner, null);
+        return identity == null ? Integer.toString(owner)
+                : identity.name + " (#" + identity.stableId + ")";
     }
 
     private static float footprintValue(SpatialFootprintComponent footprint, int property) {
@@ -230,38 +214,17 @@ public final class SpatialActorPanel extends CollapsibleWidget {
     }
 
     private boolean isEligibleForActivation(int eid) {
-        if (eid < 0 || ctx.layerService == null) {
-            return false;
-        }
-        EntityMetaComponent meta = ctx.mMeta.getSafe(eid, null);
-        EntityKind kind = meta != null ? meta.kind : EntityKind.UNKNOWN;
-        int layerEntityId = ctx.layerService.getEffectiveLayerEntity(eid);
-        EntityIndexComponent index = ctx.mEntityIndex.getSafe(eid, null);
-        LayerComponent layer = layerEntityId >= 0
-                ? ctx.world.getMapper(LayerComponent.class).getSafe(layerEntityId, null)
-                : null;
-        SceneMeta scene = ctx.sceneMeta;
-        return canActivateSpatialActor(scene, kind, index, layer);
-    }
-
-    static boolean canActivateSpatialActor(
-            SceneMeta scene,
-            EntityKind kind,
-            EntityIndexComponent index,
-            LayerComponent layer) {
-        return scene != null
-                && (kind == EntityKind.SPRITE || kind == EntityKind.ANIMATION)
-                && index != null
-                && LayerService.isSpatialActorLayer(layer);
+        return eid >= 0 && ctx.mTransform.has(eid);
     }
 
     private SpatialFootprintComponent createDefaultFootprint(int eid) {
         DimensionsComponent dimensions = ctx.mDimensions.getSafe(eid, null);
         TransformComponent transform = ctx.mTransform.getSafe(eid, null);
-        SceneMeta scene = ctx.sceneMeta;
-        return dimensions != null && transform != null && scene != null
-                ? createDefaultFootprint(dimensions, transform)
-                : null;
+        if (transform == null) {
+            return null;
+        }
+        SpatialFootprintComponent suggested = createDefaultFootprint(dimensions, transform);
+        return suggested != null ? suggested : new SpatialFootprintComponent();
     }
 
     static SpatialFootprintComponent createDefaultFootprint(
@@ -316,7 +279,7 @@ public final class SpatialActorPanel extends CollapsibleWidget {
             int eid,
             java.util.function.UnaryOperator<EditSpatialFootprintCommand.Snapshot> edit
     ) {
-        if (eid < 0 || !hasSpatialRepresentation(eid) || !hasMarkedFootprint(eid) || edit == null) {
+        if (eid < 0 || !hasMarkedFootprint(eid) || edit == null) {
             return;
         }
 
@@ -333,7 +296,7 @@ public final class SpatialActorPanel extends CollapsibleWidget {
                 before,
                 after
         ));
-        refreshFromModel(eid);
+        refreshFromModel(entityId);
     }
 
     private void executeCommand(Command command) {

@@ -52,11 +52,11 @@ public class GizmoInfluenceSelectionTest {
             Assert.assertTrue(h.draws > 0);
             Assert.assertEquals(StudioEditingMode.NORMAL, h.modes.getCurrentMode());
             float previousTop = h.top;
-            games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(h.height, 150);
+            h.height.rectangles.staticRectangle.height = 150f / 300;
             h.world.process();
             h.paint();
             Assert.assertEquals(70, h.top - previousTop, .01f);
-            h.layer.spatialEnabled = false;
+            h.world.getMapper(SpatialFootprintComponent.class).remove(h.actor);
             h.world.process();
             h.paint();
             Assert.assertEquals(0, h.draws);
@@ -123,14 +123,15 @@ public class GizmoInfluenceSelectionTest {
             int eid = world.create();
             layer = world.getMapper(LayerComponent.class).create(eid);
             layer.layerIndex = 0;
-            layer.spatialEnabled = true;
             actor = world.create();
             world.getMapper(EntityIndexComponent.class).create(actor).layerIndex = 0;
             TransformComponent transform = world.getMapper(TransformComponent.class).create(actor);
             transform.x = 10;
             transform.y = 200;
             height = world.getMapper(SpatialRepresentationComponent.class).create(actor);
-            games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height, 80);
+            height.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+            height.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+            height.rectangles.staticRectangle.height = 80f / 300;
             SpatialFootprintComponent footprint = world.getMapper(SpatialFootprintComponent.class).create(actor);
 
             footprint.radiusPx = 9;
@@ -139,6 +140,11 @@ public class GizmoInfluenceSelectionTest {
             ecs.kind[slot] = RenderKind.SPRITE;
             ecs.textureHandle[slot] = 1;
             ecs.layerIndex[slot] = 0;
+            ecs.x1[slot] = ecs.x2[slot] = -10;
+            ecs.x3[slot] = ecs.x4[slot] = 30;
+            ecs.y1[slot] = ecs.y4[slot] = 200;
+            ecs.y2[slot] = ecs.y3[slot] = 500;
+            ecs.u2[slot] = ecs.v2[slot] = 1;
             modes.activateSceneDocument(StudioEditingMode.NORMAL, 0);
             world.process();
         }

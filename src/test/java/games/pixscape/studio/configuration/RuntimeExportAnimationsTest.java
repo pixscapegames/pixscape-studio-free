@@ -148,6 +148,17 @@ public class RuntimeExportAnimationsTest {
         scene.runtimeAvailability.animationAssetIds.add(11);
         scene.runtimeAvailability.particleEffectPaths.add("impact.p");
         scene.runtimeAvailability.gameObjectIds.add("gameobjects/enemy.gameobject");
+        var gameObject = new games.pixscape.runtime.gameobject.GameObjectAsset();
+        gameObject.rootSourceEntityId = 1;
+        var root = new games.pixscape.runtime.gameobject.GameObjectAsset.GameObjectEntityData();
+        root.sourceEntityId = 1;
+        root.gameObject = new games.pixscape.runtime.gameobject.GameObjectAsset.GameObjectData();
+        root.transform = new games.pixscape.runtime.gameobject.GameObjectAsset.TransformData();
+        root.transform.scaleX = root.transform.scaleY = 1;
+        gameObject.entities.add(root);
+        var definition = new FileHandle(studioDir.resolve("gameobjects/enemy.gameobject").toFile());
+        definition.parent().mkdirs();
+        definition.writeString(new games.pixscape.runtime.gameobject.GameObjectAssetLoader().toJson(gameObject), false, "UTF-8");
         scene.runtimeAvailability.tiledAnimationIds.add(13);
         scene.ambientColorR = 0f;
         scene.ambientColorG = 0f;
@@ -200,7 +211,7 @@ public class RuntimeExportAnimationsTest {
     }
 
     @Test
-    public void exportRuntimePreservesLayerSpatialFlagsAndTiledDefaults() throws Exception {
+    public void exportRuntimePreservesTiledSpatialFlagAndDefaults() throws Exception {
         Path studioDir = Files.createTempDirectory("pixscape-studio-export-tiled-spatial-studio");
         Path userDir = Files.createTempDirectory("pixscape-studio-export-tiled-spatial-user");
 
@@ -217,8 +228,7 @@ public class RuntimeExportAnimationsTest {
                     "0": {
                       "components": {
                         "LayerComponent": {
-                          "layerIndex": 0,
-                          "spatialEnabled": true
+                          "layerIndex": 0
                         },
                         "TiledLayerComponent": {
                           "mapWidthCells": 4,
@@ -247,7 +257,7 @@ public class RuntimeExportAnimationsTest {
         JsonValue layer = components.get("LayerComponent");
         JsonValue tiled = components.get("TiledLayerComponent");
 
-        assertTrue(layer.getBoolean("spatialEnabled", false));
+        assertFalse(layer.has("spatialEnabled"));
         assertFalse(layer.has("type"));
         assertTrue(tiled.getBoolean("spatialEnabled", false));
         assertEquals(2.5f, tiled.getFloat("defaultTileAltitude", 0f), 0.0001f);
@@ -272,8 +282,7 @@ public class RuntimeExportAnimationsTest {
                     "0": {
                       "components": {
                         "LayerComponent": {
-                          "layerIndex": 0,
-                          "spatialEnabled": true
+                          "layerIndex": 0
                         },
                         "TiledLayerComponent": {
                           "mapWidthCells": 4,
@@ -394,7 +403,7 @@ public class RuntimeExportAnimationsTest {
                 .resolve(InternalAssets.WHITE_PIXEL_FILE);
         Files.createDirectories(inputWhitePixel.getParent());
         Files.write(inputWhitePixel, new byte[]{1, 2, 3});
-        Files.writeString(studioDir.resolve(StudioFs.DIR_ATLASES).resolve("scene1.atlas"), "atlas", StandardCharsets.UTF_8);
+        Files.writeString(studioDir.resolve(StudioFs.DIR_ATLASES).resolve("scene1.atlas"), "", StandardCharsets.UTF_8);
 
         RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
 

@@ -29,7 +29,7 @@ public class ToggleSpatialActorCommandTest {
                 Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(actor));
                 Assert.assertFalse(world.getMapper(PhysicsShapesComponent.class).has(actor));
                 Assert.assertEquals(25, world.getMapper(SpatialFootprintComponent.class).get(actor).radiusPx, 0);
-                Assert.assertNotNull(world.getMapper(SpatialRepresentationComponent.class).get(actor).rectangles.staticRectangle);
+                Assert.assertFalse(world.getMapper(SpatialRepresentationComponent.class).has(actor));
                 history.undo();
                 Assert.assertFalse(world.getMapper(SpatialFootprintComponent.class).has(actor));
                 history.redo();
@@ -55,7 +55,7 @@ public class ToggleSpatialActorCommandTest {
             Assert.assertSame(shapes, world.getMapper(PhysicsShapesComponent.class).get(actor).shapes);
             physics.removePhysics(actor);
             Assert.assertNotNull(world.getMapper(SpatialFootprintComponent.class).get(actor));
-            Assert.assertNotNull(world.getMapper(SpatialRepresentationComponent.class).get(actor));
+            Assert.assertFalse(world.getMapper(SpatialRepresentationComponent.class).has(actor));
         } finally { world.dispose(); }
     }
     @Test

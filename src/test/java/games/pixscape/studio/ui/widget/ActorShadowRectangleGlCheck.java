@@ -44,6 +44,7 @@ public final class ActorShadowRectangleGlCheck {
         root.mkdirs();
         System.setProperty("user.home", root.child("home").path());
         ProjectConfig cfg = new ProjectConfig();
+        cfg.projectTitle = "Composition geometry witness";
         cfg.projectDirectoryPath = root.path();
         cfg.projectFileName = "fixture.json";
         cfg.exportRootPathDir = root.child("export").path();
@@ -51,7 +52,20 @@ public final class ActorShadowRectangleGlCheck {
         cfg.getCurrentSceneMeta().physicsEnabled = false;
         ProjectConfig.setInstance(cfg);
         FileHandle image = root.child("orig/images/barrel.png");
-        new FileHandle(args[1]).copyTo(image);
+        if (args.length > 1) {
+            new FileHandle(args[1]).copyTo(image);
+        } else {
+            image.parent().mkdirs();
+            java.awt.image.BufferedImage pixels = new java.awt.image.BufferedImage(160, 240, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            for (int y = 15; y < 225; y++) {
+                for (int x = 15; x < 145; x++) {
+                    if (x < 60 || y > 80) {
+                        pixels.setRGB(x, y, x < 80 ? 0xffe59d35 : 0xff368bc1);
+                    }
+                }
+            }
+            javax.imageio.ImageIO.write(pixels, "png", image.file());
+        }
         AssetMetaDatabase db = new AssetMetaDatabase();
         var imageMeta = db.registerIfAbsent(AssetType.IMAGE, "images/barrel", "orig/images/barrel.png", AssetMeta.AssetScope.USER);
         db.save(root.child("assets.json"));
@@ -89,7 +103,6 @@ public final class ActorShadowRectangleGlCheck {
                     var world = ctx.world();
                     world.process();
                     var layer = world.getMapper(LayerComponent.class).get(ctx.layerService().getLayerEntity(0));
-                    layer.spatialEnabled = true;
                     texture = new Texture(image);
                     e = world.create();
                     new GenericEntityInitializer(world).configureStandaloneSprite(imageMeta.id(), "scene1", texture.getWidth(), texture.getHeight(),
@@ -101,10 +114,10 @@ public final class ActorShadowRectangleGlCheck {
                     foot.radiusPx = 20f;
                     ctx.historyManager().execute(new ToggleSpatialActorCommand(world, ctx.historyManager().historyIds(),
                             e, true, true, foot));
-                    volume().width = 120;
-                    volume().height = 120;
-                    volume().x = -60;
-                    volume().y = 20;
+                    var settings = world.getMapper(SpatialRepresentationComponent.class).create(e);
+                    settings.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+                    settings.rectangles.staticRectangle = new ActorSpatialRectangleData();
+                    zone(120, 120, -60, 20);
                     volume().pivotY = 25;
                     canvas.focusCameraAt(0, 85);
                     ((OrthographicCamera) canvas.getGridStage().getCamera()).zoom = .55f;
@@ -120,6 +133,13 @@ public final class ActorShadowRectangleGlCheck {
                 } catch (Throwable failure) {
                     stop(failure);
                 }
+            }
+
+            void zone(float width, float height, float x, float y) {
+                volume().width = width / texture.getWidth();
+                volume().height = height / texture.getHeight();
+                volume().x = (x + texture.getWidth() * .5f) / texture.getWidth();
+                volume().y = y / texture.getHeight();
             }
 
             ActorSpatialRectangleData volume() {
@@ -177,7 +197,7 @@ public final class ActorShadowRectangleGlCheck {
                         case 32 -> {
                             cfg.getCurrentSceneMeta().physicsEnabled = true;
                             ctx.world().getMapper(PhysicsBodyComponent.class).create(e).type = PhysicsBodyComponent.STATIC;
-                            PhysicsShapeData box = PhysicsService.createDefaultShape(1);
+                            PhysicsShapeData box = PhysicsService.createDefaultShape(studio.getCanvas().getPhysicsService().allocateNewPhysicsShapeId());
                             box.geometry.halfWidth = .7f;
                             box.geometry.halfHeight = .3f;
                             box.geometry.offsetX = .2f;
@@ -203,6 +223,28 @@ public final class ActorShadowRectangleGlCheck {
                             ctx.selectionService().selectOnly(e);
                         }
                         case 38 -> {
+                            TransformComponent transform = ctx.world().getMapper(TransformComponent.class).get(e);
+                            transform.rotationRad = .5f;
+                            transform.scaleX = -1.4f;
+                            transform.scaleY = .7f;
+                            transform.refreshCaches();
+                            var deform = ctx.world().getMapper(games.pixscape.runtime.component.QuadDeformComponent.class).create(e);
+                            deform.trX = -45;
+                            deform.tlX = 20;
+                            deform.brY = 25;
+                            volume().x = .1f;
+                            volume().y = .2f;
+                            volume().width = .7f;
+                            volume().height = .5f;
+                            ctx.world().getSystem(games.pixscape.runtime.system.DirtyTrackerSystem.class)
+                                    .geometry(e, games.pixscape.runtime.render.GeometryDirty.ALL);
+                            ((OrthographicCamera) studio.getCanvas().getGridStage().getCamera()).zoom = .65f;
+                            studio.getCanvas().focusCameraAt(80, 80);
+                        }
+                        case 41 -> {
+                            assertTrue(positions());
+                            capture("deformed-signed-scale");
+                            exportWitness();
                             root.child("DONE").writeString("PASS: six handles, overlap, zoom, locked target, history, cancellation, Shift, independent physics", false);
                             Gdx.app.exit();
                         }
@@ -212,15 +254,52 @@ public final class ActorShadowRectangleGlCheck {
                 }
             }
 
+            void exportWitness() throws Exception {
+                var settings = new com.badlogic.gdx.tools.texturepacker.TexturePacker.Settings();
+                settings.minWidth = settings.maxWidth = 2048;
+                settings.minHeight = settings.maxHeight = 2048;
+                settings.rotation = false;
+                settings.stripWhitespaceX = settings.stripWhitespaceY = false;
+                settings.silent = true;
+                var packer = new com.badlogic.gdx.tools.texturepacker.TexturePacker(settings);
+                packer.addImage(javax.imageio.ImageIO.read(image.file()), "barrel__a" + imageMeta.id());
+                root.child("atlases").mkdirs();
+                root.child("atlases/scene1.atlas").delete();
+                root.child("atlases/scene1.png").delete();
+                packer.pack(root.child("atlases").file(), "scene1");
+                games.pixscape.studio.service.SceneService.saveScene(ctx.world(), root.child("scenes/scene1.json"), false);
+                ProjectConfig.ProjectIO.saveProject(cfg, root.child("fixture.json"));
+                games.pixscape.studio.configuration.RuntimeExport.exportRuntime(cfg, root, root.child("export"));
+                FileHandle web = root.child("html");
+                copyTree(new FileHandle("src/main/resources/html-preview-template"), web);
+                copyTree(root.child("export/pixscape-project"), web.child("assets/pixscape-project"));
+                games.pixscape.studio.helper.RuntimeShaderResources.copyTo(web.child("assets/shaders").file().toPath());
+                Method manifest = games.pixscape.studio.ui.preview.HtmlPreviewLauncher.class
+                        .getDeclaredMethod("writeAssetsManifest", java.nio.file.Path.class);
+                manifest.setAccessible(true);
+                manifest.invoke(null, web.child("assets").file().toPath());
+            }
+
+            void copyTree(FileHandle source, FileHandle target) throws Exception {
+                java.nio.file.Path base = source.file().toPath();
+                try (var paths = java.nio.file.Files.walk(base)) {
+                    for (var path : paths.toList()) {
+                        var destination = target.file().toPath().resolve(base.relativize(path));
+                        if (java.nio.file.Files.isDirectory(path)) {
+                            java.nio.file.Files.createDirectories(destination);
+                        } else {
+                            java.nio.file.Files.copy(path, destination, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        }
+                    }
+                }
+            }
+
             void arrange(boolean coincident) throws Exception {
                 SpatialFootprintComponent foot = ctx.world().getMapper(SpatialFootprintComponent.class).get(e);
                 foot.localOffsetXPx = 0;
                 foot.localOffsetYPx = 0;
                 foot.radiusPx = 30;
-                volume().width = 120;
-                volume().height = 100;
-                volume().x = -60;
-                volume().y = coincident ? -50 : 30;
+                zone(120, 100, -60, coincident ? -50 : 30);
                 volume().pivotX = coincident ? 0 : -50;
                 volume().pivotY = 0;
                 // The inspector overlays the right side of the grid viewport in this fixed-size fixture.
@@ -261,6 +340,9 @@ public final class ActorShadowRectangleGlCheck {
                         case 4 -> foot.localOffsetXPx;
                         default -> foot.radiusPx;
                     };
+                    if (index >= 1 && index <= 3) {
+                        value *= index == 3 ? texture.getHeight() : texture.getWidth();
+                    }
                     assertEquals(value, Float.parseFloat(field.getText()), .02f);
                     release(target);
                     assertEquals("One command per gesture", cursor + 1, ctx.historyManager().getCursor());
@@ -359,7 +441,7 @@ public final class ActorShadowRectangleGlCheck {
                 arrange(true);
                 var foot = ctx.world().getMapper(SpatialFootprintComponent.class).get(e);
                 volume().pivotX = 6;
-                volume().x -= 6;
+                volume().x -= 6f / texture.getWidth();
                 for (int index : new int[]{0, 1, 4}) {
                     positions();
                     Vector2 h = handle(index);

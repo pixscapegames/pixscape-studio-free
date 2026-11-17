@@ -203,18 +203,15 @@ public class TiledMapPropertiesTest {
         assertTrue(fixture.tiled(mapA).spatialEnabled);
         assertTrue(fixture.tiled(mapA).data.spatialEnabled);
         assertFalse(fixture.tiled(mapB).spatialEnabled);
-        assertFalse(fixture.layer.spatialEnabled);
 
         fixture.history.undo();
         assertFalse(fixture.tiled(mapA).spatialEnabled);
         assertTrue(fixture.world.getMapper(PhysicsBodyComponent.class).has(mapA));
         assertFalse(fixture.tiled(mapB).spatialEnabled);
-        assertFalse(fixture.layer.spatialEnabled);
 
         fixture.history.redo();
         assertTrue(fixture.tiled(mapA).spatialEnabled);
         assertFalse(fixture.tiled(mapB).spatialEnabled);
-        assertFalse(fixture.layer.spatialEnabled);
     }
 
     @Test
@@ -306,7 +303,6 @@ public class TiledMapPropertiesTest {
 
         Fixture() {
             layer.layerIndex = 0;
-            layer.spatialEnabled = false;
         }
 
         int addMap(int layerIndex, int tileHeight, int mapWidth) {

@@ -15,7 +15,6 @@ public class DeleteLayerCompositionTest {
             int empty = layers.getLayerEntity(emptyIndex);
             layers.meta(emptyIndex).description = "Retain me";
             layers.setLayerLocked(empty, true); // Layer deletion never used content-edit locking.
-            f.world.getMapper(LayerComponent.class).get(empty).spatialEnabled = true;
             var parallax = f.world.getMapper(LayerParallaxComponent.class).create(empty);
             parallax.factorX = .3f;
             parallax.factorY = .7f;
@@ -23,7 +22,6 @@ public class DeleteLayerCompositionTest {
             f.history.undo();
             assertEquals("Retain me", layers.meta(1).description);
             assertTrue(layers.meta(1).locked);
-            assertTrue(f.world.getMapper(LayerComponent.class).get(layers.getLayerEntity(1)).spatialEnabled);
             assertEquals(.3f, f.world.getMapper(LayerParallaxComponent.class).get(layers.getLayerEntity(1)).factorX, 0);
             int ordinary = f.sprite(20, 30, 10, 10);
             int stable = f.context.identityRegistry().getStableId(ordinary);

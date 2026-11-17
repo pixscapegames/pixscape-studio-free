@@ -5,85 +5,91 @@ import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
-import games.pixscape.runtime.component.physics.PhysicsJointComponent;
-import games.pixscape.runtime.system.Box2dSyncSystem;
+import games.pixscape.runtime.component.physics.*;
 
-/** Detached classification shared by clipboard and asset publication. Never expands body scope. */
+/** Cold, read-only transfer preflight. Body scope never expands and no joint is silently lost. */
 public final class CompositionJointScope {
-    public record Result(IntArray internal, String diagnostic) {
-    }
-
     private CompositionJointScope() {
     }
 
-    public static Result classify(World world, IntSet bodies) {
-        IntSet candidates = new IntSet();
-        Box2dSyncSystem physics = world.getSystem(Box2dSyncSystem.class);
-        if (physics != null) {
-            for (IntSet.IntSetIterator it = bodies.iterator(); it.hasNext;) {
-                IntArray incident = physics.jointDependencies().jointsForBody(it.next());
-                if (incident != null) {
-                    for (int i = 0; i < incident.size; i++) {
-                        candidates.add(incident.get(i));
-                    }
-                }
-            }
-        } else {
-            // Detached authoring/test Worlds have no published dependency service.
-            var joints = world.getAspectSubscriptionManager().get(Aspect.all(PhysicsJointComponent.class)).getEntities();
-            for (int i = 0; i < joints.size(); i++) {
-                candidates.add(joints.get(i));
-            }
-        }
+    public static IntArray classify(World world, IntSet entities) {
         var bases = world.getMapper(PhysicsJointComponent.class);
         var gears = world.getMapper(PhysicsGearJointComponent.class);
+        var bodies = world.getMapper(PhysicsBodyComponent.class);
+        var shapes = world.getMapper(PhysicsShapesComponent.class);
         IntSet internal = new IntSet();
-        IntSet excluded = new IntSet();
-        for (IntSet.IntSetIterator it = candidates.iterator(); it.hasNext;) {
-            int entity = it.next();
-            var base = bases.getSafe(entity, null);
-            if (base == null) {
+        // Copy/export is an explicit cold boundary. Inspect current authoring data, including
+        // edits not yet consumed by the native world's dependency publication.
+        var joints = world.getAspectSubscriptionManager().get(Aspect.all(PhysicsJointComponent.class)).getEntities();
+        for (int i = 0; i < joints.size(); i++) {
+            int joint = joints.get(i);
+            var base = bases.get(joint);
+            boolean a = entities.contains(base.aEid), b = entities.contains(base.bEid);
+            if (!a && !b && !entities.contains(joint)) {
                 continue;
             }
-            boolean a = bodies.contains(base.aEid), b = bodies.contains(base.bEid);
-            if (a && b) {
-                internal.add(entity);
-            } else if (a || b) {
-                excluded.add(entity);
+            if (!a || !b) {
+                throw rejected(world, joint, "both connected Bodies must be included; use Copy visual only to omit Physics");
+            }
+            if (base.aEid == base.bEid || base.aEid < 0 || base.bEid < 0
+                    || !world.getEntityManager().isActive(base.aEid) || !world.getEntityManager().isActive(base.bEid)
+                    || !bodies.has(base.aEid) || !bodies.has(base.bEid)
+                    || !shapes.has(base.aEid) || !shapes.has(base.bEid)
+                    || shapes.get(base.aEid).shapes == null || shapes.get(base.aEid).shapes.size == 0
+                    || shapes.get(base.bEid).shapes == null || shapes.get(base.bEid).shapes.size == 0
+                    || !specificPresent(world, joint, base.type)) {
+                throw rejected(world, joint, "invalid Body endpoints or missing joint configuration");
+            }
+            internal.add(joint);
+        }
+        for (int i = 0; i < joints.size(); i++) {
+            int joint = joints.get(i);
+            var base = bases.get(joint);
+            if (base.type != PhysicsJointComponent.TYPE_GEAR) {
+                continue;
+            }
+            var gear = gears.getSafe(joint, null);
+            boolean dependent = gear != null && (internal.contains(gear.joint1Eid) || internal.contains(gear.joint2Eid));
+            if (!internal.contains(joint) && !dependent) {
+                continue;
+            }
+            if (gear == null || !internal.contains(joint) || gear.joint1Eid == gear.joint2Eid
+                    || !internal.contains(gear.joint1Eid) || !internal.contains(gear.joint2Eid)
+                    || !gearSource(bases.getSafe(gear.joint1Eid, null))
+                    || !gearSource(bases.getSafe(gear.joint2Eid, null))) {
+                throw rejected(world, joint, "the complete Gear dependency group must be included");
             }
         }
-        boolean changed;
-        do {
-            changed = false;
-            for (IntSet.IntSetIterator it = internal.iterator(); it.hasNext;) {
-                int entity = it.next();
-                if (bases.get(entity).type != PhysicsJointComponent.TYPE_GEAR) {
-                    continue;
-                }
-                var gear = gears.getSafe(entity, null);
-                if (gear == null || !internal.contains(gear.joint1Eid) || !internal.contains(gear.joint2Eid)) {
-                    it.remove();
-                    excluded.add(entity);
-                    changed = true;
-                }
-            }
-        } while (changed);
-        IntArray result = new IntArray();
+        IntArray result = new IntArray(internal.size);
         for (IntSet.IntSetIterator it = internal.iterator(); it.hasNext;) {
             result.add(it.next());
         }
         result.sort();
-        IntArray excludedIds = new IntArray();
-        for (IntSet.IntSetIterator it = excluded.iterator(); it.hasNext;) {
-            int entity = it.next();
-            var identity = world.getMapper(PixscapeIdentityComponent.class).getSafe(entity, null);
-            excludedIds.add(identity == null ? entity : identity.stableId);
-        }
-        excludedIds.sort();
-        String diagnostic = excludedIds.size == 0 ? ""
-                : "External joints excluded from the copy/asset (IDs " + excludedIds
-                + "). Source Scene connections are unchanged.";
-        return new Result(result, diagnostic);
+        return result;
+    }
+
+    private static boolean gearSource(PhysicsJointComponent base) {
+        return base != null && (base.type == PhysicsJointComponent.TYPE_REVOLUTE
+                || base.type == PhysicsJointComponent.TYPE_PRISMATIC);
+    }
+
+    private static IllegalArgumentException rejected(World world, int joint, String reason) {
+        var id = world.getMapper(PixscapeIdentityComponent.class).getSafe(joint, null);
+        return new IllegalArgumentException("Cannot transfer joint #" + (id == null ? joint : id.stableId) + ": " + reason + ".");
+    }
+
+    private static boolean specificPresent(World world, int eid, int type) {
+        return switch (type) {
+            case PhysicsJointComponent.TYPE_DISTANCE -> world.getMapper(PhysicsDistanceJointComponent.class).has(eid);
+            case PhysicsJointComponent.TYPE_REVOLUTE -> world.getMapper(PhysicsRevoluteJointComponent.class).has(eid);
+            case PhysicsJointComponent.TYPE_PRISMATIC -> world.getMapper(PhysicsPrismaticJointComponent.class).has(eid);
+            case PhysicsJointComponent.TYPE_WHEEL -> world.getMapper(PhysicsWheelJointComponent.class).has(eid);
+            case PhysicsJointComponent.TYPE_FRICTION -> world.getMapper(PhysicsFrictionJointComponent.class).has(eid);
+            case PhysicsJointComponent.TYPE_MOTOR -> world.getMapper(PhysicsMotorJointComponent.class).has(eid);
+            case PhysicsJointComponent.TYPE_WELD -> world.getMapper(PhysicsWeldJointComponent.class).has(eid);
+            case PhysicsJointComponent.TYPE_PULLEY -> world.getMapper(PhysicsPulleyJointComponent.class).has(eid);
+            case PhysicsJointComponent.TYPE_GEAR -> world.getMapper(PhysicsGearJointComponent.class).has(eid);
+            default -> false;
+        };
     }
 }

@@ -24,6 +24,46 @@ import static org.junit.Assert.*;
  */
 public class ItemsPanelDragGlTest {
     @Test
+    public void repeatedSubtreeRestoreKeepsPublishedChildrenAndTreeRows() throws Exception {
+        withStudio(900, (studio, temporary) -> {
+            var projectFile = project(studio, temporary.child("subtree-restore"));
+            addImage(projectFile.parent(), "hero", 80, 60);
+            open(studio, projectFile);
+            var context = studio.getSceneEditorContext();
+            var world = context.world();
+            var ops = studio.getCanvas().getEditorOps();
+            int root = ops.createGameObject(0, 0);
+            int child = ops.createStandaloneSprite("hero.png", 50, 20, "child");
+            int sibling = ops.createStandaloneSprite("hero.png", -50, 20, "sibling");
+            settle(studio);
+            for (int entity : new int[]{child, sibling}) {
+                context.historyManager().execute(new games.pixscape.studio.history.commands.AddEntityToGameObjectCommand(
+                        world, context.historyManager().historyIds(), context.identityRegistry(), entity, root, 0));
+                settle(studio);
+            }
+            int rootStable = context.identityRegistry().getStableId(root);
+            int childStable = context.identityRegistry().getStableId(child);
+            int siblingStable = context.identityRegistry().getStableId(sibling);
+            ops.deleteEntities(com.badlogic.gdx.utils.IntArray.with(root));
+            settle(studio);
+            for (int cycle = 0; cycle < 4; cycle++) {
+                context.historyManager().undo();
+                settle(studio);
+                int restoredRoot = context.identityRegistry().findByStableId(rootStable);
+                int restoredChild = context.identityRegistry().findByStableId(childStable);
+                int restoredSibling = context.identityRegistry().findByStableId(siblingStable);
+                var topology = world.getSystem(games.pixscape.runtime.system.GameObjectHierarchySystem.class).topology();
+                assertEquals("Published parent at cycle " + cycle, restoredRoot, topology.parentEntityId[restoredChild]);
+                assertEquals(restoredRoot, topology.parentEntityId[restoredSibling]);
+                assertNotNull("Child tree row at cycle " + cycle, tree(studio).findNode(restoredChild));
+                assertNotNull("Sibling tree row at cycle " + cycle, tree(studio).findNode(restoredSibling));
+                context.historyManager().redo();
+                settle(studio);
+            }
+        });
+    }
+
+    @Test
     public void spatialLabelsFollowInspectorHistoryHierarchyAndScenePersistence() throws Exception {
         withStudio(900, (studio, temporary) -> {
             var projectFile = project(studio, temporary.child("spatial-labels"));
@@ -37,8 +77,6 @@ public class ItemsPanelDragGlTest {
             var world = context.world();
             var history = context.historyManager();
             var ops = studio.getCanvas().getEditorOps();
-            history.execute(new games.pixscape.studio.history.commands.ToggleSpatialActorLayerCommand(
-                    world, history.historyIds(), context.layerService(), context.layerService().getLayerEntity(0), true));
             int hero = ops.createStandaloneSprite("hero.png", -160, 30, "hero");
             int child = ops.createStandaloneSprite("hero.png", -60, 30, "child");
             int bodyOnly = ops.createStandaloneSprite("hero.png", 60, 30, "body only");
@@ -76,7 +114,21 @@ public class ItemsPanelDragGlTest {
             settle(studio);
             assertTrue(world.getMapper(GameObjectComponent.class).has(hero));
             assertEquals("hero (spatial)", tree(studio).findNode(hero).getLabel().getText().toString());
-            assertEquals("child", tree(studio).findNode(child).getLabel().getText().toString());
+            assertEquals("child (spatial)", tree(studio).findNode(child).getLabel().getText().toString());
+            var inheritedChildNode = tree(studio).findNode(child);
+            toggle.setChecked(false);
+            settle(studio);
+            assertSame("Footprint changes refresh labels without rebuilding the tree",
+                    inheritedChildNode, tree(studio).findNode(child));
+            assertEquals("child", inheritedChildNode.getLabel().getText().toString());
+            history.undo();
+            settle(studio);
+            assertEquals("child (spatial)", inheritedChildNode.getLabel().getText().toString());
+            history.redo();
+            settle(studio);
+            assertEquals("child", inheritedChildNode.getLabel().getText().toString());
+            history.undo();
+            settle(studio);
             tree(studio).findNode(hero).setExpanded(true);
             settle(studio);
             click(studio, child);
@@ -704,9 +756,14 @@ public class ItemsPanelDragGlTest {
             assertEquals(before, bodies.get(car).body.getPosition());
             studio.redoActiveDocument();
             settle(studio);
-            // Copy/export exclude the hitch, leave both instances and their source joint intact.
+            // Incomplete physical transfer is rejected; explicit visual copy keeps the source joint intact.
             context.selectionService().selectOnly(car);
+            context.selectionService().selectAdd(trailer);
             assertTrue(canvas.getClipboardService().copySelection());
+            Object previousClipboard = field(canvas.getClipboardService(), "graph");
+            context.selectionService().selectOnly(car);
+            assertFalse(canvas.getClipboardService().copySelection());
+            assertSame(previousClipboard, field(canvas.getClipboardService(), "graph"));
             finishDialogActions(studio);
             screenshot(studio, "composition-copy-diagnostic");
             for (Actor actor : new com.badlogic.gdx.utils.Array<>(studio.getUiStage().getActors())) {
@@ -716,20 +773,16 @@ public class ItemsPanelDragGlTest {
             }
             finishDialogActions(studio);
             var exported = projectFile.parent().child("gameobjects/car.gameobject");
-            canvas.getGameObjectAssetService().saveExistingGameObjectAsAsset(exported,
-                    projectFile.parent().child("gameobjects/car.png"), "gameobjects/car.gameobject");
-            var asset = new games.pixscape.runtime.gameobject.GameObjectAssetLoader().load(exported);
-            assertEquals(2, asset.entities.size);
-            assertEquals(0, asset.joints.size);
-            assertNotNull(asset.entities.first().assetRef);
-            assertNotNull(asset.entities.first().physicsBody);
-            assertTrue(canvas.getGameObjectAssetService().diagnostic().contains("External joints excluded"));
+            assertThrows(IllegalArgumentException.class, () -> canvas.getGameObjectAssetService().saveExistingGameObjectAsAsset(exported,
+                    projectFile.parent().child("gameobjects/car.png"), "gameobjects/car.gameobject"));
+            assertFalse(exported.exists());
+            assertTrue(canvas.getClipboardService().copyVisualSelection());
             assertTrue(canvas.getClipboardService().paste());
             settle(studio);
             int duplicate = context.selectionService().getFirstSelectedEntityId();
             assertNotEquals(car, duplicate);
             assertTrue(world.getMapper(GameObjectComponent.class).has(duplicate));
-            assertNotSame(bodies.get(car).body, bodies.get(duplicate).body);
+            assertFalse(world.getMapper(games.pixscape.runtime.component.physics.PhysicsBodyComponent.class).has(duplicate));
             assertTrue(studio.undoActiveDocument());
             settle(studio);
             // Body deletion removes the hitch but keeps its opposite object; undo restores both resources.

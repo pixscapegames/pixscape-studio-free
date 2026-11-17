@@ -67,11 +67,6 @@ public final class GameObjectAssetService {
 
     private static final String CONVERT_ACTION_LABEL = "Convert Selection to Game Object…";
     private static final String SAVE_ACTION_LABEL = "Save as Game Object Asset…";
-    private String diagnostic = "";
-
-    public String diagnostic() {
-        return diagnostic;
-    }
 
     private final World world;
     private final HistoryManager historyManager;
@@ -140,23 +135,6 @@ public final class GameObjectAssetService {
 
     public GameObjectAsset loadGameObjectAsset(FileHandle file) {
         return loader.load(file);
-    }
-
-    /**
-     * Returns whether this authored hierarchy contains state that can only exist on a
-     * Spatial-enabled Layer. The check deliberately walks every asset member: Game
-     * Object nesting is an authoring hierarchy, not a Spatial aggregate.
-     */
-    public boolean requiresSpatialLayer(GameObjectAsset asset) {
-        if (asset == null || asset.entities == null) return false;
-        for (GameObjectAsset.GameObjectEntityData entity : asset.entities) {
-            if (entity == null) continue;
-            if (entity.spatialRepresentation != null || entity.spatialFootprint != null) {
-                return true;
-            }
-
-        }
-        return false;
     }
 
     /**
@@ -963,9 +941,7 @@ public final class GameObjectAssetService {
         for (IntMap.Entry<Integer> entry : capturedEntityToLocal) {
             captured.add(entry.key);
         }
-        var result = games.pixscape.studio.service.entitygraph.CompositionJointScope.classify(world, captured);
-        diagnostic = result.diagnostic();
-        return result.internal();
+        return games.pixscape.studio.service.entitygraph.CompositionJointScope.classify(world, captured);
     }
 
     private static IntMap<Integer> toLocalIds(IntArray entities) {

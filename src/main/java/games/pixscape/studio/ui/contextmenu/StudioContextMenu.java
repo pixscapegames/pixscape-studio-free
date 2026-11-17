@@ -671,6 +671,19 @@ public final class StudioContextMenu extends InputListener {
         });
         menu.addItem(copy);
 
+        MenuItem copyVisual = new MenuItem("Copy visual only");
+        copyVisual.setDisabled(!hasSelection);
+        copyVisual.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                if (clipboardService != null) {
+                    clipboardService.copyVisualSelection();
+                }
+                event.handle();
+            }
+        });
+        menu.addItem(copyVisual);
+
         MenuItem cut = new MenuItem("Cut");
         cut.setDisabled(!hasSelection);
         cut.addListener(new ClickListener() {
@@ -875,7 +888,7 @@ public final class StudioContextMenu extends InputListener {
             EventFlow.i().publish(new EventFlow.GameObjectsChanged(MY_TAG));
             String success = saveExisting ? "Game Object asset saved:\n" : "Game Object created:\n";
             Gdx.app.log("GameObject", success + gameObjectFile.path());
-            Dialogs.showOKDialog(stage, title, success + gameObjectFile.path() + "\n" + gameObjectAssetService.diagnostic());
+            Dialogs.showOKDialog(stage, title, success + gameObjectFile.path());
         } catch (RuntimeException ex) {
             Gdx.app.error("GameObject", "Failed to publish Game Object asset", ex);
             Dialogs.showOKDialog(stage, title + " failed", ex.getMessage());

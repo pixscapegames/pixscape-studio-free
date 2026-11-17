@@ -288,7 +288,7 @@ public class ClipboardServiceFlowTest {
     }
 
     @Test
-    public void copyRootAndDescendantNormalizesToOneHierarchyAndMemberOnlyCopyFailsCleanly()
+    public void copyRootAndDescendantNormalizesAndMemberCanBeCopiedAlone()
             throws Exception {
         Harness h = new Harness();
         int root = gameObject(h.world, 100, -1, 0f, 0f, 0f, 1f, 1, "");
@@ -304,8 +304,8 @@ public class ClipboardServiceFlowTest {
         Assert.assertEquals(5, countAll(h.world));
 
         h.selection.selectOnly(child);
-        Assert.assertFalse(h.clipboard.copySelection());
-        Assert.assertFalse(h.clipboard.hasContent());
+        Assert.assertTrue(h.clipboard.copySelection());
+        Assert.assertTrue(h.clipboard.hasContent());
         Assert.assertEquals(child, h.selection.getFirstSelectedEntityId());
         Assert.assertTrue(h.world.getEntityManager().isActive(root));
         Assert.assertTrue(h.world.getEntityManager().isActive(child));
@@ -799,7 +799,6 @@ public class ClipboardServiceFlowTest {
             int entity = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
             layer.layerIndex = index;
-            layer.spatialEnabled = spatialEnabled;
             world.getMapper(LayerMetaComponent.class).create(entity);
             world.process();
             return entity;

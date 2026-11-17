@@ -3,17 +3,13 @@ package games.pixscape.studio.ui.property.entityproperties;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import games.pixscape.runtime.component.DimensionsComponent;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
-import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.ToggleSpatialActorCommand;
-import games.pixscape.studio.model.EntityKind;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -48,38 +44,25 @@ public class SpatialActorPanelFootprintGeometryTest {
     public void physicsDisabledAllowsSpatialActivationAndRemoval() {
         SceneMeta scene = new SceneMeta();
         scene.physicsEnabled = false;
-        EntityIndexComponent index = new EntityIndexComponent();
-        index.layerIndex = 0;
-        LayerComponent layer = new LayerComponent();
-        layer.spatialEnabled = true;
-
-        boolean eligible = SpatialActorPanel.canActivateSpatialActor(
-                scene, EntityKind.SPRITE, index, layer);
-
-        Assert.assertTrue(eligible);
-        Assert.assertTrue(SpatialActorPanel.canActivateSpatialActor(
-                scene, EntityKind.ANIMATION, index, layer));
-
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);
-        PhysicsService physics = new PhysicsService(world, null, scene);
         int entityId = world.create();
         games.pixscape.runtime.component.spatial.SpatialFootprintComponent footprint = new games.pixscape.runtime.component.spatial.SpatialFootprintComponent();
         footprint.radiusPx = 50f;
 
-        ToggleSpatialActorCommand blockedActivation = new ToggleSpatialActorCommand(
+        ToggleSpatialActorCommand activation = new ToggleSpatialActorCommand(
                 world,
                 history.historyIds(),
                 entityId,
                 true,
-                eligible,
+                true,
                 footprint);
-        history.execute(blockedActivation);
+        history.execute(activation);
 
-        Assert.assertFalse(blockedActivation.isNoop());
+        Assert.assertFalse(activation.isNoop());
         Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(entityId));
         Assert.assertFalse(world.getMapper(PhysicsShapesComponent.class).has(entityId));
-        Assert.assertTrue(world.getMapper(SpatialRepresentationComponent.class).has(entityId));
+        Assert.assertFalse(world.getMapper(SpatialRepresentationComponent.class).has(entityId));
 
         world.getMapper(SpatialRepresentationComponent.class).create(entityId);
         ToggleSpatialActorCommand removeDormantState = new ToggleSpatialActorCommand(
@@ -92,7 +75,7 @@ public class SpatialActorPanelFootprintGeometryTest {
         history.execute(removeDormantState);
 
         Assert.assertFalse(removeDormantState.isNoop());
-        Assert.assertFalse(world.getMapper(SpatialRepresentationComponent.class).has(entityId));
+        Assert.assertTrue(world.getMapper(SpatialRepresentationComponent.class).has(entityId));
         Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(entityId));
         Assert.assertFalse(world.getMapper(PhysicsShapesComponent.class).has(entityId));
         world.dispose();

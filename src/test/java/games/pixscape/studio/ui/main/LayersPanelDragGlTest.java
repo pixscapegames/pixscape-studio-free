@@ -11,7 +11,6 @@ import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.kotcrab.vis.ui.widget.VisSplitPane;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.studio.document.SceneEditorDocument;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.service.LayerService;
@@ -96,7 +95,6 @@ public class LayersPanelDragGlTest {
             int[] initial = order(layers);
             // Lock/Spatial are properties of ordinary layers, not reorder restrictions.
             layers.setLayerLocked(initial[0], true);
-            context.world().getMapper(LayerComponent.class).get(initial[3]).spatialEnabled = true;
             EventFlow.i().publish(new EventFlow.LayerSpatialDepthChanged(initial[3], 0));
             int entity = context.world().create();
             context.world().getMapper(TransformComponent.class).create(entity);

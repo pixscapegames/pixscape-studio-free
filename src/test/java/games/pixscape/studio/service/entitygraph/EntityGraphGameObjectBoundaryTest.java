@@ -11,7 +11,7 @@ import static org.junit.Assert.assertTrue;
 public class EntityGraphGameObjectBoundaryTest {
     @Test
     public void genericCaptureDelegatesGameObjectRootsToTheHierarchyAwarePath() {
-        World world = new World();
+        World world = new World(new com.artemis.WorldConfiguration().setSystem(new games.pixscape.runtime.system.DirtyTrackerSystem(16)).setSystem(new games.pixscape.runtime.system.GameObjectHierarchySystem()));
         var identities = new games.pixscape.runtime.service.IdentityRegistry();
         var meta = new games.pixscape.runtime.loading.SceneMetaRuntime();
         meta.nextEntityStableId = 4;
@@ -26,12 +26,7 @@ public class EntityGraphGameObjectBoundaryTest {
             EntityGraphCaptureService capture = new EntityGraphCaptureService(world);
 
             assertEquals(3, capture.capture(new IntArray(new int[]{ordinary, root})).size());
-            try {
-                capture.capture(new IntArray(new int[]{child}));
-                throw new AssertionError("Expected member-only V1 rejection.");
-            } catch (IllegalArgumentException expected) {
-                assertTrue(expected.getMessage().contains("member alone"));
-            }
+            assertEquals(1, capture.capture(new IntArray(new int[]{child})).size());
         } finally {
             identities.bind(null, null);
             world.dispose();

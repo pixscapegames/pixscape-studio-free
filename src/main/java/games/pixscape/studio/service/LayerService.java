@@ -287,26 +287,6 @@ public final class LayerService {
         return mL.getSafe(layerEntityId, null) != null;
     }
 
-    /**
-     * Returns whether another ordinary layer already owns the Spatial actor slot.
-     */
-    public boolean hasOtherSpatialActorLayer(int currentLayerEntityId) {
-        rebuildIfDirty();
-        for (int i = 0; i < layerEntities.size; i++) {
-            int layerEntity = layerEntities.get(i);
-            if (layerEntity == currentLayerEntityId) continue;
-            LayerComponent layer = mL.getSafe(layerEntity, null);
-            if (isSpatialActorLayer(layer)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public static boolean isSpatialActorLayer(LayerComponent layer) {
-        return layer != null && layer.spatialEnabled;
-    }
-
     public LayerMetaComponent meta(int index) {
         rebuildIfDirty();
         int e = layerEntities.get(index);
@@ -636,8 +616,7 @@ public final class LayerService {
             String description = (meta != null && meta.description != null) ? meta.description : "";
             boolean visible = visibleC != null && visibleC.isVisible();
             boolean locked = meta != null && meta.locked;
-            boolean spatialEnabled = lc != null && lc.spatialEnabled;
-            list.add(new LayerUI(e, name, description, i, spatialEnabled, visible, locked));
+            list.add(new LayerUI(e, name, description, i, visible, locked));
         }
         return list;
     }
@@ -718,7 +697,7 @@ public final class LayerService {
     }
 
     public record LayerUI(int layerEntityId, String name, String description, int index,
-                          boolean spatialEnabled, boolean visible, boolean locked) {
+                          boolean visible, boolean locked) {
     }
 
     public record TiledMapUI(int mapEntityId, int zIndex,

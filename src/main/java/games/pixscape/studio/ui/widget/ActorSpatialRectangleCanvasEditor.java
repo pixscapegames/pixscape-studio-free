@@ -15,7 +15,9 @@ import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
-import games.pixscape.runtime.render.lighting.LightingCoordinates;
+import games.pixscape.runtime.spatial.ActorSpatialGeometry;
+import games.pixscape.runtime.spatial.ActorSpatialRectangles;
+import games.pixscape.studio.service.SpatialActorShapeSupport;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.spatial.ActorSpatialRectangleData;
 import games.pixscape.runtime.system.GameObjectHierarchySystem;
@@ -38,8 +40,16 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
     private final Vector2 scratch = new Vector2(), pivot = new Vector2();
     private final Vector2[] handles = {new Vector2(), new Vector2(), new Vector2(), new Vector2(), new Vector2(), new Vector2()};
     private static final float HIT_RADIUS = 9f;
-    private final float[] projected = new float[8];
-    private final float[] worldAnchor = new float[3];
+    private ActorSpatialGeometry geometry;
+    private final ActorSpatialGeometry dragGeometry = new ActorSpatialGeometry();
+    private final ActorSpatialRectangleData defaultRectangle = new ActorSpatialRectangleData();
+    private final float[] localPoint = new float[2];
+    private float displayX, displayY, localPressX, localPressY;
+    private int owner = -1, gestureOwner = -1, dragTriangle;
+    private long entityHistoryId, ownerHistoryId;
+    private boolean visual, hadRepresentation;
+    private ActorSpatialRectangles rectanglesBefore;
+    private SpatialRepresentationComponent gestureRepresentation;
     private ShapeDrawer drawer;
     private SceneEditorContext gestureContext;
     private ActorSpatialRectangleData before, candidate, current;
@@ -47,7 +57,7 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
     private float footprintX, footprintY, footprintRadius, ownerAngle;
     private int entity = -1, asset, handle = -1, pointer = -1;
     private String clip;
-    private float anchorX, anchorY, anchorZ, pressX, pressY, factor;
+    private float pressX, pressY, factor;
     private Stage keyboardStage;
     private Actor previousFocus;
 
@@ -76,6 +86,9 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
                 entity = selected(gestureContext);
                 asset = asset(gestureContext, entity);
                 clip = clip(gestureContext, entity);
+                gestureOwner = owner;
+                entityHistoryId = gestureContext.historyManager().historyIds().ensureForEntity(entity);
+                ownerHistoryId = gestureContext.historyManager().historyIds().ensureForEntity(owner);
                 footprintBefore = currentFootprint.copy();
                 gestureFootprint = currentFootprint;
                 before = current.copy();
@@ -86,8 +99,32 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
                 grid(x, y, scratch);
                 pressX = scratch.x;
                 pressY = scratch.y;
+                if (handle >= 1 && handle <= 3) {
+                    var d = canvas.getDynamicEntityState();
+                    int slot = d.renderSlotForEntity(entity);
+                    dragGeometry.update(null, d.x1[slot], d.y1[slot], d.x2[slot], d.y2[slot],
+                            d.x3[slot], d.y3[slot], d.x4[slot], d.y4[slot],
+                            d.u1[slot] > d.u2[slot], d.v1[slot] > d.v2[slot]);
+                    float u = before.x + before.width * (handle == 2 ? 1f : .5f);
+                    float v = before.y + before.height * (handle == 3 ? 1f : .5f);
+                    dragTriangle = dragGeometry.triangleAt(u, v);
+                    if (!dragGeometry.worldToLocal(pressX - displayX, pressY - displayY, dragTriangle, localPoint, 0)) {
+                        handle = -1;
+                        restoreFocus();
+                        return false;
+                    }
+                    localPressX = localPoint[0];
+                    localPressY = localPoint[1];
+                }
                 if (handle < 4) {
-                    spatial(gestureContext, entity).rectangles.put(asset, clip, candidate);
+                    var h = spatial(gestureContext, entity);
+                    hadRepresentation = h != null;
+                    rectanglesBefore = h == null || h.rectangles == null ? null : h.rectangles.copy();
+                    gestureRepresentation = gestureContext.world().getMapper(SpatialRepresentationComponent.class).create(entity);
+                    if (gestureRepresentation.rectangles == null) {
+                        gestureRepresentation.rectangles = new ActorSpatialRectangles();
+                    }
+                    gestureRepresentation.rectangles.put(asset, clip, candidate);
                 }
                 event.stop();
                 return true;
@@ -108,15 +145,21 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
                     candidate.pivotX = before.pivotX + dx;
                     candidate.pivotY = before.pivotY + dy;
                 }
-                if (handle == 1) {
-                    candidate.x = before.x + dx;
-                    candidate.y = before.y + dy;
-                }
-                if (handle == 2) {
-                    candidate.width = Math.max(.01f, before.width + dx);
-                }
-                if (handle == 3) {
-                    candidate.height = Math.max(.01f, before.height + dy);
+                if (handle >= 1 && handle <= 3) {
+                    if (!dragGeometry.worldToLocal(scratch.x - displayX, scratch.y - displayY, dragTriangle, localPoint, 0)) {
+                        cancel();
+                        return;
+                    }
+                    float du = (localPoint[0] - localPressX) * factor;
+                    float dv = (localPoint[1] - localPressY) * factor;
+                    if (handle == 1) {
+                        candidate.x = before.x + du;
+                        candidate.y = before.y + dv;
+                    } else if (handle == 2) {
+                        candidate.width = Math.max(.0001f, before.width + du);
+                    } else {
+                        candidate.height = Math.max(.0001f, before.height + dv);
+                    }
                 }
                 if (handle == 4) {
                     float c = com.badlogic.gdx.math.MathUtils.cos(ownerAngle);
@@ -177,62 +220,62 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
         }
         SceneEditorContext ctx = canvas.getAttachedSceneContext();
         int e = selected(ctx);
-        SpatialRepresentationComponent h = spatial(ctx, e);
-        if (h == null || h.rectangles == null) {
+        owner = SpatialActorShapeSupport.owner(ctx == null ? null : ctx.world(), e);
+        if (owner < 0) {
             return false;
         }
-        current = h.rectangles.get(asset(ctx, e), clip(ctx, e));
+        var h = spatial(ctx, e);
+        current = h == null || h.rectangles == null ? null : h.rectangles.get(asset(ctx, e), clip(ctx, e));
         if (current == null) {
-            return false;
+            current = defaultRectangle;
         }
         var d = canvas.getDynamicEntityState();
-        if (d == null || e >= d.entityIdToRenderSlot.length) {
-            return false;
-        }
-        int slot = d.entityIdToRenderSlot[e];
-        if (slot < 0 || !d.visible[slot] || !d.enabled[slot]) {
-            return false;
-        }
-        TransformComponent t = ctx.world().getMapper(TransformComponent.class).getSafe(e, null);
+        int slot = d == null ? -1 : d.renderSlotForEntity(e);
+        visual = slot >= 0 && d.visible[slot] && d.enabled[slot]
+                && ctx.world().getMapper(games.pixscape.runtime.component.DimensionsComponent.class).has(e);
+        displayX = visual ? d.offsetX[slot] : 0f;
+        displayY = visual ? d.offsetY[slot] : 0f;
+        TransformComponent t = ctx.world().getMapper(TransformComponent.class).getSafe(owner, null);
         if (t == null) {
             return false;
         }
         var hierarchy = ctx.world().getSystem(GameObjectHierarchySystem.class);
-        var state = hierarchy == null ? null : hierarchy.worldTransforms();
-        boolean resolved = state != null && state.isResolved(e);
-        float sx = resolved ? state.x[e] : t.x, sy = resolved ? state.y[e] : t.y, angle = resolved ? state.rotationRad[e] : t.rotationRad;
-        var foot = ctx.world().getMapper(SpatialFootprintComponent.class).getSafe(e, null);
-        if (foot == null) {
+        var poses = hierarchy == null ? null : hierarchy.worldTransforms();
+        boolean resolved = poses != null && poses.isResolved(owner);
+        float x = resolved ? poses.x[owner] : t.x, y = resolved ? poses.y[owner] : t.y;
+        ownerAngle = resolved ? poses.rotationRad[owner] : t.rotationRad;
+        currentFootprint = ctx.world().getMapper(SpatialFootprintComponent.class).getSafe(owner, null);
+        if (currentFootprint == null) {
             return false;
         }
-        currentFootprint = foot;
-        ownerAngle = angle;
-        float c = com.badlogic.gdx.math.MathUtils.cos(angle), s = com.badlogic.gdx.math.MathUtils.sin(angle);
-        footprintX = c * foot.localOffsetXPx - s * foot.localOffsetYPx;
-        footprintY = s * foot.localOffsetXPx + c * foot.localOffsetYPx;
-        games.pixscape.runtime.spatial.ActorSpatialRectanglePlacement.anchor(
-                sx + d.offsetX[slot], sy + d.offsetY[slot], 0f, 0f, 0f, foot.altitude, worldAnchor);
-        anchorX = worldAnchor[0];
-        anchorY = worldAnchor[1];
-        anchorZ = worldAnchor[2];
-        for (int i = 0; i < 4; i++) {
-            localPoint(current.x + (i >= 2 ? current.width : 0), current.y + (i == 1 || i == 2 ? current.height : 0), scratch);
-            projected[2 * i] = scratch.x;
-            projected[2 * i + 1] = scratch.y;
-        }
-        localPoint(footprintX + current.pivotX, footprintY + current.pivotY, pivot);
-        localPoint(footprintX, footprintY, handles[4]);
-        localPoint(footprintX + foot.radiusPx, footprintY, handles[5]);
+        float c = com.badlogic.gdx.math.MathUtils.cos(ownerAngle), sn = com.badlogic.gdx.math.MathUtils.sin(ownerAngle);
+        footprintX = x + c * currentFootprint.localOffsetXPx - sn * currentFootprint.localOffsetYPx;
+        footprintY = y + sn * currentFootprint.localOffsetXPx + c * currentFootprint.localOffsetYPx;
+        screenPoint(footprintX, footprintY, handles[4]);
+        screenPoint(footprintX + currentFootprint.radiusPx, footprintY, handles[5]);
         footprintRadius = handles[4].dst(handles[5]);
-        handles[0].set(pivot);
-        localPoint(current.x + current.width * .5f, current.y + current.height * .5f, handles[1]);
-        localPoint(current.x + current.width, current.y + current.height * .5f, handles[2]);
-        localPoint(current.x + current.width * .5f, current.y + current.height, handles[3]);
+        if (visual) {
+            geometry = d.prepareActorSpatialGeometry(slot, current);
+            screenPoint(footprintX + current.pivotX, footprintY + current.pivotY, pivot);
+            handles[0].set(pivot);
+            imagePoint(current.x + current.width * .5f, current.y + current.height * .5f, handles[1]);
+            imagePoint(current.x + current.width, current.y + current.height * .5f, handles[2]);
+            imagePoint(current.x + current.width * .5f, current.y + current.height, handles[3]);
+        } else {
+            for (int i = 0; i < 4; i++) {
+                handles[i].set(Float.NaN, Float.NaN);
+            }
+        }
         return true;
     }
 
-    private void localPoint(float x, float y, Vector2 out) {
-        out.set(LightingCoordinates.screenX(anchorX, anchorY) + x, LightingCoordinates.screenY(anchorX, anchorY, anchorZ) + y);
+    private void imagePoint(float u, float v, Vector2 out) {
+        geometry.localToWorld(u, v, localPoint, 0);
+        screenPoint(localPoint[0], localPoint[1], out);
+    }
+
+    private void screenPoint(float x, float y, Vector2 out) {
+        out.set(x + displayX, y + displayY);
         canvas.getGridStage().stageToScreenCoordinates(out);
         getStage().screenToStageCoordinates(out);
     }
@@ -281,15 +324,21 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
     private boolean sameTarget() {
         var ctx = canvas.getAttachedSceneContext();
         var h = spatial(ctx, entity);
-        return available.getAsBoolean() && ctx == gestureContext && selected(ctx) == entity && h != null && h.rectangles != null
-                && asset(ctx, entity) == asset && Objects.equals(clip, clip(ctx, entity))
-                && (handle >= 4 ? ctx.world().getMapper(SpatialFootprintComponent.class).getSafe(entity, null) == gestureFootprint
-                : h.rectangles.get(asset, clip) == candidate);
+        if (!available.getAsBoolean() || ctx == null || ctx.isDisposed() || ctx != gestureContext
+                || selected(ctx) != entity
+                || ctx.historyManager().historyIds().entityOfHistoryId(entityHistoryId) != entity
+                || ctx.historyManager().historyIds().entityOfHistoryId(ownerHistoryId) != gestureOwner
+                || SpatialActorShapeSupport.owner(ctx.world(), entity) != gestureOwner
+                || asset(ctx, entity) != asset || !Objects.equals(clip, clip(ctx, entity))) {
+            return false;
+        }
+        return handle >= 4 ? ctx.world().getMapper(SpatialFootprintComponent.class).getSafe(gestureOwner, null) == gestureFootprint
+                : h == gestureRepresentation && h.rectangles != null && h.rectangles.get(asset, clip) == candidate;
     }
 
     @Override
     public void act(float delta) {
-        if (handle >= 0 && !sameTarget()) {
+        if (handle >= 0 && (!sameTarget() || getStage() == null || getStage().getKeyboardFocus() != this)) {
             cancel();
         }
     }
@@ -309,21 +358,29 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
     }
 
     private void finish(boolean cancelled) {
+        cancelled |= !sameTarget();
         var h = spatial(gestureContext, entity);
-        if (handle >= 4 && h != null
-                && gestureContext.world().getMapper(SpatialFootprintComponent.class).getSafe(entity, null) == gestureFootprint) {
+        if (handle >= 4 && gestureContext != null && !gestureContext.isDisposed()
+                && gestureContext.historyManager().historyIds().entityOfHistoryId(ownerHistoryId) == gestureOwner
+                && gestureContext.world().getMapper(SpatialFootprintComponent.class).getSafe(gestureOwner, null) == gestureFootprint) {
             var after = EditSpatialFootprintCommand.Snapshot.capture(gestureFootprint);
             gestureFootprint.set(footprintBefore);
             if (!cancelled) {
                 var command = new EditSpatialFootprintCommand(gestureContext.world(), gestureContext.historyManager().historyIds(),
-                        entity, EditSpatialFootprintCommand.Snapshot.capture(footprintBefore), after);
+                        gestureOwner, EditSpatialFootprintCommand.Snapshot.capture(footprintBefore), after);
                 if (!command.isNoop()) {
                     gestureContext.historyManager().execute(command);
                     gestureContext.markExplicitSaveRequired();
                 }
             }
-        } else if (h != null && h.rectangles != null && h.rectangles.get(asset, clip) == candidate) {
-            h.rectangles.put(asset, clip, before);
+        } else if (gestureContext != null && !gestureContext.isDisposed()
+                && gestureContext.historyManager().historyIds().entityOfHistoryId(entityHistoryId) == entity
+                && h != null && h == gestureRepresentation && h.rectangles != null && h.rectangles.get(asset, clip) == candidate) {
+            if (hadRepresentation) {
+                h.rectangles = rectanglesBefore;
+            } else {
+                gestureContext.world().getMapper(SpatialRepresentationComponent.class).remove(entity);
+            }
             if (!cancelled) {
                 gestureContext.historyManager().execute(new EditActorSpatialRectangleCommand(gestureContext.world(),
                         gestureContext.historyManager().historyIds(), entity, asset, clip, candidate, gestureContext::markExplicitSaveRequired));
@@ -334,6 +391,8 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
         gestureContext = null;
         before = candidate = null;
         footprintBefore = gestureFootprint = null;
+        gestureRepresentation = null;
+        rectanglesBefore = null;
         restoreFocus();
     }
 
@@ -378,8 +437,12 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
         float color = batch.getPackedColor();
         try {
             drawer.setColor(EditorOverlayPalette.SPATIAL_NEUTRAL_COLOR);
-            for (int i = 0; i < 4; i++) {
-                edge(i, (i + 1) % 4);
+            if (visual) {
+                for (int i = 0; i < geometry.vertexCount; i += 3) {
+                    edge(i, i + 1);
+                    edge(i + 1, i + 2);
+                    edge(i + 2, i);
+                }
             }
             drawer.setColor(com.badlogic.gdx.graphics.Color.CYAN);
             drawer.circle(handles[4].x, handles[4].y, footprintRadius, 1.5f);
@@ -393,7 +456,7 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
             // Draw the pending/active glyph last so its shape remains legible on coincident centers.
             for (int pass = 0; pass <= handles.length; pass++) {
                 int i = pass == handles.length ? highlighted : pass;
-                if (i < 0 || pass < handles.length && i == highlighted) {
+                if (i < 0 || !visual && i < 4 || pass < handles.length && i == highlighted) {
                     continue;
                 }
                 drawer.setColor(i == 0 ? EditorOverlayPalette.SPATIAL_ACTOR_INFLUENCE_COLOR
@@ -425,6 +488,9 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
     }
 
     private void edge(int a, int b) {
-        drawer.line(projected[2 * a], projected[2 * a + 1], projected[2 * b], projected[2 * b + 1], 1.5f);
+        screenPoint(geometry.vertices[4 * a], geometry.vertices[4 * a + 1], scratch);
+        float x = scratch.x, y = scratch.y;
+        screenPoint(geometry.vertices[4 * b], geometry.vertices[4 * b + 1], scratch);
+        drawer.line(x, y, scratch.x, scratch.y, 1.5f);
     }
 }

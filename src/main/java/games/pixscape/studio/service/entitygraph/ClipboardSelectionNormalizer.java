@@ -41,11 +41,9 @@ public final class ClipboardSelectionNormalizer {
             int entityId = candidates.get(i);
             if (!world.getEntityManager().isActive(entityId))
                 throw new IllegalArgumentException("Clipboard selection contains an inactive entity.");
-            if (members.has(entityId) && !roots.has(entityId)) {
-                if (hasSelectedAncestor(entityId, selected, entityByStableId)) continue;
-                throw new IllegalArgumentException("Copying a Game Object member alone is not supported in V1.");
+            if (hasSelectedAncestor(entityId, selected, entityByStableId)) {
+                continue;
             }
-            if (roots.has(entityId) && hasSelectedAncestor(entityId, selected, entityByStableId)) continue;
             result.add(entityId);
         }
         return result;

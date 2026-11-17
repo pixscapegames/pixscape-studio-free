@@ -59,10 +59,4 @@ public class UniversalLayerAssetDropCapabilityTest {
                 false, true, "atlas-region"));
     }
 
-    @Test
-    public void gameObjectRequiringSpatialIsRejectedOnlyOnNonSpatialLayer() {
-        assertFalse(WorldCanvas.isGameObjectAssetAllowedForLayer(false, true));
-        assertTrue(WorldCanvas.isGameObjectAssetAllowedForLayer(true, true));
-        assertTrue(WorldCanvas.isGameObjectAssetAllowedForLayer(false, false));
-    }
 }

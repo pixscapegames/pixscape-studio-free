@@ -54,7 +54,8 @@ public class SceneHudRuntimeExportTest {
         write(f.root.child("atlases/hud/orphan/hud.png"), "orphan");
         write(f.root.child("atlases/HUD/orphan-upper/hud.png"), "case-insensitive live domain");
         write(f.root.child("atlases/hud/default/hud.atlas"), "legacy");
-        write(f.root.child("atlases/world.atlas"), "world");
+        write(f.root.child("atlases/world.atlas"), "orphan world pack");
+        write(f.root.child("atlases/scene1.atlas"), "");
         write(f.root.child("atlases/hud/manual.atlas"), "custom owned HUD");
         write(f.root.child("atlases/input/source.png"), "input");
         write(f.root.child("atlases/.tmp/unrelated/file"), "temporary");
@@ -65,7 +66,8 @@ public class SceneHudRuntimeExportTest {
         assertFalse(f.runtime.child("atlases/HUD/orphan-upper").exists());
         assertFalse(f.runtime.child("atlases/hud/orphan-upper").exists());
         assertFalse(f.runtime.child("atlases/hud/default/hud.atlas").exists());
-        assertEquals("world", f.runtime.child("atlases/world.atlas").readString());
+        assertFalse(f.runtime.child("atlases/world.atlas").exists());
+        assertTrue(f.runtime.child("atlases/scene1.atlas").exists());
         assertFalse(f.runtime.child("atlases/hud/manual.atlas").exists());
         assertFalse(new JsonReader().parse(f.runtime.child("project.json")).has("sceneHudFormatVersion"));
         assertEquals(before, new Json().toJson(f.cfg));

@@ -5,7 +5,6 @@ import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntIntMap;
 import com.badlogic.gdx.utils.IntMap;
-import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
@@ -26,16 +25,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.IntConsumer;
 
 public final class EntityGraphInstantiationService {
-    public enum ClipboardTargetLayer {
-        NON_SPATIAL(false),
-        SPATIAL_ENABLED(true);
 
-        final boolean spatialEnabled;
-
-        ClipboardTargetLayer(boolean spatialEnabled) {
-            this.spatialEnabled = spatialEnabled;
-        }
-    }
 
     private final World world;
     private final HistoryManager historyManager;
@@ -70,57 +60,17 @@ public final class EntityGraphInstantiationService {
         this.mJointBase = world.getMapper(PhysicsJointComponent.class);
     }
 
-    public EntityGraphInstantiationResult instantiate(EntityGraph graph,
-                                                      int activeLayerIndex,
-                                                      float dx,
-                                                      float dy,
-                                                      String commandName) {
-        return instantiate(graph, activeLayerIndex, dx, dy, commandName, null);
-    }
-
-    public EntityGraphInstantiationResult instantiateForClipboard(
-            EntityGraph graph,
-            int activeLayerIndex,
-            float dx,
-            float dy,
-            String commandName,
-            ClipboardTargetLayer targetLayer) {
-        if (targetLayer == null) {
-            throw new IllegalArgumentException("targetLayer must not be null.");
-        }
-        if (!isClipboardInstantiationAllowed(graph, targetLayer)) {
-            return EntityGraphInstantiationResult.empty();
-        }
-        return instantiate(graph, activeLayerIndex, dx, dy, commandName, targetLayer);
-    }
-
-    /**
-     * Clipboard may normalize Spatial state only for standalone entities. A Game
-     * Object hierarchy carrying authored Spatial actor state must instead be pasted
-     * onto a Spatial-enabled Layer intact, or be rejected before any Scene mutation.
-     */
-    public boolean isClipboardInstantiationAllowed(
-            EntityGraph graph, ClipboardTargetLayer targetLayer) {
-        return graph != null
-                && !graph.isEmpty()
-                && targetLayer != null
-                && isInstantiationAllowed(graph)
-                && (targetLayer != ClipboardTargetLayer.NON_SPATIAL
-                || !gameObjectHierarchyRequiresSpatialLayer(graph));
-    }
-
     public boolean isInstantiationAllowed(EntityGraph graph) {
         return scenePhysicsEnabled.getAsBoolean()
                 || !EntityGraphPhysicsSupport.containsAuthoredPhysics(graph);
     }
 
-    private EntityGraphInstantiationResult instantiate(
+    public EntityGraphInstantiationResult instantiate(
             EntityGraph graph,
             int activeLayerIndex,
             float dx,
             float dy,
-            String commandName,
-            ClipboardTargetLayer clipboardTargetLayer) {
+            String commandName) {
         if (graph == null || graph.isEmpty()) {
             return EntityGraphInstantiationResult.empty();
         }
@@ -129,15 +79,12 @@ public final class EntityGraphInstantiationService {
         }
 
         if (!historyManager.prepareLightCreation(graph.activeLightCount(),
-                () -> instantiate(graph, activeLayerIndex, dx, dy, commandName, clipboardTargetLayer)))
+                () -> instantiate(graph, activeLayerIndex, dx, dy, commandName)))
             return EntityGraphInstantiationResult.empty();
         IntIntMap sourceToCreated = new IntIntMap();
         IntMap<GenericEntitySnapshotData> snapshots = new IntMap<>();
         List<PreparedEntity> preparedEntities = prepareEntities(
-                graph, activeLayerIndex, dx, dy, snapshots, clipboardTargetLayer);
-        if (clipboardTargetLayer == ClipboardTargetLayer.NON_SPATIAL) {
-            pruneJointsWithNormalizedEndpoints(preparedEntities, snapshots);
-        }
+                graph, activeLayerIndex, dx, dy, snapshots);
         finalizePreparedEntities(preparedEntities, snapshots);
         List<PreparedJointRemap> preparedJointRemaps =
                 prepareJointRemaps(snapshots);
@@ -217,8 +164,7 @@ public final class EntityGraphInstantiationService {
             int activeLayerIndex,
             float dx,
             float dy,
-            IntMap<GenericEntitySnapshotData> snapshots,
-            ClipboardTargetLayer clipboardTargetLayer) {
+            IntMap<GenericEntitySnapshotData> snapshots) {
         List<EntityGraphEntry> orderedEntries = validateAndOrderHierarchy(graph);
         List<PreparedEntity> prepared = new ArrayList<>(orderedEntries.size());
         for (EntityGraphEntry entry : orderedEntries) {
@@ -230,9 +176,6 @@ public final class EntityGraphInstantiationService {
             }
             GenericEntityInitializer initializer = entry.initializerFor(world);
             GenericEntitySnapshotData snapshot = initializer.toSnapshotData(sourceEntityId);
-            if (clipboardTargetLayer != null) {
-                initializer.normalizeClipboardSpatial(clipboardTargetLayer.spatialEnabled);
-            }
             initializer.overrideLayerIndex(activeLayerIndex);
             if (entry.parentSourceEntityId() == -1) {
                 initializer.translate(dx, dy);
@@ -252,18 +195,7 @@ public final class EntityGraphInstantiationService {
         return prepared;
     }
 
-    private static boolean gameObjectHierarchyRequiresSpatialLayer(EntityGraph graph) {
-        for (EntityGraphEntry entry : graph.entries()) {
-            if (!entry.gameObjectRoot() && entry.parentSourceEntityId() == -1) continue;
-            GenericEntitySnapshotData snapshot = entry.initializer()
-                    .toSnapshotData(entry.sourceEntityId());
-            if (snapshot.hasSpatialRepresentation || snapshot.spatialFootprint != null) {
-                return true;
-            }
 
-        }
-        return false;
-    }
 
     private IntIntMap prepareStableIdentities(List<PreparedEntity> preparedEntities) {
         IntIntMap sourceToStable = new IntIntMap(preparedEntities.size());
@@ -297,59 +229,9 @@ public final class EntityGraphInstantiationService {
         }
     }
 
-    private static void pruneJointsWithNormalizedEndpoints(
-            List<PreparedEntity> prepared,
-            IntMap<GenericEntitySnapshotData> snapshots) {
-        IntSet removed = new IntSet();
-        for (IntMap.Entry<GenericEntitySnapshotData> entry : snapshots) {
-            GenericEntitySnapshotData snapshot = entry.value;
-            if (!snapshot.hasJoint || snapshot.jointType == PhysicsJointComponent.TYPE_GEAR) {
-                continue;
-            }
-            if (hasNormalizedInvalidEndpoint(snapshots, snapshot.jointAEid)
-                    || hasNormalizedInvalidEndpoint(snapshots, snapshot.jointBEid)) {
-                removed.add(entry.key);
-            }
-        }
 
-        boolean changed;
-        do {
-            changed = false;
-            for (IntMap.Entry<GenericEntitySnapshotData> entry : snapshots) {
-                GenericEntitySnapshotData snapshot = entry.value;
-                if (!snapshot.hasJoint
-                        || snapshot.jointType != PhysicsJointComponent.TYPE_GEAR
-                        || removed.contains(entry.key)) {
-                    continue;
-                }
-                if (hasNormalizedInvalidEndpoint(snapshots, snapshot.jointAEid)
-                        || hasNormalizedInvalidEndpoint(snapshots, snapshot.jointBEid)
-                        || removed.contains(snapshot.gearJoint1Eid)
-                        || removed.contains(snapshot.gearJoint2Eid)) {
-                    removed.add(entry.key);
-                    changed = true;
-                }
-            }
-        } while (changed);
 
-        if (removed.size == 0) return;
-        for (int i = prepared.size() - 1; i >= 0; i--) {
-            PreparedEntity entity = prepared.get(i);
-            if (removed.contains(entity.sourceEntityId)) {
-                snapshots.remove(entity.sourceEntityId);
-                prepared.remove(i);
-            }
-        }
-    }
 
-    private static boolean hasNormalizedInvalidEndpoint(
-            IntMap<GenericEntitySnapshotData> snapshots, int sourceEntityId) {
-        GenericEntitySnapshotData endpoint = snapshots.get(sourceEntityId);
-        return endpoint != null
-                && (!endpoint.hasPhysicsBody
-                || endpoint.shapes == null
-                || endpoint.shapes.size == 0);
-    }
 
     private static List<PreparedJointRemap> prepareJointRemaps(
             IntMap<GenericEntitySnapshotData> snapshots) {

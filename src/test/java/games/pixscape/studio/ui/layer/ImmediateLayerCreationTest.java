@@ -200,7 +200,6 @@ public class ImmediateLayerCreationTest {
             VisibilityComponent visibility = world.getMapper(VisibilityComponent.class).get(entity);
             EntityMetaComponent entityMeta = world.getMapper(EntityMetaComponent.class).get(entity);
 
-            assertFalse(layer.spatialEnabled);
             assertEquals("New Layer", meta.name);
             assertEquals("", meta.description);
             assertFalse(meta.locked);

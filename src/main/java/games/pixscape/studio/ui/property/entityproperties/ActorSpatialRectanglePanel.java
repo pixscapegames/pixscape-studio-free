@@ -21,24 +21,27 @@ final class ActorSpatialRectanglePanel {
     private final float[] displayed = new float[6];
     private int entity = -1, asset;
     private String clip;
+    private final ActorSpatialRectangleData defaultRectangle = new ActorSpatialRectangleData();
 
     ActorSpatialRectanglePanel(EntityPropertiesContext ctx, VisTable table) {
         this.ctx = ctx;
-        table.add(new VisLabel("Occlusion rectangle (entity pixels)")).colspan(2).row();
+        table.add(new VisLabel("Occlusion zone (image pixels)")).colspan(2).row();
         String[] names = {"Width:", "Height:", "Rectangle X:", "Rectangle Y:", "Pivot X:", "Pivot Y:"};
         for (int i = 0; i < fields.length; i++) {
             if (i == 4) {
                 table.add(new VisLabel("Shadow pivot (footprint pixels)")).colspan(2).row();
             }
             final int property = i;
-            FloatField field = new FloatField(ctx.world, e -> read(rectangle(e), property), e -> rectangle(e) != null).setDisplayDecimals(2);
+            FloatField field = new FloatField(ctx.world, e -> readPixels(e, property), e -> rectangle(e) != null).setDisplayDecimals(2);
             field.setName("actor-spatial-rectangle-" + i);
             field.setKeepInvalidInput(true);
             field.setValidator(FloatField.finiteValidator(i < 2));
             field.addListener(new com.badlogic.gdx.scenes.scene2d.InputListener() {
                 @Override
                 public boolean keyDown(com.badlogic.gdx.scenes.scene2d.InputEvent event, int key) {
-                    if (key != com.badlogic.gdx.Input.Keys.ESCAPE) return false;
+                    if (key != com.badlogic.gdx.Input.Keys.ESCAPE) {
+                        return false;
+                    }
                     field.refreshFromModel();
                     event.stop();
                     return true;
@@ -46,9 +49,11 @@ final class ActorSpatialRectanglePanel {
             });
             field.setApplier((e, value) -> {
                 ActorSpatialRectangleData current = rectangle(e);
-                if (current == null || !Float.isFinite(value) || property < 2 && value <= 0) return;
+                if (current == null || !Float.isFinite(value) || property < 2 && value <= 0) {
+                    return;
+                }
                 ActorSpatialRectangleData next = current.copy();
-                write(next, property, value);
+                write(next, property, value / unitScale(e, property));
                 ctx.history.execute(new EditActorSpatialRectangleCommand(ctx.world, ctx.history.historyIds(), e, asset, clip, next, ctx.markCurrentSceneSaveRequired));
             });
             fields[i] = field;
@@ -59,7 +64,12 @@ final class ActorSpatialRectanglePanel {
 
     private ActorSpatialRectangleData rectangle(int e) {
         SpatialRepresentationComponent s = e < 0 ? null : ctx.mSpatialRepresentation.getSafe(e, null);
-        return s == null || s.rectangles == null ? null : s.rectangles.get(asset, clip);
+        var size = e < 0 ? null : ctx.mDimensions.getSafe(e, null);
+        if (size == null || size.width <= 0 || size.height <= 0) {
+            return null;
+        }
+        ActorSpatialRectangleData rectangle = s == null || s.rectangles == null ? null : s.rectangles.get(asset, clip);
+        return rectangle == null ? defaultRectangle : rectangle;
     }
 
     void refresh(int e) {
@@ -70,27 +80,44 @@ final class ActorSpatialRectanglePanel {
         clip = c == null ? null : c.currentClip;
         for (int i = 0; i < fields.length; i++) {
             fields[i].setEntityId(e);
-            displayed[i] = read(rectangle(e), i);
+            displayed[i] = readPixels(e, i);
         }
     }
 
     void refreshCurrentRepresentation() {
-        if (entity < 0 || !ctx.world.getEntityManager().isActive(entity)) return;
+        if (entity < 0 || !ctx.world.getEntityManager().isActive(entity)) {
+            return;
+        }
         AssetRefComponent a = ctx.mSpriteSource.getSafe(entity, null);
         AnimationComponent c = ctx.mAnim.getSafe(entity, null);
-        if (asset != (a == null ? 0 : a.assetId) || !Objects.equals(clip, c == null ? null : c.currentClip))
+        if (asset != (a == null ? 0 : a.assetId) || !Objects.equals(clip, c == null ? null : c.currentClip)) {
             refresh(entity);
+        }
         // Model changes during a canvas gesture are reflected without rewriting a focused field.
-        ActorSpatialRectangleData v = rectangle(entity);
-        for (int i = 0; i < fields.length; i++)
-            if (!fields[i].hasKeyboardFocus() && displayed[i] != read(v, i)) {
+        for (int i = 0; i < fields.length; i++) {
+            if (!fields[i].hasKeyboardFocus() && displayed[i] != readPixels(entity, i)) {
                 fields[i].refreshFromModel();
-                displayed[i] = read(v, i);
+                displayed[i] = readPixels(entity, i);
             }
+        }
+    }
+
+    private float unitScale(int e, int property) {
+        if (property >= 4) {
+            return 1f;
+        }
+        var size = e < 0 ? null : ctx.mDimensions.getSafe(e, null);
+        return size == null ? 1f : property == 0 || property == 2 ? size.width : size.height;
+    }
+
+    private float readPixels(int e, int property) {
+        return read(rectangle(e), property) * unitScale(e, property);
     }
 
     static float read(ActorSpatialRectangleData v, int p) {
-        if (v == null) return 0;
+        if (v == null) {
+            return 0;
+        }
         return switch (p) {
             case 0 -> v.width;
             case 1 -> v.height;

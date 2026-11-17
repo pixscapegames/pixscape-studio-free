@@ -313,7 +313,6 @@ public class TmxSceneImportServiceTest {
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(mapEntity);
         EntityIndexComponent mapIndex = world.getMapper(EntityIndexComponent.class).get(mapEntity);
 
-        assertFalse(layer.spatialEnabled);
         assertFalse(world.getMapper(LayerComponent.class).has(mapEntity));
         assertEquals(0, mapIndex.layerIndex);
         assertEquals(0, mapIndex.zIndex);
@@ -372,7 +371,6 @@ public class TmxSceneImportServiceTest {
                 true, 3f, 12f));
         assertTrue(tiled.spatialEnabled);
         assertTrue(tiled.data.spatialEnabled);
-        assertFalse(layer.spatialEnabled);
 
         StudioEditingModeService editingModes = new StudioEditingModeService();
         editingModes.activateSceneDocument(StudioEditingMode.NORMAL, 0);

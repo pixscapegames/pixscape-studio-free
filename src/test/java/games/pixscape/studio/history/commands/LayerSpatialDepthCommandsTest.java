@@ -39,7 +39,6 @@ public class LayerSpatialDepthCommandsTest {
         HistoryManager history = new HistoryManager(8);
         int layerId = createLayer(world, 0);
         LayerComponent layer = world.getMapper(LayerComponent.class).get(layerId);
-        layer.spatialEnabled = false;
         int mapId = world.create();
         world.getMapper(EntityIndexComponent.class).create(mapId).layerIndex = 0;
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(mapId);
@@ -54,17 +53,14 @@ public class LayerSpatialDepthCommandsTest {
         history.execute(new ToggleTiledMapSpatialDepthCommand(
                 world, history.historyIds(), mapId, true, 2f, 32f));
 
-        Assert.assertFalse(layer.spatialEnabled);
         Assert.assertTrue(tiled.spatialEnabled);
         Assert.assertTrue(tiled.data.spatialEnabled);
 
         history.undo();
-        Assert.assertFalse(layer.spatialEnabled);
         Assert.assertFalse(tiled.spatialEnabled);
         Assert.assertFalse(tiled.data.spatialEnabled);
 
         history.redo();
-        Assert.assertFalse(layer.spatialEnabled);
         Assert.assertTrue(tiled.spatialEnabled);
     }
 
@@ -279,7 +275,6 @@ public class LayerSpatialDepthCommandsTest {
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);
         int layerId = createLayer(world, 2);
-        world.getMapper(LayerComponent.class).get(layerId).spatialEnabled = true;
         int actorId = createActor(world, 2, 4f, 10f);
         history.historyIds().ensureForEntity(layerId);
         history.historyIds().ensureForEntity(actorId);
@@ -297,7 +292,6 @@ public class LayerSpatialDepthCommandsTest {
         Assert.assertTrue(command.isNoop());
         command.redo();
         Assert.assertEquals(cursorBefore, history.getCursor());
-        Assert.assertTrue(world.getMapper(LayerComponent.class).get(layerId).spatialEnabled);
         SpatialRepresentationComponent untouched = world.getMapper(SpatialRepresentationComponent.class).get(actorId);
         Assert.assertEquals(4f, world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(actorId).altitude, 0.0001f);
         Assert.assertEquals(10f, untouched.rectangles.staticRectangle.height, 0.0001f);
@@ -421,7 +415,6 @@ public class LayerSpatialDepthCommandsTest {
         int layerId = world.create();
         LayerComponent layer = world.getMapper(LayerComponent.class).create(layerId);
         layer.layerIndex = layerIndex;
-        layer.spatialEnabled = false;
         return layerId;
     }
 

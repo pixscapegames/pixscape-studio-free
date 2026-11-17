@@ -63,20 +63,27 @@ public final class ClipboardService {
     }
 
     public boolean copySelection() {
+        return copySelection(false);
+    }
+
+    public boolean copyVisualSelection() {
+        return copySelection(true);
+    }
+
+    private boolean copySelection(boolean visualOnly) {
         if (!belongsToCurrentProject()) return false;
         IntArray normalized = normalizeClipboardSelection();
         if (normalized == null) return false;
         try {
-            graph = graphCaptureService.captureNormalizedClipboard(normalized);
-        } catch (IllegalArgumentException ignored) {
-            graph = EntityGraph.empty();
+            graph = graphCaptureService.captureNormalizedClipboard(normalized, visualOnly);
+        } catch (IllegalArgumentException rejected) {
+            canvas.showCompositionDiagnostic(rejected.getMessage());
             return false;
         }
         if (graph.isEmpty()) {
             return false;
         }
         pasteCount = 0;
-        canvas.showCompositionDiagnostic(graphCaptureService.diagnostic());
         return true;
     }
 
@@ -84,21 +91,22 @@ public final class ClipboardService {
         if (!belongsToCurrentProject()) return false;
         IntArray normalized = normalizeClipboardSelection();
         if (normalized == null) return false;
+        EntityGraph candidate;
         try {
-            graph = graphCaptureService.captureNormalizedClipboard(normalized);
-        } catch (IllegalArgumentException ignored) {
-            graph = EntityGraph.empty();
+            candidate = graphCaptureService.captureNormalizedClipboard(normalized);
+        } catch (IllegalArgumentException rejected) {
+            canvas.showCompositionDiagnostic(rejected.getMessage());
             return false;
         }
-        if (graph.isEmpty()) {
+        if (candidate.isEmpty()) {
             return false;
         }
 
         IntArray cutEntities;
         try {
             cutEntities = graphCaptureService.captureNormalizedClipboardCutEntities(normalized);
-        } catch (IllegalArgumentException ignored) {
-            graph = EntityGraph.empty();
+        } catch (IllegalArgumentException rejected) {
+            canvas.showCompositionDiagnostic(rejected.getMessage());
             return false;
         }
         historyManager.execute(DeleteEntitiesCommandFactory.create(
@@ -107,11 +115,9 @@ public final class ClipboardService {
                 cutEntities,
                 entityId -> canvas.requestParticleRuntimeAvailabilityRefreshIfParticleEntity(
                         editingContext, entityId)));
+        graph = candidate;
         selectionService.clearSelection();
         pasteCount = 0;
-        canvas.showCompositionDiagnostic(graphCaptureService.diagnostic().replace(
-                "Source Scene connections are unchanged.",
-                "Cutting removes the source objects and their dependent joints."));
         return true;
     }
 
@@ -133,13 +139,12 @@ public final class ClipboardService {
         if (destination == null) {
             return false;
         }
-        if (!graphInstantiationService.isClipboardInstantiationAllowed(
-                graph, destination.targetLayer())) {
+        if (!graphInstantiationService.isInstantiationAllowed(
+                graph)) {
             if (Gdx.app != null) {
                 Gdx.app.error(
                         "Clipboard",
-                        "Cannot paste a Game Object hierarchy containing Spatial actor data "
-                                + "onto a non-Spatial Layer.");
+                        "Cannot paste physical content into a scene with Physics disabled.");
             }
             return false;
         }
@@ -148,13 +153,12 @@ public final class ClipboardService {
         float dy = (pasteCount + 1) * PASTE_STEP_Y;
 
         EntityGraphInstantiationResult result =
-                graphInstantiationService.instantiateForClipboard(
+                graphInstantiationService.instantiate(
                         graph,
                         destination.layerIndex(),
                         dx,
                         dy,
-                        "Paste",
-                        destination.targetLayer());
+                        "Paste");
         if (result.createdIds().size == 0) {
             return false;
         }
@@ -202,15 +206,9 @@ public final class ClipboardService {
             return null;
         }
 
-        EntityGraphInstantiationService.ClipboardTargetLayer targetLayer =
-                LayerService.isSpatialActorLayer(layer)
-                        ? EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL_ENABLED
-                        : EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL;
-        return new ResolvedClipboardDestination(layerIndex, targetLayer);
+        return new ResolvedClipboardDestination(layerIndex);
     }
 
-    private record ResolvedClipboardDestination(
-            int layerIndex,
-            EntityGraphInstantiationService.ClipboardTargetLayer targetLayer) {
+    private record ResolvedClipboardDestination(int layerIndex) {
     }
 }

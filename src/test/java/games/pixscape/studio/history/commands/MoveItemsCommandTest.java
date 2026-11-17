@@ -300,7 +300,7 @@ public class MoveItemsCommandTest {
     }
 
     @Test
-    public void rejectsWholeBatchForCyclesLocksUnsupportedMembersAndSpatialMismatch() {
+    public void rejectsWholeBatchForCyclesLocksAndUnsupportedMembers() {
         try (F f = new F()) {
             int p = f.root(0, 0), nested = f.root(0, 0), good = f.sprite(0, 3), bad = f.sprite(0, 2);
             f.attach(nested, p, 0);
@@ -319,7 +319,7 @@ public class MoveItemsCommandTest {
             assertFalse(f.result(1, 0, 0, good).accepted());
             f.context.layerService().meta(1).locked = false;
             f.world.getMapper(SpatialRepresentationComponent.class).create(good);
-            assertFalse(f.result(1, 0, 0, good).accepted());
+            assertTrue(f.result(1, 0, 0, good).accepted());
             assertTrue(f.world.getMapper(SpatialRepresentationComponent.class).has(good));
             assertEquals(0, f.context.historyManager().getCursor());
         }

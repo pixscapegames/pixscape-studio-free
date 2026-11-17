@@ -37,10 +37,10 @@ public class ActorShadowRectanglePersistenceTest {
             GenericEntityInitializer initializer = new GenericEntityInitializer(a);
             initializer.syncFrom(e);
             assertEquals(37.25f, initializer.duplicate().toSnapshotData(e).actorSpatialRectangles.staticRectangle.pivotX, 0);
-            var detached = initializer.duplicate().normalizeClipboardSpatial(false).toSnapshotData(e);
-            assertNull(detached.spatialFootprint);
-            assertFalse(detached.hasSpatialRepresentation);
-            assertNull(detached.actorSpatialRectangles);
+            var detached = initializer.duplicate().withoutPhysics().toSnapshotData(e);
+            assertNotNull(detached.spatialFootprint);
+            assertTrue(detached.hasSpatialRepresentation);
+            assertEquals(37.25f, detached.actorSpatialRectangles.staticRectangle.pivotX, 0);
             SceneService.saveScene(a, file, false);
             SceneMetaRuntime meta = new SceneMetaRuntime();
             meta.nextEntityStableId = 2;

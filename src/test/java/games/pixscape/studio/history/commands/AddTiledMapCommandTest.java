@@ -425,7 +425,6 @@ public class AddTiledMapCommandTest {
         int secondLayer = world.create();
         LayerComponent target = world.getMapper(LayerComponent.class).create(secondLayer);
         target.layerIndex = 1;
-        target.spatialEnabled = true;
         world.getMapper(LayerMetaComponent.class).create(secondLayer).name = "Other";
         world.process();
         assertFalse(world.getMapper(TiledLayerComponent.class).get(map).spatialEnabled);

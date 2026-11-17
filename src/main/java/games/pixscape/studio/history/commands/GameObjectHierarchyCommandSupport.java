@@ -84,6 +84,24 @@ public final class GameObjectHierarchyCommandSupport {
         if (authored == null) {
             throw new IllegalArgumentException("Hierarchy entity requires TransformComponent.");
         }
+        games.pixscape.runtime.system.PhysicsPoseAuthority authority =
+                world.getSystem(games.pixscape.runtime.system.PhysicsPoseAuthority.class);
+        if (authority != null && authority.isRuntimePhysics()) {
+            GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+            games.pixscape.runtime.hierarchy.WorldTransformState poses =
+                    hierarchy == null ? null : hierarchy.worldTransforms();
+            if (poses == null || !poses.isResolved(entityId)) {
+                throw new IllegalStateException("Hierarchy mutation requires a published world pose.");
+            }
+            TransformComponent pose = copy(authored);
+            pose.x = poses.x[entityId];
+            pose.y = poses.y[entityId];
+            pose.rotationRad = poses.rotationRad[entityId];
+            pose.scaleX = poses.scaleX[entityId];
+            pose.scaleY = poses.scaleY[entityId];
+            pose.refreshCaches();
+            return pose;
+        }
         GameObjectMemberComponent member = world.getMapper(GameObjectMemberComponent.class)
                 .getSafe(entityId, null);
         if (member == null) return copy(authored);

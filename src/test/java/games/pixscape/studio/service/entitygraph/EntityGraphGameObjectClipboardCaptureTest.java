@@ -80,19 +80,15 @@ public class EntityGraphGameObjectClipboardCaptureTest {
     }
 
     @Test
-    public void selectionNormalizerRejectsAnOrdinaryMemberSelectedAlone() {
+    public void selectionNormalizerAllowsAnOrdinaryMemberSelectedAlone() {
         Fixture f = new Fixture();
         try {
             int root = f.gameObject(10, -1, 0f, 0f, 0f, 1f, 0f, 0f);
             int member = f.member(20, 10, 0f, 0f);
             f.world.process();
 
-            try {
-                new ClipboardSelectionNormalizer(f.world).normalize(new IntArray(new int[]{member}));
-                fail("Expected V1 to reject copying a Game Object member alone.");
-            } catch (IllegalArgumentException expected) {
-                assertTrue(expected.getMessage().contains("member alone"));
-            }
+            assertEquals(member, new ClipboardSelectionNormalizer(f.world)
+                    .normalize(new IntArray(new int[]{member})).first());
             assertFalse(new ClipboardSelectionNormalizer(f.world)
                     .normalize(new IntArray(new int[]{root})).isEmpty());
         } finally {
@@ -267,7 +263,7 @@ public class EntityGraphGameObjectClipboardCaptureTest {
     }
 
     @Test
-    public void mixedGameObjectAndIncompleteStandaloneBodiesDoNotIncludeJoint() {
+    public void mixedIncompletePhysicalCopyRejectsAndVisualCopyOmitsPhysics() {
         Fixture f = new Fixture();
         try {
             int root = f.gameObject(10, -1, 0f, 0f, 0f, 1f, 0f, 0f);
@@ -276,11 +272,13 @@ public class EntityGraphGameObjectClipboardCaptureTest {
             f.distanceJoint(40, firstBody, secondBody);
             f.world.process();
 
-            EntityGraph graph = new EntityGraphCaptureService(f.world)
-                    .captureGameObjectClipboard(new IntArray(new int[]{root, firstBody}));
-
-            assertEquals(2, graph.size());
-            for (EntityGraphEntry entry : graph.entries()) {
+            assertThrows(IllegalArgumentException.class, () -> new EntityGraphCaptureService(f.world)
+                    .captureGameObjectClipboard(new IntArray(new int[]{root, firstBody})));
+            EntityGraph visual = new EntityGraphCaptureService(f.world)
+                    .captureVisualOnly(new IntArray(new int[]{root, firstBody}));
+            assertEquals(2, visual.size());
+            for (EntityGraphEntry entry : visual.entries()) {
+                assertFalse(entry.initializer().toSnapshotData(0).hasPhysicsBody);
                 assertFalse(entry.initializer().toSnapshotData(0).hasJoint);
             }
         } finally {
@@ -314,7 +312,7 @@ public class EntityGraphGameObjectClipboardCaptureTest {
     }
 
     @Test
-    public void gameObjectHierarchyClipboardExcludesExternalJointAndReportsIt() {
+    public void gameObjectHierarchyClipboardRejectsExternalJointAndReportsIt() {
         Fixture f = new Fixture();
         try {
             int root = f.gameObject(10, -1, 0f, 0f, 0f, 1f, 0f, 0f);
@@ -327,10 +325,9 @@ public class EntityGraphGameObjectClipboardCaptureTest {
             f.world.process();
 
             EntityGraphCaptureService capture = new EntityGraphCaptureService(f.world);
-            EntityGraph graph = capture.captureGameObjectClipboard(new IntArray(new int[]{root}));
-            assertEquals(2, graph.size());
-            assertTrue(capture.diagnostic().contains("External joints excluded"));
-            assertTrue(capture.diagnostic().contains("40"));
+            IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
+                    () -> capture.captureGameObjectClipboard(new IntArray(new int[]{root})));
+            assertTrue(failure.getMessage().contains("40"));
             assertTrue(f.world.getEntityManager().isActive(externalBody));
             assertTrue(f.world.getEntityManager().isActive(root));
             assertTrue(f.world.getEntityManager().isActive(memberBody));

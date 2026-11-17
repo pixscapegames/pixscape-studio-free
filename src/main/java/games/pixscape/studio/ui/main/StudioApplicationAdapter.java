@@ -40,7 +40,6 @@ import games.pixscape.studio.helper.CursorDrawHelper;
 import games.pixscape.studio.helper.RenderRebindHelper;
 import games.pixscape.studio.helper.ShapeHelper;
 import games.pixscape.studio.helper.StudioHomeBootstrap;
-import games.pixscape.studio.history.commands.ToggleSpatialActorLayerCommand;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.logging.StudioLogCapture;
 import games.pixscape.studio.logging.StudioLogLevel;
@@ -781,11 +780,6 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
             // Commit the internal Layer before instantiation: jointed assets normalize their
             // logical order as the last child of the construction composite.
             candidate.world().process();
-            if (canvas.getGameObjectAssetService().requiresSpatialLayer(asset)) {
-                candidate.historyManager().execute(new ToggleSpatialActorLayerCommand(
-                        candidate.world(), candidate.historyManager().historyIds(),
-                        candidate.layerService(), layerEntityId, true));
-            }
             candidate.selectionService().setActivelayerId(layerEntityId);
 
             var result = canvas.getGameObjectAssetService().instantiateGameObject(

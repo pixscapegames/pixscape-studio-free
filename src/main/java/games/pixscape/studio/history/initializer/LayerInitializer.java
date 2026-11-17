@@ -25,7 +25,6 @@ public final class LayerInitializer extends AbstractCommonInitializer {
     private float parallaxX = 1f;
     private float parallaxY = 1f;
 
-    private boolean layerSpatialEnabled = false;
 
     public LayerInitializer(World world) {
         super(world);
@@ -43,10 +42,8 @@ public final class LayerInitializer extends AbstractCommonInitializer {
             LayerComponent li = mLayer.get(e);
             hasLayerIndex = true;
             layerIndex = li.layerIndex;
-            layerSpatialEnabled = li.spatialEnabled;
         } else {
             hasLayerIndex = false;
-            layerSpatialEnabled = false;
         }
 
         if (mMeta.has(e)) {
@@ -82,7 +79,6 @@ public final class LayerInitializer extends AbstractCommonInitializer {
         if (hasLayerIndex) {
             LayerComponent li = mLayer.has(e) ? mLayer.get(e) : mLayer.create(e);
             li.layerIndex = layerIndex;
-            li.spatialEnabled = layerSpatialEnabled;
             if (dirty != null) {
                 dirty.layer(e);
                 dirty.order(e);
@@ -125,7 +121,6 @@ public final class LayerInitializer extends AbstractCommonInitializer {
 
         hasParallax = false;
 
-        layerSpatialEnabled = false;
 
         return this;
     }

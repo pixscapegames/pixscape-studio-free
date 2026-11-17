@@ -40,8 +40,8 @@ public class EditorDocumentLifecycleContractTest {
     public void gameObjectAssetsUseAnIsolatedDocumentWorldAndAssetOnlyPersistence() throws Exception {
         String app = read("src/main/java/games/pixscape/studio/ui/main/StudioApplicationAdapter.java");
         assertTrue(app.contains("canvas.createSceneContext(null, editingMeta)"));
-        assertTrue(app.contains("requiresSpatialLayer(asset)"));
-        assertTrue(app.contains("new ToggleSpatialActorLayerCommand("));
+        assertFalse(app.contains("requiresSpatialLayer(asset)"));
+        assertFalse(app.contains("new ToggleSpatialActorLayerCommand("));
         assertTrue(app.contains("candidate.world().process();"));
         assertTrue(app.contains("assetFile, assetId, layerIndex, 0f, 0f"));
         assertTrue(app.contains("canvas.focusCameraAt(0f, 0f);"));
