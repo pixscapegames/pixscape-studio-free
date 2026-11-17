@@ -8,7 +8,7 @@
 * Uses Runtime `0.2.5-SNAPSHOT` and saves scenes in schema 6. Supported schema 3 scenes are converted on load, with one map per existing tile grid.
 
 ### Added
-* Spatial Actor activation and circle editing now work with scene physics disabled. Physics removal preserves spatial data; collision geometry, circle and occlusion rectangle have independent settings. Native canvas gestures edit circle center/radius, rectangle or shadow pivot with undo/redo and Escape cancellation. Undo/redo, save, export and Game Object snapshots preserve all three geometries. See [the spatial/physics contract](docs/spatial-physics-decoupling.txt).
+* Spatial Actor activation and circle editing now work with scene physics disabled. Physics removal preserves spatial data; collision geometry, circle and occlusion rectangle have independent settings. Native canvas gestures edit circle center/radius, rectangle or shadow pivot with undo/redo and Escape cancellation. Undo/redo, save, export and Game Object snapshots preserve all three geometries.
 * Added persistent Studio-only visibility controls for Tiled maps and their layers, in a fixed Items column before the scrollbar.
 * Added `Grid on top` beside `Rulers`, keeping the grid behind world content by default.
 * TMX imports now create one map containing ordered tile, image and object layers, with map translation and import undo/redo.
