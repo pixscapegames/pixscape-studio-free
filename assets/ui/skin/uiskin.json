@@ -694,6 +694,8 @@
 	},
 	"list": {
 		"corner": "grey",
+		"hScroll": "scroll-horizontal",
+		"hScrollKnob": "scroll-knob-horizontal",
 		"vScroll": "scroll",
 		"vScrollKnob": "scroll-knob-vertical"
 	}

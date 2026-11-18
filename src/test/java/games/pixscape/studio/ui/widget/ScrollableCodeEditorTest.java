@@ -49,7 +49,27 @@ public class ScrollableCodeEditorTest {
 
         Assert.assertTrue(pane.isScrollX());
         Assert.assertTrue(pane.isScrollY());
+        Assert.assertNotNull("VisScrollPane's list style must supply a horizontal track", pane.getStyle().hScroll);
+        Assert.assertNotNull("VisScrollPane's list style must supply a horizontal knob", pane.getStyle().hScrollKnob);
+        Assert.assertTrue("Horizontal overflow must have a visible scrollbar track",
+                pane.getStyle().hScroll.getMinHeight() > 0f);
+        Assert.assertTrue("Horizontal overflow must have a visible scrollbar knob",
+                pane.getStyle().hScrollKnob.getMinHeight() > 0f);
+        Assert.assertTrue("Horizontal scrollbar must reserve layout height", pane.getScrollBarHeight() > 0f);
         Assert.assertEquals(0f, pane.getScrollX(), 0.01f);
         Assert.assertEquals(0f, pane.getScrollY(), 0.01f);
+    }
+
+    @Test
+    public void horizontalScrollbarsKeepTheirNativeHeightInBothStyles() {
+        for (String name : new String[]{"default", "list"}) {
+            var style = VisUI.getSkin().get(name, com.badlogic.gdx.scenes.scene2d.ui.ScrollPane.ScrollPaneStyle.class);
+            Assert.assertNotNull(name + " horizontal track", style.hScroll);
+            Assert.assertNotNull(name + " horizontal knob", style.hScrollKnob);
+            Assert.assertEquals(name + " track slices must fit the source region",
+                    VisUI.getSkin().getRegion("scroll-horizontal").getRegionHeight(), style.hScroll.getMinHeight(), 0f);
+            Assert.assertEquals(name + " knob slices must fit the source region",
+                    VisUI.getSkin().getRegion("scroll-knob-horizontal").getRegionHeight(), style.hScrollKnob.getMinHeight(), 0f);
+        }
     }
 }

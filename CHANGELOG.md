@@ -32,6 +32,7 @@
 * Refreshed the distributed HTML Preview player for the current Game Object composition formats and the Runtime physics bootstrap correction.
 
 ### Fixed
+* Restored horizontal scrollbar tracks and knobs in the shared list skin used by Studio panes, including code editors, trees and tileset views. Horizontal bars now appear when their content overflows.
 * Studio snapshots now preserve polygon and open-polyline vertices through copy/paste, delete undo/redo and Game Object capture/restoration. Vertex arrays are independently owned; authored order, transforms and isometric rectangle roles are retained without contour normalization or physics conversion.
 * Wired the Edit menu's Cut, Copy and Paste entries to the active document's existing clipboard commands and undo history.
 * Pasting without a valid active layer now refuses the operation before accessing layer data, preserving the clipboard, selection and history.
