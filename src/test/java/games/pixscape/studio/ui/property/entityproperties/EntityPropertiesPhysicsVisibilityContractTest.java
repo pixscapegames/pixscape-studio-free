@@ -14,7 +14,7 @@ public class EntityPropertiesPhysicsVisibilityContractTest {
     public void entityPhysicsSectionReadsItsBoundContextPhysicsState() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/ui/property/entityproperties/EntityProperties.java");
 
-        String constructor = methodBody(source, "public EntityProperties(EntityPropertiesContext ctx)");
+        String constructor = methodBody(source, "public EntityProperties(EntityPropertiesContext ctx,");
         assertTrue(constructor.contains("syncScenePhysicsEnabled();"));
 
         String setEntityId = methodBody(source, "public void setEntityId(int entityId)");

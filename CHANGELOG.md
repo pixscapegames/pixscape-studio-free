@@ -8,6 +8,7 @@
 * Occlusion zones now use normalized image-local storage and are edited in logical image pixels. Existing files using the previous rectangle coordinates must be adapted explicitly.
 
 ### Added
+* Sprites, including sprites with children, now have a required Texture inspector section with an image preview and project Image selector. Replacement adopts the selected region's native dimensions while preserving transforms, signed scale/flips, material, tint, repeat, children, physics and footprint settings. One history command restores image and authored dimensions together; cancel, unchanged selection and unavailable images do not add history entries. Changes synchronize reachable atlas resources through the existing asynchronous pipeline, including undo/redo. Static normalized occlusion settings stay attached to the sprite and follow its image dimensions without rewriting their values.
 * Spatial Actor activation and circle editing now work with scene physics disabled. Physics removal preserves spatial data; collision geometry, circle and occlusion rectangle have independent settings. Native canvas gestures edit circle center/radius, rectangle or shadow pivot with undo/redo and Escape cancellation. Undo/redo, save, export and Game Object snapshots preserve all three geometries.
 * Added persistent Studio-only visibility controls for Tiled maps and their layers, in a fixed Items column before the scrollbar.
 * Added `Grid on top` beside `Rulers`, keeping the grid behind world content by default.

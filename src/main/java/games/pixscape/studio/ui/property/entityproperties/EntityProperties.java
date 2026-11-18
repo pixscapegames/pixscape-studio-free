@@ -6,6 +6,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.*;
+import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
@@ -13,12 +14,15 @@ import games.pixscape.studio.helper.MetaTagsHelper;
 import games.pixscape.studio.history.commands.ChangeEntityNameCommand;
 import games.pixscape.studio.history.commands.TransformOp;
 import games.pixscape.studio.model.EntityKind;
+import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.property.entityproperties.physics.BodyPanel;
 import games.pixscape.studio.ui.widget.SimpleTextField;
 import games.pixscape.studio.ui.widget.UiBinders;
 
 import java.util.List;
+import java.util.function.IntConsumer;
+import java.util.function.Supplier;
 
 public class EntityProperties extends VisTable {
 
@@ -47,6 +51,8 @@ public class EntityProperties extends VisTable {
     private final EntityPropertiesContext ctx;
 
     private final TransformPanel transformPanel;
+    private final TexturePanel texturePanel;
+    private final ToggleSection textureSection;
     private final MaterialPanel materialPanel;
     private final LightingPanel lightingPanel;
     private final AnimationPanel animationPanel;
@@ -69,7 +75,10 @@ public class EntityProperties extends VisTable {
     private int currentEntityId = -1;
     private boolean scenePhysicsEnabled = false;
 
-    public EntityProperties(EntityPropertiesContext ctx) {
+    public EntityProperties(EntityPropertiesContext ctx,
+                            StudioAssetVisualResolver visualResolver,
+                            Supplier<Array<AssetMeta>> images,
+                            IntConsumer onTextureBound) {
         super(true);
         this.ctx = ctx;
 
@@ -101,6 +110,7 @@ public class EntityProperties extends VisTable {
         );
 
         transformPanel = new TransformPanel(ctx);
+        texturePanel = new TexturePanel(ctx, visualResolver, images, onTextureBound);
         materialPanel = new MaterialPanel(ctx);
         lightingPanel = new LightingPanel(ctx, false);
         animationPanel = new AnimationPanel(ctx);
@@ -119,6 +129,7 @@ public class EntityProperties extends VisTable {
         );
 
         transformSection = new ToggleSection("Transform", transformPanel);
+        textureSection = new ToggleSection("Texture", texturePanel.content());
         materialSection = new ToggleSection("Material", materialPanel);
         CollapsibleWidget lightingContent = new CollapsibleWidget();
         lightingContent.setTable(lightingPanel);
@@ -141,6 +152,7 @@ public class EntityProperties extends VisTable {
         add(buildCommonHeader()).growX().left().row();
         add(gameObjectSection).growX().left().pad(0).row();
         add(transformSection).growX().left().pad(0).row();
+        add(textureSection).growX().left().pad(0).row();
         add(materialSection).growX().left().pad(0).row();
         add(animationSection).growX().left().pad(0).row();
         add(particleSection).growX().left().pad(0).row();
@@ -272,6 +284,7 @@ public class EntityProperties extends VisTable {
         visibleBinder.setEntityId(entityId);
 
         transformPanel.setEntityId(entityId);
+        texturePanel.setEntityId(entityId);
         refreshTransformTitle();
         materialPanel.setEntityId(entityId);
         lightingPanel.setEntityId(entityId);
@@ -323,6 +336,7 @@ public class EntityProperties extends VisTable {
     }
 
     private void updateSectionsVisibility() {
+        textureSection.setApplicable(texturePanel.isApplicable(currentEntityId));
         lightingSection.setApplicable(currentEntityId >= 0 && ctx.world.getMapper(RenderMaterialComponent.class).has(currentEntityId)
                 && !ctx.world.getMapper(ParticleEmitterComponent.class).has(currentEntityId));
         if (currentEntityId < 0) return;
@@ -396,6 +410,7 @@ public class EntityProperties extends VisTable {
     }
 
     private void onFieldsChanged(TransformOp op) {
+        texturePanel.requestRefresh();
         lightingPanel.setEntityId(currentEntityId);
         transformPanel.onFieldsChanged(op);
     }

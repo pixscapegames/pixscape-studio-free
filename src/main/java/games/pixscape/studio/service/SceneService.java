@@ -1510,6 +1510,29 @@ public final class SceneService {
         atlasStudioService.requestAsyncPack(sceneTag);
     }
 
+    /** Cold image replacement/undo boundary; atlas membership follows the complete authored Scene. */
+    public void refreshSceneTextureAtlas(World world, SceneMeta scene, String sceneTag) {
+        if (sceneTag == null || sceneTag.isBlank()) {
+            return; // Standalone Game Object documents borrow project images without owning a Scene atlas.
+        }
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
+        try {
+            atlasStudioService.markRepackRequired(projectDir, sceneTag);
+            Set<String> required = sceneAtlasInputService.collectRequiredAtlasInputPathsForScene(
+                    cfg, world, scene, assetMetaDatabase, tileAnimationsMetaDatabase);
+            sceneAtlasInputService.syncSceneAtlasInput(cfg, sceneTag, projectDir, required, assetMetaDatabase);
+            // Supersede an in-flight generation even when undo selects an already packed image.
+            atlasStudioService.requestAsyncPack(sceneTag);
+        } catch (RuntimeException failure) {
+            // Pixels are already resolved and the complete authored change is usable. A derived packing
+            // failure must not turn that committed change into an untracked HistoryManager failure.
+            Gdx.app.error("SceneManager", "Texture changed, but atlas preparation failed for " + sceneTag, failure);
+            EventFlow.i().publish(new EventFlow.LogMessage("Texture changed, but atlas preparation failed: "
+                    + failure.getMessage()));
+        }
+    }
+
     public boolean ensureSceneAtlasInputHasAsset(String sceneTag, int assetId) {
         if (sceneTag == null || sceneTag.isBlank()) return false;
         if (assetId <= 0 || assetMetaDatabase == null) return false;
@@ -2397,6 +2420,27 @@ public final class SceneService {
         }
 
         return result;
+    }
+
+    /** Cold enumeration for the explicit sprite image selector. */
+    public Array<AssetMeta> getImageAssetMetas() {
+        ensureAssetMetaDatabaseLoaded();
+        Array<AssetMeta> images = new Array<>();
+        if (assetMetaDatabase == null) {
+            return images;
+        }
+        for (int i = 0; i < assetMetaDatabase.size(); i++) {
+            AssetMeta meta = assetMetaDatabase.assetAt(i);
+            if (meta.type() == AssetType.IMAGE && meta.isUserVisible()) {
+                images.add(meta);
+            }
+        }
+        images.sort((left, right) -> {
+            int byName = AssetDisplayInfo.from(left).displayName()
+                    .compareToIgnoreCase(AssetDisplayInfo.from(right).displayName());
+            return byName != 0 ? byName : Integer.compare(left.id(), right.id());
+        });
+        return images;
     }
 
     public Array<AnimationAssetMeta> getAnimationAssetMetas() {

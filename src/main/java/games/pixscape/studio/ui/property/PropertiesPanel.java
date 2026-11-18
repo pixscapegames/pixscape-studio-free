@@ -447,7 +447,15 @@ public class PropertiesPanel extends DockablePanel {
                 app.getSceneService()::getAnimationAssetMetas,
                 app.getAnimationAssetAuthoringService(),
                 MY_TAG, sceneContext.sceneMeta());
-        entityProperties = new EntityProperties(ctx);
+        entityProperties = new EntityProperties(ctx, canvas.getAssetVisualResolver(),
+                app.getSceneService()::getImageAssetMetas, entity -> {
+                    var snapshot = canvas.getGpuSnapshotManager();
+                    String tag = sceneContext.sceneIdentity();
+                    if (snapshot != null && tag != null && !tag.isBlank()) {
+                        snapshot.markDirty(tag, "sprite-texture-replacement");
+                    }
+                    app.getSceneService().refreshSceneTextureAtlas(ctx.world, sceneContext.sceneMeta(), tag);
+                });
         bodyProperties = new BodyProperties(ctx);
         fixtureProperties = new FixturesPanel(ctx);
         pointLightProperties = new PointLightProperties(ctx);
