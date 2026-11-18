@@ -1,5 +1,7 @@
 package games.pixscape.studio.history.commands;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
@@ -26,6 +28,7 @@ public final class AddPhysicsBodyCommand
     private final long bodyHistoryId;
     private final int bodyType;
     private final boolean createDefaultShape;
+    private final boolean tiledCollisions;
     private final boolean transformExistedBefore;
     private final boolean noop;
     private PhysicsShapeData createdDefaultShape;
@@ -42,6 +45,19 @@ public final class AddPhysicsBodyCommand
             int bodyEntityId,
             int bodyType,
             boolean createDefaultShape) {
+        this(world, historyIds, physicsService, bodyEntityId, bodyType, createDefaultShape, false);
+    }
+
+    /** Dedicated Tiled collision activation; never adds an actor Body to a structural map/layer. */
+    public static AddPhysicsBodyCommand forTiledCollisions(World world, HistoryIdRegistry historyIds,
+                                                          PhysicsService physicsService, int tileLayerEntityId) {
+        return new AddPhysicsBodyCommand(world, historyIds, physicsService, tileLayerEntityId,
+                PhysicsBodyComponent.STATIC, false, true);
+    }
+
+    private AddPhysicsBodyCommand(World world, HistoryIdRegistry historyIds, PhysicsService physicsService,
+                                  int bodyEntityId, int bodyType, boolean createDefaultShape, boolean tiledCollisions) {
+        this.tiledCollisions = tiledCollisions;
         this.world = world;
         this.historyIds = historyIds;
         this.physicsService = physicsService;
@@ -56,6 +72,7 @@ public final class AddPhysicsBodyCommand
                 && !world.getMapper(PhysicsBodyComponent.class).has(bodyEntityId);
         if (valid) {
             try {
+                requireTarget(bodyEntityId);
                 if (world.getMapper(GameObjectMemberComponent.class).has(bodyEntityId)) {
                     if (!world.getMapper(TransformComponent.class).has(bodyEntityId)) {
                         throw new IllegalArgumentException("Game Object Physics member requires Transform.");
@@ -74,6 +91,16 @@ public final class AddPhysicsBodyCommand
         this.transformExistedBefore = valid
                 && world.getMapper(TransformComponent.class).has(bodyEntityId);
         this.noop = !valid || bodyHistoryId <= 0L;
+    }
+
+    private void requireTarget(int entityId) {
+        if (tiledCollisions) {
+            if (!world.getMapper(TiledLayerComponent.class).has(entityId)) {
+                throw new IllegalArgumentException("Tiled collisions require a tile layer.");
+            }
+        } else {
+            TiledEntityRole.requireActorCapability(world, entityId, "Body");
+        }
     }
 
     @Override
@@ -105,6 +132,7 @@ public final class AddPhysicsBodyCommand
         }
 
         try {
+            requireTarget(entityId);
             GameObjectHierarchyCommandSupport.requirePhysicsAncestry(world, IdentityRegistry.boundTo(world), entityId);
         } catch (IllegalArgumentException ex) {
             refusal = ex.getMessage();

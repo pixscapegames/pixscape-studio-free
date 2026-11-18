@@ -25,6 +25,18 @@ Give your sprites and tiles depth with elevated scenery, characters moving in fr
 - **Design your HUD visually.** Arrange widgets, edit their properties and try the interface in interactive test mode.
 - **Preview desktop and web.** Run your scene in desktop or HTML Preview; target Windows, Linux, macOS, Android and HTML5/WebGL2 through Pixscape Runtime.
 
+## Tiled maps and layers
+
+Tiled maps remain scene-level structures, with explicit tile, object and image
+layers. Maps and tile layers support translation; tile-layer local offsets keep
+fractional pixels and Undo/Redo. Object layers contain editable objects and
+valid sprite/Game Object compositions. Image layers retain their visual transforms.
+
+Maps/layers cannot become Game Object assets or actor-footprint owners. Generic
+Body addition is unavailable; tile-layer collision controls and Spatial volumes
+remain independent. Rectangles and polygons in object layers remain editable
+without Physics, including concave contours.
+
 ## From editor to game
 
 1. **Create or import** your assets and scenes.

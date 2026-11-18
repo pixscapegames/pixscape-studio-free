@@ -1,5 +1,7 @@
 package games.pixscape.studio.history.commands;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.Aspect;
 import com.artemis.World;
 import com.artemis.utils.IntBag;
@@ -42,6 +44,11 @@ public final class CreateGameObjectChildCommand implements Command {
                     "World, identity registries and child initializer are required.");
         }
         requireParent(world, parentEntityId);
+        if (initializer instanceof games.pixscape.studio.history.initializer.TiledMapInitializer
+                || initializer instanceof games.pixscape.studio.history.initializer.GenericEntityInitializer generic
+                && generic.isTiledStructure()) {
+            throw new IllegalArgumentException("Tiled structures require dedicated creation and restoration operations.");
+        }
         this.world = world;
         this.historyIds = historyIds;
         this.identities = identities;
@@ -126,6 +133,7 @@ public final class CreateGameObjectChildCommand implements Command {
 
     private static void requireParent(World world, int parentEntityId) {
         GameObjectHierarchyCommandSupport.requireActive(world, parentEntityId, "parent");
+        TiledEntityRole.requireObjectParent(world, parentEntityId);
         GameObjectHierarchyCommandSupport.requireCore(world, parentEntityId, "parent");
         GameObjectTransformMath.requirePositiveUniformParentScale(
                 world.getMapper(TransformComponent.class).get(parentEntityId));
@@ -214,6 +222,7 @@ public final class CreateGameObjectChildCommand implements Command {
         @Override
         public void init(int targetEid) {
             delegate.init(targetEid);
+            TiledEntityRole.requireGenericMember(world, targetEid);
             GameObjectHierarchyCommandSupport.requireCore(world, targetEid, "child");
             GameObjectHierarchyCommandSupport.requireSupportedMember(world, targetEid);
             if (world.getMapper(GameObjectComponent.class).has(targetEid)) {

@@ -1,5 +1,7 @@
 package games.pixscape.studio.service.gameobject;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
@@ -919,8 +921,9 @@ public final class GameObjectAssetService {
     }
 
     private void requireAssetSupported(int entityId) {
-        if (world.getMapper(TiledLayerComponent.class).has(entityId)) {
-            throw unsupported(entityId, "Tiled Maps");
+        if (TiledEntityRole.of(world, entityId)
+                != TiledEntityRole.NONE) {
+            throw unsupported(entityId, "Tiled maps and layers");
         }
         if (world.getMapper(ParticleEmitterComponent.class).has(entityId)) {
             throw unsupported(entityId, "ParticleEmitter");

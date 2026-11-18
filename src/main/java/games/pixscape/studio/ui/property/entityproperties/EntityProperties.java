@@ -1,5 +1,7 @@
 package games.pixscape.studio.ui.property.entityproperties;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.ComponentMapper;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
@@ -207,8 +209,8 @@ public class EntityProperties extends VisTable {
         header.defaults().left().pad(1);
 
         VisTable type = new VisTable(true);
-        type.add(typeLabelValue).padRight(10).center();
-        type.add(icon).center();
+        type.add(icon).padRight(10).center();
+        type.add(typeLabelValue).center();
         header.add(type)
                 .colspan(2)
                 .center()
@@ -261,7 +263,7 @@ public class EntityProperties extends VisTable {
         entityIdValueLabel.setText(String.valueOf(stableId));
         icon.setDrawable(ctx.iconResolver.iconForEntity(entityId));
 
-        typeLabelValue.setText(ctx.iconResolver.kindForEntity(entityId).name());
+        typeLabelValue.setText(ctx.iconResolver.displayNameForEntity(entityId));
 
         entityName.refresh();
 
@@ -348,9 +350,11 @@ public class EntityProperties extends VisTable {
         boolean isAnim = ctx.world.getMapper(AnimationComponent.class).has(currentEntityId);
         boolean isSprite = ctx.world.getMapper(TextureRegionComponent.class).has(currentEntityId) && !isAnim;
         boolean isGameObject = ctx.world.getMapper(GameObjectComponent.class).has(currentEntityId);
+        boolean tiledStructure = TiledEntityRole.of(ctx.world, currentEntityId)
+                != TiledEntityRole.NONE;
 
         transformSection.setApplicable(true);
-        gameObjectSection.setApplicable(isGameObject);
+        gameObjectSection.setApplicable(isGameObject && !tiledStructure);
         materialSection.setApplicable(isMaterialApplicable(kind, ctx.mMat.has(currentEntityId)));
         animationSection.setApplicable(isAnim);
         particleSection.setApplicable(isParticle);
@@ -368,11 +372,14 @@ public class EntityProperties extends VisTable {
     }
 
     private boolean isSpatialApplicable(boolean isSprite, boolean isAnim) {
-        return currentEntityId >= 0 && ctx.mTransform.has(currentEntityId);
+        return currentEntityId >= 0 && ctx.mTransform.has(currentEntityId)
+                && TiledEntityRole.of(ctx.world, currentEntityId)
+                == TiledEntityRole.NONE;
     }
 
     private boolean isPhysicsApplicable() {
-        return scenePhysicsEnabled;
+        return scenePhysicsEnabled && TiledEntityRole.of(ctx.world, currentEntityId)
+                == TiledEntityRole.NONE;
     }
 
     private void syncScenePhysicsEnabled() {

@@ -1,5 +1,7 @@
 package games.pixscape.studio.history.commands;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
@@ -72,6 +74,9 @@ public final class ConvertSelectionToGameObjectCommand implements Command {
         }
         if (selectedTopToBottom == null || selectedTopToBottom.size == 0 || order == null) {
             throw new IllegalArgumentException("A non-empty contiguous logical selection is required.");
+        }
+        for (int i = 0; i < selectedTopToBottom.size; i++) {
+            TiledEntityRole.requireGenericMember(world, selectedTopToBottom.get(i));
         }
         this.world = world;
         this.historyIds = historyIds;

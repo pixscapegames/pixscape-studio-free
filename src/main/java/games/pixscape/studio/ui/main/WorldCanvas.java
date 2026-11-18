@@ -464,6 +464,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             PickingSystem picking = world().getSystem(PickingSystem.class);
             if (picking != null) {
                 picking.cancelLightValueGesture();
+                picking.cancelTiledTranslationGesture();
             }
         }
         gridStage.cancelTouchFocus();
@@ -1507,7 +1508,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     // This stage shares the render camera. Use the queued event's world point:
                     // Gdx.input may already expose the final motion in this input batch.
                     if (pointer == 0 && picking != null
-                            && (picking.tiledObjectPointerDown(event.getStageX(), event.getStageY())
+                            && (picking.tiledPointerDown(event.getStageX(), event.getStageY())
                             || picking.cornerProfilePointerDown(event.getStageX(), event.getStageY()))) {
                         return true;
                     }
@@ -1585,6 +1586,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     return;
                 }
 
+                PickingSystem picking = world().getSystem(PickingSystem.class);
+                if (picking != null && picking.isTiledTranslationCaptured()) {
+                    return;
+                }
                 handleBrushDrag();
                 handleRectDrag();
             }
@@ -1601,6 +1606,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                             ? world().getSystem(PickingSystem.class) : null;
                     if (picking != null) {
                         picking.cancelLightValueGesture();
+                        picking.cancelTiledTranslationGesture();
                         if (picking.getTiledObjectEditor() != null) {
                             picking.getTiledObjectEditor().cancel();
                         }

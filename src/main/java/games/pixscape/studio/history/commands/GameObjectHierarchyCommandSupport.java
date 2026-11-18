@@ -1,5 +1,7 @@
 package games.pixscape.studio.history.commands;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntMap;
@@ -41,6 +43,8 @@ public final class GameObjectHierarchyCommandSupport {
                                          int parentEntityId, IntMap<IntArray> children) {
         requireActive(world, childEntityId, "child");
         requireActive(world, parentEntityId, "parent");
+        TiledEntityRole.requireGenericMember(world, childEntityId);
+        TiledEntityRole.requireObjectParent(world, parentEntityId);
         if (world.getMapper(TiledMapComponent.class).has(childEntityId)
                 || world.getMapper(TiledMapLayerComponent.class).has(childEntityId)
                 || world.getMapper(TiledMapComponent.class).has(parentEntityId)) {
@@ -204,6 +208,7 @@ public final class GameObjectHierarchyCommandSupport {
             }
             requireActive(world, current, "subtree member");
             PixscapeIdentityComponent identity = requireIndexedCore(world, identities, current, "subtree member");
+            TiledEntityRole.requireGenericMember(world, current);
             requireSupportedMember(world, current);
             if (world.getMapper(PhysicsBodyComponent.class).has(current)) {
                 if (!unitAncestors) {

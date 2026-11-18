@@ -1,5 +1,7 @@
 package games.pixscape.studio.system;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.*;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
@@ -409,7 +411,17 @@ public final class PickingSystem extends BaseSystem {
         boolean leftDown = inputState.isLeftDown();
         boolean leftReleased = inputState.leftJustReleased();
 
-        if (tiledObjectEditor != null && tiledObjectEditor.process(mx, my, coordSpaces.worldUnitsPerPixel(),
+        boolean tiledTranslation = isTiledTranslationCaptured();
+        if (tiledTranslation && (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)
+                || !selectionService.isOnlySelected(lastPressHit)
+                    && selectionService.getTiledMapEditingTargetEntityId() != lastPressHit
+                || !isSelectableInViewport(lastPressHit)
+                || !leftDown && !leftReleased)) {
+            cancelTiledTranslationGesture();
+            return;
+        }
+
+        if (!tiledTranslation && tiledObjectEditor != null && tiledObjectEditor.process(mx, my, coordSpaces.worldUnitsPerPixel(),
                 leftPressed && !inputState.isCtrl() && !inputState.isShift(), leftDown, leftReleased,
                 Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE), Gdx.input.isKeyJustPressed(Input.Keys.BACKSPACE),
                 isPointerOverUI())) {
@@ -451,7 +463,7 @@ public final class PickingSystem extends BaseSystem {
             cancelQuadVertexMove();
         }
 
-        if (isPointerOverUI() && !movingSpatialBlockActive && !resizingSpatialBlockActive && !lightRadiusDragActive) {
+        if (isPointerOverUI() && !tiledTranslation && !movingSpatialBlockActive && !resizingSpatialBlockActive && !lightRadiusDragActive) {
             showLightValueHint(null);
             cancelLassoIfNeeded();
             if (selectionService != null) selectionService.clearHoveredEntity();
@@ -487,7 +499,7 @@ public final class PickingSystem extends BaseSystem {
             return;
         }
 
-        if (isTiledModeActive()) {
+        if (isTiledModeActive() && !tiledTranslation) {
             showLightValueHint(null);
             cancelLassoIfNeeded();
             if (selectionService != null) selectionService.clearHoveredEntity();
@@ -506,6 +518,9 @@ public final class PickingSystem extends BaseSystem {
         }
 
         IntArray currentSel = selectionService.getSelectionSnapshot();
+        if (tiledTranslation && currentSel.size == 0) {
+            currentSel.add(lastPressHit);
+        }
         IntArray viewportSel = filterSelectableInViewport(currentSel);
 
         syncPhysicsSelectionState();
@@ -612,7 +627,7 @@ public final class PickingSystem extends BaseSystem {
         }
 
         boolean didMoveThisRelease = false;
-        if (leftDown) {
+        if (leftDown || leftReleased && tiledTranslation) {
             didMoveThisRelease = onFreeMoveDragging(mx, my, viewportSel);
         }
         if (leftReleased) {
@@ -653,9 +668,23 @@ public final class PickingSystem extends BaseSystem {
     /**
      * Capture the initial point in Scene2D, before motion events can coalesce into the next frame.
      */
-    public boolean tiledObjectPointerDown(float worldX, float worldY) {
+    public boolean tiledPointerDown(float worldX, float worldY) {
         if (inputState.isCtrl() || inputState.isShift()) {
             return false;
+        }
+        if (!isExplicitPhysicsEditMode() && !isSpatialBlockModeActive() && selectionService != null) {
+            IntArray selected = selectionService.getSelectionSnapshot();
+            if (selected.size == 0 && selectionService.isTiledMapEditingTargetActive()) {
+                selected.add(selectionService.getTiledMapEditingTargetEntityId());
+            }
+            if (selected.size == 1 && TiledEntityRole.of(world, selected.first()).translationOnly()
+                    && findSelectedGameObjectHit(selected, worldX, worldY) != null) {
+                // Reuse the ordinary move capture, before tile tools can consume this press.
+                onLeftPress(worldX, worldY, InputManipulationContext.Handle.NONE, selected);
+                deferredGameObjectChildClick = null;
+                inputState.leftJustPressed();
+                return true;
+            }
         }
         if (tiledObjectEditor != null && tiledObjectEditor.process(worldX, worldY,
                 coordSpaces.worldUnitsPerPixel(), true, true, false, false, false, false)) {
@@ -664,6 +693,34 @@ public final class PickingSystem extends BaseSystem {
             return true;
         }
         return false;
+    }
+
+    public boolean isTiledTranslationCaptured() {
+        return pressStartedOnSelection && lastPressHit != null
+                && TiledEntityRole.of(world, lastPressHit).translationOnly();
+    }
+
+    public void cancelTiledTranslationGesture() {
+        if (!isTiledTranslationCaptured()) {
+            return;
+        }
+        for (int i = 0; i < gizmoHistoryIds.size; i++) {
+            long id = gizmoHistoryIds.get(i);
+            TransformComponent pose = findTransformByHistoryId(id);
+            if (pose != null) {
+                gizmoBefore.get(i).applyTo(pose);
+                int entity = historyIds.entityOfHistoryId(id);
+                if (dirty != null) {
+                    dirty.geometry(entity, GeometryDirty.POSITION);
+                }
+                EventFlow.i().publish(new EventFlow.EntityChanged(entity, TransformOp.MOVE, MY_TAG));
+            }
+        }
+        gizmoHistoryIds.clear();
+        gizmoBefore.clear();
+        translatingActive = false;
+        resetPressState();
+        inputState.clearAll();
     }
 
     public boolean cornerProfilePointerDown(float worldX, float worldY) {
@@ -1468,6 +1525,9 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private InputManipulationContext.Handle resolveHoveredHandle(float mx, float my, IntArray viewportSel) {
+        if (viewportSel.size == 1 && TiledEntityRole.of(world, viewportSel.first()).translationOnly()) {
+            return InputManipulationContext.Handle.NONE;
+        }
         if (tiledObjectEditor != null && viewportSel.size == 1 && tiledObjectEditor.handles(viewportSel.first())) {
             return InputManipulationContext.Handle.NONE;
         }
@@ -4369,6 +4429,19 @@ public final class PickingSystem extends BaseSystem {
             IntArray selection, float mouseX, float mouseY) {
         if (selection == null || selection.size != 1) return null;
         int entityId = selection.first();
+        if (TiledEntityRole.of(world, entityId).translationOnly()) {
+            if (!isSelectableInViewport(entityId)) {
+                return null;
+            }
+            TransformComponent pose = AuthoredGeometryTransform.resolvedPose(world, entityId, authoredWorldPose);
+            if (pose == null) {
+                return null;
+            }
+            tmp2Vec.set(pose.x, pose.y);
+            applyDisplayOffset(entityId, tmp2Vec);
+            float radius = coordSpaces.pixelsToWorld(9f);
+            return Vector2.dst2(mouseX, mouseY, tmp2Vec.x, tmp2Vec.y) <= radius * radius ? entityId : null;
+        }
         if (!mGameObject.has(entityId) || !isSelectableInViewport(entityId)) return null;
         float[] corners = computeOBBWorldCorners(entityId);
         if (corners == null) return null;

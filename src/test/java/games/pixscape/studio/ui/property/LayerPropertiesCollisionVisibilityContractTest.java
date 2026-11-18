@@ -18,7 +18,7 @@ public class LayerPropertiesCollisionVisibilityContractTest {
 
         assertFalse(layer.contains("new VisCheckBox(\"Collisions\")"));
         assertTrue(map.contains("new VisCheckBox(\"Collisions\")"));
-        assertTrue(map.contains("new AddPhysicsBodyCommand("));
+        assertTrue(map.contains("AddPhysicsBodyCommand.forTiledCollisions("));
         assertTrue(map.contains("new RemovePhysicsBodyCommand("));
         assertTrue(map.contains("mPhysicsBody.has(mapEntityId)"));
         assertTrue(map.contains("showRemoveCollisionsDialog(mapEntityId)"));

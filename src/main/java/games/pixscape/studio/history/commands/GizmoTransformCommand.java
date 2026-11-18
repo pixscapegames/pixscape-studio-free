@@ -1,5 +1,7 @@
 package games.pixscape.studio.history.commands;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import games.pixscape.runtime.component.GameObjectComponent;
@@ -139,8 +141,8 @@ public final class GizmoTransformCommand implements Command, SupportsNoop {
         if (same) return;
 
         int entityId = historyIds.entityOfHistoryId(historyId);
-        if (entityId >= 0 && world.getMapper(games.pixscape.runtime.component.TiledMapComponent.class).has(entityId)
-                && (after.rotRad != 0f || after.sx != 1f || after.sy != 1f)) {
+        if (entityId >= 0 && TiledEntityRole.of(world, entityId).translationOnly()
+                && (after.rotRad != 0f || after.sx != 1f || after.sy != 1f || after.ox != 0f || after.oy != 0f)) {
             TransformComponent current = world.getMapper(TransformComponent.class).get(entityId);
             before.applyTo(current);
             return;

@@ -1,5 +1,7 @@
 package games.pixscape.studio.history.commands;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import games.pixscape.runtime.component.GameObjectComponent;
@@ -148,6 +150,11 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
         this.op = Objects.requireNonNull(op, "op");
         this.before = before;
         this.after = after;
+        if (after != null) {
+            TransformComponent candidate = new TransformComponent();
+            after.apply(candidate);
+            TiledEntityRole.requireTransform(world, entityId, candidate);
+        }
         boolean rejectedScale = false;
         if (world != null && world.getMapper(GameObjectComponent.class).has(entityId)) {
             if (op == TransformOp.SCALE && after != null) {
@@ -230,6 +237,9 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
         TransformComponent transform = mTransform.getSafe(entityId, null);
         if (transform == null) return;
 
+        TransformComponent candidate = new TransformComponent();
+        snapshot.apply(candidate);
+        TiledEntityRole.requireTransform(world, entityId, candidate);
         snapshot.apply(transform);
 
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);

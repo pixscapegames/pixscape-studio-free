@@ -145,7 +145,7 @@ public class AddPhysicsBodyCommandTest {
     }
 
     @Test
-    public void tiledLayerIgnoresRequestedDynamicBodyType() {
+    public void tiledLayerRejectsGenericBodyAndUsesDedicatedStaticCollisionActivation() {
         Harness harness = new Harness();
         int entityId = harness.world.create();
         harness.world.getMapper(TiledLayerComponent.class).create(entityId);
@@ -158,6 +158,9 @@ public class AddPhysicsBodyCommandTest {
                 PhysicsBodyComponent.DYNAMIC,
                 false));
 
+        Assert.assertFalse(harness.physics.hasPhysics(entityId));
+        harness.history.execute(AddPhysicsBodyCommand.forTiledCollisions(
+                harness.world, harness.historyIds, harness.physics, entityId));
         Assert.assertEquals(PhysicsBodyComponent.STATIC,
                 harness.world.getMapper(PhysicsBodyComponent.class)
                         .get(entityId).type);

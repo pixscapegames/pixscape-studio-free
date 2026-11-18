@@ -1,5 +1,7 @@
 package games.pixscape.studio.ui.tree;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.*;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.Color;
@@ -869,6 +871,12 @@ public class ItemTreePanel extends DockablePanel {
             menu.showMenu(stage, stageX, stageY);
             return;
         }
+        if (TiledEntityRole.of(world, parentEntityId)
+                == TiledEntityRole.IMAGE_LAYER) {
+            buildTiledMapContextMenu(() -> editorOps.deleteEntities(IntArray.with(parentEntityId)),
+                    "Delete image layer").showMenu(stage, stageX, stageY);
+            return;
+        }
         PopupMenu addMenu = buildGameObjectAddMenu(
                 selectedAsset,
                 new GameObjectChildMenuActions() {
@@ -1098,6 +1106,10 @@ public class ItemTreePanel extends DockablePanel {
                     : "Entity " + entityId;
         }
 
+        if (TiledEntityRole.of(world, entityId)
+                != TiledEntityRole.NONE) {
+            return iconResolver.displayNameForEntity(entityId) + " " + name;
+        }
         return SpatialActorShapeSupport.hasActorState(world, entityId) ? name + " (spatial)" : name;
     }
 

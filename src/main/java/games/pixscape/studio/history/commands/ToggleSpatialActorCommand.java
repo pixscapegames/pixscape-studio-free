@@ -1,5 +1,7 @@
 package games.pixscape.studio.history.commands;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.World;
 import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -21,6 +23,9 @@ public final class ToggleSpatialActorCommand implements Command, HistoryManager.
         this.world = world;
         this.ids = ids;
         this.enable = enable;
+        if (enable) {
+            TiledEntityRole.requireActorCapability(world, entity, "Footprint");
+        }
         boolean valid = world != null && ids != null && entity >= 0 && world.getEntityManager().isActive(entity);
         id = valid ? ids.ensureForEntity(entity) : -1;
         SpatialFootprintComponent current = valid ? world.getMapper(SpatialFootprintComponent.class).getSafe(entity, null) : null;

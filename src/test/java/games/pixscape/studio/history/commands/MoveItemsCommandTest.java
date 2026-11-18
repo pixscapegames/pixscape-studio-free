@@ -37,6 +37,61 @@ import static org.junit.Assert.*;
 
 public class MoveItemsCommandTest {
     @Test
+    public void tiledDragPreparationAllowsSceneMovesAndLayerOrderButRejectsGenericOwnership() {
+        try (F f = new F()) {
+            int map = f.map(), tiles = f.tileLayer(map), generic = f.root(0, 5);
+            f.publish();
+            assertFalse(f.result(0, generic, 0, map).accepted());
+            assertFalse(f.result(0, map, 0, generic).accepted());
+            assertFalse(f.result(0, tiles, 0, generic).accepted());
+            assertFalse(f.result(1, 0, 0, tiles).accepted());
+            assertTrue(f.result(0, map, 0, tiles).accepted());
+            f.execute(f.prepare(1, 0, 0, map));
+            assertEquals(1, f.index(map).layerIndex);
+            assertEquals(f.stable(map), f.parent(tiles));
+            for (int i = 0; i < 3; i++) {
+                f.context.historyManager().undo();
+                assertEquals(0, f.index(map).layerIndex);
+                f.context.historyManager().redo();
+                assertEquals(1, f.index(map).layerIndex);
+                assertEquals(f.stable(map), f.parent(tiles));
+            }
+        }
+    }
+
+    @Test
+    public void tiledTranslationMovesNativeCollisionBodyAndGridWithUndoAndRejectsRigidRotation() {
+        try (F f = new F()) {
+            int map = f.map(), tiles = f.tileLayer(map);
+            f.physics.ensurePhysics(tiles);
+            f.world.getMapper(PhysicsBodyComponent.class).get(tiles).type = PhysicsBodyComponent.STATIC;
+            f.publish();
+            var body = f.world.getMapper(PhysicsRuntimeBodyComponent.class).get(tiles).body;
+            var grid = f.world.getMapper(TiledLayerComponent.class).get(tiles).data;
+            float x = body.getPosition().x;
+            float gridX = grid.originX;
+            var history = f.context.historyManager();
+            var before = EditTransformCommand.Snapshot.capture(f.t(map));
+            history.execute(new EditTransformCommand(f.world, history.historyIds(), map, TransformOp.MOVE,
+                    before, before.withX(f.t(map).x + 125.5f)));
+            for (int i = 0; i < 3; i++) {
+                f.publish();
+                assertEquals(x + 1.255f, body.getPosition().x, .0001f);
+                assertEquals(gridX + 125.5f, grid.originX, .0001f);
+                history.undo();
+                f.publish();
+                assertEquals(x, body.getPosition().x, .0001f);
+                assertEquals(gridX, grid.originX, .0001f);
+                history.redo();
+            }
+            assertThrows(IllegalArgumentException.class, () -> new PlaceCompositionCommand(f.world,
+                    IntArray.with(map), 0, 0, 0, 0, .5f, false, history.historyIds()));
+            assertEquals(0f, f.t(map).rotationRad, 0f);
+            assertEquals(1, history.getCursor());
+        }
+    }
+
+    @Test
     public void detachmentMeasuresPositionAgainstResolvedRuntimeInsteadOfPreparationHelper() {
         for (float distance : new float[]{1000f, 10000f})
             try (F f = new F()) {
@@ -311,7 +366,7 @@ public class MoveItemsCommandTest {
             f.world.getMapper(ParticleEmitterComponent.class).remove(bad);
             f.world.getMapper(TiledLayerComponent.class).create(bad);
             assertFalse(f.result(0, p, 0, good, bad).accepted());
-            assertTrue(f.result(1, 0, 0, bad).accepted()); // Map remains an atomic root.
+            assertFalse(f.result(1, 0, 0, bad).accepted()); // A tile layer cannot be detached/promoted to scene content.
             f.context.layerService().meta(0).locked = true;
             assertFalse(f.result(1, 0, 0, nested).accepted());
             f.context.layerService().meta(0).locked = false;
@@ -630,6 +685,31 @@ public class MoveItemsCommandTest {
             int e = sprite(layer, 0);
             physics.ensurePhysics(e);
             world.getMapper(PhysicsBodyComponent.class).get(e).type = PhysicsBodyComponent.DYNAMIC;
+            return e;
+        }
+
+        int map() {
+            int e = root(0, 0);
+            var map = world.getMapper(TiledMapComponent.class).create(e);
+            map.projection = games.pixscape.runtime.tiled.TiledProjection.ISO;
+            map.width = map.height = 8;
+            map.tileWidth = 32;
+            map.tileHeight = 16;
+            return e;
+        }
+
+        int tileLayer(int map) {
+            int e = sprite(0, 0);
+            t(e).originX = t(e).originY = 0;
+            world.getMapper(TiledMapLayerComponent.class).create(e);
+            var tiles = world.getMapper(TiledLayerComponent.class).create(e);
+            tiles.projection = games.pixscape.runtime.tiled.TiledProjection.ISO;
+            tiles.tileWidth = 32;
+            tiles.tileHeight = 16;
+            tiles.mapWidthCells = tiles.mapHeightCells = 8;
+            tiles.chunkSize = 4;
+            tiles.data = tiles.createLayerData();
+            attach(e, map, 0);
             return e;
         }
 

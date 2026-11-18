@@ -1,5 +1,7 @@
 package games.pixscape.studio.history.commands;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntMap;
@@ -439,10 +441,23 @@ public final class ItemMovePreparation {
             requireLayer(layerOf(source));
             Layer target = requireLayer(layer);
             int entity = entity(source);
-            if (parent != 0)
+            var role = TiledEntityRole.of(world, entity);
+            if (role != TiledEntityRole.NONE) {
+                State existing = states.get(source);
+                boolean mapMove = role == TiledEntityRole.MAP
+                        && parent == 0 && existing.parentStableId == 0;
+                boolean layerOrder = role != TiledEntityRole.MAP
+                        && parent != 0 && parent == existing.parentStableId && layer == layerOf(source);
+                if (!mapMove && !layerOrder) {
+                    throw new IllegalArgumentException("Tiled layers retain their map ownership; maps remain scene-level items.");
+                }
+                new games.pixscape.runtime.hierarchy.GameObjectHierarchyValidator(world, ids).validateEntities(
+                        world.getAspectSubscriptionManager().get(com.artemis.Aspect.all()).getEntities());
+            } else if (parent != 0) {
                 GameObjectHierarchyCommandSupport.requireReparentCandidate(world, ids, entity, entity(parent), children);
-            else if (world.getMapper(GameObjectComponent.class).has(entity))
+            } else if (world.getMapper(GameObjectComponent.class).has(entity)) {
                 GameObjectHierarchyCommandSupport.validateCurrentSubtree(world, ids, entity, children);
+            }
         }
 
 

@@ -3,19 +3,15 @@ package games.pixscape.studio.ui.property;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.scenes.scene2d.Actor;
-import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.kotcrab.vis.ui.widget.VisCheckBox;
 import com.kotcrab.vis.ui.widget.VisDialog;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
-import com.kotcrab.vis.ui.widget.spinner.IntSpinnerModel;
-import com.kotcrab.vis.ui.widget.spinner.Spinner;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.service.PhysicsService;
-import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
@@ -26,10 +22,9 @@ import games.pixscape.studio.ui.modal.StudioDialog;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
 import games.pixscape.studio.ui.widget.FloatField;
 import games.pixscape.studio.ui.widget.SimpleTextField;
-import games.pixscape.studio.ui.widget.UiBinders;
 
 /**
- * Authoritative property panel for one actual Tiled Map entity.
+ * Specialized property panel for a tile layer. Position is local to its owning map.
  */
 public final class TiledMapProperties extends VisTable {
 
@@ -51,12 +46,8 @@ public final class TiledMapProperties extends VisTable {
     private final VisLabel tiledTileHeightValue = new VisLabel();
     private final VisLabel tiledChunkSizeValue = new VisLabel();
 
-    private final IntSpinnerModel originXModel = new IntSpinnerModel(0, -100000, 100000, 1);
-    private final IntSpinnerModel originYModel = new IntSpinnerModel(0, -100000, 100000, 1);
-    private final Spinner tiledOriginXSpinner;
-    private final Spinner tiledOriginYSpinner;
-    private final UiBinders.IntSpinnerBinder tiledOriginXBinder;
-    private final UiBinders.IntSpinnerBinder tiledOriginYBinder;
+    private final FloatField positionXField;
+    private final FloatField positionYField;
 
     private final VisCheckBox collisionsCheckBox = new VisCheckBox("Collisions");
     private final VisCheckBox spatialDepthCheckBox = new VisCheckBox("Spatial Depth");
@@ -91,13 +82,14 @@ public final class TiledMapProperties extends VisTable {
             if (event.entityId() == mapEntityId) mapName.refresh();
         });
 
-        tiledOriginXSpinner = new Spinner("", originXModel);
-        tiledOriginXSpinner.getTextField().setTouchable(Touchable.disabled);
-        tiledOriginYSpinner = new Spinner("", originYModel);
-        tiledOriginYSpinner.getTextField().setTouchable(Touchable.disabled);
-
-        tiledOriginXBinder = originBinder(tiledOriginXSpinner, originXModel, true);
-        tiledOriginYBinder = originBinder(tiledOriginYSpinner, originYModel, false);
+        positionXField = positionField(true);
+        positionYField = positionField(false);
+        EventFlow.i().subscribe(EventFlow.EntityChanged.class, event -> {
+            if (event.entityId() == mapEntityId) {
+                positionXField.refreshFromModel();
+                positionYField.refreshFromModel();
+            }
+        });
 
         collisionsCheckBox.setName("tiledMapCollisions");
         collisionsCheckBox.left();
@@ -133,13 +125,8 @@ public final class TiledMapProperties extends VisTable {
                     return;
                 }
                 if (requested) {
-                    execute(new AddPhysicsBodyCommand(
-                            world,
-                            history.historyIds(),
-                            physicsService,
-                            mapEntityId,
-                            PhysicsBodyComponent.STATIC,
-                            false));
+                    execute(AddPhysicsBodyCommand.forTiledCollisions(
+                            world, history.historyIds(), physicsService, mapEntityId));
                     refreshFromModel();
                 } else {
                     showRemoveCollisionsDialog(mapEntityId);
@@ -180,8 +167,8 @@ public final class TiledMapProperties extends VisTable {
         addProperty("Cell Width:", tiledTileWidthValue);
         addProperty("Cell Height:", tiledTileHeightValue);
         addProperty("Chunk Size:", tiledChunkSizeValue);
-        addProperty("Origin X:", tiledOriginXSpinner);
-        addProperty("Origin Y:", tiledOriginYSpinner);
+        addProperty("Local X:", positionXField);
+        addProperty("Local Y:", positionYField);
         addProperty("Width (cells):", tiledWidthValue);
         addProperty("Height (cells):", tiledHeightValue);
 
@@ -286,10 +273,8 @@ public final class TiledMapProperties extends VisTable {
             tiledTileHeightValue.setText(Integer.toString(tiled.tileHeight));
             tiledChunkSizeValue.setText(Integer.toString(tiled.chunkSize));
 
-            originXModel.setStep(Math.max(1, tiled.tileWidth));
-            originYModel.setStep(Math.max(1, tiled.tileHeight));
-            tiledOriginXBinder.setEntityId(mapEntityId);
-            tiledOriginYBinder.setEntityId(mapEntityId);
+            positionXField.setEntityId(mapEntityId);
+            positionYField.setEntityId(mapEntityId);
 
             boolean collisionsActive = mPhysicsBody.has(mapEntityId);
             collisionsCheckBox.setChecked(collisionsActive);
@@ -318,10 +303,8 @@ public final class TiledMapProperties extends VisTable {
         tiledTileWidthValue.setText("?");
         tiledTileHeightValue.setText("?");
         tiledChunkSizeValue.setText("?");
-        originXModel.setStep(1);
-        originYModel.setStep(1);
-        tiledOriginXBinder.setEntityId(-1);
-        tiledOriginYBinder.setEntityId(-1);
+        positionXField.setEntityId(-1);
+        positionYField.setEntityId(-1);
         collisionsCheckBox.setChecked(false);
         collisionsCheckBox.setDisabled(true);
         spatialDepthCheckBox.setChecked(false);
@@ -330,40 +313,23 @@ public final class TiledMapProperties extends VisTable {
         defaultHeightField.setEntityId(-1);
     }
 
-    private UiBinders.IntSpinnerBinder originBinder(Spinner spinner,
-                                                    IntSpinnerModel model,
-                                                    boolean xAxis) {
-        return new UiBinders.IntSpinnerBinder(
-                world,
-                spinner,
-                model,
-                mTiled::has,
-                eid -> Math.round(xAxis ? mTiled.get(eid).originX : mTiled.get(eid).originY),
-                (eid, value) -> {
-                    TiledLayerComponent tiled = mTiled.get(eid);
-                    games.pixscape.runtime.component.TransformComponent transform = world.getMapper(
-                            games.pixscape.runtime.component.TransformComponent.class).getSafe(eid, null);
-                    if (xAxis) {
-                        tiled.originX = value;
-                        tiled.data.originX = value;
-                        if (transform != null) {
-                            transform.x = value;
-                        }
-                    } else {
-                        tiled.originY = value;
-                        tiled.data.originY = value;
-                        if (transform != null) {
-                            transform.y = value;
-                        }
-                    }
-                    if (transform != null) {
-                        transform.refreshCaches();
-                    }
-                    tiled.data.rebuildWithNewSize(tiled.mapWidthCells, tiled.mapHeightCells);
-                    DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
-                    if (dirty != null) dirty.layer(eid);
-                    flagPreviewSaveRequired();
-                });
+    private FloatField positionField(boolean xAxis) {
+        var transforms = world.getMapper(games.pixscape.runtime.component.TransformComponent.class);
+        FloatField field = new FloatField(world, e -> xAxis ? transforms.get(e).x : transforms.get(e).y,
+                e -> mTiled.has(e) && transforms.has(e)) {
+            @Override
+            protected String formatValue(Float value) {
+                return value == null ? "" : Float.toString(value);
+            }
+        };
+        field.setName(xAxis ? "tiledLayerPositionX" : "tiledLayerPositionY");
+        field.setValidator(FloatField.finiteValidator(false));
+        field.setApplier((entity, value) -> {
+            var before = EditTransformCommand.Snapshot.capture(transforms.get(entity));
+            execute(new EditTransformCommand(world, history.historyIds(), entity, TransformOp.MOVE, before,
+                    xAxis ? before.withX(value) : before.withY(value)));
+        });
+        return field;
     }
 
     private void submitSpatialDefaults(

@@ -1,5 +1,7 @@
 package games.pixscape.studio.system;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.Aspect;
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
@@ -44,6 +46,7 @@ import games.pixscape.studio.ui.config.EditorOverlayPalette;
 @All({TransformComponent.class})
 public final class GizmoSystem extends BaseSystem {
     private boolean drawingAllowed;
+    private final TransformComponent tiledPivotPose = new TransformComponent();
 
     public void setDrawingAllowed(boolean allowed) {
         drawingAllowed = allowed;
@@ -307,6 +310,11 @@ public final class GizmoSystem extends BaseSystem {
                 tiledObjectEditor.draw(ctx);
             }
 
+            if (!physicsEditMode && selectionService != null
+                    && selectionService.isTiledMapEditingTargetActive()
+                    && !spatialBlockSelectionService.isEditingActive()) {
+                drawTiledTranslationMarker(selectionService.getTiledMapEditingTargetEntityId());
+            }
             if (entityGizmoEnabled && !physicsEditMode) {
                 for (int e : selected) {
                     if (tiledObjectEditor != null && tiledObjectEditor.handles(e)) {
@@ -314,6 +322,10 @@ public final class GizmoSystem extends BaseSystem {
                     }
                     if (mJoint.has(e)) continue;
                     if (!isEntityVisibleForGizmo(e)) {
+                        continue;
+                    }
+                    if (TiledEntityRole.of(world, e).translationOnly()) {
+                        drawTiledTranslationMarker(e);
                         continue;
                     }
                     if (isParticleEntity(e)) {
@@ -357,6 +369,21 @@ public final class GizmoSystem extends BaseSystem {
             CursorDrawHelper.draw(ctx, cursorWorld, cursorKind, cursorAngleRad);
         } finally {
             ctx.batch.end();
+        }
+    }
+
+    private void drawTiledTranslationMarker(int entity) {
+        if (!isEntityVisibleForGizmo(entity)) {
+            return;
+        }
+        TransformComponent pose = AuthoredGeometryTransform.resolvedPose(world, entity, tiledPivotPose);
+        if (pose != null) {
+            float radius = ctx.pxToWorld(7f);
+            tmpA.set(pose.x, pose.y);
+            applyDisplayOffset(entity, tmpA);
+            ctx.drawer.setColor(Color.CYAN);
+            GizmoDrawHelper.drawSolidLine(ctx, tmpA.x - radius, tmpA.y, tmpA.x + radius, tmpA.y, 1.5f);
+            GizmoDrawHelper.drawSolidLine(ctx, tmpA.x, tmpA.y - radius, tmpA.x, tmpA.y + radius, 1.5f);
         }
     }
 

@@ -880,6 +880,10 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         return "GenericEntity";
     }
 
+    public boolean isTiledStructure() {
+        return tiledEntity != null && (tiledEntity.map != null || tiledEntity.layer != null);
+    }
+
     public void preparePhysicsCandidate() {
         if ((hasPhysicsBody || hasPhysicsShapes) && tiledEntity != null && tiledEntity.tiles != null) {
             var configuration = games.pixscape.studio.configuration.ProjectConfig.getInstance();

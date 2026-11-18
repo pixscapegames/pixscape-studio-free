@@ -1,5 +1,7 @@
 package games.pixscape.studio.service.entitygraph;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
@@ -191,6 +193,7 @@ public final class EntityGraphInstantiationService {
                     entry.customProperties(),
                     initializer));
         }
+        validateTiledHierarchy(orderedEntries, snapshots);
         validateGameObjectHierarchyPhysics(orderedEntries, snapshots);
         return prepared;
     }
@@ -351,6 +354,52 @@ public final class EntityGraphInstantiationService {
         }
     }
 
+    private static TiledEntityRole tiledRole(GenericEntitySnapshotData snapshot) {
+        var tiled = snapshot == null ? null : snapshot.tiledEntity;
+        if (tiled == null) {
+            return TiledEntityRole.NONE;
+        }
+        if (tiled.map != null) {
+            return TiledEntityRole.MAP;
+        }
+        if (tiled.layer != null) {
+            return switch (tiled.layer.kind) {
+                case TILE -> TiledEntityRole.TILE_LAYER;
+                case OBJECT -> TiledEntityRole.OBJECT_LAYER;
+                case IMAGE -> TiledEntityRole.IMAGE_LAYER;
+            };
+        }
+        return TiledEntityRole.NONE;
+    }
+
+    /** Detached validation before allocating identities, creating entities or adding history. */
+    private static void validateTiledHierarchy(List<EntityGraphEntry> entries,
+                                               IntMap<GenericEntitySnapshotData> snapshots) {
+        for (var entry : entries) {
+            var snapshot = snapshots.get(entry.sourceEntityId());
+            var role = tiledRole(snapshot);
+            if (entry.parentSourceEntityId() >= 0) {
+                TiledEntityRole.requireStructuralRelation(
+                        role, tiledRole(snapshots.get(entry.parentSourceEntityId())));
+            } else if (role != TiledEntityRole.NONE
+                    && role != TiledEntityRole.MAP) {
+                throw new IllegalArgumentException("Clipboard Tiled layer requires its owning map.");
+            }
+            if (role == TiledEntityRole.NONE) {
+                continue;
+            }
+            if (!snapshot.hasTransform || snapshot.spatialFootprint != null
+                    || snapshot.hasPhysicsBody && role != TiledEntityRole.TILE_LAYER
+                    || !entry.gameObjectSourceAssetId().isEmpty()
+                    || entry.gameObjectRoot() != (role == TiledEntityRole.MAP
+                        || role == TiledEntityRole.OBJECT_LAYER)) {
+                throw new IllegalArgumentException("Clipboard Tiled structure has incompatible actor/composition capabilities.");
+            }
+            TiledEntityRole.requireTransform(role, snapshot.rotationRad,
+                    snapshot.scaleX, snapshot.scaleY, snapshot.originX, snapshot.originY);
+        }
+    }
+
     private static void validateGameObjectHierarchyPhysics(
             List<EntityGraphEntry> entries,
             IntMap<GenericEntitySnapshotData> snapshots) {
@@ -365,7 +414,8 @@ public final class EntityGraphInstantiationService {
             GenericEntitySnapshotData snapshot = snapshots.get(entry.sourceEntityId());
             if (snapshot == null) continue;
             boolean hierarchyEntry = entry.gameObjectRoot() || entry.parentSourceEntityId() != -1;
-            if (hierarchyEntry && snapshot.shapes != null) {
+            if (hierarchyEntry && snapshot.shapes != null
+                    && tiledRole(snapshot) != TiledEntityRole.TILE_LAYER) {
                 for (PhysicsShapeData shape : snapshot.shapes) {
                     if (shape != null && shape.spatialBlockId > 0) {
                         throw new IllegalArgumentException(

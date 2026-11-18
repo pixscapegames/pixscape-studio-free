@@ -1,5 +1,7 @@
 package games.pixscape.studio.helper;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
@@ -19,6 +21,7 @@ import games.pixscape.runtime.system.GameObjectHierarchySystem;
  * Builds exact descendant bounds in a selected Game Object root's local coordinate system.
  */
 public final class GameObjectGizmoGeometry {
+    private final World world;
     private final ComponentMapper<GameObjectComponent> gameObjects;
     private final ComponentMapper<OrientedBoundsComponent> orientedBounds;
     private final ComponentMapper<QuadDeformComponent> quadDeforms;
@@ -31,6 +34,7 @@ public final class GameObjectGizmoGeometry {
 
     public GameObjectGizmoGeometry(World world) {
         if (world == null) throw new IllegalArgumentException("World is required.");
+        this.world = world;
         gameObjects = world.getMapper(GameObjectComponent.class);
         orientedBounds = world.getMapper(OrientedBoundsComponent.class);
         quadDeforms = world.getMapper(QuadDeformComponent.class);
@@ -44,6 +48,9 @@ public final class GameObjectGizmoGeometry {
      */
     public boolean writeWorldCorners(
             int rootEntityId, float fallbackHalfWorld, float[] out8) {
+        if (TiledEntityRole.of(world, rootEntityId).translationOnly()) {
+            return false;
+        }
         if (out8 == null || out8.length < 8 || hierarchy == null) return false;
         WorldTransformState worldState = hierarchy.worldTransforms();
         if (!worldState.isResolved(rootEntityId)) return false;
@@ -58,6 +65,9 @@ public final class GameObjectGizmoGeometry {
      * Writes local minX, minY, maxX and maxY from exact rendered descendant corners.
      */
     public boolean writeLocalBounds(int rootEntityId, float[] out4) {
+        if (TiledEntityRole.of(world, rootEntityId).translationOnly()) {
+            return false;
+        }
         if (out4 == null || out4.length < 4 || hierarchy == null || composition == null) {
             return false;
         }

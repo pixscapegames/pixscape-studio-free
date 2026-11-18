@@ -44,12 +44,14 @@ public class TiledEditorVisibilityTest {
             mapData.width = mapData.height = 2;
             int tile = node(world, ids, map);
             world.getMapper(TiledMapLayerComponent.class).create(tile);
+            world.getMapper(GameObjectComponent.class).remove(tile);
             int objects = node(world, ids, map);
             world.getMapper(TiledMapLayerComponent.class).create(objects).kind = TiledMapLayerComponent.Kind.OBJECT;
             int object = node(world, ids, objects);
             var body = world.getMapper(PhysicsBodyComponent.class).create(object);
             int image = node(world, ids, map);
             world.getMapper(TiledMapLayerComponent.class).create(image).kind = TiledMapLayerComponent.Kind.IMAGE;
+            world.getMapper(GameObjectComponent.class).remove(image);
             String project = temporary.newFolder("project").getAbsolutePath();
             layers.bindEditorVisibility(project, scene.file);
             SelectionService selection = new SelectionService(world, layers);
@@ -90,6 +92,7 @@ public class TiledEditorVisibilityTest {
             world.process();
             int replacement = node(world, ids, map);
             world.getMapper(TiledMapLayerComponent.class).create(replacement);
+            world.getMapper(GameObjectComponent.class).remove(replacement);
             world.process();
             assertTrue(layers.isTiledEditorVisible(replacement));
             IdentityRegistry.unindexEntityImmediately(world, replacement);

@@ -1,5 +1,7 @@
 package games.pixscape.studio.service;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
@@ -10,11 +12,13 @@ import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.model.EntityKind;
 
 public class IconResolver {
+    private final World world;
     private final ComponentMapper<EntityMetaComponent> mMeta;
     private final ComponentMapper<TiledMapComponent> mMaps;
     private final ComponentMapper<TiledLayerComponent> mTileLayers;
 
     public IconResolver(World world) {
+        this.world = world;
         this.mMeta = world.getMapper(EntityMetaComponent.class);
         this.mMaps = world.getMapper(TiledMapComponent.class);
         this.mTileLayers = world.getMapper(TiledLayerComponent.class);
@@ -28,11 +32,21 @@ public class IconResolver {
         if (mMaps.has(e)) {
             return EntityKind.TILED_MAP;
         }
-        if (mTileLayers.has(e)) {
+        if (mTileLayers.has(e) || TiledEntityRole.of(world, e) != TiledEntityRole.NONE) {
             return EntityKind.TILED_LAYER;
         }
         EntityMetaComponent meta = mMeta.getSafe(e, null);
         return (meta != null && meta.kind != null) ? meta.kind : EntityKind.UNKNOWN;
+    }
+
+    public String displayNameForEntity(int entity) {
+        return switch (TiledEntityRole.of(world, entity)) {
+            case MAP -> "Tiled Map";
+            case TILE_LAYER -> "Tile Layer";
+            case OBJECT_LAYER -> "Object Layer";
+            case IMAGE_LAYER -> "Image Layer";
+            case NONE -> kindForEntity(entity).name();
+        };
     }
 
     public static Drawable iconForEntity(EntityKind kind) {
@@ -55,6 +69,12 @@ public class IconResolver {
             }
             case TILED_LAYER -> {
                 return VisUI.getSkin().getDrawable("icon-tiled-layer");
+            }
+            case TILED_RECTANGLE -> {
+                return VisUI.getSkin().getDrawable("tiled-rectangle");
+            }
+            case POLYGON -> {
+                return VisUI.getSkin().getDrawable("tiled-polygon");
             }
             case GAME_OBJECT -> {
                 return VisUI.getSkin().getDrawable("cube");

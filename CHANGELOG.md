@@ -8,6 +8,9 @@
 * Occlusion zones now use normalized image-local storage and are edited in logical image pixels. Existing files using the previous rectangle coordinates must be adapted explicitly.
 
 ### Added
+* Items and the inspector use the dedicated Tiled rectangle/polygon skin icons. Entity inspector headers place the matching type icon to the left of the title.
+* Separated Tiled Map, Tile Layer, Object Layer and Image Layer controls from generic Game Object composition. Structural entities no longer expose actor Body/footprint or source-asset controls; object layers retain valid child objects. Map/tile overlays use translation markers instead of resize bounds, and decimal tile-layer local offsets use Undo/Redo without rounding.
+* Enforced Tiled ownership before generic commands, drag/drop and clipboard publication while retaining dedicated layer order, map duplication/restoration, managed tile collisions and volumes. Physical map translation and repeated Undo/Redo have native Box2D regressions.
 * Sprites, including sprites with children, now have a required Texture inspector section with an image preview and project Image selector. Replacement adopts the selected region's native dimensions while preserving transforms, signed scale/flips, material, tint, repeat, children, physics and footprint settings. One history command restores image and authored dimensions together; cancel, unchanged selection and unavailable images do not add history entries. Changes synchronize reachable atlas resources through the existing asynchronous pipeline, including undo/redo. Static normalized occlusion settings stay attached to the sprite and follow its image dimensions without rewriting their values.
 * Added rectangle and polygon object tools for Tiled object layers without Physics, explicit object-layer creation, canvas vertex/corner gestures and numeric rectangle edge sizes. Shared polygon gestures retain domain-specific Physics validation, isolated previews, cancellation and undo/redo. Isometric rectangles preserve their projected axes.
 * Spatial Actor activation and circle editing now work with scene physics disabled. Physics removal preserves spatial data; collision geometry, circle and occlusion rectangle have independent settings. Native canvas gestures edit circle center/radius, rectangle or shadow pivot with undo/redo and Escape cancellation. Undo/redo, save, export and Game Object snapshots preserve all three geometries.
@@ -32,6 +35,7 @@
 * Refreshed the distributed HTML Preview player for the current Game Object composition formats and the Runtime physics bootstrap correction.
 
 ### Fixed
+* Tiled map and tile-layer markers capture the queued Scene2D press before motion and tile tools, retain the final release position, and restore the preview on Escape or touch-focus cancellation. Tile editing targets display the same translation-only marker and reuse the existing move/history path.
 * Restored horizontal scrollbar tracks and knobs in the shared list skin used by Studio panes, including code editors, trees and tileset views. Horizontal bars now appear when their content overflows.
 * Studio snapshots now preserve polygon and open-polyline vertices through copy/paste, delete undo/redo and Game Object capture/restoration. Vertex arrays are independently owned; authored order, transforms and isometric rectangle roles are retained without contour normalization or physics conversion.
 * Wired the Edit menu's Cut, Copy and Paste entries to the active document's existing clipboard commands and undo history.

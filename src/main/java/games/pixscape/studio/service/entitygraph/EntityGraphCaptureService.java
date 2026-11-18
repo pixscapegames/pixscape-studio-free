@@ -1,5 +1,7 @@
 package games.pixscape.studio.service.entitygraph;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
@@ -60,6 +62,7 @@ public final class EntityGraphCaptureService {
         List<EntityGraphEntry> entries = new ArrayList<>(hierarchy.size);
         for (int i = 0; i < hierarchy.size; i++) {
             int entityId = hierarchy.get(i);
+            TiledEntityRole.requireGenericMember(world, entityId);
             GenericEntityInitializer initializer = new GenericEntityInitializer(world);
             initializer.syncFrom(entityId);
             entries.add(new EntityGraphEntry(entityId, initializer));
@@ -184,7 +187,7 @@ public final class EntityGraphCaptureService {
     private IntArray requireSupportedGameObjectHierarchyPhysics(IntArray capturedEntities) {
         for (int i = 0; i < capturedEntities.size; i++) {
             int entityId = capturedEntities.get(i);
-            if (mGameObject.has(entityId) || mGameObjectMember.has(entityId)) {
+            if ((mGameObject.has(entityId) || mGameObjectMember.has(entityId)) && !mTiled.has(entityId)) {
                 PhysicsShapesComponent shapes = mPhysicsShapes.getSafe(entityId, null);
                 if (shapes != null && shapes.shapes != null) {
                     for (int shapeIndex = 0; shapeIndex < shapes.shapes.size; shapeIndex++) {

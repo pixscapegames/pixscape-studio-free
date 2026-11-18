@@ -42,6 +42,38 @@ public class TiledMapPropertiesTest {
     private static ProjectConfig previousConfig;
     private final EventFlow.SubscriptionScope subscriptions = EventFlow.i().newSubscriptionScope(() -> true);
 
+    @Test
+    public void decimalLocalPositionCommitsOnceAndRefreshesThroughHistoryWithoutRounding() {
+        Fixture fixture = new Fixture();
+        try {
+            int layer = fixture.addMap(0, 16, 100);
+            var pose = fixture.world.getMapper(games.pixscape.runtime.component.TransformComponent.class).create(layer);
+            pose.x = 3.1234567f;
+            TiledMapProperties properties = fixture.properties();
+            properties.setMapEntityId(layer);
+            games.pixscape.studio.ui.widget.FloatField x = properties.findActor("tiledLayerPositionX");
+            assertEquals(Float.toString(pose.x), x.getText());
+            x.commit();
+            assertFalse(fixture.history.canUndo());
+            x.setText("7.5");
+            x.commit();
+            assertEquals(7.5f, pose.x, 0f);
+            assertEquals(1, fixture.history.getCursor());
+            for (int cycle = 0; cycle < 3; cycle++) {
+                fixture.history.undo();
+                EventFlow.i().flush();
+                assertEquals(3.1234567f, pose.x, 0f);
+                assertEquals(Float.toString(pose.x), x.getText());
+                fixture.history.redo();
+                EventFlow.i().flush();
+                assertEquals(7.5f, pose.x, 0f);
+                assertEquals("7.5", x.getText());
+            }
+        } finally {
+            fixture.world.dispose();
+        }
+    }
+
     @After
     public void clearEvents() {
         subscriptions.close();

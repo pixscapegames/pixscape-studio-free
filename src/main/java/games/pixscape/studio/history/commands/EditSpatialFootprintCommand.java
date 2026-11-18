@@ -1,5 +1,7 @@
 package games.pixscape.studio.history.commands;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
@@ -54,6 +56,7 @@ public final class EditSpatialFootprintCommand implements Command, HistoryManage
                                     Snapshot before,
                                     Snapshot after) {
         this.world = world;
+        TiledEntityRole.requireActorCapability(world, entityId, "Footprint");
         this.historyIds = historyIds;
         this.before = before;
         this.after = after;

@@ -1,5 +1,7 @@
 package games.pixscape.studio.ui.property.entityproperties;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import com.kotcrab.vis.ui.widget.CollapsibleWidget;
@@ -131,19 +133,18 @@ public class TransformPanel extends CollapsibleWidget {
                 && ctx.world.getMapper(ParticleEmitterComponent.class).has(entityId);
         boolean gameObject = entityId >= 0
                 && ctx.world.getMapper(GameObjectComponent.class).has(entityId);
-        setApplicable(originXCell, originXRow, !particle && !gameObject);
-        setApplicable(originYCell, originYRow, !particle && !gameObject);
-        boolean tiledMap = entityId >= 0
-                && ctx.world.getMapper(games.pixscape.runtime.component.TiledMapComponent.class).has(entityId);
+        boolean tiledMap = TiledEntityRole.of(ctx.world, entityId).translationOnly();
+        setApplicable(originXCell, originXRow, !particle && !gameObject && !tiledMap);
+        setApplicable(originYCell, originYRow, !particle && !gameObject && !tiledMap);
         setApplicable(rotationCell, rotationRow, !particle && !tiledMap);
-        setApplicable(scaleXCell, scaleXRow, !particle && !gameObject);
-        setApplicable(scaleYCell, scaleYRow, !particle && !gameObject);
+        setApplicable(scaleXCell, scaleXRow, !particle && !gameObject && !tiledMap);
+        setApplicable(scaleYCell, scaleYRow, !particle && !gameObject && !tiledMap);
         setApplicable(uniformScaleCell, uniformScaleRow, gameObject && !tiledMap);
         uniformScaleField.setDisabled(gameObject
                 && games.pixscape.studio.history.commands.GameObjectHierarchyCommandSupport
                 .isPhysicsAncestorScaleLocked(ctx.world, entityId));
-        setApplicable(widthCell, widthRow, !particle && !gameObject);
-        setApplicable(heightCell, heightRow, !particle && !gameObject);
+        setApplicable(widthCell, widthRow, !particle && !gameObject && !tiledMap);
+        setApplicable(heightCell, heightRow, !particle && !gameObject && !tiledMap);
         root.invalidateHierarchy();
 
         if (entityId < 0) {
