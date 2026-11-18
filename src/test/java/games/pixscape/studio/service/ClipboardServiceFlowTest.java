@@ -43,6 +43,35 @@ import java.nio.file.Path;
 
 public class ClipboardServiceFlowTest {
     @Test
+    public void copiedTiledContourCanBeEditedWithoutChangingSourceAndSurvivesHistory() throws Exception {
+        Harness h = new Harness();
+        try {
+            int source = createEntity(h.world, 10, 20, 0);
+            float[] points = {0,0,80,0,80,80,40,20,0,80};
+            h.world.getMapper(PolygonComponent.class).create(source).setVertices(points);
+            h.world.getMapper(DimensionsComponent.class).create(source).width = 80;
+            h.world.getMapper(DimensionsComponent.class).get(source).height = 80;
+            h.world.process(); h.selection.selectOnly(source);
+            Assert.assertTrue(h.clipboard.copySelection());
+            Assert.assertTrue(h.clipboard.paste());
+            h.world.process();
+            int copy = h.selection.getFirstSelectedEntityId();
+            var before = games.pixscape.studio.service.tiled.TiledObjectGeometry.capture(h.world, copy);
+            float[] edited = points.clone(); edited[6] = -30;
+            h.history.execute(new games.pixscape.studio.history.commands.EditTiledObjectGeometryCommand(
+                    h.world, h.history.historyIds(), copy, before,
+                    games.pixscape.studio.service.tiled.TiledObjectGeometry.withVertices(before, edited)));
+            for (int i = 0; i < 3; i++) {
+                Assert.assertArrayEquals(points, h.world.getMapper(PolygonComponent.class).get(source).vertices, 0);
+                Assert.assertArrayEquals(edited, h.world.getMapper(PolygonComponent.class).get(copy).vertices, 0);
+                h.history.undo(); h.world.process();
+                Assert.assertArrayEquals(points, h.world.getMapper(PolygonComponent.class).get(copy).vertices, 0);
+                h.history.redo(); h.world.process();
+            }
+        } finally { h.world.dispose(); }
+    }
+
+    @Test
     public void pasteWithoutActiveLayerPreservesClipboardHistoryAndEntities() throws Exception {
         Harness h = new Harness();
         try {

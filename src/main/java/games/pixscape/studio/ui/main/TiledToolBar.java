@@ -2,6 +2,7 @@ package games.pixscape.studio.ui.main;
 
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.ButtonGroup;
+import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.kotcrab.vis.ui.VisUI;
@@ -15,6 +16,9 @@ public final class TiledToolBar extends VisTable {
     private final ImageButton fill;
     private final ImageButton erase;
     private final ImageButton rect;
+    private final Button objectRectangle;
+    private final Button objectPolygon;
+    private boolean synchronizing;
 
     private final ImageButton flipH;
     private final ImageButton flipV;
@@ -27,7 +31,7 @@ public final class TiledToolBar extends VisTable {
 
     public TiledToolBar(TiledToolService toolService) {
         this.toolService = toolService;
-        ButtonGroup<ImageButton> group = new ButtonGroup<>();
+        ButtonGroup<Button> group = new ButtonGroup<>();
         group.setMinCheckCount(1);
         group.setMaxCheckCount(1);
         group.setUncheckLast(true);
@@ -35,7 +39,9 @@ public final class TiledToolBar extends VisTable {
         brush = createToolButton("brush", "Brush", this::onBrush);
         fill = createToolButton("fill", "Fill", this::onFill);
         erase = createToolButton("erase", "Erase", this::onErase);
-        rect = createToolButton("rect", "Rectangle", this::onRect);
+        rect = createToolButton("rect", "Paint tile rectangle", this::onRect);
+        objectRectangle = createObjectButton("rectangle", "Create rectangle object", TiledToolService.Mode.OBJECT_RECTANGLE);
+        objectPolygon = createObjectButton("polygon", "Create polygon object", TiledToolService.Mode.OBJECT_POLYGON);
 
         flipH = createToolButton("flip-horizontally", "Flip horizontally", this::onFlipH);
         flipV = createToolButton("flip-vertically", "Flip vertically", this::onFlipV);
@@ -44,7 +50,7 @@ public final class TiledToolBar extends VisTable {
         reset = createToolButton("reset", "Reset", this::onReset);
 
 
-        group.add(brush, rect, erase, fill);
+        group.add(brush, rect, erase, fill, objectRectangle, objectPolygon);
         brush.setChecked(true);
 
 
@@ -52,6 +58,9 @@ public final class TiledToolBar extends VisTable {
         add(fill).padRight(3f);
         add(erase).padRight(4f);
         add(rect);
+        addSeparator(true).pad(7f);
+        add(objectRectangle).padRight(4f);
+        add(objectPolygon);
 
         addSeparator(true).pad(7f);
         add(flipH).padRight(6f);
@@ -64,15 +73,40 @@ public final class TiledToolBar extends VisTable {
     public void bindToolService(TiledToolService toolService) {
         this.toolService = toolService;
         if (toolService == null) return;
-        ImageButton active = switch (toolService.getMode()) {
+        Button active = switch (toolService.getMode()) {
             case BRUSH -> brush;
             case RECT -> rect;
             case ERASE -> erase;
             case FILL -> fill;
+            case OBJECT_RECTANGLE -> objectRectangle;
+            case OBJECT_POLYGON -> objectPolygon;
         };
+        synchronizing = true;
         active.setProgrammaticChangeEvents(false);
         active.setChecked(true);
         active.setProgrammaticChangeEvents(true);
+        synchronizing = false;
+    }
+
+    private Button createObjectButton(String styleName, String tooltip, TiledToolService.Mode mode) {
+        // The supplied skin styles are ButtonStyle, not ImageButtonStyle. Reuse their down drawable for checked state.
+        Button.ButtonStyle style = new Button.ButtonStyle(VisUI.getSkin().get(styleName, Button.ButtonStyle.class));
+        style.checked = style.down;
+        Button button = new Button(style);
+        button.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                if (!synchronizing && !button.isDisabled() && button.isChecked()) {
+                    toolService.setMode(mode);
+                }
+            }
+        });
+        new Tooltip.Builder(tooltip).target(button).build().setAppearDelayTime(0f);
+        return button;
+    }
+
+    public void setObjectToolsDisabled(boolean disabled) {
+        objectRectangle.setDisabled(disabled);
+        objectPolygon.setDisabled(disabled);
     }
 
     private ImageButton createToolButton(String style, String tooltipText, Runnable action) {
@@ -80,7 +114,9 @@ public final class TiledToolBar extends VisTable {
         button.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                action.run();
+                if (!synchronizing) {
+                    action.run();
+                }
             }
         });
         Tooltip tip = new Tooltip.Builder(tooltipText)
@@ -97,15 +133,7 @@ public final class TiledToolBar extends VisTable {
         if (brush.isChecked()) {
             toolService.setMode(TiledToolService.Mode.BRUSH);
         }
-        if (rect.isChecked()) {
-            toolService.setMode(TiledToolService.Mode.RECT);
-        }
-        if (erase.isChecked()) {
-            toolService.setMode(TiledToolService.Mode.ERASE);
-        }
-        if (fill.isChecked()) {
-            toolService.setMode(TiledToolService.Mode.FILL);
-        }
+
     }
 
     private void onRect() {
@@ -158,6 +186,7 @@ public final class TiledToolBar extends VisTable {
 
     public void setDisabled(boolean disabled) {
         this.disabled = disabled;
+        setObjectToolsDisabled(disabled);
 
         brush.setDisabled(disabled);
         fill.setDisabled(disabled);

@@ -23,6 +23,8 @@ public final class GenericEntitySnapshotData {
     public boolean hasObb;
     public boolean hasDimensions;
     public float dimensionsWidth, dimensionsHeight;
+    public float[] polygonVertices;
+    public float[] polylineVertices;
     public boolean hasQuadDeform;
     public float quadBlX, quadBlY, quadBrX, quadBrY;
     public float quadTrX, quadTrY, quadTlX, quadTlY;

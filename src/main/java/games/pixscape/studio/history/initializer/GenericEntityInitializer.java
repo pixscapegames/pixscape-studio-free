@@ -49,6 +49,10 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected float dimWidth;
     protected float dimHeight;
 
+    // Null means absent; an empty array still represents an authored component.
+    protected float[] polygonVertices;
+    protected float[] polylineVertices;
+
     // --- Quad deformation ---
     protected boolean hasQuadDeform;
     protected float quadBlX, quadBlY, quadBrX, quadBrY;
@@ -232,6 +236,11 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         } else {
             hasDimensions = false;
         }
+
+        PolygonComponent polygon = world.getMapper(PolygonComponent.class).get(e);
+        polygonVertices = polygon == null ? null : polygon.verticesCopy();
+        PolylineComponent polyline = world.getMapper(PolylineComponent.class).get(e);
+        polylineVertices = polyline == null ? null : polyline.verticesCopy();
 
         if (mQuad.has(e)) {
             QuadDeformComponent quad = mQuad.get(e);
@@ -597,6 +606,16 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             if (dirty != null) dirty.geometry(e, GeometryDirty.SIZE);
         }
 
+        if (polygonVertices != null) {
+            world.getMapper(PolygonComponent.class).create(e).setVertices(polygonVertices);
+        }
+        if (polylineVertices != null) {
+            world.getMapper(PolylineComponent.class).create(e).setVertices(polylineVertices);
+        }
+        if (dirty != null && (polygonVertices != null || polylineVertices != null)) {
+            dirty.geometry(e, GeometryDirty.ALL);
+        }
+
         if (hasQuadDeform) {
             QuadDeformComponent quad = mQuad.has(e) ? mQuad.get(e) : mQuad.create(e);
             quad.blX = quadBlX;
@@ -910,6 +929,8 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         out.hasDimensions = hasDimensions;
         out.dimensionsWidth = dimWidth;
         out.dimensionsHeight = dimHeight;
+        out.polygonVertices = polygonVertices == null ? null : polygonVertices.clone();
+        out.polylineVertices = polylineVertices == null ? null : polylineVertices.clone();
         out.hasQuadDeform = hasQuadDeform;
         out.quadBlX = quadBlX;
         out.quadBlY = quadBlY;
@@ -1065,6 +1086,8 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         hasDimensions = in.hasDimensions;
         dimWidth = in.dimensionsWidth;
         dimHeight = in.dimensionsHeight;
+        polygonVertices = in.polygonVertices == null ? null : in.polygonVertices.clone();
+        polylineVertices = in.polylineVertices == null ? null : in.polylineVertices.clone();
         hasQuadDeform = in.hasQuadDeform;
         quadBlX = in.quadBlX;
         quadBlY = in.quadBlY;
@@ -1664,6 +1687,8 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.hasDimensions = this.hasDimensions;
         copy.dimWidth = this.dimWidth;
         copy.dimHeight = this.dimHeight;
+        copy.polygonVertices = polygonVertices == null ? null : polygonVertices.clone();
+        copy.polylineVertices = polylineVertices == null ? null : polylineVertices.clone();
         copy.hasQuadDeform = this.hasQuadDeform;
         copy.quadBlX = this.quadBlX;
         copy.quadBlY = this.quadBlY;

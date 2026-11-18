@@ -39,6 +39,7 @@ public final class StudioContextMenu extends InputListener {
     private static final boolean DEBUG_WHEEL_CREATE = Boolean.getBoolean("pixscape.debug.wheelJointCreate");
 
     private final Stage stage;
+    private games.pixscape.studio.service.tiled.TiledObjectEditor objectEditor;
     private SelectionService selectionService;
     private PhysicsSelectionService physicsSelectionService;
     private SpatialBlockSelectionService spatialBlockSelectionService;
@@ -72,6 +73,7 @@ public final class StudioContextMenu extends InputListener {
 
     public void bindSceneContext(WorldCanvas canvas) {
         this.world = canvas.getEcsWorld();
+        this.objectEditor = canvas.getTiledObjectEditor();
         this.selectionService = canvas.getSelectionService();
         this.physicsSelectionService = canvas.getPhysicsSelectionService();
         this.spatialBlockSelectionService = canvas.getSpatialBlockSelectionService();
@@ -121,12 +123,44 @@ public final class StudioContextMenu extends InputListener {
         return false;
     }
 
+    private void showObjectVertexMenu() {
+        if (objectEditor == null) {
+            return;
+        }
+        int entity = selectionService.getFirstSelectedEntityId();
+        int vertex = objectEditor.vertexAt(lastRightClickWorld.x, lastRightClickWorld.y, coordSpaces.worldUnitsPerPixel());
+        int edge = objectEditor.edgeAt(lastRightClickWorld.x, lastRightClickWorld.y, coordSpaces.worldUnitsPerPixel());
+        float x = lastRightClickWorld.x, y = lastRightClickWorld.y;
+        if (vertex >= 0) {
+            MenuItem remove = new MenuItem("Remove vertex");
+            remove.setDisabled(world.getMapper(games.pixscape.runtime.component.PolygonComponent.class)
+                    .get(entity).vertices.length <= 6);
+            remove.addListener(new ClickListener() {
+                @Override public void clicked(InputEvent event, float itemX, float itemY) {
+                    if (!remove.isDisabled()) {
+                        objectEditor.removeVertex(entity, vertex);
+                    }
+                }
+            });
+            menu.addItem(remove);
+        } else if (edge >= 0) {
+            MenuItem insert = new MenuItem("Add vertex");
+            insert.addListener(new ClickListener() {
+                @Override public void clicked(InputEvent event, float itemX, float itemY) {
+                    objectEditor.insertVertex(entity, edge, x, y);
+                }
+            });
+            menu.addItem(insert);
+        }
+    }
+
     private void buildMenu() {
         menu.clear();
         if (showCornerProfileMenu()) return;
         if (showSpatialBlocksMenu()) {
             return;
         }
+        showObjectVertexMenu();
         showEditMenu();
         showShapeMenu();
         showAddTiledMapMenu();

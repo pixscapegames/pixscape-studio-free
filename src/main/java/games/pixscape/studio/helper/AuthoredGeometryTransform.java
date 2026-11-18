@@ -9,6 +9,26 @@ public final class AuthoredGeometryTransform {
     private AuthoredGeometryTransform() {
     }
 
+    /** Uses the published hierarchy pose while retaining the leaf's authored origin. */
+    public static TransformComponent resolvedPose(com.artemis.World world, int entity, TransformComponent out) {
+        TransformComponent source = world.getMapper(TransformComponent.class).get(entity);
+        if (source == null) {
+            return null;
+        }
+        var hierarchy = world.getSystem(games.pixscape.runtime.system.GameObjectHierarchySystem.class);
+        var state = hierarchy == null ? null : hierarchy.worldTransforms();
+        boolean resolved = state != null && state.isResolved(entity);
+        out.x = resolved ? state.x[entity] : source.x;
+        out.y = resolved ? state.y[entity] : source.y;
+        out.rotationRad = resolved ? state.rotationRad[entity] : source.rotationRad;
+        out.scaleX = resolved ? state.scaleX[entity] : source.scaleX;
+        out.scaleY = resolved ? state.scaleY[entity] : source.scaleY;
+        out.originX = source.originX;
+        out.originY = source.originY;
+        out.refreshCaches();
+        return out;
+    }
+
     public static float worldX(TransformComponent transform, float localX, float localY) {
         float x = (localX - transform.originX) * transform.scaleX;
         float y = (localY - transform.originY) * transform.scaleY;

@@ -857,6 +857,15 @@ public class ItemTreePanel extends DockablePanel {
             float stageY) {
         if (world.getMapper(games.pixscape.runtime.component.TiledMapComponent.class).has(parentEntityId)) {
             PopupMenu menu = buildTiledMapContextMenu(() -> editorOps.deleteEntities(IntArray.with(parentEntityId)));
+            MenuItem addObjects = new MenuItem("Add object layer");
+            addObjects.addListener(new ClickListener() {
+                @Override public void clicked(InputEvent event, float x, float y) {
+                    int layer = new games.pixscape.studio.service.tiled.TiledObjectAuthoringService(world, historyManager)
+                            .createObjectLayer(parentEntityId);
+                    selectionService.selectOnly(layer, SelectionService.SelectionSource.TREE);
+                }
+            });
+            menu.addItem(addObjects);
             menu.showMenu(stage, stageX, stageY);
             return;
         }

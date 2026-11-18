@@ -26,6 +26,7 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
     private final StudioDrawContext ctx;
     private final float[] rectangleCorners = new float[8];
     private final float[] pointCenter = new float[2];
+    private final TransformComponent resolvedPose = new TransformComponent();
     private float[] pathVertices = new float[8];
 
     private LayerService layerService;
@@ -70,7 +71,7 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
     @Override
     protected void process(int entityId) {
         EntityMetaComponent meta = mEntityMeta.get(entityId);
-        TransformComponent transform = mTransform.get(entityId);
+        TransformComponent transform = AuthoredGeometryTransform.resolvedPose(world, entityId, resolvedPose);
         PolygonComponent polygon = mPolygon.getSafe(entityId, null);
         if (meta == null
                 || transform == null

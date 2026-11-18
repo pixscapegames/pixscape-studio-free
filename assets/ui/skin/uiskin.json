@@ -734,6 +734,16 @@
 	"down": {
 		"up": "down",
 		"down": "downclick"
+	},
+	"rectangle": {
+		"up": "tiled-rectangle-up",
+		"down": "tiled-rectangle-down",
+		"disabled": "tiled-rectangle-disabled"
+	},
+	"polygon": {
+		"up": "tiled-polygon-up",
+		"down": "tiled-polygon-down",
+		"disabled": "tiled-polygon-disabled"
 	}
 },
 "com.badlogic.gdx.scenes.scene2d.ui.CheckBox$CheckBoxStyle": {

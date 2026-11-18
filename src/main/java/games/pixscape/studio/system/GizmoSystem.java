@@ -67,6 +67,10 @@ public final class GizmoSystem extends BaseSystem {
     private StudioDisplayOffsetResolver displayOffsetResolver;
     private StudioEditingModeService editingModeService;
     private final PolygonDrawSession polygonDrawSession;
+    private games.pixscape.studio.service.tiled.TiledObjectEditor tiledObjectEditor;
+    public void setTiledObjectEditor(games.pixscape.studio.service.tiled.TiledObjectEditor editor) {
+        tiledObjectEditor = editor;
+    }
     private final PhysicsSelectionService physicsSelectionService;
     private final SpatialBlockSelectionService spatialBlockSelectionService;
     private final SpatialTileSelectionService spatialTileSelectionService;
@@ -222,7 +226,7 @@ public final class GizmoSystem extends BaseSystem {
                 && !spatialTileSelectionVisible
                 && !focusedSpatialActor
                 && !hoveredEntityVisible
-                && !polygonDrawVisible) {
+                && !polygonDrawVisible && (tiledObjectEditor == null || !tiledObjectEditor.active())) {
             return;
         }
 
@@ -299,9 +303,15 @@ public final class GizmoSystem extends BaseSystem {
             drawSelectedActorInfluenceQuads();
             drawHoveredEntityGizmo(physicsEditMode);
             drawPolygonDrawSession();
+            if (tiledObjectEditor != null) {
+                tiledObjectEditor.draw(ctx);
+            }
 
             if (entityGizmoEnabled && !physicsEditMode) {
                 for (int e : selected) {
+                    if (tiledObjectEditor != null && tiledObjectEditor.handles(e)) {
+                        continue;
+                    }
                     if (mJoint.has(e)) continue;
                     if (!isEntityVisibleForGizmo(e)) {
                         continue;
@@ -1041,69 +1051,12 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private void drawPolygonDrawSession() {
-        if (polygonDrawSession == null || !polygonDrawSession.isActive()) return;
-
-        Array<Vector2> pts = polygonDrawSession.points();
-        int count = polygonDrawSession.pointCount();
-        if (pts == null || count == 0) return;
-
-        // validated segments
-        ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_HOVER_COLOR);
-        for (int i = 0; i < count - 1; i++) {
-            Vector2 a = pts.get(i);
-            Vector2 b = pts.get(i + 1);
-            GizmoDrawHelper.drawSolidLine(ctx, a.x, a.y, b.x, b.y, 1.5f);
+        if (polygonDrawSession == null || !polygonDrawSession.isActive()) {
+            return;
         }
-
-        // preview segment toward mouse if not closed
-        if (!polygonDrawSession.isClosed()) {
-            Vector2 last = polygonDrawSession.lastPoint();
-            readMouseWorld(tmpMouseWorld);
-            if (last != null) {
-                GizmoDrawHelper.drawSolidLine(
-                        ctx,
-                        last.x, last.y,
-                        tmpMouseWorld.x, tmpMouseWorld.y,
-                        1.0f
-                );
-            }
-        }
-
-        // closing segment if closed
-        if (polygonDrawSession.isClosed() && count >= 3) {
-            Vector2 first = pts.first();
-            Vector2 last = pts.peek();
-            GizmoDrawHelper.drawSolidLine(ctx, last.x, last.y, first.x, first.y, 1.5f);
-        }
-
-        // points
-        for (int i = 0; i < count; i++) {
-            Vector2 p = pts.get(i);
-            if (p == null) continue;
-
-            boolean firstPoint = (i == 0);
-            boolean closable = firstPoint && polygonDrawSession.canClose();
-
-            Color pointColor;
-            if (closable) {
-                float closeRadiusWorld = ctx.pxToWorld(
-                        GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + 2f);
-                readMouseWorld(tmpMouseWorld);
-                float dx = tmpMouseWorld.x - p.x;
-                float dy = tmpMouseWorld.y - p.y;
-                boolean nearClose = dx * dx + dy * dy <= closeRadiusWorld * closeRadiusWorld;
-
-                if (nearClose) {
-                    pointColor = EditorOverlayPalette.PHYSICS_SELECTED_COLOR;
-                } else {
-                    pointColor = EditorOverlayPalette.PHYSICS_HOVER_COLOR;
-                }
-            } else {
-                pointColor = EditorOverlayPalette.PHYSICS_HOVER_COLOR;
-            }
-
-            GizmoDrawHelper.drawPolygonVertexHandle(ctx, p.x, p.y, pointColor);
-        }
+        readMouseWorld(tmpMouseWorld);
+        games.pixscape.studio.helper.PolygonEditorDrawHelper.drawSession(ctx, polygonDrawSession,
+                tmpMouseWorld.x, tmpMouseWorld.y);
     }
 
     private boolean shouldHideEditedFixture(int bodyEid, int physicsShapeId) {
@@ -1211,7 +1164,8 @@ public final class GizmoSystem extends BaseSystem {
         }
 
         prepareTempPolygonFixture(
-                polygon.geometry.polygonVertices,
+                polygonDrawSession != null && polygonDrawSession.dragging()
+                        ? polygonDrawSession.dragCandidate() : polygon.geometry.polygonVertices,
                 polygon.geometry.polygonVertexCount,
                 polygon
         );
@@ -1230,6 +1184,10 @@ public final class GizmoSystem extends BaseSystem {
         remapPhysicsPoints(bodyEid, tmpFixtureVerts, vertexCount);
         applyDisplayOffset(bodyEid, tmpFixtureVerts, vertexCount);
 
+        if (polygonDrawSession != null && polygonDrawSession.dragging()) {
+            games.pixscape.studio.helper.PolygonEditorDrawHelper.drawContour(ctx, tmpFixtureVerts,
+                    vertexCount, EditorOverlayPalette.PHYSICS_SELECTED_COLOR);
+        }
         GizmoDrawHelper.drawPolygonVertices(ctx, tmpFixtureVerts, vertexCount);
     }
 

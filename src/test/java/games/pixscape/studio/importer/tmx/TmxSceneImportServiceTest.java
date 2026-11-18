@@ -62,6 +62,225 @@ import static org.junit.Assert.*;
 public class TmxSceneImportServiceTest {
 
     @Test
+    public void importedContoursSurviveStudioDeleteUndoRedoAndSceneRoundTrip() throws Exception {
+        for (String orientation : new String[]{"orthogonal", "isometric"}) {
+            Harness h = harness("tmx-history-contours-" + orientation);
+            FileHandle tmx = writeTmx(h.root.resolve("contours.tmx"), """
+                    <map orientation="%s" width="10" height="10" tilewidth="32" tileheight="16">
+                      <objectgroup name="Shapes" offsetx="3" offsety="4">
+                        <object id="1" name="Convex" x="40" y="50" rotation="30"><polygon points="0,0 20,0 10,20"/></object>
+                        <object id="2" name="Concave" x="60" y="50"><polygon points="0,0 20,0 20,10 10,5 0,10"/></object>
+                        <object id="3" name="Crossed" x="80" y="50"><polygon points="0,0 20,20 0,20 20,0"/></object>
+                        <object id="4" name="Open" x="100" y="50" rotation="90"><polyline points="-10,5 20,-7 40,12"/></object>
+                        <object id="5" name="Rectangle" x="120" y="50" width="20" height="10">
+                          <properties><property name="target" type="object" value="2"/></properties>
+                        </object>
+                      </objectgroup>
+                    </map>
+                    """.formatted(orientation));
+            TmxSceneImportResult result = h.importer().importScene(request(tmx, "Contours"));
+            assertTrue(String.valueOf(result.failure()), result.imported());
+            World world = loadImportedWorldWithGeometry(h, result);
+            IdentityRegistry identities = new IdentityRegistry();
+            identities.bind(world, h.cfg.getSceneMeta(result.sceneName()));
+            identities.rebuild();
+            try {
+                String[] names = {"Convex", "Concave", "Crossed", "Open", "Rectangle"};
+                float[][] polygons = new float[names.length][];
+                float[][] polylines = new float[names.length][];
+                float[][] poses = new float[names.length][];
+                int[] stableIds = new int[names.length];
+                for (int i = 0; i < names.length; i++) {
+                    int e = objectEntityByName(world, names[i]);
+                    PolygonComponent polygon = world.getMapper(PolygonComponent.class).get(e);
+                    PolylineComponent polyline = world.getMapper(PolylineComponent.class).get(e);
+                    polygons[i] = polygon == null ? null : polygon.vertices.clone();
+                    polylines[i] = polyline == null ? null : polyline.vertices.clone();
+                    poses[i] = contourPose(world, e);
+                    stableIds[i] = world.getMapper(PixscapeIdentityComponent.class).get(e).stableId;
+                }
+                assertEquals(orientation.equals("isometric") ? 8 : 0,
+                        polygons[4] == null ? 0 : polygons[4].length);
+                HistoryManager history = new HistoryManager(16);
+                com.badlogic.gdx.utils.IntArray selection = new com.badlogic.gdx.utils.IntArray();
+                for (String name : names) {
+                    selection.add(objectEntityByName(world, name));
+                }
+                history.execute(new games.pixscape.studio.history.commands.DeleteGameObjectHierarchyCommand(
+                        world, history.historyIds(), selection, null));
+                world.process();
+                for (int cycle = 0; cycle < 3; cycle++) {
+                    for (int stableId : stableIds) {
+                        assertEquals(-1, identities.findByStableId(stableId));
+                    }
+                    history.undo();
+                    world.process();
+                    assertContours(world, names, polygons, polylines, poses, stableIds);
+                    if (cycle < 2) {
+                        history.redo();
+                        world.process();
+                    }
+                }
+                FileHandle scene = h.projectDir.child(StudioFs.DIR_SCENES).child(result.sceneFileName());
+                games.pixscape.studio.service.SceneService.saveScene(world, scene, false);
+                World reloaded = loadImportedWorldWithGeometry(h, result);
+                try {
+                    assertContours(reloaded, names, polygons, polylines, poses, stableIds);
+                } finally {
+                    reloaded.dispose();
+                }
+                FileHandle exportDir = h.projectDir.child("runtime-export");
+                var runtimeConfig = RuntimeExport.exportRuntime(h.cfg, h.projectDir, exportDir);
+                World exported = new World(new WorldConfiguration().setSystem(new WorldSerializationManager()));
+                try {
+                    SceneLoader.loadScene(exported, exportDir.child(RuntimeExport.RUNTIME_DIR_NAME)
+                            .child(RuntimeFs.DIR_SCENES).child(result.sceneFileName()), false,
+                            runtimeConfig.scenes.get(result.sceneName()));
+                    exported.process();
+                    for (int i = 0; i < names.length; i++) {
+                        int e = objectEntityByName(exported, names[i]);
+                        assertContourGeometry(exported, e, polygons[i], polylines[i]);
+                        assertArrayEquals(poses[i], contourPose(exported, e), 0f);
+                    }
+                } finally {
+                    exported.dispose();
+                }
+            } finally {
+                identities.bind(null, null);
+                world.dispose();
+            }
+        }
+    }
+
+    @Test
+    public void editedAndCreatedObjectsSurviveSaveExportAndRuntimeApi() throws Exception {
+        for (String orientation : new String[]{"orthogonal", "isometric"}) {
+            Harness h = harness("tmx-authoring-" + orientation);
+            FileHandle tmx = writeTmx(h.root.resolve("authoring.tmx"), """
+                    <map orientation="%s" width="10" height="10" tilewidth="32" tileheight="16">
+                      <objectgroup name="Editable">
+                        <object id="1" name="Imported polygon" x="50" y="30"><polygon points="0,0 50,0 50,40 20,10 0,40"/></object>
+                        <object id="2" name="Imported rectangle" x="100" y="20" width="40" height="30"/>
+                      </objectgroup>
+                    </map>
+                    """.formatted(orientation));
+            TmxSceneImportResult result = h.importer().importScene(request(tmx, "Authoring"));
+            assertTrue(String.valueOf(result.failure()), result.imported());
+            World world = loadImportedWorldWithGeometry(h, result);
+            IdentityRegistry identities = new IdentityRegistry();
+            identities.bind(world, h.cfg.getSceneMeta(result.sceneName()));
+            identities.rebuild();
+            HistoryManager history = new HistoryManager(32);
+            try {
+                int polygon = objectEntityByName(world, "Imported polygon");
+                int rectangle = objectEntityByName(world, "Imported rectangle");
+                var before = games.pixscape.studio.service.tiled.TiledObjectGeometry.capture(world, polygon);
+                float[] changed = before.vertices().clone();
+                changed[2] = -80; changed[3] = 50; // Crossed data is retained without physical validation.
+                history.execute(new games.pixscape.studio.history.commands.EditTiledObjectGeometryCommand(
+                        world, history.historyIds(), polygon, before,
+                        games.pixscape.studio.service.tiled.TiledObjectGeometry.withVertices(before, changed)));
+                before = games.pixscape.studio.service.tiled.TiledObjectGeometry.capture(world, rectangle);
+                history.execute(new games.pixscape.studio.history.commands.EditTiledObjectGeometryCommand(
+                        world, history.historyIds(), rectangle, before,
+                        games.pixscape.studio.service.tiled.TiledObjectGeometry.resize(before, 75, 35)));
+                var authoring = new games.pixscape.studio.service.tiled.TiledObjectAuthoringService(world, history);
+                int layer = authoring.objectLayer(polygon);
+                int createdPolygon = authoring.createPolygon(layer,
+                        new float[]{0,0,20,0,40,0,60,0,60,40,40,40,30,10,20,40,0,40});
+                int createdRectangle = authoring.createRectangle(layer,
+                        authoring.rectangleVertices(layer, -70, -40, 80, 90));
+                world.process();
+                int[] objects = {polygon, rectangle, createdPolygon, createdRectangle};
+                String[] names = {"Imported polygon", "Imported rectangle", "Polygon", "Rectangle"};
+                float[][] expected = new float[objects.length][];
+                float[][] poses = new float[objects.length][];
+                for (int i = 0; i < objects.length; i++) {
+                    expected[i] = games.pixscape.studio.service.tiled.TiledObjectGeometry.vertices(
+                            games.pixscape.studio.service.tiled.TiledObjectGeometry.capture(world, objects[i]));
+                    poses[i] = contourPose(world, objects[i]);
+                    assertFalse(world.getMapper(PhysicsBodyComponent.class).has(objects[i]));
+                    assertFalse(world.getMapper(PhysicsShapesComponent.class).has(objects[i]));
+                }
+                FileHandle scene = h.projectDir.child(StudioFs.DIR_SCENES).child(result.sceneFileName());
+                games.pixscape.studio.service.SceneService.saveScene(world, scene, false);
+                ProjectConfig.ProjectIO.saveProject(h.cfg, StudioFs.requireStudioProjectFile(h.cfg));
+                World reopened = loadImportedWorldWithGeometry(h, result);
+                try {
+                    for (int i = 0; i < names.length; i++) {
+                        int e = objectEntityByName(reopened, names[i]);
+                        assertArrayEquals(expected[i], games.pixscape.studio.service.tiled.TiledObjectGeometry.vertices(
+                                games.pixscape.studio.service.tiled.TiledObjectGeometry.capture(reopened, e)), 0);
+                        assertArrayEquals(poses[i], contourPose(reopened, e), 0);
+                    }
+                } finally { reopened.dispose(); }
+                FileHandle exportDir = h.projectDir.child("authoring-export");
+                var runtime = RuntimeExport.exportRuntime(h.cfg, h.projectDir, exportDir);
+                World exported = new World(new WorldConfiguration().setSystem(new WorldSerializationManager()));
+                var engine = new games.pixscape.runtime.engine.PixscapeEngine();
+                var field = engine.getClass().getDeclaredField("world");
+                field.setAccessible(true); field.set(engine, exported);
+                engine.getIdentityRegistry().bind(exported, runtime.scenes.get(result.sceneName()));
+                try {
+                    SceneLoader.loadScene(exported, exportDir.child(RuntimeExport.RUNTIME_DIR_NAME)
+                            .child(RuntimeFs.DIR_SCENES).child(result.sceneFileName()), false,
+                            runtime.scenes.get(result.sceneName()));
+                    exported.process();
+                    var entities = engine.api().entities().findAllByTiledLayerName("Editable");
+                    assertEquals(4, entities.length);
+                    for (var ref : entities) {
+                        int index = java.util.Arrays.asList(names).indexOf(
+                                exported.getMapper(PixscapeIdentityComponent.class).get(ref.entityId()).name);
+                        assertTrue(index >= 0);
+                        var geometry = ref.geometry();
+                        assertTrue(geometry.exists()); assertTrue(geometry.closed());
+                        assertEquals(expected[index].length / 2, geometry.vertexCount());
+                        for (int v = 0; v < geometry.vertexCount(); v++) {
+                            assertEquals(expected[index][v * 2], geometry.localX(v), 0);
+                            assertEquals(expected[index][v * 2 + 1], geometry.localY(v), 0);
+                        }
+                        assertArrayEquals(poses[index], contourPose(exported, ref.entityId()), 0);
+                    }
+                } finally { engine.getIdentityRegistry().bind(null, null); exported.dispose(); }
+            } finally { identities.bind(null, null); world.dispose(); }
+        }
+    }
+
+    private static float[] contourPose(World world, int e) {
+        TransformComponent t = world.getMapper(TransformComponent.class).get(e);
+        DimensionsComponent d = world.getMapper(DimensionsComponent.class).get(e);
+        return new float[]{t.x, t.y, t.rotationRad, t.scaleX, t.scaleY, t.originX, t.originY,
+                d.width, d.height};
+    }
+
+    private static void assertContourGeometry(World world, int e, float[] polygon, float[] polyline) {
+        PolygonComponent p = world.getMapper(PolygonComponent.class).get(e);
+        PolylineComponent l = world.getMapper(PolylineComponent.class).get(e);
+        assertEquals("Polygon component presence", polygon != null, p != null);
+        assertEquals("Polyline component presence", polyline != null, l != null);
+        if (polygon != null) {
+            assertArrayEquals(polygon, p.vertices, 0f);
+        }
+        if (polyline != null) {
+            assertArrayEquals(polyline, l.vertices, 0f);
+        }
+    }
+
+    private static void assertContours(World world, String[] names, float[][] polygons, float[][] polylines,
+                                       float[][] poses, int[] stableIds) {
+        for (int i = 0; i < names.length; i++) {
+            int e = objectEntityByName(world, names[i]);
+            assertContourGeometry(world, e, polygons[i], polylines[i]);
+            assertArrayEquals(poses[i], contourPose(world, e), 0f);
+            assertEquals(stableIds[i], world.getMapper(PixscapeIdentityComponent.class).get(e).stableId);
+        }
+        int rectangle = objectEntityByName(world, "Rectangle");
+        assertEquals(EntityKind.TILED_RECTANGLE, world.getMapper(EntityMetaComponent.class).get(rectangle).kind);
+        assertEquals(stableIds[1], world.getMapper(CustomPropertiesComponent.class).get(rectangle)
+                .properties.getObjectStableId("target", -1));
+    }
+
+    @Test
     public void mixedLayerWitnessPaintsCopiesRestoresAndReloadsStableAssociations() throws Exception {
         Harness h = harness("tiled-mixed-witness");
         FileHandle tmx = new FileHandle("src/test/resources/tmx/mixed-layers/mixed-layers.tmx");

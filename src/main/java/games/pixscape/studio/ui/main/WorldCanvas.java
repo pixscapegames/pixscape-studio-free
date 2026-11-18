@@ -455,10 +455,16 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     private void cancelPointerInteraction() {
+        var objectEditor = getTiledObjectEditor();
+        if (objectEditor != null) {
+            objectEditor.cancel();
+        }
         actorShadowRectangleEditor.cancel();
         if (sceneEditorContext != null && sceneEditorContext.isInitialized()) {
             PickingSystem picking = world().getSystem(PickingSystem.class);
-            if (picking != null) picking.cancelLightValueGesture();
+            if (picking != null) {
+                picking.cancelLightValueGesture();
+            }
         }
         gridStage.cancelTouchFocus();
         panning = false;
@@ -691,6 +697,11 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     if (entityId >= 0) targetContext.selectionService().selectOnly(entityId);
                     else targetContext.selectionService().clearSelection();
                 }, selectionService(), physicsService, () -> targetSceneMeta != null && targetSceneMeta.physicsEnabled);
+
+        var objectEditor = new games.pixscape.studio.service.tiled.TiledObjectEditor(world(), historyManager(),
+                selectionService(), layerService(), studioEditingModeService, tiledToolService);
+        pickingSystem.setTiledObjectEditor(objectEditor);
+        gizmoSystem.setTiledObjectEditor(objectEditor);
 
         // Wiring
         pickingSystem.setSelectionService(selectionService());
@@ -1495,7 +1506,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     PickingSystem picking = world().getSystem(PickingSystem.class);
                     // This stage shares the render camera. Use the queued event's world point:
                     // Gdx.input may already expose the final motion in this input batch.
-                    if (pointer == 0 && picking != null && picking.cornerProfilePointerDown(event.getStageX(), event.getStageY())) {
+                    if (pointer == 0 && picking != null
+                            && (picking.tiledObjectPointerDown(event.getStageX(), event.getStageY())
+                            || picking.cornerProfilePointerDown(event.getStageX(), event.getStageY()))) {
                         return true;
                     }
                 }
@@ -1586,7 +1599,12 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 if (event.isTouchFocusCancel()) {
                     PickingSystem picking = sceneEditorContext != null && sceneEditorContext.isInitialized()
                             ? world().getSystem(PickingSystem.class) : null;
-                    if (picking != null) picking.cancelLightValueGesture();
+                    if (picking != null) {
+                        picking.cancelLightValueGesture();
+                        if (picking.getTiledObjectEditor() != null) {
+                            picking.getTiledObjectEditor().cancel();
+                        }
+                    }
                     spatialBlockSelectionService().cornerProfile().cancelGesture();
                     inputState.clearAll();
                     return;
@@ -2760,6 +2778,11 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     public TiledPaintService getTiledPaintService() {
         return tiledPaintService;
+    }
+
+    public games.pixscape.studio.service.tiled.TiledObjectEditor getTiledObjectEditor() {
+        PickingSystem picking = world() == null ? null : world().getSystem(PickingSystem.class);
+        return picking == null ? null : picking.getTiledObjectEditor();
     }
 
     public TiledToolService getTileToolService() {

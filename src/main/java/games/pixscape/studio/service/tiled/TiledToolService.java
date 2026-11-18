@@ -9,7 +9,9 @@ public final class TiledToolService {
         BRUSH,
         RECT,
         ERASE,
-        FILL
+        FILL,
+        OBJECT_RECTANGLE,
+        OBJECT_POLYGON
     }
 
     private Mode activeMode = Mode.BRUSH;
@@ -23,6 +25,10 @@ public final class TiledToolService {
 
     public Mode getMode() {
         return activeMode;
+    }
+
+    public boolean isObjectTool() {
+        return activeMode == Mode.OBJECT_RECTANGLE || activeMode == Mode.OBJECT_POLYGON;
     }
 
     public boolean is(Mode mode) {

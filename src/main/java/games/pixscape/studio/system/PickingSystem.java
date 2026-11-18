@@ -67,6 +67,13 @@ public final class PickingSystem extends BaseSystem {
     private final SpatialBlockSelectionService spatialBlockSelectionService;
     private final SpatialTileSelectionService spatialTileSelectionService;
     private final PolygonDrawSession polygonDrawSession;
+    private games.pixscape.studio.service.tiled.TiledObjectEditor tiledObjectEditor;
+    public void setTiledObjectEditor(games.pixscape.studio.service.tiled.TiledObjectEditor editor) {
+        tiledObjectEditor = editor;
+    }
+    public games.pixscape.studio.service.tiled.TiledObjectEditor getTiledObjectEditor() {
+        return tiledObjectEditor;
+    }
     private PhysicsPolygonAuthoringService polygonAuthoringService;
     private PhysicsFixturePickingService fixturePickingService;
     private ResolvedPhysicsPose resolvedPhysicsPose;
@@ -171,6 +178,7 @@ public final class PickingSystem extends BaseSystem {
     private float resizeBoxBeforeHalfH = 0f;
 
     // POLYGON
+    private final TransformComponent authoredWorldPose = new TransformComponent();
     private int hoveredPolygonVertexIndex = -1;
     private boolean lightRadiusDragActive = false;
     private int lightRadiusEntityId = -1;
@@ -185,6 +193,7 @@ public final class PickingSystem extends BaseSystem {
     private float lightInclinationPressAngle, lightInclinationDirection;
     private boolean lightInclinationEdgeOn;
     private boolean movingPolygonVertexActive = false;
+    private long polygonVertexHistoryRevision;
     private boolean resizingCircleActive = false;
     private int resizingCircleBodyEid = -1;
     private int resizingCircleFixtureId = PhysicsSelectionService.NO_SHAPE;
@@ -193,8 +202,6 @@ public final class PickingSystem extends BaseSystem {
     private int movingPolygonVertexBodyEid = -1;
     private int movingPolygonVertexFixtureId = PhysicsSelectionService.NO_SHAPE;
     private int movingPolygonVertexIndex = -1;
-    private float movingPolygonVertexBeforeX = 0f;
-    private float movingPolygonVertexBeforeY = 0f;
 
     // QUAD VERTEX EDITION
     private int hoveredQuadVertexIndex = -1;
@@ -398,7 +405,29 @@ public final class PickingSystem extends BaseSystem {
             }
         }
 
-        if (processPolygonDrawMode(mx, my)) {
+        boolean leftPressed = inputState.leftJustPressed();
+        boolean leftDown = inputState.isLeftDown();
+        boolean leftReleased = inputState.leftJustReleased();
+
+        if (tiledObjectEditor != null && tiledObjectEditor.process(mx, my, coordSpaces.worldUnitsPerPixel(),
+                leftPressed && !inputState.isCtrl() && !inputState.isShift(), leftDown, leftReleased,
+                Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE), Gdx.input.isKeyJustPressed(Input.Keys.BACKSPACE),
+                isPointerOverUI())) {
+            cancelLassoIfNeeded();
+            selectionService.clearHoveredEntity();
+            resetPressState();
+            return;
+        }
+        if (movingPolygonVertexActive && (historyManager.getMutationRevision() != polygonVertexHistoryRevision
+                || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)
+                || !isExplicitPhysicsEditMode()
+                || physicsSelectionService.getFocusedBodyEid() != movingPolygonVertexBodyEid
+                || physicsSelectionService.getSelectedPhysicsShapeId() != movingPolygonVertexFixtureId)) {
+            clearPolygonVertexMoveState();
+            resetPressState();
+            return;
+        }
+        if (processPolygonDrawMode(mx, my, leftPressed)) {
             showLightValueHint(null);
             updateCursorForHover(
                     InputManipulationContext.Handle.NONE,
@@ -431,9 +460,6 @@ public final class PickingSystem extends BaseSystem {
             return;
         }
 
-        boolean leftPressed = inputState.leftJustPressed();
-        boolean leftDown = inputState.isLeftDown();
-        boolean leftReleased = inputState.leftJustReleased();
 
         if (isSpatialBlockModeActive()) {
             showLightValueHint(null);
@@ -627,6 +653,19 @@ public final class PickingSystem extends BaseSystem {
     /**
      * Capture the initial point in Scene2D, before motion events can coalesce into the next frame.
      */
+    public boolean tiledObjectPointerDown(float worldX, float worldY) {
+        if (inputState.isCtrl() || inputState.isShift()) {
+            return false;
+        }
+        if (tiledObjectEditor != null && tiledObjectEditor.process(worldX, worldY,
+                coordSpaces.worldUnitsPerPixel(), true, true, false, false, false, false)) {
+            inputState.leftJustPressed();
+            resetPressState();
+            return true;
+        }
+        return false;
+    }
+
     public boolean cornerProfilePointerDown(float worldX, float worldY) {
         CornerProfileEditSession corner = spatialBlockSelectionService.cornerProfile();
         if (!corner.active() || !corner.dragging() && corner.pickVertex(worldX, worldY, coordSpaces.pixelsToWorld(8)) < 0) {
@@ -1429,6 +1468,9 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private InputManipulationContext.Handle resolveHoveredHandle(float mx, float my, IntArray viewportSel) {
+        if (tiledObjectEditor != null && viewportSel.size == 1 && tiledObjectEditor.handles(viewportSel.first())) {
+            return InputManipulationContext.Handle.NONE;
+        }
         hoveredQuadVertexIndex = detectSelectedQuadVertexHover(mx, my, viewportSel);
         if (hoveredQuadVertexIndex >= 0) {
             clearHoveredPolygonVertex();
@@ -2261,7 +2303,7 @@ public final class PickingSystem extends BaseSystem {
         remapPhysicsPoints(bodyEid, tmpFixtureVerts, vertexCount);
         applyDisplayOffset(bodyEid, tmpFixtureVerts);
 
-        return FixtureHandleHelper.detectPolygonVertexHover(
+        return games.pixscape.studio.service.geometry.PolygonEditSession.pickVertex(
                 coordSpaces.worldUnitsPerPixel(),
                 tmpFixtureVerts,
                 vertexCount,
@@ -2290,12 +2332,12 @@ public final class PickingSystem extends BaseSystem {
         if (base < 0 || base + 1 >= fixture.geometry.polygonVertices.length) return false;
 
         movingPolygonVertexActive = true;
+        polygonVertexHistoryRevision = historyManager.getMutationRevision();
         movingPolygonVertexBodyEid = bodyEid;
         movingPolygonVertexFixtureId = physicsShapeId;
         movingPolygonVertexIndex = hoveredPolygonVertexIndex;
 
-        movingPolygonVertexBeforeX = fixture.geometry.polygonVertices[base];
-        movingPolygonVertexBeforeY = fixture.geometry.polygonVertices[base + 1];
+        polygonDrawSession.beginDrag(fixture.geometry.polygonVertices, movingPolygonVertexIndex);
 
         oldDrag.set(mx, my);
         return true;
@@ -2349,17 +2391,7 @@ public final class PickingSystem extends BaseSystem {
 
         worldToBodyLocalPx(movingPolygonVertexBodyEid, mx, my, tmpA);
 
-        Array<PhysicsShapeData> candidate =
-                FixtureCommandSupport.copyFixtures(world, movingPolygonVertexBodyEid);
-        int index = indexOfPhysicsShape(candidate, movingPolygonVertexFixtureId);
-        if (index < 0) return;
-        PhysicsGeometryData geometry = candidate.get(index).geometry;
-        geometry.polygonVertices[base] = physicsService.pxToM(tmpA.x);
-        geometry.polygonVertices[base + 1] = physicsService.pxToM(tmpA.y);
-        FixtureCommandSupport.prepareAndPublish(
-                world, movingPolygonVertexBodyEid, candidate);
-
-        FixtureCommandSupport.markDirty(world, movingPolygonVertexBodyEid);
+        polygonDrawSession.dragTo(physicsService.pxToM(tmpA.x), physicsService.pxToM(tmpA.y));
     }
 
     private static float[] copyVerts(float[] verts, int count) {
@@ -2388,27 +2420,26 @@ public final class PickingSystem extends BaseSystem {
             return;
         }
 
-        MovePolygonVertexCommand cmd = new MovePolygonVertexCommand(
-                world,
-                historyIds,
-                physicsSelectionService,
-                movingPolygonVertexBodyEid,
-                movingPolygonVertexFixtureId,
-                movingPolygonVertexIndex,
-                movingPolygonVertexBeforeX,
-                movingPolygonVertexBeforeY,
-                fixture.geometry.polygonVertices[base],
-                fixture.geometry.polygonVertices[base + 1]
-        );
-
-        if (!cmd.isNoop()) {
-            historyManager.execute(cmd);
+        float[] candidate = polygonDrawSession.dragCandidate();
+        PolygonBuildResult validation = polygonAuthoringService().buildFromSource(candidate, candidate.length / 2);
+        if (validation != null && validation.isValid()) {
+            ReplacePolygonVerticesCommand cmd = new ReplacePolygonVerticesCommand(world, historyIds,
+                    physicsSelectionService, movingPolygonVertexBodyEid, movingPolygonVertexFixtureId,
+                    polygonDrawSession.dragBefore(), candidate.length / 2, candidate, candidate.length / 2);
+            if (!cmd.isNoop()) {
+                historyManager.execute(cmd);
+            }
+        } else {
+            Gdx.app.error("PickingSystem", "Polygon rejected: " + (validation == null ? "Invalid polygon." : validation.message()));
         }
 
         clearPolygonVertexMoveState();
     }
 
     private void clearPolygonVertexMoveState() {
+        if (polygonDrawSession != null) {
+            polygonDrawSession.cancelDrag();
+        }
         movingPolygonVertexActive = false;
         movingPolygonVertexBodyEid = -1;
         movingPolygonVertexFixtureId = PhysicsSelectionService.NO_SHAPE;
@@ -2549,7 +2580,7 @@ public final class PickingSystem extends BaseSystem {
         return polygonAuthoringService;
     }
 
-    private boolean processPolygonDrawMode(float mx, float my) {
+    private boolean processPolygonDrawMode(float mx, float my, boolean leftPressed) {
         if (polygonDrawSession == null || !polygonDrawSession.isActive()) {
             return false;
         }
@@ -2559,35 +2590,15 @@ public final class PickingSystem extends BaseSystem {
         if (selectionService != null) selectionService.clearHoveredEntity();
         physicsSelectionService.clearHover();
 
-        // ESC = annulation
-        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
-            polygonDrawSession.cancel();
-            return true;
+        var action = polygonDrawSession.drawInput(mx, my,
+                leftPressed && !isPointerOverUI(),
+                Gdx.input.isKeyJustPressed(Input.Keys.BACKSPACE) && !isPointerOverUI(),
+                Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE),
+                coordSpaces.pixelsToWorld(GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * .5f + HOVER_TOLER_PX));
+        if (action == games.pixscape.studio.service.geometry.PolygonEditSession.DrawAction.CLOSED) {
+            commitPolygonDrawSession();
         }
-
-        // Backspace to remove last vertice
-        if (Gdx.input.isKeyJustPressed(Input.Keys.BACKSPACE)) {
-            polygonDrawSession.removeLastPoint();
-            return true;
-        }
-
-        // Clic gauche = add point ou close+commit
-        if (inputState.leftJustPressed()) {
-            float closeRadiusWorld = coordSpaces.pixelsToWorld(
-                    GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX);
-
-            if (polygonDrawSession.tryCloseFromPoint(mx, my, closeRadiusWorld)) {
-                commitPolygonDrawSession();
-                resetPressState();
-                return true;
-            }
-
-            if (!polygonDrawSession.wouldDuplicateLast(mx, my)) {
-                polygonDrawSession.addPoint(mx, my);
-            }
-            resetPressState();
-            return true;
-        }
+        resetPressState();
 
         return true;
     }
@@ -3597,7 +3608,7 @@ public final class PickingSystem extends BaseSystem {
         PolylineComponent polyline = mPolyline.getSafe(entityId, null);
         if (polygon == null && polyline == null) return true;
 
-        TransformComponent transform = mT.getSafe(entityId, null);
+        TransformComponent transform = AuthoredGeometryTransform.resolvedPose(world, entityId, authoredWorldPose);
         if (transform == null) return false;
         tmp2Vec.set(0f, 0f);
         if (displayOffsetResolver != null) displayOffsetResolver.resolve(entityId, tmp2Vec);

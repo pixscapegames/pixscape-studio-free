@@ -20,6 +20,57 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class EntityGraphGameObjectInstantiationTest {
+    @Test
+    public void clipboardContoursAreIndependentAcrossEditsAndRepeatedPasteUndoRedo() {
+        Fixture f = new Fixture();
+        try {
+            int root = f.root(100, -1, 10, 20, .3f, 2, 7, 9, 0, "");
+            int polygon = f.member(101, 100, 3, 4, .6f, 1.5f, 2, 5, 0);
+            int line = f.member(102, 100, 6, 7, -.2f, .5f, 1, 3, 1);
+            float[] closed = {0, 0, 20, 0, 20, 10, 10, 5, 0, 10};
+            float[] open = {-10, 5, 20, -7, 40, 12};
+            f.world.getMapper(PolygonComponent.class).create(polygon).setVertices(closed);
+            f.world.getMapper(PolylineComponent.class).create(line).setVertices(open);
+            f.properties.create(polygon).properties.putObjectStableId("route", 102);
+            f.process();
+            EntityGraph graph = f.capture(root);
+            EntityGraphInstantiationResult first = f.instantiate(graph, 0, 30, 40);
+            f.process();
+            int copyPolygon = first.sourceToCreated().get(2, -1);
+            int copyLine = first.sourceToCreated().get(3, -1);
+            int polygonStable = f.identities.get(copyPolygon).stableId;
+            int lineStable = f.identities.get(copyLine).stableId;
+            float[] editedClosed = closed.clone();
+            float[] editedOpen = open.clone();
+            for (int cycle = 0; cycle < 3; cycle++) {
+                assertArrayEquals(editedClosed, f.world.getMapper(PolygonComponent.class).get(copyPolygon).vertices, 0f);
+                assertArrayEquals(editedOpen, f.world.getMapper(PolylineComponent.class).get(copyLine).vertices, 0f);
+                assertFalse(f.world.getMapper(PolygonComponent.class).has(copyLine));
+                assertEquals(lineStable, f.properties.get(copyPolygon).properties.getObjectStableId("route", -1));
+                f.world.getMapper(PolygonComponent.class).get(copyPolygon).vertices[0] = 999;
+                f.world.getMapper(PolylineComponent.class).get(copyLine).vertices[0] = 999;
+                editedClosed[0] = 999;
+                editedOpen[0] = 999;
+                assertArrayEquals(closed, f.world.getMapper(PolygonComponent.class).get(polygon).vertices, 0f);
+                assertArrayEquals(open, f.world.getMapper(PolylineComponent.class).get(line).vertices, 0f);
+                f.history.undo();
+                f.process();
+                f.history.redo();
+                f.process();
+                copyPolygon = f.identityRegistry.findByStableId(polygonStable);
+                copyLine = f.identityRegistry.findByStableId(lineStable);
+            }
+            EntityGraphInstantiationResult second = f.instantiate(graph, 0, 50, 60);
+            f.process();
+            assertArrayEquals(closed, f.world.getMapper(PolygonComponent.class)
+                    .get(second.sourceToCreated().get(2, -1)).vertices, 0f);
+            assertArrayEquals(open, f.world.getMapper(PolylineComponent.class)
+                    .get(second.sourceToCreated().get(3, -1)).vertices, 0f);
+        } finally {
+            f.dispose();
+        }
+    }
+
 
     @Test
     public void duplicateLightWaitsBeforeIdentityReservationAndUndoRestoresForward() {

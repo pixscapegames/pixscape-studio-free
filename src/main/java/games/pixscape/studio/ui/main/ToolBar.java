@@ -123,8 +123,10 @@ public class ToolBar extends VisTable {
                 && sceneContext.selectionService().isTiledMapEditingTargetActive();
         tiledToolBar.setDisabled(!worldEditingAllowed || !tiledMapTarget
                 || isSpatialBlockEditingActive());
+        var editor = contextActive ? app.getCanvas().getTiledObjectEditor() : null;
+        tiledToolBar.setObjectToolsDisabled(editor == null || !editor.canCreate());
+        tiledToolBar.bindToolService(app.getCanvas().getTileToolService());
         setAlignmentButtonsDisabled(true);
-        invalidateHierarchy();
     }
 
     private void bindPlacementRefresh() {
@@ -135,6 +137,7 @@ public class ToolBar extends VisTable {
     }
 
     private void refreshPlacement() {
+        updateEditingContextState();
         if (sceneContext == null || !sceneContext.isActive() || !app.getCanvas().isAttached(sceneContext)) return;
         setAlignmentButtonsDisabled(!app.getCanvas().getAlignService().isPlacementAvailableAfterEcsStep());
     }

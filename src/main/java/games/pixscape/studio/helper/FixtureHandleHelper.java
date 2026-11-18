@@ -35,27 +35,4 @@ public final class FixtureHandleHelper {
         return InputManipulationContext.Handle.NONE;
     }
 
-    public static int detectPolygonVertexHover(
-            float worldUnitsPerPixel,
-            float[] verts,
-            int vertexCount,
-            float mx,
-            float my,
-            float hoverTolPx,
-            float handleSizePx
-    ) {
-        if (verts == null || vertexCount <= 0) return -1;
-
-        float halfWidthorld = (handleSizePx * 0.5f + hoverTolPx) * worldUnitsPerPixel;
-
-        for (int i = 0; i < vertexCount; i++) {
-            float vx = verts[i * 2];
-            float vy = verts[i * 2 + 1];
-            if (HandleHelper.insideSquare(mx, my, vx, vy, halfWidthorld)) {
-                return i;
-            }
-        }
-
-        return -1;
-    }
 }

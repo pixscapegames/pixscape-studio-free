@@ -125,6 +125,8 @@ final class GameObjectEntityDataMapper {
             snapshot.dimensionsWidth = data.dimensions.width;
             snapshot.dimensionsHeight = data.dimensions.height;
         }
+        snapshot.polygonVertices = data.polygonVertices == null ? null : data.polygonVertices.clone();
+        snapshot.polylineVertices = data.polylineVertices == null ? null : data.polylineVertices.clone();
         if (data.quadDeform != null) {
             snapshot.hasQuadDeform = true;
             snapshot.quadBlX = data.quadDeform.blX;
@@ -245,6 +247,8 @@ final class GameObjectEntityDataMapper {
             data.dimensions.width = source.dimensionsWidth;
             data.dimensions.height = source.dimensionsHeight;
         }
+        data.polygonVertices = source.polygonVertices == null ? null : source.polygonVertices.clone();
+        data.polylineVertices = source.polylineVertices == null ? null : source.polylineVertices.clone();
         if (source.hasQuadDeform) {
             data.quadDeform = new GameObjectAsset.QuadDeformData();
             data.quadDeform.blX = source.quadBlX;

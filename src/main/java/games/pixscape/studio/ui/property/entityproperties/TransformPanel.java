@@ -27,6 +27,8 @@ public class TransformPanel extends CollapsibleWidget {
     private final FloatField scaleyField;
     private final FloatField uniformScaleField;
 
+    private final FloatField objectWidth;
+    private final FloatField objectHeight;
     private final VisLabel widthLabel = new VisLabel();
     private final VisLabel heightLabel = new VisLabel();
     private final VisTable originXRow;
@@ -57,6 +59,8 @@ public class TransformPanel extends CollapsibleWidget {
 
         TransformFieldFactory factory = new TransformFieldFactory(ctx.world, ctx.history);
 
+        objectWidth = objectSizeField(true);
+        objectHeight = objectSizeField(false);
         xField = factory.posX();
         yField = factory.posY();
         originxField = factory.originX();
@@ -103,6 +107,17 @@ public class TransformPanel extends CollapsibleWidget {
     public void setEntityId(int entityId) {
         this.entityId = entityId;
 
+        objectWidth.setEntityId(entityId);
+        objectHeight.setEntityId(entityId);
+        boolean objectRectangle = games.pixscape.studio.service.tiled.TiledObjectGeometry.editable(ctx.world, entityId)
+                && games.pixscape.studio.service.tiled.TiledObjectGeometry.rectangle(ctx.world, entityId);
+        widthRow.clearChildren();
+        heightRow.clearChildren();
+        boolean projected = objectRectangle && ctx.world.getMapper(games.pixscape.runtime.component.PolygonComponent.class).has(entityId);
+        widthRow.add(new VisLabel(projected ? "Edge width:" : "Width:")).width(CommonLayout.LABEL_WIDTH).left();
+        widthRow.add(objectRectangle ? objectWidth : widthLabel).width(CommonLayout.FIELD_WIDTH);
+        heightRow.add(new VisLabel(projected ? "Edge height:" : "Height:")).width(CommonLayout.LABEL_WIDTH).left();
+        heightRow.add(objectRectangle ? objectHeight : heightLabel).width(CommonLayout.FIELD_WIDTH);
         xField.setEntityId(entityId);
         yField.setEntityId(entityId);
         originxField.setEntityId(entityId);
@@ -147,6 +162,29 @@ public class TransformPanel extends CollapsibleWidget {
         }
     }
 
+    private FloatField objectSizeField(boolean width) {
+        FloatField field = new FloatField(ctx.world, e -> games.pixscape.studio.service.tiled.TiledObjectGeometry.edgeLength(
+                games.pixscape.studio.service.tiled.TiledObjectGeometry.capture(ctx.world, e), width),
+                e -> games.pixscape.studio.service.tiled.TiledObjectGeometry.editable(ctx.world, e)
+                        && games.pixscape.studio.service.tiled.TiledObjectGeometry.rectangle(ctx.world, e));
+        field.setDisplayDecimals(2);
+        field.setValidator(FloatField.finiteValidator(true));
+        field.setApplier((e, value) -> {
+            var before = games.pixscape.studio.service.tiled.TiledObjectGeometry.capture(ctx.world, e);
+            var after = games.pixscape.studio.service.tiled.TiledObjectGeometry.resize(before,
+                    width ? value : games.pixscape.studio.service.tiled.TiledObjectGeometry.edgeLength(before, true),
+                    width ? games.pixscape.studio.service.tiled.TiledObjectGeometry.edgeLength(before, false) : value);
+            var command = new games.pixscape.studio.history.commands.EditTiledObjectGeometryCommand(
+                    ctx.world, ctx.history.historyIds(), e, before, after);
+            if (!command.isNoop()) {
+                ctx.history.execute(command);
+            }
+        });
+        new com.kotcrab.vis.ui.widget.Tooltip.Builder("Rectangle edge length in local projected pixels, before transform scale.")
+                .target(field).build();
+        return field;
+    }
+
     private static VisTable row(String label, Actor value) {
         VisTable row = new VisTable();
         row.add(new VisLabel(label)).width(CommonLayout.LABEL_WIDTH).left();
@@ -160,6 +198,14 @@ public class TransformPanel extends CollapsibleWidget {
     }
 
     public void onFieldsChanged(TransformOp op) {
+        objectWidth.refreshFromModel();
+        objectHeight.refreshFromModel();
+        if (entityId >= 0 && ctx.mDimensions.has(entityId)) {
+            widthLabel.setText(String.valueOf(ctx.mDimensions.get(entityId).width));
+            heightLabel.setText(String.valueOf(ctx.mDimensions.get(entityId).height));
+        }
+        xField.refreshFromModel();
+        yField.refreshFromModel();
         switch (op) {
             case MOVE -> {
                 xField.refreshFromModel();

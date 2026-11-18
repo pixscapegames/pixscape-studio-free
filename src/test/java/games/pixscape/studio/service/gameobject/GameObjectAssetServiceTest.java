@@ -38,6 +38,64 @@ public class GameObjectAssetServiceTest {
     public TemporaryFolder temp = new TemporaryFolder();
 
     @Test
+    public void contoursSurviveGameObjectCaptureSaveLoadAndIndependentInstances() throws Exception {
+        World source = new World(new WorldConfiguration());
+        World target = new World(new WorldConfiguration());
+        IdentityRegistry identities = new IdentityRegistry();
+        try {
+            int root = entity(source, 10, -1, true, 0, 0);
+            int polygon = entity(source, 11, 10, false, 4, 0);
+            int line = entity(source, 12, 10, false, 8, 1);
+            float[] closed = {0, 0, 20, 20, 0, 20, 20, 0};
+            float[] open = {-10, 5, 20, -7, 40, 12};
+            source.getMapper(PolygonComponent.class).create(polygon).setVertices(closed);
+            source.getMapper(PolylineComponent.class).create(line).setVertices(open);
+            source.getMapper(CustomPropertiesComponent.class).create(polygon).properties.putObjectStableId("route", 12);
+            source.process();
+            EntityGraph graph = new EntityGraphCaptureService(source).captureForGameObject(new IntArray(new int[]{root}));
+            source.getMapper(PolygonComponent.class).get(polygon).vertices[0] = 123;
+            source.getMapper(PolylineComponent.class).get(line).vertices[0] = 456;
+            FileHandle file = new FileHandle(temp.getRoot()).child("contours.gameobject");
+            new GameObjectAssetService(source).saveGameObject(file, graph);
+            GameObjectAsset asset = new GameObjectAssetLoader().load(file);
+            Assert.assertArrayEquals(closed, asset.entities.get(1).polygonVertices, 0f);
+            Assert.assertArrayEquals(open, asset.entities.get(2).polylineVertices, 0f);
+            int layer = target.create();
+            target.getMapper(LayerComponent.class).create(layer).layerIndex = 3;
+            target.getMapper(LayerMetaComponent.class).create(layer);
+            target.process();
+            SceneMetaRuntime meta = new SceneMetaRuntime();
+            meta.nextEntityStableId = 1000;
+            identities.bind(target, meta);
+            identities.rebuild();
+            HistoryManager history = new HistoryManager(16);
+            GameObjectAssetService service = new GameObjectAssetService(target, history, identities, null, null);
+            EntityGraphInstantiationResult first = service.instantiateGameObject(file, "contours", 3, 20, 30);
+            target.process();
+            int firstPolygon = first.sourceToCreated().get(2, -1);
+            int firstLine = first.sourceToCreated().get(3, -1);
+            Assert.assertArrayEquals(closed, target.getMapper(PolygonComponent.class).get(firstPolygon).vertices, 0f);
+            Assert.assertArrayEquals(open, target.getMapper(PolylineComponent.class).get(firstLine).vertices, 0f);
+            Assert.assertFalse(target.getMapper(PolygonComponent.class).has(firstLine));
+            Assert.assertEquals(target.getMapper(PixscapeIdentityComponent.class).get(firstLine).stableId,
+                    target.getMapper(CustomPropertiesComponent.class).get(firstPolygon).properties.getObjectStableId("route", -1));
+            target.getMapper(PolygonComponent.class).get(firstPolygon).vertices[0] = 999;
+            target.getMapper(PolylineComponent.class).get(firstLine).vertices[0] = 999;
+            EntityGraphInstantiationResult second = service.instantiateGameObject(file, "contours", 3, 40, 50);
+            target.process();
+            Assert.assertArrayEquals(closed, target.getMapper(PolygonComponent.class)
+                    .get(second.sourceToCreated().get(2, -1)).vertices, 0f);
+            Assert.assertArrayEquals(open, target.getMapper(PolylineComponent.class)
+                    .get(second.sourceToCreated().get(3, -1)).vertices, 0f);
+            Assert.assertArrayEquals(closed, new GameObjectAssetLoader().load(file).entities.get(1).polygonVertices, 0f);
+        } finally {
+            identities.bind(null, null);
+            source.dispose();
+            target.dispose();
+        }
+    }
+
+    @Test
     public void lightAssetInsertionIsConfirmedBeforeReservingSceneIds() throws Exception {
         World source = new World(new WorldConfiguration()), target = new World(new WorldConfiguration());
         try {
