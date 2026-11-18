@@ -36,6 +36,7 @@
 
 ### Fixed
 * Tiled map and tile-layer markers capture the queued Scene2D press before motion and tile tools, retain the final release position, and restore the preview on Escape or touch-focus cancellation. Tile editing targets display the same translation-only marker and reuse the existing move/history path.
+* Corrected the HUD Stage regression fixture so its Shift-selection click stays above the horizontal scrollbar after expanding the tree; selection, expansion and scroll assertions remain intact without changing HUD behavior.
 * Restored horizontal scrollbar tracks and knobs in the shared list skin used by Studio panes, including code editors, trees and tileset views. Horizontal bars now appear when their content overflows.
 * Studio snapshots now preserve polygon and open-polyline vertices through copy/paste, delete undo/redo and Game Object capture/restoration. Vertex arrays are independently owned; authored order, transforms and isometric rectangle roles are retained without contour normalization or physics conversion.
 * Wired the Edit menu's Cut, Copy and Paste entries to the active document's existing clipboard commands and undo history.

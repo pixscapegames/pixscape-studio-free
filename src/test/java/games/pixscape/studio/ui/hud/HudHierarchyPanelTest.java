@@ -297,7 +297,7 @@ public class HudHierarchyPanelTest {
         try {
             stage.getViewport().update(400, 240, true);
             stage.addActor(fixture.panel());
-            layout(fixture.panel(), 190f, 130f);
+            layout(fixture.panel(), 190f, 160f);
             stage.getRoot().addCaptureListener(new InputListener() {
                 @Override
                 public boolean keyDown(InputEvent event, int keycode) {
@@ -313,7 +313,7 @@ public class HudHierarchyPanelTest {
             });
             click(stage, fixture.panel().tree().findCell(first), 12f, Input.Buttons.LEFT, 240);
             fixture.deferred().runAll();
-            layout(fixture.panel(), 190f, 130f);
+            layout(fixture.panel(), 190f, 160f);
             assertEquals(first, fixture.session().selectedCellId());
             assertTrue(fixture.panel().scroller().getMaxY() > 0f);
             fixture.panel().scroller().setScrollY(8f);
@@ -361,6 +361,14 @@ public class HudHierarchyPanelTest {
             fixture.panel().scroller().layout();
             click(stage, fixture.panel().tree().findCell(third), -8f, Input.Buttons.LEFT, 240);
             assertTrue(fixture.panel().tree().findCell(third).isExpanded());
+            // Stage-only tests do not draw: settle the expanded tree as a native frame would.
+            layout(fixture.panel(), 190f, 160f);
+            Actor thirdActor = fixture.panel().tree().findCell(third).getActor();
+            Vector2 clickInPane = thirdActor.localToActorCoordinates(fixture.panel().scroller(),
+                    new Vector2(12f, thirdActor.getHeight() * 0.5f));
+            // At height 130 this click hit the horizontal scrollbar's capture listener,
+            // not the cell. Keep overflow, but expose the tested row above that bar.
+            assertTrue(clickInPane.y > fixture.panel().scroller().getScrollBarHeight());
             click(stage, fixture.panel().tree().findCell(third), 12f, Input.Buttons.LEFT, 240);
             assertEquals(List.of(first, second, third), fixture.session().selectedCellRange());
             fixture.deferred().runAll();
