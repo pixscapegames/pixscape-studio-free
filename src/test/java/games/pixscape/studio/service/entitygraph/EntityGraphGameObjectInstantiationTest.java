@@ -13,6 +13,7 @@ import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.studio.configuration.SceneMeta;
+import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import org.junit.Test;
@@ -20,6 +21,117 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class EntityGraphGameObjectInstantiationTest {
+    @Test
+    public void clipboardPreservesRepeatAcrossIndependentPastesAndHistory() {
+        assertAuthoredClipboardState(0);
+    }
+
+    @Test
+    public void clipboardPreservesTagsAcrossIndependentPastesAndHistory() {
+        assertAuthoredClipboardState(1);
+    }
+
+    @Test
+    public void clipboardPreservesNotesAcrossIndependentPastesAndHistory() {
+        assertAuthoredClipboardState(2);
+    }
+
+    private static void assertAuthoredClipboardState(int field) {
+        Fixture f = new Fixture();
+        try {
+            int root = f.root(100, -1, 0f, 0f, 0f, 1f, 0f, 0f, 0, "source");
+            int child = f.member(200, 100, 3f, 4f, 0f, 1f, 0f, 0f, 1);
+            int standalone = f.ordinary(300, 8f, 9f, 2);
+            int[] sources = {root, child, standalone};
+            for (int i = 0; i < sources.length; i++) {
+                setAuthoredState(f.world, sources[i], i, field);
+            }
+            f.process();
+            EntityGraph graph = f.capture(root, standalone);
+            for (int source : sources) {
+                setAuthoredState(f.world, source, 9, field);
+            }
+            EntityGraphInstantiationResult first = f.instantiate(graph, 1, 10f, 20f);
+            f.process();
+            for (int i = 0; i < sources.length; i++) {
+                assertAuthoredState(f.world, first.sourceToCreated().get(i + 1, -1), i, field);
+                setAuthoredState(f.world, first.sourceToCreated().get(i + 1, -1), 8, field);
+            }
+            EntityGraphInstantiationResult second = f.instantiate(graph, 1, 30f, 40f);
+            f.process();
+            long[] historyIds = new long[3];
+            int[] stableIds = new int[3];
+            for (int i = 0; i < sources.length; i++) {
+                int pasted = second.sourceToCreated().get(i + 1, -1);
+                historyIds[i] = f.history.historyIds().historyIdOfEntity(pasted);
+                stableIds[i] = f.identities.get(pasted).stableId;
+                assertNotEquals(f.identities.get(sources[i]).stableId, stableIds[i]);
+            }
+            for (int cycle = 0; cycle < 3; cycle++) {
+                for (int i = 0; i < sources.length; i++) {
+                    int pasted = second.sourceToCreated().get(i + 1, -1);
+                    assertAuthoredState(f.world, pasted, i, field);
+                    assertEquals(historyIds[i], f.history.historyIds().historyIdOfEntity(pasted));
+                    assertEquals(stableIds[i], f.identities.get(pasted).stableId);
+                    assertAuthoredState(f.world, sources[i], 9, field);
+                    assertAuthoredState(f.world, first.sourceToCreated().get(i + 1, -1), 8, field);
+                }
+                assertEquals(stableIds[0], f.members.get(second.sourceToCreated().get(2, -1)).parentStableId);
+                f.history.undo();
+                f.process();
+                f.history.redo();
+                f.process();
+            }
+            for (int i = 0; i < sources.length; i++) {
+                assertAuthoredState(f.world, second.sourceToCreated().get(i + 1, -1), i, field);
+            }
+            // Exercise the flat clipboard path as well as the mixed hierarchy above.
+            EntityGraph flat = new EntityGraphCaptureService(f.world).capture(IntArray.with(standalone));
+            EntityGraphInstantiationResult flatPaste = f.instantiate(flat, 1, 0f, 0f);
+            f.process();
+            assertAuthoredState(f.world, flatPaste.createdIds().first(), 9, field);
+            f.history.undo();
+            f.process();
+            f.history.redo();
+            f.process();
+            assertAuthoredState(f.world, flatPaste.createdIds().first(), 9, field);
+        } finally {
+            f.dispose();
+        }
+    }
+
+    private static void setAuthoredState(World world, int entity, int value, int field) {
+        if (field == 0) {
+            RenderRepeatComponent repeat = world.getMapper(RenderRepeatComponent.class).create(entity);
+            repeat.repeatX = value == 0;
+            repeat.repeatY = value == 1;
+        } else if (field == 1) {
+            PixscapeTagComponent tags = world.getMapper(PixscapeTagComponent.class).create(entity);
+            tags.tags.clear();
+            tags.tags.add("tag-" + value);
+            tags.tags.add("shared");
+        } else {
+            world.getMapper(EntityMetaComponent.class).create(entity).note = "note-" + value;
+        }
+    }
+
+    private static void assertAuthoredState(World world, int entity, int value, int field) {
+        if (field == 0) {
+            RenderRepeatComponent repeat = world.getMapper(RenderRepeatComponent.class).getSafe(entity, null);
+            assertNotNull("Repeat component", repeat);
+            assertEquals(value == 0, repeat.repeatX);
+            assertEquals(value == 1, repeat.repeatY);
+        } else if (field == 1) {
+            PixscapeTagComponent tags = world.getMapper(PixscapeTagComponent.class).getSafe(entity, null);
+            assertNotNull("Tags component", tags);
+            assertEquals(2, tags.tags.size);
+            assertEquals("tag-" + value, tags.tags.get(0));
+            assertEquals("shared", tags.tags.get(1));
+        } else {
+            assertEquals("note-" + value, world.getMapper(EntityMetaComponent.class).get(entity).note);
+        }
+    }
+
     @Test
     public void clipboardContoursAreIndependentAcrossEditsAndRepeatedPasteUndoRedo() {
         Fixture f = new Fixture();

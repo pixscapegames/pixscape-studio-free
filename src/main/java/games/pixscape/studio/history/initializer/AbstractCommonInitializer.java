@@ -203,6 +203,34 @@ public abstract class AbstractCommonInitializer implements Initializer {
         if (hasObb && !mObb.has(entityId)) mObb.create(entityId);
     }
 
+    /** Copies common captured state, including mutable tags, without retaining the source World. */
+    protected final void copyCommonTo(AbstractCommonInitializer copy) {
+        copy.hasTransform = hasTransform;
+        copy.trX = trX;
+        copy.trY = trY;
+        copy.trRotationRad = trRotationRad;
+        copy.trScaleX = trScaleX;
+        copy.trScaleY = trScaleY;
+        copy.trOriginX = trOriginX;
+        copy.trOriginY = trOriginY;
+        copy.hasEntityIndex = hasEntityIndex;
+        copy.entityLayerIndex = entityLayerIndex;
+        copy.entityZIndex = entityZIndex;
+        copy.capturedZIndex = capturedZIndex;
+        copy.hasIdentity = hasIdentity;
+        copy.identityName = identityName;
+        copy.identityStableId = identityStableId;
+        copy.hasTags = hasTags;
+        copy.tagsSnapshot = tagsSnapshot == null ? null : new Array<>(tagsSnapshot);
+        copy.hasMeta = hasMeta;
+        copy.metaNoteSnapshot = metaNoteSnapshot;
+        copy.metaKind = metaKind;
+        copy.hasVisibility = hasVisibility;
+        copy.visible = visible;
+        copy.hasAabb = hasAabb;
+        copy.hasObb = hasObb;
+    }
+
     @Override
     public String label() {
         return getClass().getSimpleName();

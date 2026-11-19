@@ -18,6 +18,11 @@ public final class GenericEntitySnapshotData {
     public int layerIndex, zIndex;
     public boolean hasMeta;
     public String metaKind;
+    public String metaNote;
+    public boolean hasTags;
+    public Array<String> tags;
+    public boolean hasRepeat;
+    public boolean repeatX, repeatY;
     public boolean hasIdentity;
     public String identityName;
     public boolean hasVisibility;

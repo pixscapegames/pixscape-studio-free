@@ -18,6 +18,68 @@ import static org.junit.Assert.*;
 
 public class DeleteGameObjectHierarchyCommandTest {
     @Test
+    public void deletionRestoresRepeatOnRootMemberAndStandaloneAcrossHistoryCycles() {
+        assertDeletedAuthoredState(true);
+    }
+
+    @Test
+    public void deletionRestoresTagsAndNotesOnRootMemberAndStandaloneAcrossHistoryCycles() {
+        assertDeletedAuthoredState(false);
+    }
+
+    private static void assertDeletedAuthoredState(boolean checkRepeat) {
+        Fixture f = new Fixture();
+        try {
+            int root = f.root(10, -1);
+            int child = f.member(20, 10, EntityKind.SPRITE, 1);
+            int standalone = f.core(30, EntityKind.SPRITE, 2);
+            int[] entities = {root, child, standalone};
+            long[] historyIds = new long[3];
+            for (int i = 0; i < entities.length; i++) {
+                int entity = entities[i];
+                RenderRepeatComponent repeat = f.world.getMapper(RenderRepeatComponent.class).create(entity);
+                repeat.repeatX = i == 0;
+                repeat.repeatY = i == 1;
+                f.world.getMapper(PixscapeTagComponent.class).create(entity).tags.add("tag-" + i);
+                f.world.getMapper(EntityMetaComponent.class).get(entity).note = "note-" + i;
+                historyIds[i] = f.history.historyIds().ensureForEntity(entity);
+            }
+            f.process();
+            f.history.execute(DeleteEntitiesCommandFactory.create(f.world, f.history.historyIds(),
+                    IntArray.with(root, standalone), null));
+            f.process();
+            for (int cycle = 0; cycle < 3; cycle++) {
+                f.history.undo();
+                f.process();
+                for (int i = 0; i < entities.length; i++) {
+                    int restored = f.history.historyIds().entityOfHistoryId(historyIds[i]);
+                    assertEquals((i + 1) * 10, f.world.getMapper(PixscapeIdentityComponent.class).get(restored).stableId);
+                    if (checkRepeat) {
+                        RenderRepeatComponent repeat = f.world.getMapper(RenderRepeatComponent.class).getSafe(restored, null);
+                        assertNotNull("Repeat component", repeat);
+                        assertEquals(i == 0, repeat.repeatX);
+                        assertEquals(i == 1, repeat.repeatY);
+                    } else {
+                        var tags = f.world.getMapper(PixscapeTagComponent.class).get(restored).tags;
+                        assertEquals(1, tags.size);
+                        assertEquals("tag-" + i, tags.first());
+                        assertEquals("note-" + i, f.world.getMapper(EntityMetaComponent.class).get(restored).note);
+                    }
+                }
+                assertEquals(10, f.world.getMapper(GameObjectMemberComponent.class)
+                        .get(f.history.historyIds().entityOfHistoryId(historyIds[1])).parentStableId);
+                f.history.redo();
+                f.process();
+                for (long historyId : historyIds) {
+                    assertEquals(-1, f.history.historyIds().entityOfHistoryId(historyId));
+                }
+            }
+        } finally {
+            f.close();
+        }
+    }
+
+    @Test
     public void hierarchyDeletionRestoresPropertiesWithOneAuthority() {
         Fixture f = new Fixture();
         try {

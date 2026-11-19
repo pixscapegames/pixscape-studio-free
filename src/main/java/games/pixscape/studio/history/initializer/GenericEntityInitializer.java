@@ -73,6 +73,10 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected int assetRefAssetId = -1;
     protected String assetRefAtlasTag;
 
+    // --- Authored repeat ---
+    protected boolean hasRepeat;
+    protected boolean repeatX, repeatY;
+
     // --- Tint ---
     protected boolean hasTint;
     /**
@@ -189,6 +193,10 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     @Override
     public void syncFrom(int e) {
         super.syncFrom(e);
+        RenderRepeatComponent repeat = world.getMapper(RenderRepeatComponent.class).getSafe(e, null);
+        hasRepeat = repeat != null;
+        repeatX = repeat != null && repeat.repeatX;
+        repeatY = repeat != null && repeat.repeatY;
         CustomPropertiesComponent properties = world.getMapper(CustomPropertiesComponent.class).getSafe(e, null);
         if (properties != null && properties.properties == null) {
             throw new IllegalArgumentException("Custom properties require a PropertySet.");
@@ -560,6 +568,11 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             preparedPhysicsCandidate = null;
         }
         super.init(e);
+        if (hasRepeat) {
+            RenderRepeatComponent repeat = world.getMapper(RenderRepeatComponent.class).create(e);
+            repeat.repeatX = repeatX;
+            repeat.repeatY = repeatY;
+        }
         if (customProperties != null) {
             world.getMapper(CustomPropertiesComponent.class).create(e).properties = customProperties.copy();
         }
@@ -939,6 +952,12 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         out.hasEntityIndex = hasEntityIndex;
         out.layerIndex = entityLayerIndex;
         out.zIndex = entityZIndex;
+        out.hasRepeat = hasRepeat;
+        out.repeatX = repeatX;
+        out.repeatY = repeatY;
+        out.hasTags = hasTags;
+        out.tags = tagsSnapshot == null ? null : new Array<>(tagsSnapshot);
+        out.metaNote = metaNoteSnapshot;
         out.hasMeta = hasMeta;
         out.metaKind = metaKind != null ? metaKind.name() : null;
         out.hasIdentity = hasIdentity;
@@ -1096,6 +1115,12 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         hasEntityIndex = in.hasEntityIndex;
         entityLayerIndex = in.layerIndex;
         entityZIndex = in.zIndex;
+        hasRepeat = in.hasRepeat;
+        repeatX = in.repeatX;
+        repeatY = in.repeatY;
+        hasTags = in.hasTags;
+        tagsSnapshot = in.tags == null ? null : new Array<>(in.tags);
+        metaNoteSnapshot = in.metaNote;
         hasMeta = in.hasMeta;
         metaKind = in.metaKind != null ? EntityKind.valueOf(in.metaKind) : EntityKind.UNKNOWN;
         hasIdentity = in.hasIdentity;
@@ -1693,6 +1718,10 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
      */
     public GenericEntityInitializer duplicateFor(World destination) {
         GenericEntityInitializer copy = new GenericEntityInitializer(destination);
+        copyCommonTo(copy);
+        copy.hasRepeat = hasRepeat;
+        copy.repeatX = repeatX;
+        copy.repeatY = repeatY;
         copy.setCustomProperties(customProperties);
         copy.tiledEntity = tiledEntity != null ? tiledEntity.copy() : null;
 
@@ -1887,34 +1916,9 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.gearJoint2Eid = this.gearJoint2Eid;
         copy.gearRatio = this.gearRatio;
 
-        // --- Fields inherited from AbstractCommonInitializer ---
-        copy.hasTransform = this.hasTransform;
-        copy.trX = this.trX;
-        copy.trY = this.trY;
-        copy.trRotationRad = this.trRotationRad;
-        copy.trScaleX = this.trScaleX;
-        copy.trScaleY = this.trScaleY;
-        copy.trOriginX = this.trOriginX;
-        copy.trOriginY = this.trOriginY;
-
-        copy.hasEntityIndex = this.hasEntityIndex;
-        copy.entityLayerIndex = this.entityLayerIndex;
-        copy.entityZIndex = this.entityZIndex;
-        copy.capturedZIndex = this.capturedZIndex;
-
-        copy.hasMeta = this.hasMeta;
-        copy.metaKind = this.metaKind;
-
-        copy.hasIdentity = this.hasIdentity;
-        copy.identityName = this.identityName;
-        copy.identityStableId = this.identityStableId;
-
-        copy.hasVisibility = this.hasVisibility;
-        copy.visible = this.visible;
-
-        copy.hasAabb = this.hasParticleEmitter ? false : this.hasAabb;
-        copy.hasObb = this.hasParticleEmitter ? false : this.hasObb;
         if (this.hasParticleEmitter) {
+            copy.hasAabb = false;
+            copy.hasObb = false;
             copy.hasDimensions = false;
             copy.hasAssetRef = false;
             copy.hasTextureRegion = false;

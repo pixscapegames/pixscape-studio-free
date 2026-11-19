@@ -47,6 +47,7 @@
 * Refreshed the distributed HTML Preview player for the current Game Object composition formats and the Runtime physics bootstrap correction.
 
 ### Fixed
+* Preserve authored Repeat components through clipboard duplication and deletion/Undo for standalone entities and compositions. Copy tags and editor notes with common initializer state, and restore Game Object asset tags exactly once across repeated Undo/Redo. Asset Repeat and tags now pass through the generic snapshot path without duplicate restoration.
 * Long Items drag-and-drop refusal messages no longer resize the panel and cancel the gesture. Tile layers can cross incompatible scene-layer rows on their way to a compatible map.
 * Items shows cell dimensions on Tiled Map nodes only. Tile editing follows the owning map's scene layer after a transfer or scene-layer deletion.
 * Tiled maps now expose Add tile layer in the Items context menu. The empty layer inherits its map's grid, becomes the tile editing target, and preserves its identity and parent through Undo/Redo.

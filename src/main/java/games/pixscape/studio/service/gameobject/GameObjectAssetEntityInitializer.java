@@ -1,7 +1,6 @@
 package games.pixscape.studio.service.gameobject;
 
 import com.artemis.World;
-import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
@@ -19,8 +18,6 @@ final class GameObjectAssetEntityInitializer implements Initializer {
     private boolean gameObject;
     private String sourceAssetId;
     private int parentStableId;
-    private Array<String> tags;
-    private GameObjectAsset.RepeatData repeat;
     private GameObjectAsset.PointLightData pointLight;
     private GameObjectAsset.ConeLightData coneLight;
 
@@ -36,9 +33,7 @@ final class GameObjectAssetEntityInitializer implements Initializer {
         this.gameObject = data.gameObject != null;
         this.parentStableId = parentStableId;
         this.sourceAssetId = sourceAssetId != null ? sourceAssetId : "";
-        if (data.tags != null) this.tags = new Array<>(data.tags.values);
         generic.setCustomProperties(remappedProperties);
-        this.repeat = copy(data.repeat);
         this.pointLight = copy(data.pointLight);
         this.coneLight = copy(data.coneLight);
     }
@@ -61,10 +56,6 @@ final class GameObjectAssetEntityInitializer implements Initializer {
         sourceAssetId = root != null && root.sourceAssetId != null ? root.sourceAssetId : "";
         GameObjectMemberComponent member = world.getMapper(GameObjectMemberComponent.class).getSafe(entityId, null);
         parentStableId = member != null ? member.parentStableId : -1;
-        PixscapeTagComponent tagComponent = world.getMapper(PixscapeTagComponent.class).getSafe(entityId, null);
-        tags = tagComponent != null && tagComponent.tags != null ? new Array<>(tagComponent.tags) : null;
-        RenderRepeatComponent repeated = world.getMapper(RenderRepeatComponent.class).getSafe(entityId, null);
-        repeat = repeated != null ? repeat(repeated.repeatX, repeated.repeatY) : null;
         pointLight = copy(world.getMapper(PointLightComponent.class).getSafe(entityId, null));
         coneLight = copy(world.getMapper(ConeLightComponent.class).getSafe(entityId, null));
     }
@@ -78,15 +69,6 @@ final class GameObjectAssetEntityInitializer implements Initializer {
         if (parentStableId > 0) {
             world.getMapper(GameObjectMemberComponent.class).create(entityId).parentStableId = parentStableId;
         }
-        if (tags != null) {
-            PixscapeTagComponent component = world.getMapper(PixscapeTagComponent.class).create(entityId);
-            component.tags.addAll(tags);
-        }
-        if (repeat != null) {
-            RenderRepeatComponent component = world.getMapper(RenderRepeatComponent.class).create(entityId);
-            component.repeatX = repeat.repeatX;
-            component.repeatY = repeat.repeatY;
-        }
         if (pointLight != null) apply(world.getMapper(PointLightComponent.class).create(entityId), pointLight);
         if (coneLight != null) apply(world.getMapper(ConeLightComponent.class).create(entityId), coneLight);
     }
@@ -94,17 +76,6 @@ final class GameObjectAssetEntityInitializer implements Initializer {
     @Override
     public String label() {
         return "Game Object Entity";
-    }
-
-    private static GameObjectAsset.RepeatData repeat(boolean x, boolean y) {
-        GameObjectAsset.RepeatData result = new GameObjectAsset.RepeatData();
-        result.repeatX = x;
-        result.repeatY = y;
-        return result;
-    }
-
-    private static GameObjectAsset.RepeatData copy(GameObjectAsset.RepeatData value) {
-        return value != null ? repeat(value.repeatX, value.repeatY) : null;
     }
 
     private static GameObjectAsset.PointLightData copy(GameObjectAsset.PointLightData value) {

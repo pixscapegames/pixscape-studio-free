@@ -30,23 +30,21 @@ final class GameObjectEntityDataMapper {
         if (world.getMapper(GameObjectComponent.class).has(entityId)) {
             data.gameObject = new GameObjectAsset.GameObjectData();
         }
-        PixscapeTagComponent tags = world.getMapper(PixscapeTagComponent.class)
-                .getSafe(entityId, null);
-        if (tags != null) {
+        if (source.hasTags) {
             data.tags = new GameObjectAsset.TagsData();
-            for (String tag : tags.tags) data.tags.values.add(tag);
+            if (source.tags != null) {
+                data.tags.values.addAll(source.tags);
+            }
         }
         CustomPropertiesComponent properties = world.getMapper(CustomPropertiesComponent.class)
                 .getSafe(entityId, null);
         if (properties != null && properties.properties != null) {
             data.customProperties = remapProperties(properties.properties, stableToSource);
         }
-        RenderRepeatComponent repeat = world.getMapper(RenderRepeatComponent.class)
-                .getSafe(entityId, null);
-        if (repeat != null) {
+        if (source.hasRepeat) {
             data.repeat = new GameObjectAsset.RepeatData();
-            data.repeat.repeatX = repeat.repeatX;
-            data.repeat.repeatY = repeat.repeatY;
+            data.repeat.repeatX = source.repeatX;
+            data.repeat.repeatY = source.repeatY;
         }
         PointLightComponent point = world.getMapper(PointLightComponent.class)
                 .getSafe(entityId, null);
@@ -88,6 +86,11 @@ final class GameObjectEntityDataMapper {
     EntityGraphEntry toGraphEntry(World world, GameObjectAsset.GameObjectEntityData data) {
         GenericEntitySnapshotData snapshot = new GenericEntitySnapshotData();
         snapshot.sourceEntityId = data.sourceEntityId;
+        snapshot.hasTags = data.tags != null;
+        snapshot.tags = data.tags == null ? null : new com.badlogic.gdx.utils.Array<>(data.tags.values);
+        snapshot.hasRepeat = data.repeat != null;
+        snapshot.repeatX = data.repeat != null && data.repeat.repeatX;
+        snapshot.repeatY = data.repeat != null && data.repeat.repeatY;
         snapshot.surfaceLighting = data.surfaceLighting == null ? null : data.surfaceLighting.copy();
         if (data.transform != null) {
             snapshot.hasTransform = true;

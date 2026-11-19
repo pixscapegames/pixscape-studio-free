@@ -40,6 +40,77 @@ public class GameObjectAssetServiceTest {
     public TemporaryFolder temp = new TemporaryFolder();
 
     @Test
+    public void assetTagsAndRepeatSurviveInsertionAndDeletionHistoryWithoutDuplication() throws Exception {
+        World world = new World(new WorldConfiguration());
+        IdentityRegistry identities = new IdentityRegistry();
+        try {
+            int root = entity(world, 10, -1, true, 0, 0);
+            int child = entity(world, 11, 10, false, 4, 1);
+            world.getMapper(PixscapeTagComponent.class).create(root).tags.add("root-tag");
+            world.getMapper(PixscapeTagComponent.class).create(child).tags.add("child-tag");
+            world.getMapper(RenderRepeatComponent.class).create(root).repeatX = true;
+            world.getMapper(RenderRepeatComponent.class).create(child).repeatY = true;
+            int layer = world.create();
+            world.getMapper(LayerComponent.class).create(layer).layerIndex = 3;
+            world.getMapper(LayerMetaComponent.class).create(layer);
+            world.process();
+            FileHandle file = new FileHandle(temp.getRoot()).child("authored.gameobject");
+            new GameObjectAssetService(world).saveGameObject(file,
+                    new EntityGraphCaptureService(world).captureForGameObject(IntArray.with(root)));
+            GameObjectAsset saved = new GameObjectAssetLoader().load(file);
+            Assert.assertEquals("root-tag", saved.entities.first().tags.values.first());
+            Assert.assertTrue(saved.entities.first().repeat.repeatX);
+            SceneMetaRuntime meta = new SceneMetaRuntime();
+            meta.nextEntityStableId = 1000;
+            identities.bind(world, meta);
+            identities.rebuild();
+            HistoryManager history = new HistoryManager(16);
+            GameObjectAssetService service = new GameObjectAssetService(world, history, identities, null, null);
+            EntityGraphInstantiationResult result = service.instantiateGameObject(file, "authored", 3, 20, 30);
+            world.process();
+            long rootHistory = history.historyIds().historyIdOfEntity(result.sourceToCreated().get(1, -1));
+            long childHistory = history.historyIds().historyIdOfEntity(result.sourceToCreated().get(2, -1));
+            for (int cycle = 0; cycle < 3; cycle++) {
+                history.undo();
+                world.process();
+                history.redo();
+                world.process();
+                assertAssetTagsAndRepeat(world, history.historyIds().entityOfHistoryId(rootHistory),
+                        history.historyIds().entityOfHistoryId(childHistory));
+            }
+            history.execute(DeleteEntitiesCommandFactory.create(world, history.historyIds(),
+                    IntArray.with(history.historyIds().entityOfHistoryId(rootHistory)), null));
+            world.process();
+            for (int cycle = 0; cycle < 3; cycle++) {
+                history.undo();
+                world.process();
+                assertAssetTagsAndRepeat(world, history.historyIds().entityOfHistoryId(rootHistory),
+                        history.historyIds().entityOfHistoryId(childHistory));
+                history.redo();
+                world.process();
+            }
+            Assert.assertEquals(1, world.getMapper(PixscapeTagComponent.class).get(root).tags.size);
+            Assert.assertEquals(1, world.getMapper(PixscapeTagComponent.class).get(child).tags.size);
+        } finally {
+            identities.bind(null, null);
+            world.dispose();
+        }
+    }
+
+    private static void assertAssetTagsAndRepeat(World world, int root, int child) {
+        Assert.assertEquals(1, world.getMapper(PixscapeTagComponent.class).get(root).tags.size);
+        Assert.assertEquals("root-tag", world.getMapper(PixscapeTagComponent.class).get(root).tags.first());
+        Assert.assertEquals(1, world.getMapper(PixscapeTagComponent.class).get(child).tags.size);
+        Assert.assertEquals("child-tag", world.getMapper(PixscapeTagComponent.class).get(child).tags.first());
+        Assert.assertTrue(world.getMapper(RenderRepeatComponent.class).get(root).repeatX);
+        Assert.assertFalse(world.getMapper(RenderRepeatComponent.class).get(root).repeatY);
+        Assert.assertFalse(world.getMapper(RenderRepeatComponent.class).get(child).repeatX);
+        Assert.assertTrue(world.getMapper(RenderRepeatComponent.class).get(child).repeatY);
+        Assert.assertEquals(world.getMapper(PixscapeIdentityComponent.class).get(root).stableId,
+                world.getMapper(GameObjectMemberComponent.class).get(child).parentStableId);
+    }
+
+    @Test
     public void contoursSurviveGameObjectCaptureSaveLoadAndIndependentInstances() throws Exception {
         World source = new World(new WorldConfiguration());
         World target = new World(new WorldConfiguration());
