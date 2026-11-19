@@ -8,6 +8,7 @@
 * Occlusion zones now use normalized image-local storage and are edited in logical image pixels. Existing files using the previous rectangle coordinates must be adapted explicitly.
 
 ### Added
+* Items supports dragging a tile layer into another map with matching projection, cell size and grid dimensions. Transfers preserve world placement and layer content through Undo/Redo, and reject splitting Spatial Depth across maps.
 * Added typed heterogeneous LIST and Tiled enums to custom properties on every supported owner, including tile definitions and inherited tile-object values. Explicit empty lists override inherited lists. Required enum definitions come from an explicitly selected `.tiled-project`; unresolved values and unsupported list items are diagnosed before import.
 * The existing properties dialog edits bounded, scrollable lists with indexed rows, insertion/removal/reordering, nested CLASS/LIST dialogs, enum choices and flag checkboxes. Nested Apply stays in the parent working copy; one final Apply creates one history command. Cancel/Escape discard edits, and destructive type changes require confirmation.
 * Custom-property FLOAT values retain double precision through import, editing, copies, Game Objects, persistence and export. Recursive OBJECT remapping and the standalone deletion/Undo regression cover lists and enums; no external type project is needed at Runtime.
@@ -46,6 +47,9 @@
 * Refreshed the distributed HTML Preview player for the current Game Object composition formats and the Runtime physics bootstrap correction.
 
 ### Fixed
+* Items shows cell dimensions on Tiled Map nodes only. Tile editing follows the owning map's scene layer after a transfer or scene-layer deletion.
+* Tiled maps now expose Add tile layer in the Items context menu. The empty layer inherits its map's grid, becomes the tile editing target, and preserves its identity and parent through Undo/Redo.
+* The Tiled Map inspector now displays the shared projection, cell size and grid dimensions in its Grid section. Tile-layer inspectors retain their local offsets, chunk size, spatial and collision settings.
 * The shared TMX entity-property parser rejects unsupported custom scalar types (including enum declarations) before import instead of losing their declared type. Tile-definition imported metadata and ignored group/tileset-root diagnostics retain their existing policies. The properties dialog now closes on Escape without applying its working copy.
 * Preserve custom properties when deleting and undoing standalone entities. Generic snapshots and transfers retain absent/empty components and deep-copy all supported values; hierarchy and Game Object restoration use the remapped properties without a second write.
 * Tiled points and polylines use the dedicated tiled-point and tiled-polyline skin drawables in Items and entity inspector headers instead of the image fallback.

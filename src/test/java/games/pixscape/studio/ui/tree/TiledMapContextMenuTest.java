@@ -26,6 +26,17 @@ public class TiledMapContextMenuTest {
     }
 
     @Test
+    public void addTileLayerDispatchesCreationWithoutDeletingTheMap() {
+        int[] calls = new int[2];
+        PopupMenu menu = ItemTreePanel.buildTiledMapContextMenu(() -> calls[0]++, () -> calls[1]++);
+        MenuItem add = find(menu, "Add tile layer");
+        assertNotNull(add);
+        fireClick(add);
+        assertEquals(0, calls[0]);
+        assertEquals(1, calls[1]);
+    }
+
+    @Test
     public void deleteMapMenuItemDispatchesOnlyTheMapDeletionAction() {
         int[] deletions = new int[1];
         PopupMenu menu = ItemTreePanel.buildTiledMapContextMenu(() -> deletions[0]++);

@@ -70,6 +70,8 @@ public class EntityProperties extends VisTable {
     private final BodyPanel bodyPanel;
 
     private final ToggleSection transformSection;
+    private final TiledGridPanel tiledGridPanel = new TiledGridPanel();
+    private final ToggleSection tiledGridSection;
     private final ToggleSection materialSection;
     private final ToggleSection lightingSection;
     private final ToggleSection animationSection;
@@ -140,6 +142,9 @@ public class EntityProperties extends VisTable {
         );
 
         transformSection = new ToggleSection("Transform", transformPanel);
+        CollapsibleWidget tiledGridContent = new CollapsibleWidget();
+        tiledGridContent.setTable(tiledGridPanel);
+        tiledGridSection = new ToggleSection("Grid", tiledGridContent);
         textureSection = new ToggleSection("Texture", texturePanel.content());
         materialSection = new ToggleSection("Material", materialPanel);
         CollapsibleWidget lightingContent = new CollapsibleWidget();
@@ -167,6 +172,7 @@ public class EntityProperties extends VisTable {
         add(buildCommonHeader()).growX().left().row();
         add(gameObjectSection).growX().left().pad(0).row();
         add(transformSection).growX().left().pad(0).row();
+        add(tiledGridSection).growX().left().pad(0).row();
         add(textureSection).growX().left().pad(0).row();
         add(materialSection).growX().left().pad(0).row();
         add(animationSection).growX().left().pad(0).row();
@@ -374,6 +380,12 @@ public class EntityProperties extends VisTable {
     }
 
     private void updateSectionsVisibility() {
+        TiledMapComponent map = currentEntityId >= 0
+                ? ctx.world.getMapper(TiledMapComponent.class).getSafe(currentEntityId, null) : null;
+        tiledGridSection.setApplicable(map != null);
+        if (map != null) {
+            tiledGridPanel.refresh(map);
+        }
         textureSection.setApplicable(texturePanel.isApplicable(currentEntityId));
         lightingSection.setApplicable(ctx.sceneMeta != null && ctx.sceneMeta.lightingEnabled
                 && currentEntityId >= 0 && ctx.mMat.has(currentEntityId)

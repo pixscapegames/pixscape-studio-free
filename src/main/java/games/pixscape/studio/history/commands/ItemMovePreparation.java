@@ -205,6 +205,7 @@ public final class ItemMovePreparation {
                 for (Order order : orders)
                     if (!new HashSet<>(current.order(order.group))
                             .equals(new HashSet<>(undo ? order.after : order.before))) return false;
+                Map<Integer, Integer> parentOverrides = new HashMap<>();
                 for (int source : sources) {
                     Change change = byId.get(source);
                     State target = change == null ? current.states.get(source) : undo ? change.before : change.after;
@@ -213,7 +214,9 @@ public final class ItemMovePreparation {
                     if (target.parentStableId != 0) layer = current.layerOf(target.parentStableId);
                     else layer = current.layerByIndex(target.storedLayer).stableId;
                     current.validateSource(source, target.parentStableId, layer);
+                    parentOverrides.put(source, target.parentStableId);
                 }
+                current.validateSpatialMapOwnership(parentOverrides);
                 return true;
             } catch (IllegalArgumentException | IllegalStateException ex) {
                 return false;
@@ -257,6 +260,11 @@ public final class ItemMovePreparation {
                 Group group = current.groupOf(id);
                 before.putIfAbsent(group, current.order(group));
             }
+            Map<Integer, Integer> parentOverrides = new HashMap<>();
+            for (int id : sources) {
+                parentOverrides.put(id, parent);
+            }
+            current.validateSpatialMapOwnership(parentOverrides);
             before.putIfAbsent(targetGroup, current.order(targetGroup));
             Map<Group, List<Integer>> after = new LinkedHashMap<>();
             Set<Integer> moving = new HashSet<>(sources);
@@ -280,7 +288,11 @@ public final class ItemMovePreparation {
                         throw new IllegalArgumentException("Parent conversion exceeds world-pose tolerance.");
                     pose = Pose.read(local);
                 }
-                updated.put(id, new State(id, parent, parent == 0 ? targetLayer.index : old.storedLayer, old.z, pose, old.composition));
+                // Tile rendering mirrors the effective scene layer into EntityIndex during composition.
+                // Capture that value in history now, so publication cannot invalidate the undo guard.
+                boolean tileLayer = current.world.getMapper(TiledLayerComponent.class).has(current.entity(id));
+                int storedLayer = parent == 0 || tileLayer ? targetLayer.index : old.storedLayer;
+                updated.put(id, new State(id, parent, storedLayer, old.z, pose, old.composition));
             }
             for (var entry : before.entrySet()) {
                 Group group = entry.getKey();
@@ -336,6 +348,7 @@ public final class ItemMovePreparation {
         final Map<Integer, Integer> effectiveLayers = new HashMap<>();
         final List<Integer> readingOrder = new ArrayList<>();
         final IntMap<IntArray> children = new IntMap<>();
+        private boolean tiledHierarchyValidated;
 
         Current(SceneEditorDocument document) {
             world = document.context().world();
@@ -448,15 +461,68 @@ public final class ItemMovePreparation {
                         && parent == 0 && existing.parentStableId == 0;
                 boolean layerOrder = role != TiledEntityRole.MAP
                         && parent != 0 && parent == existing.parentStableId && layer == layerOf(source);
-                if (!mapMove && !layerOrder) {
-                    throw new IllegalArgumentException("Tiled layers retain their map ownership; maps remain scene-level items.");
+                boolean tileTransfer = role == TiledEntityRole.TILE_LAYER && parent != 0
+                        && TiledEntityRole.of(world, entity(parent)) == TiledEntityRole.MAP;
+                if (tileTransfer && !layerOrder) {
+                    requireCompatibleTileMap(source, parent);
                 }
-                new games.pixscape.runtime.hierarchy.GameObjectHierarchyValidator(world, ids).validateEntities(
-                        world.getAspectSubscriptionManager().get(com.artemis.Aspect.all()).getEntities());
+                if (!mapMove && !layerOrder && !tileTransfer) {
+                    throw new IllegalArgumentException("Tile layers require a compatible Tiled map; other Tiled layers retain their map and maps remain scene-level items.");
+                }
+                if (!tiledHierarchyValidated) {
+                    new games.pixscape.runtime.hierarchy.GameObjectHierarchyValidator(world, ids).validateEntities(
+                            world.getAspectSubscriptionManager().get(com.artemis.Aspect.all()).getEntities());
+                    tiledHierarchyValidated = true;
+                }
             } else if (parent != 0) {
                 GameObjectHierarchyCommandSupport.requireReparentCandidate(world, ids, entity, entity(parent), children);
             } else if (world.getMapper(GameObjectComponent.class).has(entity)) {
                 GameObjectHierarchyCommandSupport.validateCurrentSubtree(world, ids, entity, children);
+            }
+        }
+
+        private void requireCompatibleTileMap(int source, int parent) {
+            State state = states.get(source);
+            var maps = world.getMapper(TiledMapComponent.class);
+            var from = state.parentStableId != 0 ? maps.getSafe(entity(state.parentStableId), null) : null;
+            var to = maps.get(entity(parent));
+            var tiles = world.getMapper(TiledLayerComponent.class).get(entity(source));
+            if (from == null || to == null) {
+                throw new IllegalArgumentException("A tile layer requires an owning Tiled map.");
+            }
+            from.validate();
+            to.validate();
+            if (from.projection != to.projection || from.tileWidth != to.tileWidth
+                    || from.tileHeight != to.tileHeight || from.width != to.width || from.height != to.height
+                    || tiles.mapWidthCells != to.width || tiles.mapHeightCells != to.height) {
+                throw new IllegalArgumentException("Tile layer transfer requires matching map projection, cell size and grid dimensions.");
+            }
+        }
+
+        /** Validate final ownership for the whole move, including multi-layer transfers and undo. */
+        void validateSpatialMapOwnership(Map<Integer, Integer> parentOverrides) {
+            boolean transfer = false;
+            for (var entry : parentOverrides.entrySet()) {
+                if (world.getMapper(TiledLayerComponent.class).has(entity(entry.getKey()))
+                        && entry.getValue() != states.get(entry.getKey()).parentStableId) {
+                    transfer = true;
+                    break;
+                }
+            }
+            if (!transfer) {
+                return;
+            }
+            int participatingMap = 0;
+            for (State state : states.values()) {
+                var tiles = world.getMapper(TiledLayerComponent.class).getSafe(entity(state.stableId), null);
+                if (!games.pixscape.runtime.service.SpatialScenePolicy.enabled(tiles)) {
+                    continue;
+                }
+                int parent = parentOverrides.getOrDefault(state.stableId, state.parentStableId);
+                if (participatingMap != 0 && participatingMap != parent) {
+                    throw new IllegalArgumentException("Move all Spatial Depth layers together to keep them in a single Tiled map.");
+                }
+                participatingMap = parent;
             }
         }
 

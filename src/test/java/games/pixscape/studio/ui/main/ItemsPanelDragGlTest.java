@@ -24,6 +24,95 @@ import static org.junit.Assert.*;
  */
 public class ItemsPanelDragGlTest {
     @Test
+    public void tileLayerCanBeDraggedBetweenMapsThenEditedAfterDeletingGround() throws Exception {
+        withStudio(900, (studio, temporary) -> {
+            open(studio, project(studio, temporary.child("tiled-transfer")));
+            var context = studio.getSceneEditorContext();
+            var world = context.world();
+            var layers = context.layerService();
+            var history = context.historyManager();
+            int ground = layers.getLayerEntity(0);
+            int tilesLayer = layers.getLayerEntity(layers.addLayerTop("tiles"));
+            var created = new java.util.concurrent.atomic.AtomicInteger(-1);
+            history.execute(new games.pixscape.studio.history.commands.AddTiledMapCommand(layers, ground,
+                    12, 8, games.pixscape.runtime.tiled.TiledProjection.ORTHO, 16, 16, 16, created::set));
+            int source = created.get();
+            int fromStable = world.getMapper(GameObjectMemberComponent.class).get(source).parentStableId;
+            int from = context.identityRegistry().findByStableId(fromStable);
+            history.execute(new games.pixscape.studio.history.commands.AddTiledMapCommand(layers, tilesLayer,
+                    12, 8, games.pixscape.runtime.tiled.TiledProjection.ORTHO, 16, 16, 16, created::set));
+            int toStable = world.getMapper(GameObjectMemberComponent.class).get(created.get()).parentStableId;
+            int to = context.identityRegistry().findByStableId(toStable);
+            settle(studio);
+            tree(studio).findNode(from).setExpanded(true);
+            tree(studio).findNode(to).setExpanded(true);
+            settle(studio);
+            assertTrue(tree(studio).findNode(from).getLabel().getText().toString().endsWith("(12x8)"));
+            assertFalse(tree(studio).findNode(source).getLabel().getText().toString().contains("12x8"));
+
+            int cursor = history.getCursor();
+            Vector2 end = point(studio, tree(studio).findNode(to), .5f);
+            world.getMapper(TiledMapComponent.class).get(to).width++;
+            begin(studio, source, end);
+            assertNull("Incompatible map must refuse the drop", plan(studio));
+            release(studio, end);
+            assertEquals(cursor, history.getCursor());
+            assertEquals(fromStable, parent(studio, source));
+            world.getMapper(TiledMapComponent.class).get(to).width--;
+            end = point(studio, tree(studio).findNode(to), .5f);
+            begin(studio, source, end);
+            assertNotNull(plan(studio));
+            studio.getUiStage().keyDown(Input.Keys.ESCAPE);
+            release(studio, end);
+            assertEquals(cursor, history.getCursor());
+            assertEquals(fromStable, parent(studio, source));
+            end = point(studio, tree(studio).findNode(to), .5f);
+            begin(studio, source, end);
+            assertNotNull("Map center-drop must prepare a tile-layer transfer", plan(studio));
+            release(studio, end);
+            assertEquals(cursor + 1, history.getCursor());
+            assertEquals(toStable, parent(studio, source));
+            assertSame(tree(studio).findNode(to), tree(studio).findNode(source).getParent());
+            for (int cycle = 0; cycle < 3; cycle++) {
+                history.undo();
+                settle(studio);
+                assertEquals(fromStable, parent(studio, source));
+                history.redo();
+                settle(studio);
+                assertEquals(toStable, parent(studio, source));
+            }
+            click(studio, source);
+            assertEquals(tilesLayer, context.selectionService().getActivelayerId());
+            assertEquals(source, context.selectionService().getTiledMapEditingTargetEntityId());
+            history.execute(new games.pixscape.studio.history.commands.DeleteLayerCommand(layers, ground, null));
+            settle(studio);
+            assertEquals(-1, context.identityRegistry().findByStableId(fromStable));
+            assertNotNull(tree(studio).findNode(source));
+            click(studio, source);
+            assertEquals(source, context.selectionService().getTiledMapEditingTargetEntityId());
+            assertEquals(tilesLayer, context.selectionService().getActivelayerId());
+
+            var saved = temporary.child("merged-scene.json");
+            games.pixscape.studio.service.SceneService.saveScene(world, saved, false);
+            var loaded = new com.artemis.World(new com.artemis.WorldConfiguration()
+                    .setSystem(new com.artemis.managers.WorldSerializationManager()));
+            try {
+                var identities = new games.pixscape.runtime.service.IdentityRegistry();
+                identities.bind(loaded, games.pixscape.studio.configuration.ProjectConfig.getInstance().getCurrentSceneMeta());
+                games.pixscape.runtime.loading.SceneLoader.loadScene(loaded, saved, false,
+                        games.pixscape.studio.configuration.ProjectConfig.getInstance().getCurrentSceneMeta());
+                loaded.process();
+                int restored = identities.findByStableId(context.identityRegistry().getStableId(source));
+                assertTrue(restored >= 0);
+                assertEquals(toStable, loaded.getMapper(GameObjectMemberComponent.class).get(restored).parentStableId);
+                assertEquals(-1, identities.findByStableId(fromStable));
+            } finally {
+                loaded.dispose();
+            }
+        });
+    }
+
+    @Test
     public void repeatedSubtreeRestoreKeepsPublishedChildrenAndTreeRows() throws Exception {
         withStudio(900, (studio, temporary) -> {
             var projectFile = project(studio, temporary.child("subtree-restore"));
@@ -36,8 +125,12 @@ public class ItemsPanelDragGlTest {
             int child = ops.createStandaloneSprite("hero.png", 50, 20, "child");
             int sibling = ops.createStandaloneSprite("hero.png", -50, 20, "sibling");
             world.getMapper(LayerComponent.class).get(context.layerService().getLayerEntity(0)).spatialEnabled = true;
-            world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(root);
-            world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(child);
+            settle(studio);
+            for (int entity : new int[]{root, child}) {
+                context.historyManager().execute(new games.pixscape.studio.history.commands.ToggleSpatialActorCommand(
+                        world, context.historyManager().historyIds(), entity, true, true,
+                        new games.pixscape.runtime.component.spatial.SpatialFootprintComponent()));
+            }
             settle(studio);
             for (int entity : new int[]{child, sibling}) {
                 context.historyManager().execute(new games.pixscape.studio.history.commands.AddEntityToGameObjectCommand(

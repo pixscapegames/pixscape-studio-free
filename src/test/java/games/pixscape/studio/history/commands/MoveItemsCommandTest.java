@@ -37,6 +37,119 @@ import static org.junit.Assert.*;
 
 public class MoveItemsCommandTest {
     @Test
+    public void tileLayerTransferPreservesContentWorldPosePhysicsAndSurvivesSourceLayerDeletion() {
+        try (F f = new F()) {
+            int from = f.map(), to = f.map(), tiles = f.tileLayer(from);
+            f.index(to).layerIndex = 1;
+            f.t(from).x = 130;
+            f.t(to).x = -45;
+            f.t(tiles).x = 12.5f;
+            var tiled = f.world.getMapper(TiledLayerComponent.class).get(tiles);
+            var paint = new games.pixscape.studio.service.tiled.TiledPaintService();
+            paint.setActiveTileAssetId(404);
+            paint.paintTile(tiled, 2, 3);
+            var blocks = f.world.getMapper(games.pixscape.runtime.component.spatial.SpatialBlocksComponent.class).create(tiles);
+            var block = new games.pixscape.runtime.spatial.SpatialBlockData();
+            block.id = blocks.allocateNextSpatialBlockId();
+            block.x = 2;
+            block.y = 3;
+            block.width = block.depth = 1;
+            block.altitude = 4;
+            block.height = 6;
+            blocks.blocks.add(block);
+            f.physics.ensurePhysics(tiles);
+            f.world.getMapper(PhysicsBodyComponent.class).get(tiles).type = PhysicsBodyComponent.STATIC;
+            f.publish();
+            var body = f.world.getMapper(PhysicsRuntimeBodyComponent.class).get(tiles).body;
+            var bodyPosition = body.getPosition().cpy();
+            var pose = f.pose(tiles);
+            var gridOrigin = new Vector2(tiled.data.originX, tiled.data.originY);
+            int stable = f.stable(tiles);
+            int fromStable = f.stable(from);
+            int toStable = f.stable(to);
+            var history = f.context.historyManager();
+            f.execute(f.prepare(1, to, 0, tiles));
+            for (int cycle = 0; cycle < 3; cycle++) {
+                f.publish();
+                assertEquals(toStable, f.parent(tiles));
+                assertEquals(pose, f.pose(tiles));
+                assertEquals(gridOrigin, new Vector2(tiled.data.originX, tiled.data.originY));
+                assertEquals(bodyPosition, body.getPosition());
+                assertSame(body, f.world.getMapper(PhysicsRuntimeBodyComponent.class).get(tiles).body);
+                assertEquals(stable, f.stable(tiles));
+                assertSame(block, blocks.blocks.first());
+                assertEquals(404, tiled.data.getTile(2, 3));
+                history.undo();
+                f.publish();
+                assertEquals(fromStable, f.parent(tiles));
+                assertEquals(pose, f.pose(tiles));
+                history.redo();
+            }
+            int sourceLayer = f.context.layerService().getLayerEntity(0);
+            history.execute(new DeleteLayerCommand(f.context.layerService(), sourceLayer, null));
+            f.publish();
+            assertEquals(-1, f.context.identityRegistry().findByStableId(fromStable));
+            assertEquals(tiles, f.context.identityRegistry().findByStableId(stable));
+            assertEquals(toStable, f.parent(tiles));
+            f.context.selectionService().setTiledMapEditingTarget(tiles, games.pixscape.studio.service.SelectionService.SelectionSource.TREE);
+            assertEquals(tiles, f.context.selectionService().getTiledMapEditingTargetEntityId());
+            assertEquals(f.context.layerService().getLayerEntity(0), f.context.selectionService().getActivelayerId());
+            history.undo();
+            f.publish();
+            history.undo();
+            f.publish();
+            assertEquals(fromStable, f.parent(tiles));
+            assertEquals(pose, f.pose(tiles));
+        }
+    }
+
+    @Test
+    public void tileTransferRejectsIncompatibleOrChangedMapBeforeMutation() {
+        try (F f = new F()) {
+            int from = f.map(), to = f.map(), tiles = f.tileLayer(from);
+            f.publish();
+            var target = f.world.getMapper(TiledMapComponent.class).get(to);
+            var plan = f.prepare(0, to, 0, tiles);
+            int nextId = f.meta.nextEntityStableId;
+            target.tileWidth++;
+            assertFalse(f.result(0, to, 0, tiles).accepted());
+            assertFalse(plan.isCurrent());
+            f.execute(plan);
+            assertEquals(0, f.context.historyManager().getCursor());
+            assertEquals(f.stable(from), f.parent(tiles));
+            assertEquals(nextId, f.meta.nextEntityStableId);
+            target.tileWidth--;
+            target.width++;
+            assertFalse(f.result(0, to, 0, tiles).accepted());
+            target.width--;
+            target.projection = games.pixscape.runtime.tiled.TiledProjection.ORTHO;
+            assertFalse(f.result(0, to, 0, tiles).accepted());
+        }
+    }
+
+    @Test
+    public void tileTransferRequiresSpatialDepthLayersToRemainOnOneMap() {
+        try (F f = new F()) {
+            int from = f.map(), to = f.map(), first = f.tileLayer(from), second = f.tileLayer(from);
+            for (int layer : new int[]{first, second}) {
+                var tiled = f.world.getMapper(TiledLayerComponent.class).get(layer);
+                tiled.spatialEnabled = tiled.data.spatialEnabled = true;
+            }
+            f.publish();
+            assertFalse(f.result(0, to, 0, first).accepted());
+            f.execute(f.prepare(0, to, 0, first, second));
+            for (int cycle = 0; cycle < 3; cycle++) {
+                assertEquals(f.stable(to), f.parent(first));
+                assertEquals(f.stable(to), f.parent(second));
+                f.context.historyManager().undo();
+                assertEquals(f.stable(from), f.parent(first));
+                assertEquals(f.stable(from), f.parent(second));
+                f.context.historyManager().redo();
+            }
+        }
+    }
+
+    @Test
     public void attachingVisualSubtreeInitializesOnlyMissingRepresentationsInTheMoveHistory() {
         try (F f = new F()) {
             int parent = f.root(0, 0), group = f.root(0, 1), child = f.sprite(0, 0);

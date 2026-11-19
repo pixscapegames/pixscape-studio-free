@@ -356,7 +356,7 @@ public class ItemTreePanel extends DockablePanel {
                 } else if (node.isTiledMapNode()) {
                     TiledLayerComponent tiled = mTiled.getSafe(entityId, null);
                     if (tiled != null) {
-                        node.setLabelName(tiledMapLabel(tiled, mIdentity.getSafe(entityId, null)));
+                        node.setLabelName(tileLayerLabel(mIdentity.getSafe(entityId, null)));
                     }
                 }
             }
@@ -554,9 +554,7 @@ public class ItemTreePanel extends DockablePanel {
 
         int mapEntityId = mapNode.getEntityId();
         if (mapEntityId < 0) return;
-        EntityIndexComponent index = mEntityIndex.getSafe(mapEntityId, null);
-        if (index == null) return;
-        int hostLayerEntityId = layerService.getLayerEntity(index.layerIndex);
+        int hostLayerEntityId = layerService.getEffectiveLayerEntity(mapEntityId);
         if (hostLayerEntityId < 0) return;
 
         explicitTiledMapEntityId = mapEntityId;
@@ -579,9 +577,7 @@ public class ItemTreePanel extends DockablePanel {
 
         int mapEntityId = spatialNode.getEntityId();
         if (mapEntityId < 0) return;
-        EntityIndexComponent index = mEntityIndex.getSafe(mapEntityId, null);
-        if (index == null) return;
-        int hostLayerEntityId = layerService.getLayerEntity(index.layerIndex);
+        int hostLayerEntityId = layerService.getEffectiveLayerEntity(mapEntityId);
         if (hostLayerEntityId < 0) return;
 
         explicitTiledMapEntityId = -1;
@@ -873,7 +869,16 @@ public class ItemTreePanel extends DockablePanel {
             float stageX,
             float stageY) {
         if (world.getMapper(games.pixscape.runtime.component.TiledMapComponent.class).has(parentEntityId)) {
-            PopupMenu menu = buildTiledMapContextMenu(() -> editorOps.deleteEntities(IntArray.with(parentEntityId)));
+            PopupMenu menu = buildTiledMapContextMenu(() -> editorOps.deleteEntities(IntArray.with(parentEntityId)),
+                    () -> historyManager.execute(new games.pixscape.studio.history.commands.AddTiledLayerCommand(
+                            layerService, parentEntityId, layer -> {
+                                if (layer >= 0) {
+                                    selectionService.clearSelection(SelectionService.SelectionSource.TREE);
+                                    selectionService.setTiledMapEditingTarget(layer, SelectionService.SelectionSource.TREE);
+                                } else {
+                                    selectionService.clearTiledMapEditingTarget();
+                                }
+                            })));
             MenuItem addObjects = new MenuItem("Add object layer");
             addObjects.addListener(new ClickListener() {
                 @Override public void clicked(InputEvent event, float x, float y) {
@@ -975,6 +980,20 @@ public class ItemTreePanel extends DockablePanel {
 
     static PopupMenu buildTiledMapContextMenu(TiledMapMenuActions actions) {
         return buildTiledMapContextMenu(actions, "Delete map");
+    }
+
+    static PopupMenu buildTiledMapContextMenu(TiledMapMenuActions actions, Runnable addTileLayer) {
+        PopupMenu menu = buildTiledMapContextMenu(actions);
+        MenuItem add = new MenuItem("Add tile layer");
+        add.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                addTileLayer.run();
+                event.handle();
+            }
+        });
+        menu.addItem(add);
+        return menu;
     }
 
     private static PopupMenu buildTiledMapContextMenu(TiledMapMenuActions actions, String label) {
@@ -1119,7 +1138,7 @@ public class ItemTreePanel extends DockablePanel {
         TiledLayerComponent tiled = mTiled.get(mapEntityId);
         PixscapeIdentityComponent identity = mIdentity.getSafe(mapEntityId, null);
         EntityNode mapNode = new EntityNode(
-                tiledMapLabel(tiled, identity),
+                tileLayerLabel(identity),
                 IconResolver.getDrawable(EntityKind.TILED_LAYER), mapEntityId, !layerLocked,
                 EntityNode.NodeKind.TILED_MAP);
         mapNode.getLabel().setColor(layerLocked ? Color.DARK_GRAY : Color.WHITE);
@@ -1142,14 +1161,25 @@ public class ItemTreePanel extends DockablePanel {
         return mapNode;
     }
 
-    static String tiledMapLabel(TiledLayerComponent tiled, PixscapeIdentityComponent identity) {
+    static String tileLayerLabel(PixscapeIdentityComponent identity) {
         String name = identity != null && identity.name != null && !identity.name.isBlank()
                 ? " " + identity.name : "";
-        return "Tile layer" + name + " (" + tiled.mapWidthCells + "x" + tiled.mapHeightCells + ")";
+        return "Tile layer" + name;
+    }
+
+    static String tiledMapLabel(games.pixscape.runtime.component.TiledMapComponent map,
+                                PixscapeIdentityComponent identity) {
+        String name = identity != null && identity.name != null && !identity.name.isBlank()
+                ? " " + identity.name : "";
+        return "Tiled Map" + name + " (" + map.width + "x" + map.height + ")";
     }
 
     private String entityLabel(int entityId) {
         PixscapeIdentityComponent identity = mIdentity.getSafe(entityId, null);
+        var map = world.getMapper(games.pixscape.runtime.component.TiledMapComponent.class).getSafe(entityId, null);
+        if (map != null) {
+            return tiledMapLabel(map, identity);
+        }
         ParticleEmitterComponent emitter = mEmitter.getSafe(entityId, null);
         String name = identity != null ? identity.name : null;
         if (name == null) {

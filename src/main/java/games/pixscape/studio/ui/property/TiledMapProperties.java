@@ -41,11 +41,6 @@ public final class TiledMapProperties extends VisTable {
     private final SimpleTextField mapName = new SimpleTextField();
     private final VisLabel stableIdValue = new VisLabel();
 
-    private final VisLabel tiledWidthValue = new VisLabel();
-    private final VisLabel tiledHeightValue = new VisLabel();
-    private final VisLabel tiledProjectionValue = new VisLabel();
-    private final VisLabel tiledTileWidthValue = new VisLabel();
-    private final VisLabel tiledTileHeightValue = new VisLabel();
     private final VisLabel tiledChunkSizeValue = new VisLabel();
 
     private final FloatField positionXField;
@@ -174,14 +169,9 @@ public final class TiledMapProperties extends VisTable {
         addProperty("Name:", mapName);
         addProperty("Id:", stableIdValue);
         add(customPropertiesRow).colspan(2).growX().row();
-        addProperty("Projection:", tiledProjectionValue);
-        addProperty("Cell Width:", tiledTileWidthValue);
-        addProperty("Cell Height:", tiledTileHeightValue);
         addProperty("Chunk Size:", tiledChunkSizeValue);
         addProperty("Local X:", positionXField);
         addProperty("Local Y:", positionYField);
-        addProperty("Width (cells):", tiledWidthValue);
-        addProperty("Height (cells):", tiledHeightValue);
 
         VisTable spatialDefaults = spatialDefaultsBlock.content();
         spatialDefaults.left().top().padTop(5);
@@ -278,11 +268,6 @@ public final class TiledMapProperties extends VisTable {
             PixscapeIdentityComponent identity = mIdentity.getSafe(mapEntityId, null);
             boolean hasStableId = identity != null && identity.stableId > 0;
             stableIdValue.setText(hasStableId ? Integer.toString(identity.stableId) : "Not assigned");
-            tiledWidthValue.setText(String.valueOf(tiled.mapWidthCells));
-            tiledHeightValue.setText(String.valueOf(tiled.mapHeightCells));
-            tiledProjectionValue.setText(buildTiledProjectionLabel(tiled));
-            tiledTileWidthValue.setText(Integer.toString(tiled.tileWidth));
-            tiledTileHeightValue.setText(Integer.toString(tiled.tileHeight));
             tiledChunkSizeValue.setText(Integer.toString(tiled.chunkSize));
 
             positionXField.setEntityId(mapEntityId);
@@ -309,11 +294,6 @@ public final class TiledMapProperties extends VisTable {
         mapName.refresh();
         mapName.setDisabled(true);
         stableIdValue.setText("Not assigned");
-        tiledWidthValue.setText("?");
-        tiledHeightValue.setText("?");
-        tiledProjectionValue.setText("Unknown");
-        tiledTileWidthValue.setText("?");
-        tiledTileHeightValue.setText("?");
         tiledChunkSizeValue.setText("?");
         positionXField.setEntityId(-1);
         positionYField.setEntityId(-1);
@@ -458,11 +438,4 @@ public final class TiledMapProperties extends VisTable {
         }
     }
 
-    private String buildTiledProjectionLabel(TiledLayerComponent tiled) {
-        if (tiled == null || tiled.projection == null) return "Unknown";
-        return switch (tiled.projection) {
-            case ISO -> "Isometric";
-            case ORTHO -> "Orthogonal";
-        };
-    }
 }

@@ -113,8 +113,7 @@ public final class SelectionService {
             clearTiledMapEditingTarget();
             return;
         }
-        EntityIndexComponent index = mEntityIndex.get(mapEntityId);
-        int hostLayerEntityId = layerService.getLayerEntity(index.layerIndex);
+        int hostLayerEntityId = tiledHostLayer(mapEntityId);
         setActivelayerIdInternal(hostLayerEntityId, mapEntityId, source);
     }
 
@@ -167,13 +166,26 @@ public final class SelectionService {
                 || !mTiledLayer.has(mapEntityId)) {
             return false;
         }
-        EntityIndexComponent index = mEntityIndex.getSafe(mapEntityId, null);
-        if (index == null) return false;
-        int hostLayerEntityId = layerService.getLayerEntity(index.layerIndex);
+        int hostLayerEntityId = tiledHostLayer(mapEntityId);
         if (hostLayerEntityId < 0 || !world.getEntityManager().isActive(hostLayerEntityId)) return false;
         LayerComponent owningLayer = mLayer.getSafe(hostLayerEntityId, null);
         return owningLayer != null
                 && (!requireActiveLayer || hostLayerEntityId == activeLayerEntityId);
+    }
+
+    /** Tiled layers have one map parent: resolve current ownership in O(1), even before publication. */
+    private int tiledHostLayer(int tileLayer) {
+        var member = world.getMapper(GameObjectMemberComponent.class).getSafe(tileLayer, null);
+        int owner = tileLayer;
+        if (member != null) {
+            var identities = games.pixscape.runtime.service.IdentityRegistry.boundTo(world);
+            owner = identities != null ? identities.findByStableId(member.parentStableId) : -1;
+            if (owner < 0 || !world.getMapper(TiledMapComponent.class).has(owner)) {
+                return -1;
+            }
+        }
+        var index = mEntityIndex.getSafe(owner, null);
+        return index != null ? layerService.getLayerEntity(index.layerIndex) : -1;
     }
 
     public IntSet getSelectionSet() {
