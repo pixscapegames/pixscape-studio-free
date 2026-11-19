@@ -189,12 +189,11 @@ public final class EntityGraphInstantiationService {
                                 + sourceEntityId + ".");
             }
             GenericEntityInitializer initializer = entry.initializerFor(world);
-            GenericEntitySnapshotData snapshot = initializer.toSnapshotData(sourceEntityId);
             initializer.overrideLayerIndex(activeLayerIndex);
             if (entry.parentSourceEntityId() == -1) {
                 initializer.translate(dx, dy);
             }
-            snapshot = initializer.toSnapshotData(sourceEntityId);
+            GenericEntitySnapshotData snapshot = initializer.toSnapshotData(sourceEntityId);
             snapshots.put(sourceEntityId, snapshot);
             validateHierarchyEntry(entry, snapshot);
             prepared.add(new PreparedEntity(
