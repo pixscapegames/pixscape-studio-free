@@ -34,6 +34,7 @@
 * Added explicit `Copy visual only`, which omits physics while retaining included spatial capabilities and representation settings.
 
 ### Changed
+* Removed the inspector's Add child button; child creation remains available in Items.
 * Game Object roots can have their own visuals. Physics-backed compositions support explicit placement, and physics-backed entities support visual scaling.
 * The inspector distinguishes an entity's own footprint from the nearest inherited owner. Editing a shared footprint updates its identified owner; each selected visual keeps its own optional occlusion zone and footprint-relative shadow pivot. Removing a footprint preserves custom representation settings.
 * Removed ordinary-layer spatial activation and layer-dependent spatial cleanup. Spatial participation follows footprint ownership through empty and physical hierarchy nodes; Tiled map/layer structures keep their specialized behavior.

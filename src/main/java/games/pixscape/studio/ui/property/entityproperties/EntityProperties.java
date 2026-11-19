@@ -31,7 +31,6 @@ import games.pixscape.studio.ui.widget.UiBinders;
 import java.util.List;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
-import java.util.function.BiConsumer;
 
 public class EntityProperties extends VisTable {
 
@@ -84,8 +83,6 @@ public class EntityProperties extends VisTable {
     private int currentEntityId = -1;
     private boolean scenePhysicsEnabled = false;
     private final VisTextButton addComponent = new VisTextButton("Add component…");
-    private final VisTextButton addChild = new VisTextButton("Add child…");
-    private BiConsumer<Integer, Actor> addChildAction;
     private PopupMenu componentMenu;
     private boolean sectionsRefreshRequired;
 
@@ -276,25 +273,13 @@ public class EntityProperties extends VisTable {
 
         header.add(visibleCheckBox).colspan(3).left().padTop(6).row();
         addComponent.setName("entity-add-component");
-        addChild.setName("entity-add-child");
         addComponent.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 showComponentMenu();
             }
         });
-        addChild.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                if (addChildAction != null) {
-                    addChildAction.accept(currentEntityId, addChild);
-                }
-            }
-        });
-        VisTable actions = new VisTable(true);
-        actions.add(addComponent);
-        actions.add(addChild);
-        header.add(actions).colspan(3).left().padTop(6).row();
+        header.add(addComponent).colspan(3).left().padTop(6).row();
 
         header.pack();
         return header;
@@ -408,7 +393,6 @@ public class EntityProperties extends VisTable {
         gameObjectSection.setApplicable(composition != null && composition.sourceAssetId != null
                 && !composition.sourceAssetId.isBlank() && !tiledStructure);
         addComponent.setVisible(!tiledStructure);
-        addChild.setVisible(!tiledStructure);
         materialSection.setApplicable(isMaterialApplicable(kind, ctx.mMat.has(currentEntityId)));
         animationSection.setApplicable(isAnim);
         particleSection.setApplicable(isParticle);
@@ -444,10 +428,6 @@ public class EntityProperties extends VisTable {
     private void syncScenePhysicsEnabled() {
         SceneMeta meta = ctx.sceneMeta;
         scenePhysicsEnabled = meta != null && meta.physicsEnabled;
-    }
-
-    public void setAddChildAction(BiConsumer<Integer, Actor> action) {
-        addChildAction = action;
     }
 
     private void closeComponentMenu() {

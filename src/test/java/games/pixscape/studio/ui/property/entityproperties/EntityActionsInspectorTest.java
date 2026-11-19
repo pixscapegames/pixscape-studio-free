@@ -432,17 +432,13 @@ public class EntityActionsInspectorTest {
     }
 
     @Test
-    public void childActionTargetsSelectionAndTiledStructuresKeepSpecializedActions() throws Exception {
+    public void tiledStructuresKeepSpecializedActions() throws Exception {
         try (Harness h = new Harness()) {
             int entity = h.sprite();
             h.select(entity);
-            int[] target = {-1};
-            h.panel.setAddChildAction((id, anchor) -> target[0] = id);
-            h.panel.<Actor>findActor("entity-add-child").fire(new ChangeListener.ChangeEvent());
-            assertEquals(entity, target[0]);
+            assertTrue(h.panel.findActor("entity-add-component").isVisible());
             h.world.getMapper(TiledMapComponent.class).create(entity);
             h.select(entity);
-            assertFalse(h.panel.findActor("entity-add-child").isVisible());
             assertFalse(h.panel.findActor("entity-add-component").isVisible());
         }
     }

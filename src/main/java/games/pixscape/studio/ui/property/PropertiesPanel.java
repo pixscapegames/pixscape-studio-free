@@ -456,7 +456,6 @@ public class PropertiesPanel extends DockablePanel {
                     }
                     app.getSceneService().refreshSceneTextureAtlas(ctx.world, sceneContext.sceneMeta(), tag);
                 });
-        entityProperties.setAddChildAction((entity, anchor) -> app.getItemTreePanel().showAddChildMenu(entity, anchor));
         bodyProperties = new BodyProperties(ctx);
         fixtureProperties = new FixturesPanel(ctx);
         pointLightProperties = new PointLightProperties(ctx);

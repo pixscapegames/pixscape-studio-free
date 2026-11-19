@@ -899,20 +899,6 @@ public class ItemTreePanel extends DockablePanel {
         }
     }
 
-    /** Inspector and Items share the same creation choices and command validation. */
-    public void showAddChildMenu(int parentEntityId, Actor anchor) {
-        if (anchor.getStage() == null) {
-            return;
-        }
-        String rejection = games.pixscape.studio.history.commands.CreateGameObjectChildCommand.parentRejection(world, parentEntityId);
-        if (rejection != null) {
-            return;
-        }
-        PopupMenu menu = childMenu(parentEntityId, selectedAssetNode());
-        com.badlogic.gdx.math.Vector2 position = anchor.localToStageCoordinates(new com.badlogic.gdx.math.Vector2(0, 0));
-        menu.showMenu(anchor.getStage(), position.x, position.y);
-    }
-
     private PopupMenu childMenu(int parentEntityId, AssetNode selectedAsset) {
         World targetWorld = world;
         var identity = world.getMapper(PixscapeIdentityComponent.class).getSafe(parentEntityId, null);
