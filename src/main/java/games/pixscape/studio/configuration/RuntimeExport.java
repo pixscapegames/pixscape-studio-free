@@ -466,7 +466,7 @@ public final class RuntimeExport {
 
         JsonValue root = new JsonValue(JsonValue.ValueType.object);
         root.addChild("format", new JsonValue(TILESET_PROFILES_FORMAT));
-        root.addChild("version", new JsonValue(1));
+        root.addChild("version", new JsonValue(games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles.VERSION));
 
         JsonValue tilesets = new JsonValue(JsonValue.ValueType.array);
         if (tileIdsByTilesetId.size > 0) {
@@ -490,6 +490,7 @@ public final class RuntimeExport {
                 JsonValue profile = tilesetProfileJson(tileset, tileIds);
                 JsonValue definitions = new JsonValue(JsonValue.ValueType.array);
                 com.badlogic.gdx.utils.Json definitionJson = new com.badlogic.gdx.utils.Json();
+                definitionJson.setOutputType(JsonWriter.OutputType.json);
                 for (int i = 0; i < tileIds.size; i++) {
                     TileAssetMeta tile = (TileAssetMeta) assetDb.findById(tileIds.get(i));
                     // Legacy assets without a local ID remain renderable; never invent an identity.

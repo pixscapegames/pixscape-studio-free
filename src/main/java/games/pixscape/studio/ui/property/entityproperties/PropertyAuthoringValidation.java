@@ -30,14 +30,14 @@ final class PropertyAuthoringValidation {
         }
     }
 
-    static float parseFloat(String value, String path) {
+    static double parseFloat(String value, String path) {
         String text = value != null ? value.trim().replace(',', '.') : "";
         if (text.isEmpty()) {
             throw invalid(path, "float value is required.");
         }
         try {
-            float parsed = Float.parseFloat(text);
-            if (Float.isNaN(parsed) || Float.isInfinite(parsed)) {
+            double parsed = Double.parseDouble(text);
+            if (Double.isNaN(parsed) || Double.isInfinite(parsed)) {
                 throw invalid(path, "float value must be finite.");
             }
             return parsed;

@@ -16,6 +16,8 @@ import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.property.PropertySet;
+import games.pixscape.runtime.property.PropertyValue;
+import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
@@ -50,7 +52,9 @@ public class GameObjectAssetServiceTest {
             float[] open = {-10, 5, 20, -7, 40, 12};
             source.getMapper(PolygonComponent.class).create(polygon).setVertices(closed);
             source.getMapper(PolylineComponent.class).create(line).setVertices(open);
-            source.getMapper(CustomPropertiesComponent.class).create(polygon).properties.putObjectStableId("route", 12);
+            source.getMapper(CustomPropertiesComponent.class).create(polygon).properties.putObjectStableId("route", 12)
+                    .putList("routes", Array.with(PropertyValue.ofClass("Link",
+                            new PropertySet().putObjectStableId("target", 12).putFloat("precise", 16777217d))));
             source.process();
             EntityGraph graph = new EntityGraphCaptureService(source).captureForGameObject(new IntArray(new int[]{root}));
             source.getMapper(PolygonComponent.class).get(polygon).vertices[0] = 123;
@@ -79,6 +83,10 @@ public class GameObjectAssetServiceTest {
             Assert.assertFalse(target.getMapper(PolygonComponent.class).has(firstLine));
             Assert.assertEquals(target.getMapper(PixscapeIdentityComponent.class).get(firstLine).stableId,
                     target.getMapper(CustomPropertiesComponent.class).get(firstPolygon).properties.getObjectStableId("route", -1));
+            PropertySet firstProperties = target.getMapper(CustomPropertiesComponent.class).get(firstPolygon).properties;
+            Assert.assertEquals(target.getMapper(PixscapeIdentityComponent.class).get(firstLine).stableId,
+                    firstProperties.getListValue("routes").getClassValue(0).properties().getObjectStableId("target", -1));
+            firstProperties.putList("routes", new Array<>());
             target.getMapper(PolygonComponent.class).get(firstPolygon).vertices[0] = 999;
             target.getMapper(PolylineComponent.class).get(firstLine).vertices[0] = 999;
             EntityGraphInstantiationResult second = service.instantiateGameObject(file, "contours", 3, 40, 50);
@@ -87,6 +95,14 @@ public class GameObjectAssetServiceTest {
                     .get(second.sourceToCreated().get(2, -1)).vertices, 0f);
             Assert.assertArrayEquals(open, target.getMapper(PolylineComponent.class)
                     .get(second.sourceToCreated().get(3, -1)).vertices, 0f);
+            PropertySet secondProperties = target.getMapper(CustomPropertiesComponent.class)
+                    .get(second.sourceToCreated().get(2, -1)).properties;
+            Assert.assertEquals(target.getMapper(PixscapeIdentityComponent.class)
+                    .get(second.sourceToCreated().get(3, -1)).stableId,
+                    secondProperties.getListValue("routes").getClassValue(0).properties().getObjectStableId("target", -1));
+            Assert.assertEquals(16777217d, secondProperties.getListValue("routes").getClassValue(0)
+                    .properties().getDouble("precise", 0), 0);
+            Assert.assertEquals(1, source.getMapper(CustomPropertiesComponent.class).get(polygon).properties.getListValue("routes").size());
             Assert.assertArrayEquals(closed, new GameObjectAssetLoader().load(file).entities.get(1).polygonVertices, 0f);
         } finally {
             identities.bind(null, null);

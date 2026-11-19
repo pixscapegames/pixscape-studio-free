@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map orientation="isometric" width="2" height="2" tilewidth="16" tileheight="16">
+<properties>
+ <property name="precise" type="float" value="16777217"/>
+ <property name="decimal" type="float" value="0.1234567890123456"/>
+ <property name="empty" type="list"/>
+ <property name="direction" propertytype="Direction" value="West"/>
+ <property name="flags" type="int" propertytype="Flags" value="5"/>
+ <property name="stringFlags" propertytype="StringFlags" value="C,A"/>
+ <property name="mode" type="int" propertytype="Mode" value="1"/>
+ <property name="items" type="list">
+  <item value="7"/><item type="int" value="7"/><item type="int" value="7"/>
+  <item type="float" value="16777217"/>
+  <item type="object" value="20"/><item type="object" value="0"/>
+  <item type="list"><item type="float" value="0.1234567890123456"/><item propertytype="Direction" value="North"/></item>
+  <item type="class" propertytype="Config"><properties>
+   <property name="targets" type="list"><item type="object" value="10"/></property>
+   <property name="flags" type="int" propertytype="Flags" value="3"/>
+  </properties></item>
+ </property>
+</properties>
+<tileset firstgid="1" name="List tiles" tilewidth="16" tileheight="16" tilecount="3" columns="3">
+ <image source="../mixed-layers/tiles.png" width="48" height="16"/>
+ <tile id="0"><properties>
+ <property name="precise" type="float" value="16777217"/>
+ <property name="decimal" type="float" value="0.1234567890123456"/>
+ <property name="empty" type="list"/>
+ <property name="direction" propertytype="Direction" value="West"/>
+ <property name="flags" type="int" propertytype="Flags" value="5"/>
+ <property name="stringFlags" propertytype="StringFlags" value="C,A"/>
+ <property name="mode" type="int" propertytype="Mode" value="1"/>
+ <property name="items" type="list">
+  <item value="7"/><item type="int" value="7"/><item type="int" value="7"/>
+  <item type="float" value="16777217"/>
+  <item type="object" value="0"/><item type="object" value="0"/>
+  <item type="list"><item type="float" value="0.1234567890123456"/><item propertytype="Direction" value="North"/></item>
+  <item type="class" propertytype="Config"><properties>
+   <property name="targets" type="list"><item type="object" value="0"/></property>
+   <property name="flags" type="int" propertytype="Flags" value="3"/>
+  </properties></item>
+ </property>
+</properties></tile>
+</tileset>
+<layer name="Ground" width="2" height="2"><properties>
+ <property name="precise" type="float" value="16777217"/>
+ <property name="decimal" type="float" value="0.1234567890123456"/>
+ <property name="empty" type="list"/>
+ <property name="direction" propertytype="Direction" value="West"/>
+ <property name="flags" type="int" propertytype="Flags" value="5"/>
+ <property name="stringFlags" propertytype="StringFlags" value="C,A"/>
+ <property name="mode" type="int" propertytype="Mode" value="1"/>
+ <property name="items" type="list">
+  <item value="7"/><item type="int" value="7"/><item type="int" value="7"/>
+  <item type="float" value="16777217"/>
+  <item type="object" value="20"/><item type="object" value="0"/>
+  <item type="list"><item type="float" value="0.1234567890123456"/><item propertytype="Direction" value="North"/></item>
+  <item type="class" propertytype="Config"><properties>
+   <property name="targets" type="list"><item type="object" value="10"/></property>
+   <property name="flags" type="int" propertytype="Flags" value="3"/>
+  </properties></item>
+ </property>
+</properties><data encoding="csv">1,0,0,0</data></layer>
+<imagelayer name="Backdrop"><properties>
+ <property name="precise" type="float" value="16777217"/>
+ <property name="decimal" type="float" value="0.1234567890123456"/>
+ <property name="empty" type="list"/>
+ <property name="direction" propertytype="Direction" value="West"/>
+ <property name="flags" type="int" propertytype="Flags" value="5"/>
+ <property name="stringFlags" propertytype="StringFlags" value="C,A"/>
+ <property name="mode" type="int" propertytype="Mode" value="1"/>
+ <property name="items" type="list">
+  <item value="7"/><item type="int" value="7"/><item type="int" value="7"/>
+  <item type="float" value="16777217"/>
+  <item type="object" value="20"/><item type="object" value="0"/>
+  <item type="list"><item type="float" value="0.1234567890123456"/><item propertytype="Direction" value="North"/></item>
+  <item type="class" propertytype="Config"><properties>
+   <property name="targets" type="list"><item type="object" value="10"/></property>
+   <property name="flags" type="int" propertytype="Flags" value="3"/>
+  </properties></item>
+ </property>
+</properties><image source="../mixed-layers/image.png" width="16" height="16"/></imagelayer>
+<objectgroup name="Objects"><properties>
+ <property name="precise" type="float" value="16777217"/>
+ <property name="decimal" type="float" value="0.1234567890123456"/>
+ <property name="empty" type="list"/>
+ <property name="direction" propertytype="Direction" value="West"/>
+ <property name="flags" type="int" propertytype="Flags" value="5"/>
+ <property name="stringFlags" propertytype="StringFlags" value="C,A"/>
+ <property name="mode" type="int" propertytype="Mode" value="1"/>
+ <property name="items" type="list">
+  <item value="7"/><item type="int" value="7"/><item type="int" value="7"/>
+  <item type="float" value="16777217"/>
+  <item type="object" value="20"/><item type="object" value="0"/>
+  <item type="list"><item type="float" value="0.1234567890123456"/><item propertytype="Direction" value="North"/></item>
+  <item type="class" propertytype="Config"><properties>
+   <property name="targets" type="list"><item type="object" value="10"/></property>
+   <property name="flags" type="int" propertytype="Flags" value="3"/>
+  </properties></item>
+ </property>
+</properties>
+ <object id="10" name="Actor" x="8" y="8"><point/><properties>
+ <property name="precise" type="float" value="16777217"/>
+ <property name="decimal" type="float" value="0.1234567890123456"/>
+ <property name="empty" type="list"/>
+ <property name="direction" propertytype="Direction" value="West"/>
+ <property name="flags" type="int" propertytype="Flags" value="5"/>
+ <property name="stringFlags" propertytype="StringFlags" value="C,A"/>
+ <property name="mode" type="int" propertytype="Mode" value="1"/>
+ <property name="items" type="list">
+  <item value="7"/><item type="int" value="7"/><item type="int" value="7"/>
+  <item type="float" value="16777217"/>
+  <item type="object" value="20"/><item type="object" value="0"/>
+  <item type="list"><item type="float" value="0.1234567890123456"/><item propertytype="Direction" value="North"/></item>
+  <item type="class" propertytype="Config"><properties>
+   <property name="targets" type="list"><item type="object" value="10"/></property>
+   <property name="flags" type="int" propertytype="Flags" value="3"/>
+  </properties></item>
+ </property>
+</properties></object>
+ <object id="20" name="Target" x="16" y="16" width="8" height="8"/>
+ <object id="30" name="Inherited" gid="1" x="16" y="16" width="16" height="16"/>
+ <object id="40" name="EmptyOverride" gid="1" x="32" y="16" width="16" height="16"><properties><property name="items" type="list"/></properties></object>
+</objectgroup>
+</map>

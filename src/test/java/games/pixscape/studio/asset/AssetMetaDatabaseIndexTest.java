@@ -426,7 +426,7 @@ public class AssetMetaDatabaseIndexTest {
 
         Files.writeString(path, """
                 {
-                  "version": 3,
+                  "version": 4,
                   "nextId": 2,
                   "assets": [{
                     "class": "ignored.java.ClassName",
@@ -446,7 +446,7 @@ public class AssetMetaDatabaseIndexTest {
         Path path = Files.createTempFile("asset-index-next-id", ".json");
         Files.writeString(path, """
                 {
-                  "version": 3,
+                  "version": 4,
                   "nextId": 1,
                   "assets": [
                     { "id": 8, "type": "image", "logicalPath": "images/eight",
@@ -495,7 +495,7 @@ public class AssetMetaDatabaseIndexTest {
             throws Exception {
         int assetCount = 5_000;
         StringBuilder json = new StringBuilder(assetCount * 120);
-        json.append("{\"version\":3,\"nextId\":1,\"assets\":[");
+        json.append("{\"version\":4,\"nextId\":1,\"assets\":[");
         for (int i = 1; i <= assetCount; i++) {
             if (i > 1) json.append(',');
             json.append(asset(i, "image", "images/" + i, "orig/" + i + ".png"));
@@ -608,7 +608,7 @@ public class AssetMetaDatabaseIndexTest {
     private static void expectInvalidAsset(String assets,
                                            String... expectedMessages) throws Exception {
         Path path = Files.createTempFile("asset-index-invalid", ".json");
-        Files.writeString(path, "{\"version\":3,\"nextId\":1,\"assets\":[" + assets + "]}");
+        Files.writeString(path, "{\"version\":4,\"nextId\":1,\"assets\":[" + assets + "]}");
         expectFailure(expectedMessages,
                 () -> AssetMetaDatabase.load(new FileHandle(path.toFile())));
     }

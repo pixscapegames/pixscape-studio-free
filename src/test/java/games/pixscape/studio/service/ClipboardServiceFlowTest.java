@@ -228,7 +228,10 @@ public class ClipboardServiceFlowTest {
         int root = gameObject(h.world, 100, -1, 5f, 7f, 0.2f, 1.25f, 2, "source/tree");
         int child = gameObjectMember(h.world, 200, 100, 3f, -4f, 4);
         h.world.getMapper(CustomPropertiesComponent.class).create(child).properties = new PropertySet()
-                .putObjectStableId("root", 100);
+                .putObjectStableId("root", 100)
+                .putList("targets", com.badlogic.gdx.utils.Array.with(
+                        games.pixscape.runtime.property.PropertyValue.ofObjectStableId(100),
+                        games.pixscape.runtime.property.PropertyValue.ofClass("Link", new PropertySet().putObjectStableId("self", 200))));
         h.world.process();
         h.selection.selectOnly(root);
 
@@ -255,6 +258,12 @@ public class ClipboardServiceFlowTest {
                 .get(copiedChild).parentStableId);
         Assert.assertEquals(copiedRootStableId, h.world.getMapper(CustomPropertiesComponent.class)
                 .get(copiedChild).properties.getObjectStableId("root", -1));
+        var copiedProperties = h.world.getMapper(CustomPropertiesComponent.class).get(copiedChild).properties;
+        Assert.assertEquals(copiedRootStableId, copiedProperties.getListValue("targets").getObjectStableId(0));
+        Assert.assertEquals(h.world.getMapper(PixscapeIdentityComponent.class).get(copiedChild).stableId,
+                copiedProperties.getListValue("targets").getClassValue(1).properties().getObjectStableId("self", -1));
+        copiedProperties.putList("targets", new com.badlogic.gdx.utils.Array<>());
+        Assert.assertEquals(2, h.world.getMapper(CustomPropertiesComponent.class).get(child).properties.getListValue("targets").size());
     }
 
     @Test

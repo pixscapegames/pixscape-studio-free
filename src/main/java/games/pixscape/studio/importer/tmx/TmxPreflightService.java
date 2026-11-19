@@ -3,6 +3,8 @@ package games.pixscape.studio.importer.tmx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.XmlReader;
 import games.pixscape.runtime.property.PropertySet;
+import games.pixscape.runtime.property.PropertyValue;
+import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.asset.TsxTilesetDescriptor;
 import games.pixscape.studio.service.asset.TsxTilesetImportParser;
@@ -32,12 +34,18 @@ public final class TmxPreflightService {
      * Shared TSX/TMX definition parser; unsupported source semantics are retained, not coerced.
      */
     public static PropertySet readTileProperties(XmlReader.Element tile, String location) {
+        return readTileProperties(tile, location, TiledPropertyTypes.load(null));
+    }
+
+    public static PropertySet readTileProperties(XmlReader.Element tile, String location, TiledPropertyTypes types) {
         AnalysisState state = new AnalysisState(location);
+        state.types = types;
         state.preserveTilePropertyTypes = true;
         ParsedProperties parsed = new TmxPreflightService().readPropertiesWithPaths(tile, state, location);
         for (TmxDiagnostic diagnostic : state.diagnostics) {
-            if (diagnostic.severity() == TmxDiagnosticSeverity.BLOCKING)
-                throw new IllegalArgumentException(diagnostic.message());
+            if (diagnostic.severity() == TmxDiagnosticSeverity.BLOCKING) {
+                throw new IllegalArgumentException(diagnostic.code() + ": " + diagnostic.location() + ": " + diagnostic.message());
+            }
         }
         return parsed.properties();
     }
@@ -50,6 +58,12 @@ public final class TmxPreflightService {
         FileHandle tmxFile = request.tmxFile();
         String sourcePath = pathOf(tmxFile);
         AnalysisState state = new AnalysisState(sourcePath);
+        try {
+            state.types = TiledPropertyTypes.load(request.tiledProject());
+        } catch (RuntimeException ex) {
+            state.blocking("TMX_PROJECT_INVALID", ex.getMessage(), sourcePath);
+            return state.toReport();
+        }
 
         if (tmxFile == null || !tmxFile.exists() || tmxFile.isDirectory()) {
             state.blocking("TMX_MISSING", "TMX file is missing.", sourcePath);
@@ -200,7 +214,7 @@ public final class TmxPreflightService {
                 readImageCollectionTiles(tileset, declaringFile, declaredTileCount, state);
         int tileCount = Math.max(declaredTileCount, imageCollectionTileCount(imageCollectionTiles));
         List<TmxTileDefinitionInfo> tileDefinitions =
-                readTileDefinitions(firstGid, tileset, tileCount, name, state);
+                readTileDefinitions(tileset, tileCount, name, state);
 
         if (!imageCollectionForm
                 && (tileWidth > 0 && mapInfo.tileWidth() > 0 && tileWidth != mapInfo.tileWidth()
@@ -407,8 +421,7 @@ public final class TmxPreflightService {
         );
     }
 
-    private List<TmxTileDefinitionInfo> readTileDefinitions(int firstGid,
-                                                            XmlReader.Element tileset,
+    private List<TmxTileDefinitionInfo> readTileDefinitions(XmlReader.Element tileset,
                                                             int tileCount,
                                                             String tilesetName,
                                                             AnalysisState state) {
@@ -447,21 +460,11 @@ public final class TmxPreflightService {
             }
             AnalysisState metadataState = new AnalysisState(state.sourcePath);
             metadataState.preserveTilePropertyTypes = true;
+            metadataState.types = state.types;
             ParsedProperties parsed = readPropertiesWithPaths(tile, metadataState, location);
             // Definitions are now persisted even when no tile object inherits their metadata.
             // Refuse invalid values instead of silently publishing a partially parsed definition.
             state.diagnostics.addAll(metadataState.diagnostics);
-            metadataState.diagnostics.clear();
-            if (!parsed.objectReferences().isEmpty()) {
-                metadataState.blocking("TMX_OBJECT_PROPERTY_SCOPE_UNSUPPORTED",
-                        "OBJECT properties in tile-definition metadata use the Tiled tile-collision "
-                                + "object domain, which Pixscape does not import.", location);
-            }
-            if (!metadataState.diagnostics.isEmpty()) {
-                state.pendingTileMetadataDiagnostics.put(
-                        tileMetadataKey(firstGid, localTileId),
-                        List.copyOf(metadataState.diagnostics));
-            }
             definitions.add(new TmxTileDefinitionInfo(
                     localTileId, className, legacyType, parsed.properties(), parsed.paths()));
         }
@@ -648,7 +651,6 @@ public final class TmxPreflightService {
         }
 
         int localTileId = decoded.cleanGid - tileset.firstGid();
-        state.emitTileMetadataDiagnostics(tileset.firstGid(), localTileId);
         if (tileset.imageCollection() && !hasImageCollectionTile(tileset, localTileId)) {
             state.blocking(
                     "TMX_TILE_OBJECT_GID_UNRESOLVED",
@@ -686,14 +688,50 @@ public final class TmxPreflightService {
         return false;
     }
 
-    private static long tileMetadataKey(int firstGid, int localTileId) {
-        return ((long) firstGid << 32) ^ (localTileId & 0xffffffffL);
-    }
-
     private ParsedProperties readPropertiesWithPaths(XmlReader.Element owner,
                                                      AnalysisState state,
                                                      String ownerLocation) {
-        return readPropertiesWithPaths(owner, state, ownerLocation, List.of());
+        ParsedProperties parsed = readPropertiesWithPaths(owner, state, ownerLocation, List.of());
+        String className = owner.getAttribute("class", null);
+        if (className == null || className.isBlank()) {
+            className = owner.getAttribute("type", null);
+        }
+        Set<String> explicit = new HashSet<>();
+        com.badlogic.gdx.utils.Array<String> names = new com.badlogic.gdx.utils.Array<>();
+        parsed.properties().copyNamesTo(names);
+        for (String name : names) {
+            explicit.add(name);
+        }
+        // A tile object's explicit values include its tile definition, before class-default diagnosis.
+        if (owner.getName().equals("object") && owner.hasAttribute("gid")) {
+            Long gid = readObjectGid(owner, ownerLocation, state);
+            if (gid != null) {
+                int cleanGid = TmxGidSupport.decode((int) (gid & 0xffffffffL)).cleanGid;
+                TmxTilesetInfo tileset = resolveTileset(cleanGid, state.tilesets);
+                if (tileset != null) {
+                    for (TmxTileDefinitionInfo tile : tileset.tileDefinitions()) {
+                        if (tile.localTileId() != cleanGid - tileset.firstGid()) {
+                            continue;
+                        }
+                        names.clear();
+                        tile.propertiesForPlanning().copyNamesTo(names);
+                        for (String name : names) {
+                            explicit.add(name);
+                        }
+                        if (className == null || className.isBlank()) {
+                            className = tile.className() != null ? tile.className() : tile.legacyType();
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        try {
+            state.types.requireExplicitMembers(className, explicit);
+        } catch (IllegalArgumentException ex) {
+            state.blocking("TMX_CLASS_DEFAULT_UNSUPPORTED", ex.getMessage(), ownerLocation);
+        }
+        return parsed;
     }
 
     private ParsedProperties readPropertiesWithPaths(XmlReader.Element owner,
@@ -743,72 +781,106 @@ public final class TmxPreflightService {
         }
         paths.add(List.copyOf(path));
 
+        PropertyValue value = readPropertyValue(property, paths, objectReferences, state, ownerLocation, path, false);
+        if (value != null) {
+            properties.put(name, value);
+        }
+    }
+
+    private PropertyValue readPropertyValue(XmlReader.Element property, List<List<String>> paths,
+                                            List<TmxObjectPropertyReference> references, AnalysisState state,
+                                            String ownerLocation, List<String> path, boolean listItem) {
+        String location = ownerLocation + " / property '" + String.join(".", path) + "'";
         String type = property.getAttribute("type", "string");
         String customType = property.getAttribute("propertytype", null);
-        String value = property.hasAttribute("value")
-                ? property.getAttribute("value")
-                : property.getText();
+        String value = property.hasAttribute("value") ? property.getAttribute("value") : property.getText();
         try {
-            if (state.preserveTilePropertyTypes && (!Set.of("string", "bool", "int", "float", "color", "class").contains(type)
-                    || (!"class".equals(type) && customType != null && !customType.isBlank()))) {
-                properties.put(name, games.pixscape.runtime.property.PropertyValue.ofImported(
-                        type, customType, propertyXml(property)));
-                if ("object".equals(type)) objectReferences.add(new TmxObjectPropertyReference(
-                        path, parsePropertyObjectReference(value, location, state), location));
-                return;
-            }
             if (!"class".equals(type) && customType != null && !customType.isBlank()) {
-                state.blocking("TMX_PROPERTY_TYPE_UNSUPPORTED",
-                        "Unsupported Tiled property type '" + type + "' (propertytype '" + customType + "').",
-                        location);
-                return;
+                var definition = state.types.enumNamed(customType);
+                if (definition == null) {
+                    state.blocking(state.types.isProvided() ? "TMX_ENUM_DEFINITION_MISSING" : "TMX_PROJECT_REQUIRED",
+                            "Enum '" + customType + "' requires an unambiguous definition in an explicitly selected .tiled-project.", location);
+                    return null;
+                }
+                if (definition.storageType() == PropertyType.STRING && type.equals("string")) {
+                    return PropertyValue.ofEnum(definition, value == null ? "" : value);
+                }
+                if (definition.storageType() == PropertyType.INTEGER && type.equals("int")) {
+                    return PropertyValue.ofEnum(definition, parsePropertyInt(value, location, state));
+                }
+                state.blocking("TMX_ENUM_STORAGE_MISMATCH", "Enum '" + customType + "' does not use '" + type + "' storage.", location);
+                return null;
             }
             switch (type) {
-                case "string" -> properties.putString(name, value != null ? value : "");
-                case "bool" -> properties.putBoolean(name, parsePropertyBoolean(value, location, state));
-                case "int" -> properties.putInt(name, parsePropertyInt(value, location, state));
-                case "float" -> properties.putFloat(name, parsePropertyFloat(value, location, state));
-                case "color" -> properties.putColorRgba8888(name,
-                        parsePropertyColorRgba8888(
-                                property.hasAttribute("value") || (value != null && !value.isEmpty())
-                                        ? value : null,
-                                location, state));
-                case "object" -> objectReferences.add(new TmxObjectPropertyReference(
-                        path, parsePropertyObjectReference(
-                        property.hasAttribute("value") || (value != null && !value.isEmpty())
-                                ? value : null,
-                        location, state), location));
-                case "class" -> {
-                    ParsedProperties members = readPropertiesWithPaths(
-                            property, state, ownerLocation, path);
-                    paths.addAll(members.paths());
-                    objectReferences.addAll(members.objectReferences());
-                    if (customType == null || customType.trim().isEmpty()) {
-                        state.blocking(
-                                "TMX_CLASS_PROPERTY_TYPE_INVALID",
-                                "Tiled CLASS property must declare a non-blank propertytype.",
-                                location
-                        );
-                        return;
+                case "string": return PropertyValue.ofString(value == null ? "" : value);
+                case "bool": return PropertyValue.ofBoolean(parsePropertyBoolean(value, location, state));
+                case "int": return PropertyValue.ofInt(parsePropertyInt(value, location, state));
+                case "float": return PropertyValue.ofFloat(parsePropertyFloat(value, location, state));
+                case "color": return PropertyValue.ofColorRgba8888(parsePropertyColorRgba8888(
+                        property.hasAttribute("value") || (value != null && !value.isEmpty()) ? value : null, location, state));
+                case "object": {
+                    int sourceId = parsePropertyObjectReference(value == null || value.isEmpty() ? null : value, location, state);
+                    if (state.preserveTilePropertyTypes && sourceId != 0) {
+                        state.blocking("TMX_OBJECT_PROPERTY_SCOPE_UNSUPPORTED",
+                                "OBJECT target #" + sourceId + " belongs to the tile-collision object domain, which is not imported.", location);
+                        return null;
                     }
-                    try {
-                        properties.putClass(name, customType, members.properties());
-                    } catch (IllegalArgumentException | IllegalStateException ex) {
-                        state.blocking(
-                                "TMX_CLASS_PROPERTY_VALUE_INVALID",
-                                "Tiled CLASS property is invalid: " + ex.getMessage(),
-                                location
-                        );
-                    }
+                    references.add(new TmxObjectPropertyReference(path, sourceId, location));
+                    return PropertyValue.ofObjectStableId(sourceId == 0 ? -1 : sourceId);
                 }
-                default -> state.blocking(
-                        "TMX_PROPERTY_TYPE_UNSUPPORTED",
-                        "Unsupported Tiled property type '" + type + "'.",
-                        location
-                );
+                case "list": {
+                    if (property.hasAttribute("value") || (property.getText() != null && !property.getText().isBlank())) {
+                        state.blocking("TMX_PROPERTY_VALUE_INVALID", "LIST values must use typed item children, not scalar text.", location);
+                        return null;
+                    }
+                    com.badlogic.gdx.utils.Array<PropertyValue> items = new com.badlogic.gdx.utils.Array<>();
+                    for (int i = 0; i < property.getChildCount(); i++) {
+                        XmlReader.Element item = property.getChild(i);
+                        if (!item.getName().equals("item")) {
+                            state.blocking("TMX_PROPERTY_VALUE_INVALID", "LIST child must be an item.", location + "[" + i + "]");
+                            return null;
+                        }
+                        PropertyValue parsed = readPropertyValue(item, paths, references, state, ownerLocation,
+                                appendPath(path, "[" + i + "]"), true);
+                        if (parsed == null) {
+                            return null;
+                        }
+                        items.add(parsed);
+                    }
+                    return PropertyValue.ofList(items);
+                }
+                case "class": {
+                    if (customType == null || customType.isBlank()) {
+                        state.blocking("TMX_CLASS_PROPERTY_TYPE_INVALID", "Tiled CLASS property must declare a non-blank propertytype.", location);
+                        return null;
+                    }
+                    state.types.requireExplicitMembers(customType, property);
+                    // Preserve list context through CLASS so unsupported nested items cannot become IMPORTED.
+                    boolean previous = state.insideList;
+                    state.insideList |= listItem;
+                    ParsedProperties members;
+                    try {
+                        members = readPropertiesWithPaths(property, state, ownerLocation, path);
+                    } finally {
+                        state.insideList = previous;
+                    }
+                    paths.addAll(members.paths());
+                    references.addAll(members.objectReferences());
+                    return PropertyValue.ofClass(customType, members.properties());
+                }
+                default: {
+                    if (state.preserveTilePropertyTypes && !listItem && !state.insideList) {
+                        return PropertyValue.ofImported(type, customType, propertyXml(property));
+                    }
+                    state.blocking("TMX_PROPERTY_TYPE_UNSUPPORTED", "Unsupported Tiled property type '" + type + "'.", location);
+                    return null;
+                }
             }
         } catch (InvalidPropertyValueException ignored) {
-            // The value parser already added the descriptive blocking diagnostic.
+            return null; // Parser has already supplied a precise diagnostic.
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            state.blocking("TMX_PROPERTY_VALUE_INVALID", ex.getMessage(), location);
+            return null;
         }
     }
 
@@ -855,16 +927,16 @@ public final class TmxPreflightService {
         }
     }
 
-    private float parsePropertyFloat(String value,
+    private double parsePropertyFloat(String value,
                                      String location,
                                      AnalysisState state) throws InvalidPropertyValueException {
         String effectiveValue = value != null ? value : "0";
         try {
-            float parsed = Float.parseFloat(effectiveValue);
-            if (Float.isNaN(parsed) || Float.isInfinite(parsed)) throw new NumberFormatException();
+            double parsed = Double.parseDouble(effectiveValue);
+            if (Double.isNaN(parsed) || Double.isInfinite(parsed)) throw new NumberFormatException();
             return parsed;
         } catch (NumberFormatException ex) {
-            state.blocking("TMX_PROPERTY_VALUE_INVALID", "Float property value must be a finite Java float: " + effectiveValue, location);
+            state.blocking("TMX_PROPERTY_VALUE_INVALID", "Float property value must be a finite double: " + effectiveValue, location);
             throw new InvalidPropertyValueException();
         }
     }
@@ -1396,9 +1468,9 @@ public final class TmxPreflightService {
         private final List<TmxLayerInfo> layers = new ArrayList<>();
         private final List<TmxDiagnostic> diagnostics = new ArrayList<>();
         private final Map<Integer, String> objectIdLocations = new HashMap<>();
-        private final Map<Long, List<TmxDiagnostic>> pendingTileMetadataDiagnostics = new HashMap<>();
         private boolean preserveTilePropertyTypes;
-        private final Set<Long> emittedTileMetadataDiagnostics = new HashSet<>();
+        private boolean insideList;
+        private TiledPropertyTypes types = TiledPropertyTypes.load(null);
         private int tileLayerCount;
         private long requiredTiledCells;
         private long nonEmptyTileCount;
@@ -1413,13 +1485,6 @@ public final class TmxPreflightService {
 
         private void warning(String code, String message, String location) {
             diagnostics.add(new TmxDiagnostic(TmxDiagnosticSeverity.WARNING, code, message, location));
-        }
-
-        private void emitTileMetadataDiagnostics(int firstGid, int localTileId) {
-            long key = tileMetadataKey(firstGid, localTileId);
-            if (!emittedTileMetadataDiagnostics.add(key)) return;
-            List<TmxDiagnostic> pending = pendingTileMetadataDiagnostics.get(key);
-            if (pending != null) diagnostics.addAll(pending);
         }
 
         private TmxPreflightReport toReport() {

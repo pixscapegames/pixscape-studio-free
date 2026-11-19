@@ -19,7 +19,8 @@ public record TsxTilesetDescriptor(String name,
                                    int columns,
                                    List<ImageCollectionTile> imageCollectionTiles,
                                    List<TileAnimation> tileAnimations,
-                                   java.util.Map<Integer, games.pixscape.runtime.property.PropertySet> tileProperties) {
+                                   java.util.Map<Integer, games.pixscape.runtime.property.PropertySet> tileProperties,
+                                   FileHandle tiledProject) {
 
     public TsxTilesetDescriptor {
         imageCollectionTiles = imageCollectionTiles == null

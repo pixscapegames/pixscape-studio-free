@@ -2,11 +2,8 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.ComponentMapper;
 import com.artemis.World;
-import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.CustomPropertiesComponent;
 import games.pixscape.runtime.property.PropertySet;
-import games.pixscape.runtime.property.PropertyType;
-import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager.SupportsNoop;
@@ -96,44 +93,6 @@ public final class EditCustomPropertiesCommand implements Command, SupportsNoop 
     }
 
     static boolean sameProperties(PropertySet first, PropertySet second) {
-        if (first.size() != second.size()) return false;
-        Array<String> names = new Array<String>();
-        first.copyNamesTo(names);
-        for (int i = 0; i < names.size; i++) {
-            String name = names.get(i);
-            PropertyType type = first.typeOf(name);
-            if (type != second.typeOf(name)) return false;
-            PropertyValue firstValue = first.valueCopy(name);
-            PropertyValue secondValue = second.valueCopy(name);
-            if (!sameValue(firstValue, secondValue)) return false;
-        }
-        return true;
-    }
-
-    private static boolean sameValue(PropertyValue first, PropertyValue second) {
-        if (first == null || second == null || first.type() != second.type()) return false;
-        switch (first.type()) {
-            case STRING:
-                return first.asString().equals(second.asString());
-            case BOOLEAN:
-                return first.asBoolean() == second.asBoolean();
-            case INTEGER:
-                return first.asInt() == second.asInt();
-            case FLOAT:
-                return Float.compare(first.asFloat(), second.asFloat()) == 0;
-            case COLOR:
-                return first.asColorRgba8888() == second.asColorRgba8888();
-            case OBJECT:
-                return first.asObjectStableId() == second.asObjectStableId();
-            case CLASS:
-                return first.className().equals(second.className())
-                        && sameProperties(first.classPropertiesCopy(), second.classPropertiesCopy());
-            case IMPORTED:
-                return first.asImported().typeName().equals(second.asImported().typeName())
-                        && first.asImported().customTypeName().equals(second.asImported().customTypeName())
-                        && first.asImported().sourceXml().equals(second.asImported().sourceXml());
-            default:
-                return false;
-        }
+        return first == second || (first != null && first.contentEquals(second));
     }
 }

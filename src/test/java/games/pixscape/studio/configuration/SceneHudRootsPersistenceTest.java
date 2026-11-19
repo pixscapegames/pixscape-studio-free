@@ -54,7 +54,7 @@ public class SceneHudRootsPersistenceTest {
                   "nextSceneIndex": 2,
                   "scenes": {
                     "Main": {
-                      "sceneSchemaVersion": 7,
+                      "sceneSchemaVersion": 8,
                       "name": "Main",
                       "file": "scene1.json",
                       "nextEntityStableId": 1,

@@ -4,7 +4,12 @@ import com.badlogic.gdx.files.FileHandle;
 
 public record TmxSceneImportRequest(FileHandle tmxFile,
                                     String requestedSceneName,
-                                    boolean packSceneAtlas) {
+                                    boolean packSceneAtlas,
+                                    FileHandle tiledProject) {
+
+    public TmxSceneImportRequest(FileHandle file, String name, boolean pack) {
+        this(file, name, pack, null);
+    }
 
     public TmxSceneImportRequest(FileHandle tmxFile) {
         this(tmxFile, null, true);

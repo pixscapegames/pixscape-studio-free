@@ -832,6 +832,10 @@ public class TopMenuBar extends MenuBar {
     }
 
     private void prepareTmxImport(FileHandle file) {
+        prepareTmxImport(file, null);
+    }
+
+    private void prepareTmxImport(FileHandle file, FileHandle tiledProject) {
         if (file == null || file.isDirectory() || !"tmx".equalsIgnoreCase(file.extension())) {
             Dialogs.showOKDialog(
                     app.getUiStage(),
@@ -842,7 +846,12 @@ public class TopMenuBar extends MenuBar {
         }
 
         try {
-            TmxImportUiSupport.TmxImportPreparation preparation = TmxImportUiSupport.prepare(file);
+            TmxImportUiSupport.TmxImportPreparation preparation = TmxImportUiSupport.prepare(file, tiledProject);
+            if (tiledProject == null && preparation.diagnostics().stream().anyMatch(d -> d.code().equals("TMX_PROJECT_REQUIRED"))) {
+                games.pixscape.studio.ui.importer.TiledProjectChooser.show(app.getUiStage(), file.parent(),
+                        project -> prepareTmxImport(file, project));
+                return;
+            }
             if (!preparation.planResult().hasPlan() || preparation.hasBlockingDiagnostics()) {
                 TmxImportMessageDialog.show(
                         app.getUiStage(),
@@ -854,7 +863,7 @@ public class TopMenuBar extends MenuBar {
 
             new TmxImportDialog(
                     preparation,
-                    sceneName -> importTmxAsNewScene(file, sceneName)
+                    sceneName -> importTmxAsNewScene(file, sceneName, tiledProject)
             ).show(app.getUiStage());
         } catch (RuntimeException ex) {
             Gdx.app.error("TopMenuBar", "TMX import preflight failed: " + file.path(), ex);
@@ -866,11 +875,11 @@ public class TopMenuBar extends MenuBar {
         }
     }
 
-    private void importTmxAsNewScene(FileHandle file, String sceneName) {
+    private void importTmxAsNewScene(FileHandle file, String sceneName, FileHandle tiledProject) {
         app.runAfterCurrentSceneSaveDecision(
                 "Unsaved Project",
                 "Do you want to save before importing the Tiled map?",
-                () -> startTmxImport(file, sceneName),
+                () -> startTmxImport(file, sceneName, tiledProject),
                 null,
                 failure -> Dialogs.showOKDialog(
                         app.getUiStage(),
@@ -880,11 +889,11 @@ public class TopMenuBar extends MenuBar {
         );
     }
 
-    private void startTmxImport(FileHandle file, String sceneName) {
+    private void startTmxImport(FileHandle file, String sceneName, FileHandle tiledProject) {
         try {
             sceneService.importTmxAsNewSceneWithProgress(
                     app.getUiStage(),
-                    new TmxSceneImportRequest(file, sceneName),
+                    new TmxSceneImportRequest(file, sceneName, true, tiledProject),
                     result -> showTmxImportResult(result),
                     failure -> showTmxImportFailure(file, failure)
             );

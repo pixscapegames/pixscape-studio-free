@@ -176,7 +176,11 @@ public class StandaloneCustomPropertiesRestorationTest {
 
     static PropertySet allTypes() {
         return new PropertySet().putString(" exact Name ", "Text")
-                .putBoolean("enabled", true).putInt("health", 42).putFloat("speed", 1.25f)
+                .putBoolean("enabled", true).putInt("health", 42).putFloat("speed", 16777217d)
+                .putList("items", com.badlogic.gdx.utils.Array.with(PropertyValue.ofObjectStableId(123),
+                        PropertyValue.ofList(com.badlogic.gdx.utils.Array.with(PropertyValue.ofFloat(0.1234567890123456)))))
+                .put("mode", PropertyValue.ofEnum(new games.pixscape.runtime.property.EnumDefinition(
+                        "Mode", games.pixscape.runtime.property.PropertyType.STRING, false, "A", "B"), "B"))
                 .putColorRgba8888("color", 0x12345678).putObjectStableId("self", 123)
                 .putObjectStableId("none", -1)
                 .putClass("nested", "Outer", new PropertySet().putClass("inner", "Inner",

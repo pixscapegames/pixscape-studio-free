@@ -72,6 +72,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
      */
     public static final class ImportItem {
         public FileHandle file;        // absolute OS path
+        public FileHandle tiledProject; // Explicit selection for this import only.
         public ImportType type;        // selected by the user
         public int tileWidth = 32;
         public int tileHeight = 32;
@@ -1925,7 +1926,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
     private String formatTsxTilesetSummary(ImportItem item) {
         if (item == null || item.file == null) return "TSX tile set";
         try {
-            TsxTilesetDescriptor descriptor = new TsxTilesetImportParser().parse(item.file);
+            TsxTilesetDescriptor descriptor = new TsxTilesetImportParser().parse(item.file, item.tiledProject);
             String imageName = descriptor.imageFile() != null ? descriptor.imageFile().name() : descriptor.imageSource();
             return "TSX tile set: "
                     + descriptor.tileWidth() + "x" + descriptor.tileHeight()
@@ -2063,7 +2064,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
                     FileHandle source = item.file;
                     String name = games.pixscape.studio.io.StudioFs.baseName(source.name());
                     if (item.type == ImportType.TILESET_TSX) {
-                        var descriptor = new TsxTilesetImportParser().parse(item.file);
+                        var descriptor = new TsxTilesetImportParser().parse(item.file, item.tiledProject);
                         name = descriptor.name();
                     }
                     final int next = index + 1;
@@ -2074,7 +2075,16 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
                                 reviewTilesetItems(next);
                             }).show(getStage());
                 } catch (RuntimeException failure) {
-                    setInlineError(ImportDialogApplySupport.userMessageFor(failure));
+                    if (item.tiledProject == null && failure.getMessage() != null
+                            && failure.getMessage().contains("TMX_PROJECT_REQUIRED")) {
+                        final int retry = index;
+                        games.pixscape.studio.ui.importer.TiledProjectChooser.show(getStage(), item.file.parent(), project -> {
+                            item.tiledProject = project;
+                            reviewTilesetItems(retry);
+                        });
+                    } else {
+                        setInlineError(ImportDialogApplySupport.userMessageFor(failure));
+                    }
                 }
                 return;
             }

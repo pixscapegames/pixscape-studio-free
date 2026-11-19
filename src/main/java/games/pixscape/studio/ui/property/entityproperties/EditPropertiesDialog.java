@@ -16,6 +16,7 @@ import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.property.PropertyValue;
+import games.pixscape.runtime.property.EnumDefinition;
 import games.pixscape.studio.ui.modal.StudioDialog;
 import games.pixscape.studio.ui.widget.ColorPickerField;
 
@@ -24,7 +25,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 /**
- * Copy-based generic editor for a {@link PropertySet}, including nested CLASS values.
+ * Copy-based generic editor for a {@link PropertySet}, including nested CLASS/LIST and enum values.
  */
 public final class EditPropertiesDialog extends StudioDialog {
 
@@ -32,6 +33,8 @@ public final class EditPropertiesDialog extends StudioDialog {
     private final Consumer<PropertySet> onApply;
     private final World world;
     private final boolean tileDefinition;
+    private final boolean listMode;
+    private final Consumer<Array<PropertyValue>> onListApply;
     private final Array<ObjectChoice> objectChoices = new Array<ObjectChoice>();
     private final Array<PropertyRow> rows = new Array<PropertyRow>();
     private final VisTable rowsTable = new VisTable(true);
@@ -52,7 +55,7 @@ public final class EditPropertiesDialog extends StudioDialog {
     }
 
     /**
-     * Tile definitions edit scalar/color values; imported references and classes stay intact.
+     * Tile definitions share the typed editor; OBJECT choices are limited to None.
      */
     public EditPropertiesDialog(String title, PropertySet source, Consumer<PropertySet> onApply, boolean tileDefinition) {
         this(title, source, null, onApply, tileDefinition);
@@ -60,7 +63,14 @@ public final class EditPropertiesDialog extends StudioDialog {
 
     private EditPropertiesDialog(String title, PropertySet source, World world,
                                  Consumer<PropertySet> onApply, boolean tileDefinition) {
+        this(title, source, world, onApply, tileDefinition, null, null);
+    }
+
+    private EditPropertiesDialog(String title, PropertySet source, World world, Consumer<PropertySet> onApply,
+                                 boolean tileDefinition, Array<PropertyValue> list, Consumer<Array<PropertyValue>> onListApply) {
         super(title);
+        this.listMode = list != null;
+        this.onListApply = onListApply;
         this.tileDefinition = tileDefinition;
         this.workingCopy = source != null ? source.copy() : new PropertySet();
         this.world = world;
@@ -72,11 +82,19 @@ public final class EditPropertiesDialog extends StudioDialog {
         setModal(true);
         closeOnEscape();
 
-        loadRows(workingCopy);
+        if (listMode) {
+            addButton.setText("+ Add item");
+            for (int i = 0; i < list.size; i++) {
+                PropertyValue value = list.get(i);
+                rows.add(new PropertyRow("[" + i + "]", value.type(), value));
+            }
+        } else {
+            loadRows(workingCopy);
+        }
         addButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                rows.add(new PropertyRow("", PropertyType.STRING, PropertyValue.ofString("")));
+                rows.add(new PropertyRow("", PropertyType.STRING, null));
                 refreshRows();
             }
         });
@@ -103,17 +121,17 @@ public final class EditPropertiesDialog extends StudioDialog {
     private void buildUi() {
         VisTable root = new VisTable(true);
         root.left().top();
-        root.add(new VisLabel("Name")).width(120).left();
+        root.add(new VisLabel(listMode ? "Index" : "Name")).width(120).left();
         root.add(new VisLabel("Type")).width(105).left();
         root.add(new VisLabel("Value")).width(260).left();
-        root.add().width(28).row();
+        root.add().width(listMode ? 110 : 28).row();
 
         VisScrollPane scroll = new VisScrollPane(rowsTable);
         scroll.setFadeScrollBars(false);
-        root.add(scroll).colspan(4).grow().minWidth(540).minHeight(220).row();
+        root.add(scroll).colspan(4).grow().minWidth(listMode ? 680 : 580).height(300).row();
         root.add(addButton).colspan(4).left().padTop(4).row();
         if (tileDefinition) {
-            VisLabel notice = new VisLabel("Imported file, object and custom types are preserved read-only.\nNo file loading, object resolution or class editing is performed here.");
+            VisLabel notice = new VisLabel("Tile definitions cannot reference scene entities. Preserved unsupported metadata is read-only.");
             root.add(notice).colspan(4).left().padTop(6).row();
         }
         validationLabel.setColor(1f, 0.4f, 0.4f, 1f);
@@ -127,12 +145,33 @@ public final class EditPropertiesDialog extends StudioDialog {
         rowsTable.defaults().left().pad(2);
         for (int i = 0; i < rows.size; i++) {
             PropertyRow row = rows.get(i);
+            if (listMode) {
+                row.nameField.setText("[" + i + "]");
+            }
             rowsTable.add(row.nameField).width(120).growX();
             rowsTable.add(row.typeBox).width(105).left();
             rowsTable.add(row.valueEditor()).width(260).growX();
-            rowsTable.add(row.removeButton)
-                    .size(row.removeButton.getPrefWidth(), row.removeButton.getPrefHeight())
-                    .right().top().pad(2).row();
+            VisTable actions = new VisTable(true);
+            if (listMode) {
+                actions.add(actionButton("+", () -> {
+                    rows.insert(rows.indexOf(row, true), new PropertyRow("", PropertyType.STRING, null));
+                    refreshRows();
+                }));
+                Button up = new Button(VisUI.getSkin(), "up");
+                Button down = new Button(VisUI.getSkin(), "down");
+                up.setName("property-list-up");
+                down.setName("property-list-down");
+                bindAction(up, () -> move(row, -1));
+                bindAction(down, () -> move(row, 1));
+                new Tooltip.Builder("Move item up").target(up).build();
+                new Tooltip.Builder("Move item down").target(down).build();
+                up.setDisabled(i == 0);
+                down.setDisabled(i == rows.size - 1);
+                actions.add(up);
+                actions.add(down);
+            }
+            actions.add(row.removeButton);
+            rowsTable.add(actions).right().top().pad(2).row();
         }
         rowsTable.invalidateHierarchy();
     }
@@ -153,43 +192,42 @@ public final class EditPropertiesDialog extends StudioDialog {
             PropertyRow row = rows.get(i);
             String name = row.nameField.getText();
             String path = propertyPath(parentPath, name);
-            PropertyType type = row.typeBox.getSelected();
-            if (row.readOnly) {
-                result.put(name, row.preservedValue);
-                continue;
-            }
-            switch (type) {
-                case STRING:
-                    result.putString(name, row.stringField.getText());
-                    break;
-                case BOOLEAN:
-                    result.putBoolean(name, row.booleanField.isChecked());
-                    break;
-                case INTEGER:
-                    result.putInt(name, PropertyAuthoringValidation.parseInteger(row.numberField.getText(), path));
-                    break;
-                case FLOAT:
-                    result.putFloat(name, PropertyAuthoringValidation.parseFloat(row.numberField.getText(), path));
-                    break;
-                case COLOR:
-                    result.putColorRgba8888(name, Color.rgba8888(row.colorValue));
-                    break;
-                case OBJECT:
-                    result.putObjectStableId(name, row.objectBox.getSelected().stableId);
-                    break;
-                case CLASS:
-                    String className = PropertyAuthoringValidation.requireClassName(
-                            row.classNameField.getText(), path);
-                    PropertySet members = row.classMembers != null ? row.classMembers.copy() : new PropertySet();
-                    members.validate();
-                    result.putClass(name, className, members);
-                    break;
-                default:
-                    throw PropertyAuthoringValidation.invalid(path, "unsupported property type.");
-            }
+            result.put(name, row.value(path));
         }
         result.validate();
         return result;
+    }
+
+    private static VisTextButton actionButton(String label, Runnable action) {
+        VisTextButton button = new VisTextButton(label);
+        bindAction(button, action);
+        return button;
+    }
+
+    private static void bindAction(Button button, Runnable action) {
+        button.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                action.run();
+            }
+        });
+    }
+
+    private void move(PropertyRow row, int delta) {
+        int index = rows.indexOf(row, true);
+        int destination = index + delta;
+        if (destination >= 0 && destination < rows.size) {
+            rows.swap(index, destination);
+            refreshRows();
+        }
+    }
+
+    private Array<PropertyValue> buildValidatedList() {
+        Array<PropertyValue> result = new Array<>(rows.size);
+        for (int i = 0; i < rows.size; i++) {
+            result.add(rows.get(i).value(getTitleLabel().getText() + "[" + i + "]"));
+        }
+        return PropertyValue.ofList(result).listValuesCopy();
     }
 
     private static String propertyPath(String parentPath, String name) {
@@ -232,10 +270,19 @@ public final class EditPropertiesDialog extends StudioDialog {
             return;
         }
         try {
-            PropertySet validated = buildValidatedPropertySet("");
-            workingCopy.copyFrom(validated);
+            if (listMode) {
+                Array<PropertyValue> validated = buildValidatedList();
+                if (onListApply != null) {
+                    onListApply.accept(validated);
+                }
+            } else {
+                PropertySet validated = buildValidatedPropertySet("");
+                workingCopy.copyFrom(validated);
+                if (onApply != null) {
+                    onApply.accept(validated.copy());
+                }
+            }
             validationLabel.setText("");
-            if (onApply != null) onApply.accept(validated.copy());
             super.result(object);
         } catch (IllegalArgumentException | IllegalStateException ex) {
             validationLabel.setText(ex.getMessage() != null ? ex.getMessage() : "Invalid property value.");
@@ -265,21 +312,28 @@ public final class EditPropertiesDialog extends StudioDialog {
         final VisSelectBox<ObjectChoice> objectBox = new VisSelectBox<ObjectChoice>();
         PropertySet classMembers = new PropertySet();
         private PropertyType displayedType;
+        private boolean selectingType;
+        private boolean authoredValue;
+        private Array<PropertyValue> listValues = new Array<>();
+        private PropertyValue enumValue;
+        private final VisTextButton editListButton = new VisTextButton("Edit…");
 
         PropertyRow(String name, PropertyType type, PropertyValue value) {
-            readOnly = type == PropertyType.IMPORTED || (tileDefinition && (type == PropertyType.CLASS || type == PropertyType.OBJECT));
+            authoredValue = value != null;
+            readOnly = type == PropertyType.IMPORTED;
             preservedValue = readOnly ? value.copy() : null;
             nameField = new VisTextField(name != null ? name : "");
-            if (readOnly) typeBox.setItems(type);
-            else if (tileDefinition)
-                typeBox.setItems(PropertyType.STRING, PropertyType.BOOLEAN, PropertyType.INTEGER, PropertyType.FLOAT, PropertyType.COLOR);
-            else
-                typeBox.setItems(PropertyType.STRING, PropertyType.BOOLEAN, PropertyType.INTEGER, PropertyType.FLOAT, PropertyType.COLOR, PropertyType.OBJECT, PropertyType.CLASS);
+            if (readOnly) {
+                typeBox.setItems(type);
+            } else {
+                typeBox.setItems(PropertyType.STRING, PropertyType.BOOLEAN, PropertyType.INTEGER, PropertyType.FLOAT,
+                        PropertyType.COLOR, PropertyType.OBJECT, PropertyType.CLASS, PropertyType.LIST, PropertyType.ENUM);
+            }
             typeBox.setSelected(type != null ? type : PropertyType.STRING);
             objectBox.setItems(objectChoices);
             loadValue(value);
             displayedType = typeBox.getSelected();
-            nameField.setDisabled(readOnly);
+            nameField.setDisabled(readOnly || listMode);
             typeBox.setDisabled(readOnly);
             removeButton.setDisabled(readOnly);
 
@@ -287,10 +341,30 @@ public final class EditPropertiesDialog extends StudioDialog {
                 @Override
                 public void changed(ChangeEvent event, Actor actor) {
                     PropertyType selected = typeBox.getSelected();
-                    if (selected != displayedType) {
-                        resetForType(selected);
-                        displayedType = selected;
-                        refreshRows();
+                    if (!selectingType && selected != displayedType) {
+                        selectingType = true;
+                        typeBox.setSelected(displayedType);
+                        selectingType = false;
+                        Runnable replace = () -> {
+                            if (selected == PropertyType.ENUM) {
+                                chooseEnumDefinition(definition -> {
+                                    PropertyValue candidate = definition.storageType() == PropertyType.STRING
+                                            ? PropertyValue.ofEnum(definition, definition.isFlags() ? "" : definition.choiceAt(0))
+                                            : PropertyValue.ofEnum(definition, 0);
+                                    resetForType(selected);
+                                    enumValue = candidate;
+                                    selectType(selected);
+                                });
+                            } else {
+                                resetForType(selected);
+                                selectType(selected);
+                            }
+                        };
+                        if (hasAuthoredValue()) {
+                            confirmTypeReplacement(replace);
+                        } else {
+                            replace.run();
+                        }
                     }
                 }
             });
@@ -299,6 +373,16 @@ public final class EditPropertiesDialog extends StudioDialog {
                 public void changed(ChangeEvent event, Actor actor) {
                     rows.removeValue(PropertyRow.this, true);
                     refreshRows();
+                }
+            });
+            editListButton.addListener(new ChangeListener() {
+                @Override
+                public void changed(ChangeEvent event, Actor actor) {
+                    new EditPropertiesDialog(nestedTitle(PropertyRow.this), null, world, null, tileDefinition,
+                            listValues, values -> {
+                                listValues = PropertyValue.ofList(values).listValuesCopy();
+                                refreshRows();
+                            }).show(getStage());
                 }
             });
             editClassButton.addListener(new ChangeListener() {
@@ -326,7 +410,7 @@ public final class EditPropertiesDialog extends StudioDialog {
                     numberField.setText(Integer.toString(value.asInt()));
                     break;
                 case FLOAT:
-                    numberField.setText(Float.toString(value.asFloat()));
+                    numberField.setText(Double.toString(value.asDouble()));
                     break;
                 case COLOR:
                     Color.rgba8888ToColor(colorValue, value.asColorRgba8888());
@@ -338,6 +422,12 @@ public final class EditPropertiesDialog extends StudioDialog {
                     // synthetic choice lazily, so refresh before selecting it.
                     objectBox.setItems(objectChoices);
                     objectBox.setSelected(choice);
+                    break;
+                case LIST:
+                    listValues = value.listValuesCopy();
+                    break;
+                case ENUM:
+                    enumValue = value.copy();
                     break;
                 case CLASS:
                     classNameField.setText(value.className());
@@ -357,6 +447,119 @@ public final class EditPropertiesDialog extends StudioDialog {
             objectBox.setSelected(objectChoice(-1));
             classNameField.setText("");
             classMembers = new PropertySet();
+            listValues = new Array<>();
+            enumValue = null;
+        }
+
+        private PropertyValue value(String path) {
+            if (readOnly) {
+                return preservedValue.copy();
+            }
+            return switch (displayedType) {
+                case STRING -> PropertyValue.ofString(stringField.getText());
+                case BOOLEAN -> PropertyValue.ofBoolean(booleanField.isChecked());
+                case INTEGER -> PropertyValue.ofInt(PropertyAuthoringValidation.parseInteger(numberField.getText(), path));
+                case FLOAT -> PropertyValue.ofFloat(PropertyAuthoringValidation.parseFloat(numberField.getText(), path));
+                case COLOR -> PropertyValue.ofColorRgba8888(Color.rgba8888(colorValue));
+                case OBJECT -> PropertyValue.ofObjectStableId(objectBox.getSelected().stableId);
+                case CLASS -> PropertyValue.ofClass(PropertyAuthoringValidation.requireClassName(classNameField.getText(), path), classMembers);
+                case LIST -> PropertyValue.ofList(listValues);
+                case ENUM -> {
+                    if (enumValue == null) {
+                        throw PropertyAuthoringValidation.invalid(path, "select an enum definition.");
+                    }
+                    yield enumValue.copy();
+                }
+                default -> throw PropertyAuthoringValidation.invalid(path, "unsupported property type.");
+            };
+        }
+
+        private boolean hasAuthoredValue() {
+            if (authoredValue) {
+                return true;
+            }
+            return switch (displayedType) {
+                case STRING -> !stringField.getText().isEmpty();
+                case BOOLEAN -> booleanField.isChecked();
+                case INTEGER, FLOAT -> !numberField.getText().matches("0(?:[.,]0+)?");
+                case OBJECT -> objectBox.getSelected().stableId != -1;
+                case CLASS -> !classMembers.isEmpty() || !classNameField.getText().isEmpty();
+                case LIST -> listValues.size > 0;
+                case ENUM -> enumValue != null;
+                default -> true;
+            };
+        }
+
+        private void selectType(PropertyType type) {
+            authoredValue = true;
+            selectingType = true;
+            displayedType = type;
+            typeBox.setSelected(type);
+            selectingType = false;
+            refreshRows();
+        }
+
+        private Actor enumEditor() {
+            if (enumValue == null) {
+                return new VisLabel("Select an enum definition");
+            }
+            var definition = enumValue.enumDefinitionCopy();
+            var view = enumValue.asEnum();
+            VisTable table = new VisTable(true);
+            table.add(new VisLabel(view.typeName())).left().row();
+            if (!view.isFlags()) {
+                VisSelectBox<String> choice = new VisSelectBox<>();
+                Array<String> names = new Array<>();
+                for (int i = 0; i < view.choiceCount(); i++) {
+                    names.add(view.choiceAt(i));
+                }
+                choice.setItems(names);
+                for (int i = 0; i < view.choiceCount(); i++) {
+                    if (view.isSelected(i)) {
+                        choice.setSelectedIndex(i);
+                    }
+                }
+                choice.addListener(new ChangeListener() {
+                    @Override
+                    public void changed(ChangeEvent event, Actor actor) {
+                        enumValue = definition.storageType() == PropertyType.STRING
+                                ? PropertyValue.ofEnum(definition, choice.getSelected())
+                                : PropertyValue.ofEnum(definition, choice.getSelectedIndex());
+                    }
+                });
+                table.add(choice).growX();
+            } else {
+                VisTable choices = new VisTable(true);
+                Array<VisCheckBox> boxes = new Array<>();
+                for (int i = 0; i < view.choiceCount(); i++) {
+                    VisCheckBox box = new VisCheckBox(view.choiceAt(i));
+                    box.setChecked(view.isSelected(i));
+                    boxes.add(box);
+                    choices.add(box).left().row();
+                    box.addListener(new ChangeListener() {
+                        @Override
+                        public void changed(ChangeEvent event, Actor actor) {
+                            int mask = 0;
+                            StringBuilder names = new StringBuilder();
+                            for (int j = 0; j < boxes.size; j++) {
+                                if (boxes.get(j).isChecked()) {
+                                    mask |= 1 << j;
+                                    if (names.length() > 0) {
+                                        names.append(',');
+                                    }
+                                    names.append(definition.choiceAt(j));
+                                }
+                            }
+                            enumValue = definition.storageType() == PropertyType.STRING
+                                    ? PropertyValue.ofEnum(definition, names.toString()) : PropertyValue.ofEnum(definition, mask);
+                        }
+                    });
+                }
+                VisScrollPane scroll = new VisScrollPane(choices);
+                scroll.setFadeScrollBars(false);
+                table.add(scroll).height(Math.min(120, Math.max(28, view.choiceCount() * 26))).growX();
+            }
+            return table;
         }
 
         private Actor valueEditor() {
@@ -383,6 +586,13 @@ public final class EditPropertiesDialog extends StudioDialog {
                     return colorField;
                 case OBJECT:
                     return objectBox;
+                case LIST:
+                    VisTable listEditor = new VisTable(true);
+                    listEditor.add(new VisLabel(listValues.size + " items")).growX().left();
+                    listEditor.add(editListButton);
+                    return listEditor;
+                case ENUM:
+                    return enumEditor();
                 case CLASS:
                     VisTable classEditor = new VisTable(true);
                     classEditor.add(classNameField).width(155).growX();
@@ -395,13 +605,66 @@ public final class EditPropertiesDialog extends StudioDialog {
     }
 
     private void openClassEditor(PropertyRow row) {
-        String name = row.nameField.getText();
-        String title = name == null || name.isEmpty() ? "Edit Class Properties" : "Edit " + name;
-        EditPropertiesDialog nested = new EditPropertiesDialog(title, row.classMembers, world, members -> {
+        EditPropertiesDialog nested = new EditPropertiesDialog(nestedTitle(row), row.classMembers, world, members -> {
             row.classMembers = members.copy();
             validationLabel.setText("");
-        });
+        }, tileDefinition);
         nested.show(getStage());
+    }
+
+    private String nestedTitle(PropertyRow row) {
+        return getTitleLabel().getText() + " / " + row.nameField.getText();
+    }
+
+    private void confirmTypeReplacement(Runnable replace) {
+        StudioDialog dialog = new StudioDialog("Change property type") {
+            @Override
+            protected void result(Object result) {
+                if (Boolean.TRUE.equals(result)) {
+                    replace.run();
+                }
+            }
+        };
+        dialog.text("Replace this value with a different type? The current value will be discarded.");
+        dialog.button("Cancel", false).button("OK", true);
+        dialog.closeOnEscape();
+        dialog.show(getStage());
+    }
+
+    private void chooseEnumDefinition(Consumer<EnumDefinition> selected) {
+        games.pixscape.studio.ui.importer.TiledProjectChooser.show(getStage(), null, file -> {
+            try {
+                var definitions = games.pixscape.studio.importer.tmx.TiledPropertyTypes.load(file).enums();
+                if (definitions.isEmpty()) {
+                    throw new IllegalArgumentException("This project defines no enums.");
+                }
+                VisSelectBox<String> types = new VisSelectBox<>();
+                Array<String> names = new Array<>();
+                for (var definition : definitions) {
+                    names.add(definition.name());
+                }
+                types.setItems(names);
+                StudioDialog dialog = new StudioDialog("Choose enum type") {
+                    @Override
+                    protected void result(Object result) {
+                        if (Boolean.TRUE.equals(result)) {
+                            try {
+                                selected.accept(definitions.get(types.getSelectedIndex()));
+                            }
+                            catch (RuntimeException ex) {
+                                validationLabel.setText(ex.getMessage());
+                            }
+                        }
+                    }
+                };
+                dialog.getContentTable().add(types).width(280);
+                dialog.button("Cancel", false).button("OK", true);
+                dialog.closeOnEscape();
+                dialog.show(getStage());
+            } catch (RuntimeException ex) {
+                validationLabel.setText(ex.getMessage());
+            }
+        });
     }
 
     private static final class ObjectChoice {

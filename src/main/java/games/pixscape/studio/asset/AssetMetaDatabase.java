@@ -10,7 +10,7 @@ import java.util.Objects;
 
 public final class AssetMetaDatabase implements Json.Serializable {
 
-    public static final int CURRENT_VERSION = 3;
+    public static final int CURRENT_VERSION = 4;
 
     private int version = CURRENT_VERSION;
     private int nextId = 1;
@@ -542,7 +542,10 @@ public final class AssetMetaDatabase implements Json.Serializable {
 
     @Override
     public void read(Json json, JsonValue jsonData) {
-        version = Math.max(jsonData.getInt("version", CURRENT_VERSION), 1);
+        version = jsonData.getInt("version", -1);
+        if (version != CURRENT_VERSION) {
+            throw new IllegalArgumentException("Asset metadata requires version " + CURRENT_VERSION + ", found " + version + ".");
+        }
         nextId = jsonData.getInt("nextId", 1);
         assets.clear();
 

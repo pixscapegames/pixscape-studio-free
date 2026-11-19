@@ -330,7 +330,7 @@ public class TmxObjectLayerPreflightTest {
     }
 
     @Test
-    public void customEnumMetadataIsRejectedWithoutPrimitiveCoercion() throws Exception {
+    public void customEnumMetadataRequiresAnExplicitProjectWithoutPrimitiveCoercion() throws Exception {
         Path dir = Files.createTempDirectory("tmx-custom-enum-properties");
         FileHandle tmx = writeMap(dir, """
                 <objectgroup name="Gameplay"><object id="1"><properties>
@@ -342,7 +342,7 @@ public class TmxObjectLayerPreflightTest {
         TmxPreflightReport report = analyze(tmx);
 
         assertTrue(report.hasBlockingDiagnostics());
-        assertEquals(2, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
+        assertEquals(2, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROJECT_REQUIRED"));
         assertTrue(report.diagnostics().stream().anyMatch(d -> d.location().contains("direction")
                 && d.message().contains("Direction")));
         assertTrue(report.diagnostics().stream().anyMatch(d -> d.location().contains("flags")
@@ -407,7 +407,7 @@ public class TmxObjectLayerPreflightTest {
                       <property name="badFloat" type="float" value="many"/>
                       <property name="nan" type="float" value="NaN"/>
                       <property name="infinity" type="float" value="Infinity"/>
-                      <property name="overflowFloat" type="float" value="1e100"/>
+                      <property name="overflowFloat" type="float" value="1e309"/>
                       <property name="color" type="color" value="#fff"/>
                       <property name="emptyColor" type="color" value=""/>
                       <property name="file" type="file" value="asset.png"/>
@@ -427,12 +427,13 @@ public class TmxObjectLayerPreflightTest {
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_NAME_DUPLICATE"));
         assertEquals(3, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_NAME_INVALID"));
         assertEquals(9, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_VALUE_INVALID"));
-        assertEquals(4, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
+        assertEquals(2, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
+        assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROJECT_REQUIRED"));
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING,
                 "TMX_OBJECT_REFERENCE_UNRESOLVED"));
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_CLASS_PROPERTY_TYPE_INVALID"));
         assertTrue(report.diagnostics().stream()
-                .anyMatch(d -> d.location().contains("property 'overflowFloat'") && d.message().contains("finite Java float")));
+                .anyMatch(d -> d.location().contains("property 'overflowFloat'") && d.message().contains("finite double")));
     }
 
     @Test
@@ -456,7 +457,7 @@ public class TmxObjectLayerPreflightTest {
 
         assertTrue(report.hasBlockingDiagnostics());
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_NAME_DUPLICATE"));
-        assertEquals(2, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
+        assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING,
                 "TMX_OBJECT_REFERENCE_UNRESOLVED"));
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_CLASS_PROPERTY_TYPE_INVALID"));
@@ -649,8 +650,8 @@ public class TmxObjectLayerPreflightTest {
         assertEquals(1, layer.objectPropertyReferences().size());
         TmxObjectInfo source = layer.objects().get(0);
         assertEquals(3, source.objectPropertyReferences().size());
-        assertFalse(source.properties().contains("target"));
-        assertTrue(source.properties().getClassValue("behavior").properties().isEmpty());
+        assertEquals(2002, source.properties().getObjectStableId("target", -1));
+        assertEquals(1001, source.properties().getClassValue("behavior").properties().getObjectStableId("self", -1));
         assertEquals(2002, source.objectPropertyReferences().get(0).sourceObjectId());
         assertEquals(0, source.objectPropertyReferences().get(1).sourceObjectId());
         assertEquals(java.util.List.of("behavior", "self"),

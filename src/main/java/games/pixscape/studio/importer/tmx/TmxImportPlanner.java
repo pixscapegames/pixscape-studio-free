@@ -1,8 +1,6 @@
 package games.pixscape.studio.importer.tmx;
 
 import com.badlogic.gdx.files.FileHandle;
-import games.pixscape.runtime.api.ClassProperty;
-import games.pixscape.runtime.api.CustomProperties;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.tiled.TiledProjection;
@@ -26,7 +24,7 @@ public final class TmxImportPlanner {
             throw new IllegalArgumentException("request is null");
         }
 
-        TmxPreflightReport report = preflightService.analyze(new TmxPreflightRequest(request.tmxFile()));
+        TmxPreflightReport report = preflightService.analyze(new TmxPreflightRequest(request.tmxFile(), request.tiledProject()));
         if (report.hasBlockingDiagnostics()) {
             return new TmxImportPlanResult(TmxImportPlanStatus.PREFLIGHT_FAILED, report, null);
         }
@@ -331,215 +329,28 @@ public final class TmxImportPlanner {
         return value != null && !value.trim().isEmpty();
     }
 
-    private static PropertySet effectiveProperties(TmxObjectInfo object,
-                                                   TmxTileDefinitionPlan tile) {
-        if (tile == null) return object.propertiesForPlanning();
-        return mergeProperties(
-                reader(tile.properties()), tile.propertyPaths(),
-                reader(object.propertiesForPlanning()), object.propertyPaths(),
-                List.of());
+    private static PropertySet effectiveProperties(TmxObjectInfo object, TmxTileDefinitionPlan tile) {
+        return tile == null ? object.propertiesForPlanning()
+                : mergeProperties(tile.properties(), object.propertiesForPlanning());
     }
 
-    private static PropertySet mergeProperties(PropertyReader base,
-                                               List<List<String>> basePaths,
-                                               PropertyReader override,
-                                               List<List<String>> overridePaths,
-                                               List<String> prefix) {
-        LinkedHashSet<String> names = directNames(basePaths, prefix);
-        names.addAll(directNames(overridePaths, prefix));
-        PropertySet merged = new PropertySet(names.size());
+    private static PropertySet mergeProperties(PropertySet base, PropertySet overrides) {
+        PropertySet result = base.copy();
+        com.badlogic.gdx.utils.Array<String> names = new com.badlogic.gdx.utils.Array<>();
+        overrides.copyNamesTo(names);
         for (String name : names) {
-            boolean overridden = hasDirectPath(overridePaths, prefix, name);
-            if (!overridden) {
-                copyProperty(base, merged, name, basePaths, prefix);
-                continue;
-            }
-
-            PropertyType overrideType = override.typeOf(name);
-            PropertyType baseType = base.typeOf(name);
-            if (overrideType == PropertyType.CLASS && baseType == PropertyType.CLASS) {
-                ClassProperty baseClass = base.getClassValue(name);
-                ClassProperty overrideClass = override.getClassValue(name);
-                if (baseClass.typeName().equals(overrideClass.typeName())) {
-                    PropertySet members = mergeProperties(
-                            reader(baseClass.properties()), basePaths,
-                            reader(overrideClass.properties()), overridePaths,
-                            appendPath(prefix, name));
-                    merged.putClass(name, overrideClass.typeName(), members);
-                    continue;
-                }
-            }
-            copyProperty(override, merged, name, overridePaths, prefix);
-        }
-        return merged;
-    }
-
-    private static LinkedHashSet<String> directNames(List<List<String>> paths, List<String> prefix) {
-        LinkedHashSet<String> names = new LinkedHashSet<>();
-        for (List<String> path : paths) {
-            if (path.size() > prefix.size() && startsWith(path, prefix)) {
-                names.add(path.get(prefix.size()));
+            var value = overrides.valueCopy(name);
+            var previous = base.valueCopy(name);
+            if (value.type() == PropertyType.CLASS && previous != null && previous.type() == PropertyType.CLASS
+                    && value.className().equals(previous.className())) {
+                result.putClass(name, value.className(), mergeProperties(
+                        previous.classPropertiesCopy(), value.classPropertiesCopy()));
+            } else {
+                // Lists replace the entire inherited value, including an explicit empty list.
+                result.put(name, value);
             }
         }
-        return names;
-    }
-
-    private static boolean hasDirectPath(List<List<String>> paths, List<String> prefix, String name) {
-        for (List<String> path : paths) {
-            if (path.size() == prefix.size() + 1
-                    && startsWith(path, prefix)
-                    && name.equals(path.get(prefix.size()))) return true;
-        }
-        return false;
-    }
-
-    private static boolean startsWith(List<String> path, List<String> prefix) {
-        for (int i = 0; i < prefix.size(); i++) {
-            if (!prefix.get(i).equals(path.get(i))) return false;
-        }
-        return true;
-    }
-
-    private static List<String> appendPath(List<String> prefix, String name) {
-        List<String> path = new ArrayList<>(prefix.size() + 1);
-        path.addAll(prefix);
-        path.add(name);
-        return path;
-    }
-
-    private static void copyProperty(PropertyReader source,
-                                     PropertySet target,
-                                     String name,
-                                     List<List<String>> paths,
-                                     List<String> prefix) {
-        PropertyType type = source.typeOf(name);
-        if (type == null) return;
-        switch (type) {
-            case STRING -> target.putString(name, source.getString(name, ""));
-            case BOOLEAN -> target.putBoolean(name, source.getBoolean(name, false));
-            case INTEGER -> target.putInt(name, source.getInt(name, 0));
-            case FLOAT -> target.putFloat(name, source.getFloat(name, 0f));
-            case COLOR -> target.putColorRgba8888(name, source.getColorRgba8888(name, 0));
-            case OBJECT -> target.putObjectStableId(name, source.getObjectStableId(name, -1));
-            case CLASS -> {
-                ClassProperty value = source.getClassValue(name);
-                PropertySet members = mergeProperties(
-                        reader(value.properties()), paths,
-                        reader(new PropertySet(0)), List.of(),
-                        appendPath(prefix, name));
-                target.putClass(name, value.typeName(), members);
-            }
-        }
-    }
-
-    private static PropertyReader reader(PropertySet properties) {
-        return new PropertySetReader(properties);
-    }
-
-    private static PropertyReader reader(CustomProperties properties) {
-        return new CustomPropertiesReader(properties);
-    }
-
-    private interface PropertyReader {
-        PropertyType typeOf(String name);
-
-        String getString(String name, String fallback);
-
-        boolean getBoolean(String name, boolean fallback);
-
-        int getInt(String name, int fallback);
-
-        float getFloat(String name, float fallback);
-
-        int getColorRgba8888(String name, int fallback);
-
-        int getObjectStableId(String name, int fallback);
-
-        ClassProperty getClassValue(String name);
-    }
-
-    private record PropertySetReader(PropertySet properties) implements PropertyReader {
-        @Override
-        public PropertyType typeOf(String name) {
-            return properties.typeOf(name);
-        }
-
-        @Override
-        public String getString(String name, String fallback) {
-            return properties.getString(name, fallback);
-        }
-
-        @Override
-        public boolean getBoolean(String name, boolean fallback) {
-            return properties.getBoolean(name, fallback);
-        }
-
-        @Override
-        public int getInt(String name, int fallback) {
-            return properties.getInt(name, fallback);
-        }
-
-        @Override
-        public float getFloat(String name, float fallback) {
-            return properties.getFloat(name, fallback);
-        }
-
-        @Override
-        public int getColorRgba8888(String name, int fallback) {
-            return properties.getColorRgba8888(name, fallback);
-        }
-
-        @Override
-        public int getObjectStableId(String name, int fallback) {
-            return properties.getObjectStableId(name, fallback);
-        }
-
-        @Override
-        public ClassProperty getClassValue(String name) {
-            return properties.getClassValue(name);
-        }
-    }
-
-    private record CustomPropertiesReader(CustomProperties properties) implements PropertyReader {
-        @Override
-        public PropertyType typeOf(String name) {
-            return properties.typeOf(name);
-        }
-
-        @Override
-        public String getString(String name, String fallback) {
-            return properties.getString(name, fallback);
-        }
-
-        @Override
-        public boolean getBoolean(String name, boolean fallback) {
-            return properties.getBoolean(name, fallback);
-        }
-
-        @Override
-        public int getInt(String name, int fallback) {
-            return properties.getInt(name, fallback);
-        }
-
-        @Override
-        public float getFloat(String name, float fallback) {
-            return properties.getFloat(name, fallback);
-        }
-
-        @Override
-        public int getColorRgba8888(String name, int fallback) {
-            return properties.getColorRgba8888(name, fallback);
-        }
-
-        @Override
-        public int getObjectStableId(String name, int fallback) {
-            return properties.getObjectStableId(name, fallback);
-        }
-
-        @Override
-        public ClassProperty getClassValue(String name) {
-            return properties.getClassValue(name);
-        }
+        return result;
     }
 
     private TmxImageLayerPlan buildImageLayerPlan(int sourceLayerIndex,

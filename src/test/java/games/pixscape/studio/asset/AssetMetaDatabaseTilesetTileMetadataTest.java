@@ -12,6 +12,13 @@ import static org.junit.Assert.*;
 public class AssetMetaDatabaseTilesetTileMetadataTest {
 
     @Test
+    public void rejectsPreviousCatalogFormatsWithoutMigration() {
+        for (String json : new String[]{"{version:3,nextId:1,assets:[]}", "{nextId:1,assets:[]}"}) {
+            org.junit.Assert.assertThrows(RuntimeException.class, () -> AssetMetaDatabase.fromSnapshotJson(json));
+        }
+    }
+
+    @Test
     public void tilesetAnchorWireNamesIncludeTopCenter() {
         assertEquals("top-center", TilesetAnchor.TOP_CENTER.wireName());
         assertSame(TilesetAnchor.TOP_CENTER, TilesetAnchor.fromWireName("top-center"));
@@ -137,7 +144,7 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
         db.save(new FileHandle(tmp.toFile()));
 
         String assetsJson = Files.readString(tmp);
-        assertTrue(assetsJson.contains("\"version\": 3"));
+        assertTrue(assetsJson.contains("\"version\": 4"));
         assertTrue(assetsJson.contains("\"referenceCellWidth\": 64"));
         assertTrue(assetsJson.contains("\"referenceCellHeight\": 36"));
         assertTrue(assetsJson.contains("\"projection\": \"isometric\""));
@@ -148,11 +155,11 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
     }
 
     @Test
-    public void load_oldTilesetMetadataDefaultsProfileFields() throws Exception {
+    public void load_currentTilesetMetadataDefaultsOptionalProfileFields() throws Exception {
         Path tmp = Files.createTempFile("asset-meta-db-old", ".json");
         Files.writeString(tmp, """
                 {
-                  "version": 2,
+                  "version": 4,
                   "nextId": 2,
                   "assets": [
                     {
@@ -191,7 +198,7 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
         Path tmp = Files.createTempFile("asset-meta-db-invalid-profile", ".json");
         Files.writeString(tmp, """
                 {
-                  "version": 3,
+                  "version": 4,
                   "nextId": 2,
                   "assets": [
                     {
@@ -231,7 +238,7 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
         Path tmp = Files.createTempFile("asset-meta-db-bottom-center-profile", ".json");
         Files.writeString(tmp, """
                 {
-                  "version": 3,
+                  "version": 4,
                   "nextId": 2,
                   "assets": [
                     {

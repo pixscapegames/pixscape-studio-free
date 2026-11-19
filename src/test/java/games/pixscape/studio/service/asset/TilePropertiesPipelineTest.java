@@ -47,9 +47,13 @@ public class TilePropertiesPipelineTest {
                       <property name="solid" type="bool" value="false"/>
                       <property name="cost" type="int" value="3"/>
                       <property name="speed" type="float" value="0.5"/>
+                      <property name="items" type="list"><item type="float" value="16777217"/>
+                        <item type="list"><item type="string" propertytype="Terrain" value="water"/></item>
+                        <item value="007"/>
+                      </property>
                       <property name="tint" type="color" value="#80123456"/>
                       <property name="file" type="file" value="../scripts/water.lua"/>
-                      <property name="object" type="object" value="12"/>
+                      <property name="object" type="object" value="0"/>
                       <property name="enum" type="string" propertytype="Terrain" value="water"/>
                       <property name="custom" type="class" propertytype="Stats"><properties>
                         <property name="health" type="int" value="20"/>
@@ -60,7 +64,9 @@ public class TilePropertiesPipelineTest {
                   </tile>
                 </tileset>
                 """, false);
-        TsxTilesetDescriptor descriptor = new TsxTilesetImportParser().parse(tsx);
+        FileHandle project = source.child("types.tiled-project");
+        project.writeString("{propertyTypes:[{id:1,name:Terrain,type:enum,storageType:string,values:[water]}]}", false);
+        TsxTilesetDescriptor descriptor = new TsxTilesetImportParser().parse(tsx, project);
         assertImported(descriptor.tileProperties().get(7));
         FileHandle tmx = source.child("map.tmx");
         tmx.writeString("""
@@ -69,7 +75,7 @@ public class TilePropertiesPipelineTest {
                   <layer name="Ground" width="2" height="1"><data encoding="csv">8,8</data></layer>
                 </map>
                 """, false);
-        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx, project));
         assertFalse(report.diagnostics().toString(), report.hasBlockingDiagnostics());
         assertEquals(2, report.nonEmptyTileCount());
         assertImported(report.tilesets().get(0).tileDefinitions().get(1).properties());
@@ -146,9 +152,25 @@ public class TilePropertiesPipelineTest {
         assertEquals(0.5f, loaded.properties().getFloat("speed", 0), 0);
         assertFalse(loaded.properties().getBoolean("solid", true));
         assertEquals(0x12345680, loaded.properties().getColorRgba8888("tint", 0));
-        assertEquals(original.getImportedValue("object").sourceXml(), loaded.properties().getImportedValue("object").sourceXml());
-        assertEquals("Terrain", loaded.properties().getImportedValue("enum").customTypeName());
+        assertEquals(-1, loaded.properties().getObjectStableId("object", 0));
+        assertEquals("Terrain", loaded.properties().getEnumValue("enum").typeName());
         assertEquals(20, loaded.properties().getClassValue("custom").properties().getInt("health", 0));
+        assertEquals(16777217d, loaded.properties().getListValue("items").getDouble(0), 0);
+        assertEquals("water", loaded.properties().getListValue("items").getListValue(1).getEnumValue(0).stringValue());
+        assertEquals("007", loaded.properties().getListValue("items").getString(2));
+        var exportedJson = new com.badlogic.gdx.utils.JsonReader().parse(destination.child(RuntimeExport.RUNTIME_DIR_NAME)
+                .child("tileset-profiles.json"));
+        boolean foundList = false;
+        for (var profile : exportedJson.get("tilesets")) {
+            for (var definition : profile.get("tiles")) {
+                var values = definition.get("properties").get("values");
+                if (values != null && values.has("items")) {
+                    assertTrue(values.get("items").get("listValues").get(2).get("stringValue").isString());
+                    foundList = true;
+                }
+            }
+        }
+        assertTrue(foundList);
         assertEquals("Other", profiles.tile(second.tilesetAssetId(), 7).properties().getString("label", ""));
         assertNull(profiles.tile(first.tilesetAssetId(), 0));
     }
@@ -160,7 +182,8 @@ public class TilePropertiesPipelineTest {
         assertEquals(0.5f, properties.getFloat("speed", 0), 0);
         assertEquals(PropertyType.IMPORTED, properties.typeOf("file"));
         assertEquals("file", properties.getImportedValue("file").typeName());
-        assertEquals("object", properties.getImportedValue("object").typeName());
-        assertEquals("Terrain", properties.getImportedValue("enum").customTypeName());
+        assertEquals(-1, properties.getObjectStableId("object", 0));
+        assertEquals("Terrain", properties.getEnumValue("enum").typeName());
+        assertEquals("water", properties.getEnumValue("enum").stringValue());
     }
 }

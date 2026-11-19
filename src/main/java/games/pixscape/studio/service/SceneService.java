@@ -3651,7 +3651,7 @@ public final class SceneService {
 
     private int importTsxTilesetAsset(AssetImportContext ctx, ImportDialog.ImportItem item) {
         var plan = item.tilesetPlan != null ? item.tilesetPlan
-                : new TilesetReimportService(assetMetaDatabase).prepareTsx(item.file, ctx.tilesRoot, -1, tilesetUsageProof());
+                : new TilesetReimportService(assetMetaDatabase).prepareTsx(item.file, ctx.tilesRoot, -1, tilesetUsageProof(), item.tiledProject);
         return applyTilesetImportPlan(plan).importedCount();
     }
 
@@ -3710,7 +3710,7 @@ public final class SceneService {
     public TilesetReimportService.Plan prepareTilesetAtlasImport(ImportDialog.ImportItem item, int targetId) {
         FileHandle tiles = StudioFs.requireStudioProjectDir(ProjectConfig.getInstance()).child(StudioFs.DIR_ORIG_TILES);
         if (item.type == ImportDialog.ImportType.TILESET_TSX)
-            return new TilesetReimportService(assetMetaDatabase).prepareTsx(item.file, tiles, targetId, tilesetUsageProof());
+            return new TilesetReimportService(assetMetaDatabase).prepareTsx(item.file, tiles, targetId, tilesetUsageProof(), item.tiledProject);
         var request = tilesetAtlasImportRequestForManualImport(item, tiles);
         return new TilesetReimportService(assetMetaDatabase).prepareAtlas(request, targetId, tilesetUsageProof());
     }
@@ -3831,7 +3831,7 @@ public final class SceneService {
     private TilesetImportResult applyTilesetImportPlan(TilesetReimportService.Plan plan, TilesetImportInputs inputs,
                                                        java.util.function.Consumer<String> progress, java.util.function.Consumer<Runnable> onUi) {
         var importer = new TilesetReimportService(assetMetaDatabase);
-        var fresh = plan.tsx() != null ? importer.prepareTsx(plan.source(), plan.tilesRoot(), plan.targetId(), inputs.usage())
+        var fresh = plan.tsx() != null ? importer.prepareTsx(plan.source(), plan.tilesRoot(), plan.targetId(), inputs.usage(), plan.tsx().tiledProject())
                 : plan.grid() == null
                 ? importer.prepareDirectory(new TilesetDirectoryImportRequest(plan.source(), plan.tilesRoot(), plan.settings()),
                 plan.targetId(), inputs.usage())

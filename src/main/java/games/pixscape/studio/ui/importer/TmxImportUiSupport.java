@@ -13,7 +13,11 @@ public final class TmxImportUiSupport {
     }
 
     public static TmxImportPreparation prepare(FileHandle tmxFile) {
-        TmxImportPlanResult result = new TmxImportPlanner().plan(new TmxImportPlanRequest(tmxFile));
+        return prepare(tmxFile, null);
+    }
+
+    public static TmxImportPreparation prepare(FileHandle tmxFile, FileHandle tiledProject) {
+        TmxImportPlanResult result = new TmxImportPlanner().plan(new TmxImportPlanRequest(tmxFile, tiledProject));
         return new TmxImportPreparation(tmxFile, result);
     }
 

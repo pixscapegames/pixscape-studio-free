@@ -38,7 +38,7 @@ public class PropertyAuthoringValidationTest {
         assertInvalid(() -> PropertyAuthoringValidation.parseFloat("NaN", "speed"));
         assertInvalid(() -> PropertyAuthoringValidation.parseFloat("Infinity", "speed"));
         assertInvalid(() -> PropertyAuthoringValidation.parseFloat("-Infinity", "speed"));
-        assertInvalid(() -> PropertyAuthoringValidation.parseFloat("3.5e39", "speed"));
+        assertInvalid(() -> PropertyAuthoringValidation.parseFloat("1e309", "speed"));
     }
 
     @Test

@@ -55,7 +55,7 @@ public class AnimationAssetClipsPersistenceTest {
     public void loadAnimationAssetWithoutClips_initializesEmptyClipsMap() throws Exception {
         String json = """
                 {
-                version: 2,
+                version: 4,
                 nextId: 2,
                 assets: [
                 { id: 1, type: "animation", logicalPath: "animations/hero", sourceRelPath: "orig/animations/hero__a1", scope: "USER", frameCount: 3, fps: 12 }

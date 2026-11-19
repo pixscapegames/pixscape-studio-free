@@ -7,8 +7,6 @@ import com.badlogic.gdx.math.MathUtils;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.property.PropertySet;
-import games.pixscape.runtime.property.PropertyType;
-import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.tiled.TiledProjection;
@@ -105,7 +103,7 @@ public final class TmxSceneImportService {
     }
 
     TmxImportPlanResult plan(TmxSceneImportRequest request) {
-        return planner.plan(new TmxImportPlanRequest(request.tmxFile()));
+        return planner.plan(new TmxImportPlanRequest(request.tmxFile(), request.tiledProject()));
     }
 
     TmxSceneImportResult validateBeforeMutation(TmxImportPlanResult planResult) {
@@ -290,7 +288,7 @@ public final class TmxSceneImportService {
         int order = 0;
         Map<Integer, Integer> stableIdsBySourceObjectId = new HashMap<>();
         List<PendingObjectProperties> pendingProperties = new ArrayList<>();
-        pendingProperties.add(new PendingObjectProperties(map, scene.properties(), scene.objectPropertyReferences()));
+        pendingProperties.add(new PendingObjectProperties(map, scene.properties()));
         for (TmxLayerPlan layerPlan : plan.layers()) {
             int layer;
             TiledMapLayerComponent.Kind kind;
@@ -334,7 +332,7 @@ public final class TmxSceneImportService {
                 throw new IllegalArgumentException("Unsupported Tiled layer plan.");
             }
             pendingProperties.add(new PendingObjectProperties(layer,
-                    layerPlan.properties(), layerPlan.objectPropertyReferences()));
+                    layerPlan.properties()));
             identityRegistry.setName(layer, layerPlan.name());
             world.getMapper(VisibilityComponent.class).create(layer).visible = visible;
             LayerParallaxComponent parallax = world.getMapper(LayerParallaxComponent.class).create(layer);
@@ -421,7 +419,7 @@ public final class TmxSceneImportService {
                         world.getMapper(PixscapeIdentityComponent.class).get(objectEntity).stableId);
             }
             pendingProperties.add(new PendingObjectProperties(objectEntity,
-                    object.properties(), object.objectPropertyReferences()));
+                    object.properties()));
         }
     }
 
@@ -707,55 +705,31 @@ public final class TmxSceneImportService {
                                                  Map<Integer, Integer> stableIdsBySourceObjectId) {
         for (PendingObjectProperties pending : pendingProperties) {
             PropertySet properties = finalizeObjectProperties(
-                    pending.properties(), pending.references(), stableIdsBySourceObjectId);
+                    pending.properties(), stableIdsBySourceObjectId);
             copyCustomProperties(world, pending.entityId(), properties);
         }
     }
 
     static PropertySet finalizeObjectProperties(PropertySet base,
-                                                List<TmxObjectPropertyReference> references,
                                                 Map<Integer, Integer> stableIdsBySourceObjectId) {
-        PropertySet result = base != null ? base.copy() : new PropertySet();
-        for (TmxObjectPropertyReference reference : references) {
-            int stableId = reference.sourceObjectId() == 0 ? -1
-                    : requiredStableId(reference, stableIdsBySourceObjectId);
-            putObjectReferenceAtPath(result, reference.path(), 0, stableId);
+        if (base == null) {
+            return new PropertySet();
         }
-        return result;
-    }
-
-    private static int requiredStableId(TmxObjectPropertyReference reference,
-                                        Map<Integer, Integer> stableIdsBySourceObjectId) {
-        Integer stableId = stableIdsBySourceObjectId.get(reference.sourceObjectId());
-        if (stableId == null || stableId <= 0) {
-            throw new IllegalStateException("Unable to resolve Tiled object reference #"
-                    + reference.sourceObjectId() + " at " + reference.location());
-        }
-        return stableId;
-    }
-
-    private static void putObjectReferenceAtPath(PropertySet properties,
-                                                 List<String> path,
-                                                 int index,
-                                                 int stableId) {
-        String name = path.get(index);
-        if (index == path.size() - 1) {
-            properties.putObjectStableId(name, stableId);
-            return;
-        }
-        PropertyValue value = properties.valueCopy(name);
-        if (value == null || value.type() != PropertyType.CLASS) {
-            throw new IllegalStateException("OBJECT property path does not resolve through CLASS: "
-                    + String.join(".", path));
-        }
-        PropertySet members = value.classPropertiesCopy();
-        putObjectReferenceAtPath(members, path, index + 1, stableId);
-        properties.putClass(name, value.className(), members);
+        // OBJECT values are still in their explicit source-map domain until this publication barrier.
+        return base.remapObjectReferences(sourceId -> {
+            if (sourceId == -1) {
+                return -1;
+            }
+            Integer stableId = stableIdsBySourceObjectId.get(sourceId);
+            if (stableId == null || stableId <= 0) {
+                throw new IllegalStateException("Unable to resolve Tiled object reference #" + sourceId);
+            }
+            return stableId;
+        });
     }
 
     private record PendingObjectProperties(int entityId,
-                                           PropertySet properties,
-                                           List<TmxObjectPropertyReference> references) {
+                                           PropertySet properties) {
     }
 
     static String classificationTag(TmxObjectPlan object) {

@@ -83,19 +83,29 @@ public class EditPropertiesDialogTest {
     }
 
     @Test
-    public void changingTypeResetsToItsDeterministicDefaultWithoutCoercion() throws Exception {
+    public void changingTypeRequiresConfirmationBeforeDiscardingTheCurrentValue() throws Exception {
         AtomicReference<PropertySet> applied = new AtomicReference<PropertySet>();
         EditPropertiesDialog dialog = new EditPropertiesDialog(
                 "Edit Properties", new PropertySet().putString("health", "20"), applied::set);
         Object row = rowNamed(dialog, "health");
         @SuppressWarnings("unchecked")
         VisSelectBox<PropertyType> typeBox = field(row, "typeBox", VisSelectBox.class);
+        var stage = testStage();
+        stage.addActor(dialog);
         typeBox.setSelected(PropertyType.INTEGER);
-        typeBox.fire(new com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent());
+        Assert.assertEquals(PropertyType.STRING, typeBox.getSelected());
+        var confirmation = (com.kotcrab.vis.ui.widget.VisDialog) stage.getActors().peek();
+        clickButton(confirmation, "Cancel");
+        stage.act(1);
+        Assert.assertEquals(PropertyType.STRING, typeBox.getSelected());
+        typeBox.setSelected(PropertyType.INTEGER);
+        clickButton((com.kotcrab.vis.ui.widget.VisDialog) stage.getActors().peek(), "OK");
+
 
         Assert.assertEquals("0", field(row, "numberField", VisTextField.class).getText());
         invokeResult(dialog, true);
         Assert.assertEquals(0, applied.get().getInt("health", -1));
+        stage.dispose();
     }
 
     @Test
@@ -121,12 +131,22 @@ public class EditPropertiesDialogTest {
         Object row = rowNamed(dialog, "tint");
         @SuppressWarnings("unchecked")
         VisSelectBox<PropertyType> typeBox = field(row, "typeBox", VisSelectBox.class);
+        var stage = testStage();
+        stage.addActor(dialog);
         typeBox.setSelected(PropertyType.COLOR);
-        typeBox.fire(new com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent());
+        Assert.assertEquals(PropertyType.STRING, typeBox.getSelected());
+        var confirmation = (com.kotcrab.vis.ui.widget.VisDialog) stage.getActors().peek();
+        clickButton(confirmation, "Cancel");
+        stage.act(1);
+        Assert.assertEquals(PropertyType.STRING, typeBox.getSelected());
+        typeBox.setSelected(PropertyType.COLOR);
+        clickButton((com.kotcrab.vis.ui.widget.VisDialog) stage.getActors().peek(), "OK");
+
 
         Assert.assertEquals(0, Color.rgba8888(field(row, "colorValue", Color.class)));
         invokeResult(dialog, true);
         Assert.assertEquals(0, applied.get().getColorRgba8888("tint", -1));
+        stage.dispose();
     }
 
     @Test
@@ -193,7 +213,7 @@ public class EditPropertiesDialogTest {
                 .putClass("stats", "Stats", new PropertySet().putInt("hp", 4));
         AtomicReference<PropertySet> applied = new AtomicReference<>();
         EditPropertiesDialog dialog = new EditPropertiesDialog("Tile", source, applied::set, true);
-        for (String key : new String[]{"file", "stats"}) {
+        for (String key : new String[]{"file"}) {
             Object row = rowNamed(dialog, key);
             Assert.assertTrue(field(row, "nameField", VisTextField.class).isDisabled());
             Assert.assertTrue(field(row, "typeBox", VisSelectBox.class).isDisabled());
@@ -243,6 +263,143 @@ public class EditPropertiesDialogTest {
 
     private static Array<?> rows(EditPropertiesDialog dialog) throws Exception {
         return field(dialog, "rows", Array.class);
+    }
+
+    private static com.badlogic.gdx.scenes.scene2d.Stage testStage() {
+        var batch = (com.badlogic.gdx.graphics.g2d.Batch) java.lang.reflect.Proxy.newProxyInstance(
+                com.badlogic.gdx.graphics.g2d.Batch.class.getClassLoader(),
+                new Class[]{com.badlogic.gdx.graphics.g2d.Batch.class}, (proxy, method, args) -> null);
+        return new com.badlogic.gdx.scenes.scene2d.Stage(new com.badlogic.gdx.utils.viewport.ScreenViewport(), batch);
+    }
+
+    private static void clickButton(com.kotcrab.vis.ui.widget.VisDialog dialog, String label) {
+        for (var actor : dialog.getButtonsTable().getChildren()) {
+            if (actor instanceof VisTextButton button && label.contentEquals(button.getText())) {
+                button.fire(new com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent());
+                return;
+            }
+        }
+        throw new AssertionError("Missing button " + label);
+    }
+
+    @Test
+    public void listEditorReordersInsertsRemovesAndKeepsNestedApplyInsideParentWorkingCopy() throws Exception {
+        PropertySet source = new PropertySet().putList("items", Array.with(
+                PropertyValue.ofString("first"), PropertyValue.ofInt(7), PropertyValue.ofInt(7)));
+        AtomicReference<PropertySet> applied = new AtomicReference<>();
+        var stage = testStage();
+        try {
+            EditPropertiesDialog parent = new EditPropertiesDialog("Properties", source, applied::set);
+            stage.addActor(parent);
+            field(rowNamed(parent, "items"), "editListButton", VisTextButton.class).fire(
+                    new com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent());
+            EditPropertiesDialog list = (EditPropertiesDialog) stage.getActors().peek();
+            Assert.assertTrue(list.getTitleLabel().getText().toString().contains("items"));
+            var move = EditPropertiesDialog.class.getDeclaredMethod("move", rows(list).first().getClass(), int.class);
+            move.setAccessible(true);
+            move.invoke(list, rows(list).first(), 1);
+            field(list, "addButton", VisTextButton.class).fire(new com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent());
+            field(rows(list).peek(), "stringField", VisTextArea.class).setText("last");
+            field(rows(list).get(2), "removeButton", com.badlogic.gdx.scenes.scene2d.ui.Button.class).fire(
+                    new com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent());
+            invokeResult(list, true);
+            Assert.assertNull(applied.get());
+            Assert.assertEquals("first", source.getListValue("items").getString(0));
+            invokeResult(parent, false);
+            Assert.assertNull(applied.get());
+            // Reopen the edited working copy within the same parent and apply once.
+            invokeResult(parent, true);
+            Assert.assertEquals(3, applied.get().getListValue("items").size());
+            Assert.assertEquals(7, applied.get().getListValue("items").getInt(0));
+            Assert.assertEquals("first", applied.get().getListValue("items").getString(1));
+            Assert.assertEquals("last", applied.get().getListValue("items").getString(2));
+        } finally { stage.dispose(); }
+    }
+
+    @Test
+    public void unchangedEnumsListsAndDoubleValuesAreNoopAndEmptyListsKeepTheirType() throws Exception {
+        var definition = new games.pixscape.runtime.property.EnumDefinition("Flags", PropertyType.STRING, true, "A", "B");
+        PropertySet source = new PropertySet().putFloat("precise", 16777217d).putFloat("decimal", 0.1234567890123456)
+                .putList("empty", new Array<>()).put("flags", PropertyValue.ofEnum(definition, "B,A"));
+        AtomicReference<PropertySet> applied = new AtomicReference<>();
+        var dialog = new EditPropertiesDialog("Properties", source, applied::set);
+        invokeResult(dialog, true);
+        World world = new World();
+        try {
+            var history = new HistoryManager(8);
+            Assert.assertTrue(new games.pixscape.studio.history.commands.EditCustomPropertiesCommand(
+                    world, history.historyIds(), 1, true, source, applied.get(), 0, null).isNoop());
+        } finally { world.dispose(); }
+        Assert.assertEquals(PropertyType.LIST, applied.get().typeOf("empty"));
+        Assert.assertEquals(0, applied.get().getListValue("empty").size());
+        Assert.assertEquals("B,A", applied.get().getEnumValue("flags").stringValue());
+    }
+
+    @Test
+    public void storedZeroFalseAndEmptyListRequireConfirmationBeforeTypeReplacement() throws Exception {
+        for (PropertyValue value : new PropertyValue[]{PropertyValue.ofInt(0), PropertyValue.ofBoolean(false),
+                PropertyValue.ofList(new Array<>())}) {
+            var stage = testStage();
+            try {
+                var source = new PropertySet().put("explicit", value);
+                var dialog = new EditPropertiesDialog("Properties", source, ignored -> Assert.fail("Unexpected apply"));
+                stage.addActor(dialog);
+                Object row = rowNamed(dialog, "explicit");
+                field(row, "typeBox", VisSelectBox.class).setSelected(PropertyType.FLOAT);
+                Assert.assertEquals(value.type(), field(row, "typeBox", VisSelectBox.class).getSelected());
+                var confirmation = (com.kotcrab.vis.ui.widget.VisDialog) stage.getActors().peek();
+                Assert.assertNotSame(dialog, confirmation);
+                clickButton(confirmation, "Cancel");
+                Assert.assertTrue(value.contentEquals(source.valueCopy("explicit")));
+                Assert.assertEquals(value.type(), field(row, "typeBox", VisSelectBox.class).getSelected());
+            } finally {
+                stage.dispose();
+            }
+        }
+    }
+
+    @Test
+    public void nestedEscapeAndWindowCloseDiscardOnlyTheirWorkingCopy() throws Exception {
+        PropertySet source = new PropertySet().putList("items", Array.with(
+                PropertyValue.ofList(Array.with(PropertyValue.ofInt(7)))));
+        for (boolean escape : new boolean[]{true, false}) {
+            var stage = testStage();
+            AtomicReference<PropertySet> applied = new AtomicReference<>();
+            try {
+                var parent = new EditPropertiesDialog("Properties", source, applied::set);
+                stage.addActor(parent);
+                field(rowNamed(parent, "items"), "editListButton", VisTextButton.class).fire(
+                        new com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent());
+                var list = (EditPropertiesDialog) stage.getActors().peek();
+                stage.act(1f);
+                field(rows(list).first(), "editListButton", VisTextButton.class).fire(
+                        new com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent());
+                var nested = (EditPropertiesDialog) stage.getActors().peek();
+                stage.act(1f);
+                field(rows(nested).first(), "numberField", VisTextField.class).setText("99");
+                if (escape) {
+                    stage.setKeyboardFocus(nested);
+                    stage.keyDown(com.badlogic.gdx.Input.Keys.ESCAPE);
+                    stage.keyUp(com.badlogic.gdx.Input.Keys.ESCAPE);
+                } else {
+                    for (var actor : nested.getTitleTable().getChildren()) {
+                        if (actor instanceof com.kotcrab.vis.ui.widget.VisImageButton) {
+                            actor.fire(new com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent());
+                        }
+                    }
+                }
+                stage.act(1f);
+                // VisWindow runs removal after its fade action, on the next action tick.
+                stage.act(0f);
+                Assert.assertNull(nested.getStage());
+                invokeResult(list, true);
+                invokeResult(parent, true);
+                Assert.assertEquals(7, applied.get().getListValue("items").getListValue(0).getInt(0));
+                Assert.assertEquals(7, source.getListValue("items").getListValue(0).getInt(0));
+            } finally {
+                stage.dispose();
+            }
+        }
     }
 
     private static void invokeResult(EditPropertiesDialog dialog, boolean accepted) throws Exception {

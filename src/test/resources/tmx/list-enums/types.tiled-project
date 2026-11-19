@@ -1,0 +1,51 @@
+{
+  "propertyTypes": [
+    {
+      "id": 1,
+      "name": "Direction",
+      "type": "enum",
+      "storageType": "string",
+      "values": [
+        "North",
+        "South",
+        "West"
+      ],
+      "valuesAsFlags": false
+    },
+    {
+      "id": 2,
+      "name": "Flags",
+      "type": "enum",
+      "storageType": "int",
+      "values": [
+        "A",
+        "B",
+        "C"
+      ],
+      "valuesAsFlags": true
+    },
+    {
+      "id": 3,
+      "name": "StringFlags",
+      "type": "enum",
+      "storageType": "string",
+      "values": [
+        "A",
+        "B",
+        "C"
+      ],
+      "valuesAsFlags": true
+    },
+    {
+      "id": 4,
+      "name": "Mode",
+      "type": "enum",
+      "storageType": "int",
+      "values": [
+        "Idle",
+        "Run"
+      ],
+      "valuesAsFlags": false
+    }
+  ]
+}

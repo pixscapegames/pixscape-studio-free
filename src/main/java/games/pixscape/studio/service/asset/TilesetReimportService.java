@@ -126,7 +126,11 @@ public final class TilesetReimportService {
      * TSX identity is the local tile ID, including sparse collections and shared images.
      */
     public Plan prepareTsx(FileHandle file, FileHandle tilesRoot, int targetId, UsageProof usage) {
-        TsxTilesetDescriptor tsx = new TsxTilesetImportParser().parse(file);
+        return prepareTsx(file, tilesRoot, targetId, usage, null);
+    }
+
+    public Plan prepareTsx(FileHandle file, FileHandle tilesRoot, int targetId, UsageProof usage, FileHandle tiledProject) {
+        TsxTilesetDescriptor tsx = new TsxTilesetImportParser().parse(file, tiledProject);
         String name = tsx.name() == null || tsx.name().isBlank() ? StudioFs.baseName(file.name()) : tsx.name();
         if (!tsx.imageCollection()) {
             Plan atlas = prepareAtlas(new TilesetAtlasImportRequest(tsx.imageFile(), tilesRoot,

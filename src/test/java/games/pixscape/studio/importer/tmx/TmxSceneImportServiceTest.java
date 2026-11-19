@@ -62,12 +62,154 @@ import static org.junit.Assert.*;
 public class TmxSceneImportServiceTest {
 
     @Test
+    public void listEnumsSurviveRealImportEditDeleteCopyExportAndRuntimeApi() throws Exception {
+        for (String projection : new String[]{"orthogonal", "isometric"}) {
+            Harness h = harness("list-enums-" + projection);
+            String fixture = "src/test/resources/tmx/list-enums/";
+            var imported = h.importer().importScene(new TmxSceneImportRequest(new FileHandle(fixture + projection + ".tmx"),
+                    "List enums", false, new FileHandle(fixture + "types.tiled-project")));
+            assertTrue(String.valueOf(imported.failure()), imported.imported());
+            World world = loadImportedWorld(h, imported);
+            IdentityRegistry ids = new IdentityRegistry();
+            ids.bind(world, h.cfg.getSceneMeta(imported.sceneName()));
+            ids.rebuild();
+            HistoryManager history = new HistoryManager(64);
+            try {
+                int map = world.getAspectSubscriptionManager().get(Aspect.all(TiledMapComponent.class)).getEntities().get(0);
+                int actor = ids.firstByName("Actor");
+                int target = stableId(world, ids.firstByName("Target"));
+                int actorId = stableId(world, actor);
+                int[] owners = {map, ids.firstByName("Ground"), ids.firstByName("Backdrop"), ids.firstByName("Objects"), actor};
+                int[] stable = new int[owners.length];
+                for (int i = 0; i < owners.length; i++) {
+                    stable[i] = stableId(world, owners[i]);
+                    TmxListEnumImportTest.assertValues(ownerProperties(world, owners[i]), target, actorId);
+                }
+                var before = ownerProperties(world, actor).copy();
+                var after = before.copy().putList("items", new com.badlogic.gdx.utils.Array<>());
+                history.execute(new games.pixscape.studio.history.commands.EditCustomPropertiesCommand(
+                        world, history.historyIds(), history.historyIds().ensureForEntity(actor), true, before, after, 0, null));
+                for (int i = 0; i < 3; i++) {
+                    assertEquals(0, ownerProperties(world, actor).getListValue("items").size());
+                    history.undo();
+                    TmxListEnumImportTest.assertValues(ownerProperties(world, actor), target, actorId);
+                    history.redo();
+                }
+                history.undo();
+                var graph = new games.pixscape.studio.service.entitygraph.EntityGraphCaptureService(world)
+                        .capture(com.badlogic.gdx.utils.IntArray.with(map));
+                var copy = new games.pixscape.studio.service.entitygraph.EntityGraphInstantiationService(world, history, ids, null, () -> false)
+                        .instantiate(graph, 0, 32, 0, "Copy list map");
+                world.process();
+                int copyActor = copiedEntityNamed(world, copy.createdIds(), "Actor");
+                int copyTarget = copiedEntityNamed(world, copy.createdIds(), "Target");
+                TmxListEnumImportTest.assertValues(ownerProperties(world, copyActor), stableId(world, copyTarget), stableId(world, copyActor));
+                ownerProperties(world, copyActor).putList("items", new com.badlogic.gdx.utils.Array<>());
+                TmxListEnumImportTest.assertValues(ownerProperties(world, actor), target, actorId);
+                history.undo();
+                world.process();
+                history.execute(games.pixscape.studio.history.commands.DeleteEntitiesCommandFactory.create(
+                        world, history.historyIds(), com.badlogic.gdx.utils.IntArray.with(map), null));
+                for (int cycle = 0; cycle < 3; cycle++) {
+                    world.process();
+                    assertEquals(-1, ids.findByStableId(stable[0]));
+                    history.undo();
+                    world.process();
+                    for (int id : stable) {
+                        TmxListEnumImportTest.assertValues(ownerProperties(world, ids.findByStableId(id)), target, actorId);
+                    }
+                    history.redo();
+                }
+                history.undo();
+                world.process();
+                FileHandle scene = h.projectDir.child(StudioFs.DIR_SCENES).child(imported.sceneFileName());
+                games.pixscape.studio.service.SceneService.saveScene(world, scene, false);
+                World reopened = loadImportedWorld(h, imported);
+                try {
+                    IdentityRegistry reopenedIds = new IdentityRegistry();
+                    reopenedIds.bind(reopened, h.cfg.getSceneMeta(imported.sceneName()));
+                    reopenedIds.rebuild();
+                    for (int id : stable) {
+                        TmxListEnumImportTest.assertValues(ownerProperties(reopened, reopenedIds.findByStableId(id)), target, actorId);
+                    }
+                } finally { reopened.dispose(); }
+                ProjectConfig.ProjectIO.saveProject(h.cfg, StudioFs.requireStudioProjectFile(h.cfg));
+                FileHandle export = new FileHandle(h.root.resolve("runtime-export").toFile());
+                var config = RuntimeExport.exportRuntime(h.cfg, h.projectDir, export);
+                World runtime = new World(new WorldConfiguration().setSystem(new WorldSerializationManager()));
+                var engine = new games.pixscape.runtime.engine.PixscapeEngine();
+                var field = engine.getClass().getDeclaredField("world");
+                field.setAccessible(true);
+                field.set(engine, runtime);
+                var meta = config.scenes.get(imported.sceneName());
+                engine.getIdentityRegistry().bind(runtime, meta);
+                try {
+                    SceneLoader.loadScene(runtime, export.child(RuntimeExport.RUNTIME_DIR_NAME)
+                            .child(RuntimeFs.DIR_SCENES).child(imported.sceneFileName()), false, meta);
+                    runtime.process();
+                    // Public typed API examples compiled and exercised after real export and SceneLoader.
+                    var entities = engine.api().entities();
+                    for (int id : stable) {
+                        var properties = entities.requireStableId(id).properties();
+                        assertEquals(16777217d, properties.getDouble("precise", 0), 0);
+                        var list = properties.getListValue("items");
+                        assertEquals(8, list.size());
+                        assertEquals(PropertyType.STRING, list.typeAt(0));
+                        assertEquals("7", list.getString(0));
+                        assertEquals(7, list.getInt(1));
+                        assertEquals(16777217d, list.getDouble(3), 0);
+                        assertEquals("North", list.getListValue(6).getEnumValue(1).stringValue());
+                        assertEquals(actorId, list.getClassValue(7).properties().getListValue("targets").getObjectStableId(0));
+                        assertEquals(target, list.getObjectStableId(4));
+                        assertNotNull(entities.requireStableId(list.getObjectStableId(4)));
+                        assertEquals("West", properties.getEnumValue("direction").stringValue());
+                        assertEquals(5, properties.getEnumValue("flags").intValue());
+                    }
+                } finally {
+                    engine.getIdentityRegistry().bind(null, null);
+                    runtime.dispose();
+                }
+                new FileHandle("build/list-enums-" + projection + "-fixture-path.txt").writeString(h.root.toString(), false);
+            } finally {
+                ids.bind(null, null);
+                world.dispose();
+            }
+        }
+    }
+
+    @Test
+    public void invalidListItemsAndEnumsLeaveProjectAndCatalogUntouched() throws Exception {
+        Harness h = harness("tmx-invalid-list-enums");
+        for (String item : new String[]{"<item type='file' value='missing.png'/>",
+                "<item type='object' value='999'/>", "<item propertytype='Missing' value='X'/>",
+                "<item propertytype='Direction' value='Unknown'/>", "<item type='int' propertytype='Flags' value='8'/>"}) {
+            FileHandle tmx = writeTmx(h.root.resolve("invalid.tmx"),
+                    "<map orientation='orthogonal' width='1' height='1' tilewidth='16' tileheight='16'>"
+                    + "<properties><property name='items' type='list'>" + item + "</property></properties></map>");
+            var before = projectFileContents(h.root);
+            var json = new com.badlogic.gdx.utils.Json();
+            String config = json.toJson(h.cfg);
+            String catalog = json.toJson(h.db);
+            var result = h.importer().importScene(new TmxSceneImportRequest(tmx, "Rejected", false,
+                    new FileHandle("src/test/resources/tmx/list-enums/types.tiled-project")));
+            assertFalse(result.imported());
+            assertFalse(result.rollbackAttempted());
+            assertEquals(before, projectFileContents(h.root));
+            assertEquals(config, json.toJson(h.cfg));
+            assertEquals(catalog, json.toJson(h.db));
+            assertTrue(result.planResult().preflightReport().diagnostics().stream().anyMatch(d ->
+                    d.severity() == TmxDiagnosticSeverity.BLOCKING && d.location().contains("items")
+                            && d.location().contains("[0]")));
+        }
+    }
+
+    @Test
     public void invalidTiledOwnerPropertiesFailBeforeProjectPublication() throws Exception {
         Harness h = harness("tmx-invalid-owner-properties");
         String[][] invalid = {
-                {"<property name=\"bad\" type=\"list\" value=\"1,2\"/>", "TMX_PROPERTY_TYPE_UNSUPPORTED", "list"},
+                {"<property name=\"bad\" type=\"list\" value=\"1,2\"/>", "TMX_PROPERTY_VALUE_INVALID", "LIST"},
                 {"<property name=\"bad\" type=\"file\" value=\"asset.png\"/>", "TMX_PROPERTY_TYPE_UNSUPPORTED", "file"},
-                {"<property name=\"bad\" propertytype=\"Direction\" value=\"North\"/>", "TMX_PROPERTY_TYPE_UNSUPPORTED", "Direction"},
+                {"<property name=\"bad\" propertytype=\"Direction\" value=\"North\"/>", "TMX_PROJECT_REQUIRED", "Direction"},
                 {"<property name=\"bad\" type=\"object\" value=\"9999\"/>", "TMX_OBJECT_REFERENCE_UNRESOLVED", "9999"},
                 {"<property name=\"bad\" type=\"object\" value=\"2002\"/>", "TMX_OBJECT_REFERENCE_TARGET_UNSUPPORTED", "2002"},
                 {"<property name=\"nested\" type=\"class\" propertytype=\"Config\"><properties>"
@@ -2719,13 +2861,10 @@ public class TmxSceneImportServiceTest {
 
     @Test
     public void finalizesObjectReferencesWithPixscapeStableIdsNotTiledSourceIds() {
-        PropertySet base = new PropertySet().putClass("behavior", "Behavior", new PropertySet());
-        java.util.List<TmxObjectPropertyReference> references = java.util.List.of(
-                new TmxObjectPropertyReference(java.util.List.of("target"), 2002, "source"),
-                new TmxObjectPropertyReference(java.util.List.of("none"), 0, "source"),
-                new TmxObjectPropertyReference(java.util.List.of("behavior", "self"), 1001, "source"));
+        PropertySet base = new PropertySet().putObjectStableId("target", 2002).putObjectStableId("none", -1)
+                .putClass("behavior", "Behavior", new PropertySet().putObjectStableId("self", 1001));
         PropertySet finalized = TmxSceneImportService.finalizeObjectProperties(
-                base, references, java.util.Map.of(1001, 3, 2002, 7));
+                base, java.util.Map.of(1001, 3, 2002, 7));
 
         assertEquals(PropertyType.OBJECT, finalized.typeOf("target"));
         assertEquals(7, finalized.getObjectStableId("target", -1));
@@ -2733,7 +2872,7 @@ public class TmxSceneImportServiceTest {
         assertEquals(-1, finalized.getObjectStableId("none", 0));
         assertEquals(3, finalized.getClassValue("behavior").properties()
                 .getObjectStableId("self", -1));
-        assertFalse(base.contains("target"));
+        assertEquals(2002, base.getObjectStableId("target", -1));
     }
 
     @Test
