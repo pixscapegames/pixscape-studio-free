@@ -135,7 +135,7 @@ public class EditPropertiesDialogTest {
             AtomicReference<PropertySet> applied = new AtomicReference<PropertySet>();
             EditPropertiesDialog dialog = new EditPropertiesDialog(
                     "Edit Properties", new PropertySet().putObjectStableId("target", 123),
-                    context.context, applied::set);
+                    context.context.world, applied::set);
 
             Object choice = selectedObjectChoice(rowNamed(dialog, "target"));
             Assert.assertEquals(123, objectChoiceStableId(choice));
@@ -153,7 +153,7 @@ public class EditPropertiesDialogTest {
             AtomicReference<PropertySet> applied = new AtomicReference<PropertySet>();
             EditPropertiesDialog dialog = new EditPropertiesDialog("Edit Properties",
                     new PropertySet().putObjectStableId("first", 123)
-                            .putObjectStableId("second", 456), context.context, applied::set);
+                            .putObjectStableId("second", 456), context.context.world, applied::set);
 
             Assert.assertEquals(123, objectChoiceStableId(selectedObjectChoice(rowNamed(dialog, "first"))));
             Assert.assertEquals(456, objectChoiceStableId(selectedObjectChoice(rowNamed(dialog, "second"))));

@@ -25,6 +25,6 @@ public class EntityPropertiesCustomPropertiesUiContractTest {
         Assert.assertTrue(tags < properties);
         Assert.assertTrue(properties < layer);
         Assert.assertTrue(layer < zindex);
-        Assert.assertTrue(source.contains("new CustomPropertiesEditorRow(ctx)"));
+        Assert.assertTrue(source.contains("new CustomPropertiesEditorRow(ctx.world, ctx.history, ctx.sourceTag, ctx.markCurrentSceneSaveRequired)"));
     }
 }

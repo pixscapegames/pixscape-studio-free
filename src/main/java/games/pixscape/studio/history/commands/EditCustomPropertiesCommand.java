@@ -42,7 +42,7 @@ public final class EditCustomPropertiesCommand implements Command, SupportsNoop 
         this.beforePresent = beforePresent;
         this.before = requireCopy(before, "before");
         this.after = requireCopy(after, "after");
-        this.afterPresent = !this.after.isEmpty();
+        this.afterPresent = !this.after.isEmpty() || (beforePresent && this.before.isEmpty());
         this.sourceTag = sourceTag;
         this.markCurrentSceneSaveRequired = markCurrentSceneSaveRequired;
     }

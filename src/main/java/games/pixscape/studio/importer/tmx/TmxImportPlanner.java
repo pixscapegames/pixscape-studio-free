@@ -78,7 +78,9 @@ public final class TmxImportPlanner {
                 map.tileHeight(),
                 report.requiredTiledCells(),
                 report.tileLayerCount(),
-                report.nonEmptyTileCount()
+                report.nonEmptyTileCount(),
+                map.properties(),
+                map.objectPropertyReferences()
         );
     }
 
@@ -169,7 +171,9 @@ public final class TmxImportPlanner {
                 layer.opacity(),
                 Math.max(0, layer.width()) * (long) Math.max(0, layer.height()),
                 layer.nonEmptyTileCount(),
-                cells
+                cells,
+                layer.properties(),
+                layer.objectPropertyReferences()
         );
     }
 
@@ -557,7 +561,9 @@ public final class TmxImportPlanner {
                 layer.imageSource(),
                 layer.imageWidth(),
                 layer.imageHeight(),
-                layer.resolvedImagePath()
+                layer.resolvedImagePath(),
+                layer.properties(),
+                layer.objectPropertyReferences()
         );
     }
 

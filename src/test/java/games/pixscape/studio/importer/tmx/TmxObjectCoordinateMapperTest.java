@@ -93,6 +93,7 @@ public class TmxObjectCoordinateMapperTest {
                         ? TiledProjection.ISO
                         : TiledProjection.ORTHO,
                 mapWidth, mapHeight, tileWidth, tileHeight,
-                (long) mapWidth * mapHeight, 0, 0);
+                (long) mapWidth * mapHeight, 0, 0,
+                new games.pixscape.runtime.property.PropertySet(), java.util.List.of());
     }
 }

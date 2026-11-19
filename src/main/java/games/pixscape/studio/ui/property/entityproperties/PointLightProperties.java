@@ -99,7 +99,7 @@ public final class PointLightProperties extends VisTable {
                 openEditTagsDialog();
             }
         });
-        customPropertiesRow = new CustomPropertiesEditorRow(ctx);
+        customPropertiesRow = new CustomPropertiesEditorRow(ctx.world, ctx.history, ctx.sourceTag, ctx.markCurrentSceneSaveRequired);
 
 
         entityName.bind(
@@ -210,9 +210,6 @@ public final class PointLightProperties extends VisTable {
         EventFlow.i().subscribe(EventFlow.EntityChanged.class, evt -> {
             if (evt.entityId() != currentEntityId) return;
             onEntityChanged(evt.op());
-        });
-        EventFlow.i().subscribe(EventFlow.CustomPropertiesChanged.class, evt -> {
-            if (evt.entityId() == currentEntityId) customPropertiesRow.refresh();
         });
     }
 

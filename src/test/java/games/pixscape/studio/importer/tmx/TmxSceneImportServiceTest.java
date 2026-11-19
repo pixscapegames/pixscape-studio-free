@@ -62,6 +62,290 @@ import static org.junit.Assert.*;
 public class TmxSceneImportServiceTest {
 
     @Test
+    public void invalidTiledOwnerPropertiesFailBeforeProjectPublication() throws Exception {
+        Harness h = harness("tmx-invalid-owner-properties");
+        String[][] invalid = {
+                {"<property name=\"bad\" type=\"list\" value=\"1,2\"/>", "TMX_PROPERTY_TYPE_UNSUPPORTED", "list"},
+                {"<property name=\"bad\" type=\"file\" value=\"asset.png\"/>", "TMX_PROPERTY_TYPE_UNSUPPORTED", "file"},
+                {"<property name=\"bad\" propertytype=\"Direction\" value=\"North\"/>", "TMX_PROPERTY_TYPE_UNSUPPORTED", "Direction"},
+                {"<property name=\"bad\" type=\"object\" value=\"9999\"/>", "TMX_OBJECT_REFERENCE_UNRESOLVED", "9999"},
+                {"<property name=\"bad\" type=\"object\" value=\"2002\"/>", "TMX_OBJECT_REFERENCE_TARGET_UNSUPPORTED", "2002"},
+                {"<property name=\"nested\" type=\"class\" propertytype=\"Config\"><properties>"
+                        + "<property name=\"bad\" type=\"object\" value=\"9999\"/>"
+                        + "</properties></property>", "TMX_OBJECT_REFERENCE_UNRESOLVED", "9999"}
+        };
+        for (String owner : new String[]{"map", "tile", "image"}) {
+            for (String[] error : invalid) {
+                String properties = "<properties>" + error[0] + "</properties>";
+                FileHandle tmx = writeTmx(h.root.resolve("invalid.tmx"), """
+                        <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                          %s
+                          <layer name="Ground" width="1" height="1">%s<data encoding="csv">0</data></layer>
+                          <imagelayer name="Backdrop">%s<image source="terrain.png" width="32" height="32"/></imagelayer>
+                          <objectgroup name="Objects"><object id="2002" width="8" height="8"><ellipse/></object></objectgroup>
+                        </map>
+                        """.formatted(owner.equals("map") ? properties : "",
+                                owner.equals("tile") ? properties : "", owner.equals("image") ? properties : ""));
+                java.util.Map<String, String> filesBefore = projectFileContents(h.root);
+                String configBefore = new com.badlogic.gdx.utils.Json().toJson(h.cfg);
+                TmxSceneImportResult result = h.importer().importScene(request(tmx, "Rejected"));
+                assertFalse(result.imported());
+                assertFalse(result.rollbackAttempted());
+                String location = owner.equals("map") ? "map" : owner.equals("tile") ? "Ground" : "Backdrop";
+                assertTrue(result.planResult().preflightReport().diagnostics().stream().anyMatch(d ->
+                        d.code().equals(error[1]) && d.location().contains(location)
+                                && d.location().contains("bad") && d.message().contains(error[2])));
+                assertEquals(filesBefore, projectFileContents(h.root));
+                assertEquals(configBefore, new com.badlogic.gdx.utils.Json().toJson(h.cfg));
+            }
+        }
+    }
+
+    private static java.util.Map<String, String> projectFileContents(Path root) throws Exception {
+        java.util.Map<String, String> result = new java.util.TreeMap<>();
+        try (var files = Files.walk(root)) {
+            for (Path file : files.filter(Files::isRegularFile).toList()) {
+                result.put(root.relativize(file).toString(), java.util.Base64.getEncoder().encodeToString(Files.readAllBytes(file)));
+            }
+        }
+        return result;
+    }
+
+    @Test
+    public void independentlyImportedMapsWithSameTiledObjectIdsRemainIndependentInOneScene() throws Exception {
+        Harness h = harness("tmx-two-owner-domains");
+        TmxSceneImportResult first = h.importer().importScene(request(new FileHandle(
+                "src/test/resources/tmx/owner-properties/orthogonal.tmx"), "First"));
+        TmxSceneImportResult second = h.importer().importScene(request(new FileHandle(
+                "src/test/resources/tmx/owner-properties/isometric.tmx"), "Second"));
+        assertTrue(first.imported());
+        assertTrue(second.imported());
+        World firstWorld = loadImportedWorld(h, first);
+        World secondWorld = loadImportedWorld(h, second);
+        IdentityRegistry firstIds = new IdentityRegistry();
+        IdentityRegistry secondIds = new IdentityRegistry();
+        firstIds.bind(firstWorld, h.cfg.getSceneMeta(first.sceneName()));
+        secondIds.bind(secondWorld, h.cfg.getSceneMeta(second.sceneName()));
+        firstIds.rebuild();
+        secondIds.rebuild();
+        try {
+            int firstMap = firstWorld.getAspectSubscriptionManager().get(Aspect.all(TiledMapComponent.class)).getEntities().get(0);
+            int secondMap = secondWorld.getAspectSubscriptionManager().get(Aspect.all(TiledMapComponent.class)).getEntities().get(0);
+            int firstDoor = stableId(firstWorld, firstIds.firstByName("Door"));
+            int secondDoor = stableId(secondWorld, secondIds.firstByName("Door"));
+            assertEquals(firstDoor, ownerProperties(firstWorld, firstMap).getObjectStableId("target", -1));
+            assertEquals(secondDoor, ownerProperties(secondWorld, secondMap).getObjectStableId("target", -1));
+            var graph = new games.pixscape.studio.service.entitygraph.EntityGraphCaptureService(secondWorld)
+                    .capture(com.badlogic.gdx.utils.IntArray.with(secondMap));
+            var copy = new games.pixscape.studio.service.entitygraph.EntityGraphInstantiationService(
+                    firstWorld, new HistoryManager(16), firstIds, null, () -> false)
+                    .instantiate(graph, 0, 0, 0, "Paste second map");
+            firstWorld.process();
+            int pastedDoor = stableId(firstWorld, copiedEntityNamed(firstWorld, copy.createdIds(), "Door"));
+            assertNotEquals(firstDoor, pastedDoor);
+            assertEquals(firstDoor, ownerProperties(firstWorld, firstMap).getObjectStableId("target", -1));
+            for (String owner : new String[]{"Ground", "Backdrop"}) {
+                int pastedOwner = copiedEntityNamed(firstWorld, copy.createdIds(), owner);
+                assertEquals(pastedDoor, ownerProperties(firstWorld, pastedOwner).getObjectStableId("target", -1));
+            }
+            assertEquals(pastedDoor, ownerProperties(firstWorld, copy.createdRootIds().first()).getObjectStableId("target", -1));
+            assertEquals(secondDoor, ownerProperties(secondWorld, secondMap).getObjectStableId("target", -1));
+        } finally {
+            firstIds.bind(null, null);
+            secondIds.bind(null, null);
+            firstWorld.dispose();
+            secondWorld.dispose();
+        }
+    }
+
+    @Test
+    public void tiledOwnerPropertiesSurviveHistoryCopySceneAndPublicRuntimeLoading() throws Exception {
+        for (String orientation : new String[]{"orthogonal", "isometric"}) {
+            Harness h = harness("tmx-owner-properties-" + orientation);
+            FileHandle fixture = new FileHandle("src/test/resources/tmx/owner-properties/" + orientation + ".tmx");
+            TmxSceneImportResult imported = h.importer().importScene(request(fixture, "Owner properties"));
+            assertTrue(String.valueOf(imported.failure()), imported.imported());
+            World world = loadImportedWorld(h, imported);
+            IdentityRegistry identities = new IdentityRegistry();
+            identities.bind(world, h.cfg.getSceneMeta(imported.sceneName()));
+            identities.rebuild();
+            HistoryManager history = new HistoryManager(64);
+            try {
+                int map = world.getAspectSubscriptionManager().get(Aspect.all(TiledMapComponent.class)).getEntities().get(0);
+                int[] owners = {map, identities.firstByName("Ground"), identities.firstByName("Backdrop"),
+                        identities.firstByName("Gameplay"), identities.firstByName("Switch"), identities.firstByName("Door")};
+                String[] labels = {"map", "tile", "image", "objects", "switch", "door"};
+                int[] stableIds = new int[owners.length];
+                int door = stableId(world, owners[5]);
+                int button = stableId(world, owners[4]);
+                assertNotEquals(2002, door);
+                assertNotEquals(1001, button);
+                for (int i = 0; i < owners.length; i++) {
+                    stableIds[i] = stableId(world, owners[i]);
+                    assertOwnerProperties(ownerProperties(world, owners[i]), labels[i], door, button);
+                    if (i < 4) {
+                        assertFalse(world.getMapper(PhysicsBodyComponent.class).has(owners[i]));
+                        assertFalse(world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).has(owners[i]));
+                    }
+                }
+                assertFalse(world.getMapper(CustomPropertiesComponent.class).has(identities.firstByName("Empty")));
+                assertEquals(9, imported.planResult().plan().tilesets().get(0).tileDefinitions().get(0)
+                        .properties().getInt("cost", -1));
+
+                // The existing command edits these structural owners without adding actor capabilities.
+                for (int i = 0; i < 3; i++) {
+                    PropertySet before = ownerProperties(world, owners[i]).copy();
+                    PropertySet after = before.copy().putString("label", "edited-" + labels[i]);
+                    var command = new games.pixscape.studio.history.commands.EditCustomPropertiesCommand(
+                            world, history.historyIds(), history.historyIds().ensureForEntity(owners[i]),
+                            true, before, after, 0, null);
+                    history.execute(command);
+                    for (int cycle = 0; cycle < 3; cycle++) {
+                        assertEquals("edited-" + labels[i], ownerProperties(world, owners[i]).getString("label", null));
+                        history.undo();
+                        assertOwnerProperties(ownerProperties(world, owners[i]), labels[i], door, button);
+                        history.redo();
+                    }
+                    history.undo();
+                }
+
+                // Capture the complete map: internal OBJECT paths are remapped, including nested CLASS members.
+                var graph = new games.pixscape.studio.service.entitygraph.EntityGraphCaptureService(world)
+                        .capture(com.badlogic.gdx.utils.IntArray.with(map));
+                var copy = new games.pixscape.studio.service.entitygraph.EntityGraphInstantiationService(
+                        world, history, identities, null, () -> false).instantiate(graph, 0, 32, 0, "Copy map");
+                world.process();
+                int copiedDoor = copiedEntityNamed(world, copy.createdIds(), "Door");
+                int copiedSwitch = copiedEntityNamed(world, copy.createdIds(), "Switch");
+                int copiedMap = copy.createdRootIds().first();
+                for (int i = 0; i < 3; i++) {
+                    int entity = i == 0 ? copiedMap : copiedEntityNamed(world, copy.createdIds(), i == 1 ? "Ground" : "Backdrop");
+                    PropertySet properties = ownerProperties(world, entity);
+                    assertOwnerProperties(properties, labels[i], stableId(world, copiedDoor), stableId(world, copiedSwitch));
+                    properties.putString("label", "copy only");
+                    properties.putClass("settings", "Settings", new PropertySet().putInt("changed", 7));
+                    assertOwnerProperties(ownerProperties(world, owners[i]), labels[i], door, button);
+                }
+                history.undo();
+                world.process();
+
+                // Actual Studio deletion factory, both whole-map closure and individual structural layers.
+                for (int ownerIndex : new int[]{1, 2, 0}) {
+                    int entity = identities.findByStableId(stableIds[ownerIndex]);
+                    history.execute(games.pixscape.studio.history.commands.DeleteEntitiesCommandFactory.create(
+                            world, history.historyIds(), com.badlogic.gdx.utils.IntArray.with(entity), null));
+                    for (int cycle = 0; cycle < 3; cycle++) {
+                        world.process();
+                        assertEquals(-1, identities.findByStableId(stableIds[ownerIndex]));
+                        history.undo();
+                        world.process();
+                        for (int i = 0; i < stableIds.length; i++) {
+                            assertOwnerProperties(ownerProperties(world, identities.findByStableId(stableIds[i])),
+                                    labels[i], door, button);
+                        }
+                        history.redo();
+                    }
+                    history.undo();
+                    world.process();
+                }
+                FileHandle saved = h.projectDir.child(StudioFs.DIR_SCENES).child(imported.sceneFileName());
+                games.pixscape.studio.service.SceneService.saveScene(world, saved, false);
+                World reopened = loadImportedWorld(h, imported);
+                try {
+                    IdentityRegistry reopenedIds = new IdentityRegistry();
+                    reopenedIds.bind(reopened, h.cfg.getSceneMeta(imported.sceneName()));
+                    reopenedIds.rebuild();
+                    for (int i = 0; i < stableIds.length; i++) {
+                        assertOwnerProperties(ownerProperties(reopened, reopenedIds.findByStableId(stableIds[i])),
+                                labels[i], door, button);
+                    }
+                } finally {
+                    reopened.dispose();
+                }
+                ProjectConfig.ProjectIO.saveProject(h.cfg, StudioFs.requireStudioProjectFile(h.cfg));
+                FileHandle export = new FileHandle(h.root.resolve("runtime-export").toFile());
+                var runtimeConfig = RuntimeExport.exportRuntime(h.cfg, h.projectDir, export);
+                World runtime = new World(new WorldConfiguration().setSystem(new WorldSerializationManager()));
+                var engine = new games.pixscape.runtime.engine.PixscapeEngine();
+                var worldField = engine.getClass().getDeclaredField("world");
+                worldField.setAccessible(true);
+                worldField.set(engine, runtime);
+                var meta = runtimeConfig.scenes.get(imported.sceneName());
+                engine.getIdentityRegistry().bind(runtime, meta);
+                try {
+                    SceneLoader.loadScene(runtime, export.child(RuntimeExport.RUNTIME_DIR_NAME)
+                            .child(RuntimeFs.DIR_SCENES).child(imported.sceneFileName()), false, meta);
+                    runtime.process();
+                    // Compiled examples use public indexed handles, not direct ECS property access.
+                    var entities = engine.api().entities();
+                    var mapRef = entities.requireStableId(stableIds[0]);
+                    var tileRef = entities.requireName("Ground");
+                    var imageRef = entities.requireName("Backdrop");
+                    assertEquals("map", mapRef.properties().getString("label", null));
+                    assertEquals("tile", tileRef.properties().getString("label", null));
+                    assertEquals("image", imageRef.properties().getString("label", null));
+                    var target = entities.requireStableId(mapRef.properties().getObjectStableId("target", -1));
+                    assertEquals("door", target.properties().getString("label", null));
+                    assertEquals(button, imageRef.properties().getClassValue("settings").properties()
+                            .getClassValue("link").properties().getObjectStableId("target", -1));
+                    assertEquals(-1, tileRef.properties().getObjectStableId("none", 0));
+                } finally {
+                    engine.getIdentityRegistry().bind(null, null);
+                    runtime.dispose();
+                }
+                new FileHandle("build/owner-properties-" + orientation + "-fixture-path.txt")
+                        .writeString(h.root.toString(), false, "UTF-8");
+            } finally {
+                identities.bind(null, null);
+                world.dispose();
+            }
+        }
+    }
+
+    private static int stableId(World world, int entity) {
+        return world.getMapper(PixscapeIdentityComponent.class).get(entity).stableId;
+    }
+
+    private static PropertySet ownerProperties(World world, int entity) {
+        assertTrue("Missing owner", entity >= 0);
+        CustomPropertiesComponent component = world.getMapper(CustomPropertiesComponent.class).get(entity);
+        assertNotNull("Missing custom properties on " + entity, component);
+        return component.properties;
+    }
+
+    private static int copiedEntityNamed(World world, com.badlogic.gdx.utils.IntArray entities, String name) {
+        for (int i = 0; i < entities.size; i++) {
+            int entity = entities.get(i);
+            if (name.equals(world.getMapper(PixscapeIdentityComponent.class).get(entity).name)) {
+                return entity;
+            }
+        }
+        throw new AssertionError("Missing copied entity " + name);
+    }
+
+    private static void assertOwnerProperties(PropertySet properties, String label, int door, int button) {
+        assertEquals(8, properties.size());
+        assertEquals(PropertyType.STRING, properties.typeOf("label"));
+        assertEquals(label, properties.getString("label", null));
+        assertEquals(PropertyType.BOOLEAN, properties.typeOf("enabled"));
+        assertTrue(properties.getBoolean("enabled", false));
+        assertEquals(PropertyType.INTEGER, properties.typeOf("count"));
+        assertEquals(42, properties.getInt("count", 0));
+        assertEquals(PropertyType.FLOAT, properties.typeOf("ratio"));
+        assertEquals(1.25f, properties.getFloat("ratio", 0), 0f);
+        assertEquals(PropertyType.COLOR, properties.typeOf("tint"));
+        assertEquals(0x40201080, properties.getColorRgba8888("tint", 0));
+        assertEquals(PropertyType.OBJECT, properties.typeOf("target"));
+        assertEquals(door, properties.getObjectStableId("target", -1));
+        assertEquals(-1, properties.getObjectStableId("none", 0));
+        assertEquals(PropertyType.CLASS, properties.typeOf("settings"));
+        ClassProperty settings = properties.getClassValue("settings");
+        assertEquals("Settings", settings.typeName());
+        assertEquals("nested", settings.properties().getString("label", null));
+        assertEquals(button, settings.properties().getClassValue("link").properties().getObjectStableId("target", -1));
+    }
+
+    @Test
     public void importedContoursSurviveStudioDeleteUndoRedoAndSceneRoundTrip() throws Exception {
         for (String orientation : new String[]{"orthogonal", "isometric"}) {
             Harness h = harness("tmx-history-contours-" + orientation);

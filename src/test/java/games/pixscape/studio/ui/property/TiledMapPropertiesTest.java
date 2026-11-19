@@ -43,6 +43,104 @@ public class TiledMapPropertiesTest {
     private final EventFlow.SubscriptionScope subscriptions = EventFlow.i().newSubscriptionScope(() -> true);
 
     @Test
+    public void tileLayerPropertyDialogCancelsClosesAndAppliesThroughExistingHistory() throws Exception {
+        Fixture fixture = new Fixture();
+        Batch batch = (Batch) Proxy.newProxyInstance(Batch.class.getClassLoader(), new Class[]{Batch.class},
+                (proxy, method, args) -> null);
+        Stage stage = new Stage(new ScreenViewport(), batch);
+        try {
+            int layer = fixture.addMap(0, 16, 10);
+            var mapper = fixture.world.getMapper(games.pixscape.runtime.component.CustomPropertiesComponent.class);
+            TiledMapProperties properties = fixture.properties();
+            properties.setMapEntityId(layer);
+            stage.addActor(properties);
+            com.kotcrab.vis.ui.widget.VisTextButton edit = properties.findActor("editCustomProperties");
+            VisLabel summary = properties.findActor("customPropertiesSummary");
+            assertFalse(edit.isDisabled());
+            assertEquals("0 properties", summary.getText().toString());
+            edit.fire(new ChangeListener.ChangeEvent());
+            var emptyDialog = (games.pixscape.studio.ui.property.entityproperties.EditPropertiesDialog) stage.getActors().peek();
+            clickDialogButton(emptyDialog, "Apply");
+            finishDialogActions(stage, emptyDialog);
+            assertFalse(mapper.has(layer));
+            assertEquals(0, fixture.history.getCursor());
+
+            // D6 distinguishes an absent component from an explicitly empty one.
+            mapper.create(layer);
+            edit.fire(new ChangeListener.ChangeEvent());
+            var emptyComponentDialog = (games.pixscape.studio.ui.property.entityproperties.EditPropertiesDialog) stage.getActors().peek();
+            clickDialogButton(emptyComponentDialog, "Apply");
+            finishDialogActions(stage, emptyComponentDialog);
+            assertTrue(mapper.has(layer));
+            assertTrue(mapper.get(layer).properties.isEmpty());
+            assertEquals(0, fixture.history.getCursor());
+
+            mapper.create(layer).properties.putInt("count", 42);
+            properties.setMapEntityId(layer);
+            for (String action : new String[]{"Cancel", "Escape", "Close", "Unchanged", "Apply"}) {
+                edit.fire(new ChangeListener.ChangeEvent());
+                var dialog = (games.pixscape.studio.ui.property.entityproperties.EditPropertiesDialog) stage.getActors().peek();
+                finishDialogActions(stage, dialog);
+                var rowsField = dialog.getClass().getDeclaredField("rows");
+                rowsField.setAccessible(true);
+                Object row = ((com.badlogic.gdx.utils.Array<?>) rowsField.get(dialog)).first();
+                var numberField = row.getClass().getDeclaredField("numberField");
+                numberField.setAccessible(true);
+                ((com.kotcrab.vis.ui.widget.VisTextField) numberField.get(row))
+                        .setText(action.equals("Unchanged") ? "42" : "73");
+                if (action.equals("Escape")) {
+                    stage.keyDown(Input.Keys.ESCAPE);
+                    stage.keyUp(Input.Keys.ESCAPE);
+                } else if (action.equals("Close")) {
+                    for (var actor : dialog.getTitleTable().getChildren()) {
+                        if (actor instanceof com.kotcrab.vis.ui.widget.VisImageButton) {
+                            actor.fire(new ChangeListener.ChangeEvent());
+                        }
+                    }
+                } else {
+                    clickDialogButton(dialog, action.equals("Unchanged") ? "Apply" : action);
+                }
+                finishDialogActions(stage, dialog);
+                EventFlow.i().flush();
+                assertNull("Dialog must close on " + action, dialog.getStage());
+                assertEquals(action.equals("Apply") ? 73 : 42, mapper.get(layer).properties.getInt("count", 0));
+                assertEquals(action.equals("Apply") ? 1 : 0, fixture.history.getCursor());
+            }
+            assertEquals("1 property", summary.getText().toString());
+            for (int i = 0; i < 3; i++) {
+                fixture.history.undo();
+                EventFlow.i().flush();
+                assertEquals(42, mapper.get(layer).properties.getInt("count", 0));
+                fixture.history.redo();
+                EventFlow.i().flush();
+                assertEquals(73, mapper.get(layer).properties.getInt("count", 0));
+            }
+            assertEquals(7, fixture.saveRequests);
+        } finally {
+            stage.dispose();
+            fixture.world.dispose();
+        }
+    }
+
+    private static void finishDialogActions(Stage stage, com.kotcrab.vis.ui.widget.VisDialog dialog) {
+        // Finish the finite fade/removal action sequence deterministically, without wall-clock waits.
+        for (int step = 0; dialog.getStage() != null && dialog.hasActions() && step < 10; step++) {
+            stage.act(1f);
+        }
+        assertTrue(dialog.getStage() == null || !dialog.hasActions());
+    }
+
+    private static void clickDialogButton(com.kotcrab.vis.ui.widget.VisDialog dialog, String text) {
+        for (var actor : dialog.getButtonsTable().getChildren()) {
+            if (actor instanceof com.kotcrab.vis.ui.widget.VisTextButton button && text.contentEquals(button.getText())) {
+                button.fire(new ChangeListener.ChangeEvent());
+                return;
+            }
+        }
+        throw new AssertionError("Missing dialog button " + text);
+    }
+
+    @Test
     public void decimalLocalPositionCommitsOnceAndRefreshesThroughHistoryWithoutRounding() {
         Fixture fixture = new Fixture();
         try {

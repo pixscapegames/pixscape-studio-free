@@ -290,6 +290,7 @@ public final class TmxSceneImportService {
         int order = 0;
         Map<Integer, Integer> stableIdsBySourceObjectId = new HashMap<>();
         List<PendingObjectProperties> pendingProperties = new ArrayList<>();
+        pendingProperties.add(new PendingObjectProperties(map, scene.properties(), scene.objectPropertyReferences()));
         for (TmxLayerPlan layerPlan : plan.layers()) {
             int layer;
             TiledMapLayerComponent.Kind kind;
@@ -321,8 +322,6 @@ public final class TmxSceneImportService {
                 world.getMapper(EntityIndexComponent.class).create(layer).layerIndex = 0;
                 world.getMapper(EntityMetaComponent.class).create(layer).kind = EntityKind.GAME_OBJECT;
                 identityRegistry.ensureStableId(layer);
-                pendingProperties.add(new PendingObjectProperties(layer,
-                        objectLayer.properties(), objectLayer.objectPropertyReferences()));
                 populateObjects(world, identityRegistry, 0, scene, objectLayer,
                         staticTileAssetIdsByTileset, animationIdsByTileset, sceneTag,
                         stableIdsBySourceObjectId, pendingProperties,
@@ -334,6 +333,8 @@ public final class TmxSceneImportService {
             } else {
                 throw new IllegalArgumentException("Unsupported Tiled layer plan.");
             }
+            pendingProperties.add(new PendingObjectProperties(layer,
+                    layerPlan.properties(), layerPlan.objectPropertyReferences()));
             identityRegistry.setName(layer, layerPlan.name());
             world.getMapper(VisibilityComponent.class).create(layer).visible = visible;
             LayerParallaxComponent parallax = world.getMapper(LayerParallaxComponent.class).create(layer);

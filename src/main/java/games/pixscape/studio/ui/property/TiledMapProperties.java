@@ -18,6 +18,7 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.*;
 import games.pixscape.studio.ui.config.CommonLayout;
+import games.pixscape.studio.ui.property.entityproperties.CustomPropertiesEditorRow;
 import games.pixscape.studio.ui.modal.StudioDialog;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
 import games.pixscape.studio.ui.widget.FloatField;
@@ -28,6 +29,7 @@ import games.pixscape.studio.ui.widget.SimpleTextField;
  */
 public final class TiledMapProperties extends VisTable {
 
+    private final CustomPropertiesEditorRow customPropertiesRow;
     private final World world;
     private final HistoryManager history;
     private final PhysicsService physicsService;
@@ -65,6 +67,7 @@ public final class TiledMapProperties extends VisTable {
                               Runnable markCurrentSceneSaveRequired) {
         super(true);
         this.world = world;
+        customPropertiesRow = new CustomPropertiesEditorRow(world, history, 0, markCurrentSceneSaveRequired);
         this.history = history;
         this.physicsService = physicsService;
         this.markCurrentSceneSaveRequired = markCurrentSceneSaveRequired;
@@ -170,6 +173,7 @@ public final class TiledMapProperties extends VisTable {
 
         addProperty("Name:", mapName);
         addProperty("Id:", stableIdValue);
+        add(customPropertiesRow).colspan(2).growX().row();
         addProperty("Projection:", tiledProjectionValue);
         addProperty("Cell Width:", tiledTileWidthValue);
         addProperty("Cell Height:", tiledTileHeightValue);
@@ -252,6 +256,7 @@ public final class TiledMapProperties extends VisTable {
 
     public void setMapEntityId(int mapEntityId) {
         this.mapEntityId = isValidMap(mapEntityId) ? mapEntityId : -1;
+        customPropertiesRow.setEntityId(this.mapEntityId);
         refreshFromModel();
     }
 

@@ -330,7 +330,7 @@ public class TmxObjectLayerPreflightTest {
     }
 
     @Test
-    public void customEnumMetadataKeepsTheAuthoritativePrimitiveType() throws Exception {
+    public void customEnumMetadataIsRejectedWithoutPrimitiveCoercion() throws Exception {
         Path dir = Files.createTempDirectory("tmx-custom-enum-properties");
         FileHandle tmx = writeMap(dir, """
                 <objectgroup name="Gameplay"><object id="1"><properties>
@@ -341,12 +341,12 @@ public class TmxObjectLayerPreflightTest {
 
         TmxPreflightReport report = analyze(tmx);
 
-        assertFalse(report.hasBlockingDiagnostics());
-        PropertySet properties = ((TmxObjectLayerInfo) report.layers().get(0)).objects().get(0).properties();
-        assertEquals(PropertyType.STRING, properties.typeOf("direction"));
-        assertEquals("North", properties.getString("direction", null));
-        assertEquals(PropertyType.INTEGER, properties.typeOf("flags"));
-        assertEquals(3, properties.getInt("flags", 0));
+        assertTrue(report.hasBlockingDiagnostics());
+        assertEquals(2, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
+        assertTrue(report.diagnostics().stream().anyMatch(d -> d.location().contains("direction")
+                && d.message().contains("Direction")));
+        assertTrue(report.diagnostics().stream().anyMatch(d -> d.location().contains("flags")
+                && d.message().contains("Flags")));
     }
 
     @Test
@@ -427,7 +427,7 @@ public class TmxObjectLayerPreflightTest {
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_NAME_DUPLICATE"));
         assertEquals(3, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_NAME_INVALID"));
         assertEquals(9, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_VALUE_INVALID"));
-        assertEquals(3, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
+        assertEquals(4, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING,
                 "TMX_OBJECT_REFERENCE_UNRESOLVED"));
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_CLASS_PROPERTY_TYPE_INVALID"));

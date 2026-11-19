@@ -1,5 +1,9 @@
 package games.pixscape.studio.importer.tmx;
 
+import games.pixscape.runtime.property.PropertySet;
+
+import java.util.List;
+
 public record TmxImageLayerPlan(String name,
                                 String originalName,
                                 int sourceLayerIndex,
@@ -16,5 +20,16 @@ public record TmxImageLayerPlan(String name,
                                 String imageSource,
                                 int imageWidth,
                                 int imageHeight,
-                                String resolvedImagePath) implements TmxLayerPlan {
+                                String resolvedImagePath,
+                                PropertySet properties,
+                                List<TmxObjectPropertyReference> objectPropertyReferences) implements TmxLayerPlan {
+    public TmxImageLayerPlan {
+        properties = properties.copy();
+        objectPropertyReferences = List.copyOf(objectPropertyReferences);
+    }
+
+    @Override
+    public PropertySet properties() {
+        return properties.copy();
+    }
 }

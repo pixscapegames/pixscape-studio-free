@@ -107,7 +107,7 @@ public class EntityProperties extends VisTable {
                 openEditTagsDialog();
             }
         });
-        customPropertiesRow = new CustomPropertiesEditorRow(ctx);
+        customPropertiesRow = new CustomPropertiesEditorRow(ctx.world, ctx.history, ctx.sourceTag, ctx.markCurrentSceneSaveRequired);
 
         visibleCheckBox = new VisCheckBox("Visible");
         visibleBinder = new UiBinders.CheckBoxBinder(
@@ -187,9 +187,6 @@ public class EntityProperties extends VisTable {
         EventFlow.i().subscribe(EventFlow.EntityNameChanged.class, evt -> {
             if (evt.entityId() != currentEntityId) return;
             entityName.refresh();
-        });
-        EventFlow.i().subscribe(EventFlow.CustomPropertiesChanged.class, evt -> {
-            if (evt.entityId() == currentEntityId) customPropertiesRow.refresh();
         });
         EventFlow.i().subscribe(EventFlow.ShaderListChanged.class, evt -> materialPanel.refreshShaderList());
         EventFlow.i().subscribe(EventFlow.ScenePhysicsEnabledChanged.class, evt -> {

@@ -19,6 +19,50 @@ import static org.junit.Assert.*;
 public class TmxPreflightServiceTest {
 
     @Test
+    public void excludedOwnersKeepWarningsWithoutLeakingTheirPropertiesToMapOrLayers() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-excluded-owner-properties");
+        writeFile(dir.resolve("image.png"), "preflight image witness");
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="Tiles" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                    <properties><property name="tilesetOnly" type="file" value="settings.json"/></properties>
+                    <image source="image.png" width="16" height="16"/>
+                  </tileset>
+                  <group name="Group">
+                    <properties><property name="groupOnly" type="list" value="1,2"/></properties>
+                    <layer name="Ground" width="1" height="1"><data encoding="csv">1</data></layer>
+                  </group>
+                </map>
+                """);
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+        assertFalse(report.hasBlockingDiagnostics());
+        assertEquals(2, report.diagnostics().stream().filter(d -> d.code().equals("TMX_CUSTOM_PROPERTIES_IGNORED")).count());
+        assertTrue(report.mapInfo().properties().isEmpty());
+        assertTrue(report.layers().get(0).properties().isEmpty());
+    }
+
+    @Test
+    public void newOwnerPlansExposeIndependentPropertyCopies() {
+        TmxImportPlanResult result = new TmxImportPlanner().plan(new TmxImportPlanRequest(
+                new FileHandle("src/test/resources/tmx/owner-properties/orthogonal.tmx")));
+        assertTrue(result.hasPlan());
+        var map = result.preflightReport().mapInfo();
+        map.properties().putString("label", "changed");
+        assertEquals("map", map.properties().getString("label", null));
+        result.plan().scene().properties().putString("label", "changed");
+        assertEquals("map", result.plan().scene().properties().getString("label", null));
+        for (int i = 0; i < 2; i++) {
+            String label = i == 0 ? "tile" : "image";
+            var info = result.preflightReport().layers().get(i);
+            info.properties().putClass("settings", "Changed", new games.pixscape.runtime.property.PropertySet());
+            assertEquals("Settings", info.properties().getClassValue("settings").typeName());
+            var plan = result.plan().layers().get(i);
+            plan.properties().putString("label", "changed");
+            assertEquals(label, plan.properties().getString("label", null));
+        }
+    }
+
+    @Test
     public void minimalOrthogonalCsvMapIsImportableCandidate() throws Exception {
         Path dir = Files.createTempDirectory("tmx-preflight-csv");
         FileHandle image = writeFile(dir.resolve("terrain.png"), "fake image");
@@ -472,7 +516,8 @@ public class TmxPreflightServiceTest {
         assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_IMAGE_LAYER_REPEAT_UNSUPPORTED"));
         assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_IMAGE_LAYER_TINT_IGNORED"));
         assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_IMAGE_LAYER_TRANSPARENT_COLOR_IGNORED"));
-        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_CUSTOM_PROPERTIES_IGNORED"));
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_CUSTOM_PROPERTIES_IGNORED"));
+        assertEquals("1", report.layers().get(0).properties().getString("ignored", null));
     }
 
     @Test

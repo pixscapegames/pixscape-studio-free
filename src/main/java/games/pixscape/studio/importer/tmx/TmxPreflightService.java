@@ -75,7 +75,6 @@ public final class TmxPreflightService {
         if (map.hasAttribute("parallaxoriginx") || map.hasAttribute("parallaxoriginy")) {
             state.warning("TMX_MAP_PARALLAX_ORIGIN_IGNORED", "Map parallax origin is detected but Pixscape has no equivalent.", "map");
         }
-        warnIgnoredProperties(map, state, "map", "map");
         readTilesets(map, tmxFile, mapInfo, state);
         state.tilesets.sort(Comparator.comparingInt(TmxTilesetInfo::firstGid));
 
@@ -114,7 +113,9 @@ public final class TmxPreflightService {
             state.blocking("TMX_UNSUPPORTED_ORIENTATION", message, "map");
         }
 
-        return new TmxMapInfo(orientation, width, height, tileWidth, tileHeight, infinite);
+        ParsedProperties properties = readPropertiesWithPaths(map, state, "map");
+        return new TmxMapInfo(orientation, width, height, tileWidth, tileHeight, infinite,
+                properties.properties(), properties.objectReferences());
     }
 
     private void readTilesets(XmlReader.Element map,
@@ -756,6 +757,12 @@ public final class TmxPreflightService {
                         path, parsePropertyObjectReference(value, location, state), location));
                 return;
             }
+            if (!"class".equals(type) && customType != null && !customType.isBlank()) {
+                state.blocking("TMX_PROPERTY_TYPE_UNSUPPORTED",
+                        "Unsupported Tiled property type '" + type + "' (propertytype '" + customType + "').",
+                        location);
+                return;
+            }
             switch (type) {
                 case "string" -> properties.putString(name, value != null ? value : "");
                 case "bool" -> properties.putBoolean(name, parsePropertyBoolean(value, location, state));
@@ -913,9 +920,12 @@ public final class TmxPreflightService {
                 }
             }
         }
+        validateObjectPropertyReferences(state, state.mapInfo.objectPropertyReferences(), objectsById);
         for (TmxLayerInfo layer : state.layers) {
-            if (!(layer instanceof TmxObjectLayerInfo objectLayer)) continue;
-            validateObjectPropertyReferences(state, objectLayer.objectPropertyReferences(), objectsById);
+            validateObjectPropertyReferences(state, layer.objectPropertyReferences(), objectsById);
+            if (!(layer instanceof TmxObjectLayerInfo objectLayer)) {
+                continue;
+            }
             for (TmxObjectInfo object : objectLayer.objects()) {
                 validateObjectPropertyReferences(state, object.objectPropertyReferences(), objectsById);
             }
@@ -969,7 +979,6 @@ public final class TmxPreflightService {
     private void warnIgnoredImageLayerAttributes(XmlReader.Element layer,
                                                  AnalysisState state,
                                                  String location) {
-        warnIgnoredProperties(layer, state, "image layer", location);
         if (layer.hasAttribute("blendmode")) {
             state.warning("TMX_LAYER_BLENDMODE_IGNORED", "Layer blend mode is detected but ignored by preflight.", location);
         }
@@ -1006,6 +1015,7 @@ public final class TmxPreflightService {
             state.blocking("TMX_IMAGE_LAYER_IMAGE_UNSUPPORTED", "Image layer image format is not supported: " + imageSource, imageSource);
         }
 
+        ParsedProperties properties = readPropertiesWithPaths(layer, state, "Image Layer '" + name + "'");
         state.layers.add(new TmxImageLayerInfo(
                 name,
                 originalName,
@@ -1023,7 +1033,9 @@ public final class TmxPreflightService {
                 imageWidth,
                 imageHeight,
                 pathOf(resolvedImage),
-                imageExists
+                imageExists,
+                properties.properties(),
+                properties.objectReferences()
         ));
 
         if (layer.hasAttribute("tintcolor")) {
@@ -1101,6 +1113,7 @@ public final class TmxPreflightService {
         state.tileLayerCount++;
         state.requiredTiledCells += Math.max(0, width) * (long) Math.max(0, height);
         state.nonEmptyTileCount += nonEmpty;
+        ParsedProperties properties = readPropertiesWithPaths(layer, state, "Tile Layer '" + name + "'");
         state.layers.add(new TmxTileLayerInfo(
                 name,
                 layer.getAttribute("name", layer.getName()),
@@ -1116,9 +1129,11 @@ public final class TmxPreflightService {
                 compression,
                 nonEmpty,
                 hasTransformFlags,
-                cells
+                cells,
+                properties.properties(),
+                properties.objectReferences()
         ));
-        warnIgnoredLayerAttributes(layer, state, name, opacity);
+        warnIgnoredLayerPresentationAttributes(layer, state, name, opacity);
     }
 
     private int[] decodeLayerData(XmlReader.Element data, int width, int height) throws LayerDataException {
@@ -1219,14 +1234,6 @@ public final class TmxPreflightService {
             }
         }
         return false;
-    }
-
-    private void warnIgnoredLayerAttributes(XmlReader.Element layer,
-                                            AnalysisState state,
-                                            String location,
-                                            float opacity) {
-        warnIgnoredProperties(layer, state, "tile layer", location);
-        warnIgnoredLayerPresentationAttributes(layer, state, location, opacity);
     }
 
     private void warnIgnoredLayerPresentationAttributes(XmlReader.Element layer,
@@ -1384,7 +1391,7 @@ public final class TmxPreflightService {
 
     private static final class AnalysisState {
         private final String sourcePath;
-        private TmxMapInfo mapInfo = new TmxMapInfo("", 0, 0, 0, 0, false);
+        private TmxMapInfo mapInfo = new TmxMapInfo("", 0, 0, 0, 0, false, new PropertySet(), List.of());
         private final List<TmxTilesetInfo> tilesets = new ArrayList<>();
         private final List<TmxLayerInfo> layers = new ArrayList<>();
         private final List<TmxDiagnostic> diagnostics = new ArrayList<>();

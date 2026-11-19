@@ -1,6 +1,7 @@
 package games.pixscape.studio.ui.property.entityproperties;
 
 import com.artemis.Aspect;
+import com.artemis.World;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.Actor;
@@ -29,7 +30,7 @@ public final class EditPropertiesDialog extends StudioDialog {
 
     private final PropertySet workingCopy;
     private final Consumer<PropertySet> onApply;
-    private final EntityPropertiesContext context;
+    private final World world;
     private final boolean tileDefinition;
     private final Array<ObjectChoice> objectChoices = new Array<ObjectChoice>();
     private final Array<PropertyRow> rows = new Array<PropertyRow>();
@@ -45,9 +46,9 @@ public final class EditPropertiesDialog extends StudioDialog {
 
     public EditPropertiesDialog(String title,
                                 PropertySet source,
-                                EntityPropertiesContext context,
+                                World world,
                                 Consumer<PropertySet> onApply) {
-        this(title, source, context, onApply, false);
+        this(title, source, world, onApply, false);
     }
 
     /**
@@ -57,18 +58,19 @@ public final class EditPropertiesDialog extends StudioDialog {
         this(title, source, null, onApply, tileDefinition);
     }
 
-    private EditPropertiesDialog(String title, PropertySet source, EntityPropertiesContext context,
+    private EditPropertiesDialog(String title, PropertySet source, World world,
                                  Consumer<PropertySet> onApply, boolean tileDefinition) {
         super(title);
         this.tileDefinition = tileDefinition;
         this.workingCopy = source != null ? source.copy() : new PropertySet();
-        this.context = context;
+        this.world = world;
         this.onApply = onApply;
         populateObjectChoices();
 
         TableUtils.setSpacingDefaults(this);
         setResizable(true);
         setModal(true);
+        closeOnEscape();
 
         loadRows(workingCopy);
         addButton.addListener(new ChangeListener() {
@@ -196,13 +198,15 @@ public final class EditPropertiesDialog extends StudioDialog {
 
     private void populateObjectChoices() {
         objectChoices.add(new ObjectChoice(-1, "None"));
-        if (context == null) return;
-        IntBag entities = context.world.getAspectSubscriptionManager()
+        if (world == null) {
+            return;
+        }
+        IntBag entities = world.getAspectSubscriptionManager()
                 .get(Aspect.all(EntityIndexComponent.class, PixscapeIdentityComponent.class))
                 .getEntities();
         for (int i = 0; i < entities.size(); i++) {
             int entityId = entities.get(i);
-            PixscapeIdentityComponent identity = context.mIdentity.getSafe(entityId, null);
+            PixscapeIdentityComponent identity = world.getMapper(PixscapeIdentityComponent.class).getSafe(entityId, null);
             if (identity == null || identity.stableId <= 0) continue;
             String name = identity.name == null || identity.name.isBlank() ? "unnamed" : identity.name;
             objectChoices.add(new ObjectChoice(identity.stableId,
@@ -393,7 +397,7 @@ public final class EditPropertiesDialog extends StudioDialog {
     private void openClassEditor(PropertyRow row) {
         String name = row.nameField.getText();
         String title = name == null || name.isEmpty() ? "Edit Class Properties" : "Edit " + name;
-        EditPropertiesDialog nested = new EditPropertiesDialog(title, row.classMembers, context, members -> {
+        EditPropertiesDialog nested = new EditPropertiesDialog(title, row.classMembers, world, members -> {
             row.classMembers = members.copy();
             validationLabel.setText("");
         });

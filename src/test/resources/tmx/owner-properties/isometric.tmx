@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map orientation="isometric" width="2" height="2" tilewidth="16" tileheight="16">
+  <properties>
+    <property name="label" value="map"/>
+    <property name="enabled" type="bool" value="true"/>
+    <property name="count" type="int" value="42"/>
+    <property name="ratio" type="float" value="1.25"/>
+    <property name="tint" type="color" value="#80402010"/>
+    <property name="target" type="object" value="2002"/>
+    <property name="none" type="object" value="0"/>
+    <property name="settings" type="class" propertytype="Settings"><properties>
+      <property name="label" value="nested"/>
+      <property name="link" type="class" propertytype="Link"><properties>
+        <property name="target" type="object" value="1001"/>
+      </properties></property>
+    </properties></property>
+  </properties>
+  <tileset firstgid="1" name="Witness tiles" tilewidth="16" tileheight="16" tilecount="3" columns="3">
+    <image source="../mixed-layers/tiles.png" width="48" height="16"/>
+    <tile id="0"><properties><property name="cost" type="int" value="9"/></properties></tile>
+  </tileset>
+  <layer name="Ground" width="2" height="2"><properties>
+    <property name="label" value="tile"/>
+    <property name="enabled" type="bool" value="true"/>
+    <property name="count" type="int" value="42"/>
+    <property name="ratio" type="float" value="1.25"/>
+    <property name="tint" type="color" value="#80402010"/>
+    <property name="target" type="object" value="2002"/>
+    <property name="none" type="object" value="0"/>
+    <property name="settings" type="class" propertytype="Settings"><properties>
+      <property name="label" value="nested"/>
+      <property name="link" type="class" propertytype="Link"><properties>
+        <property name="target" type="object" value="1001"/>
+      </properties></property>
+    </properties></property>
+  </properties>
+    <data encoding="csv">1,0,0,0</data>
+  </layer>
+  <imagelayer name="Backdrop"><properties>
+    <property name="label" value="image"/>
+    <property name="enabled" type="bool" value="true"/>
+    <property name="count" type="int" value="42"/>
+    <property name="ratio" type="float" value="1.25"/>
+    <property name="tint" type="color" value="#80402010"/>
+    <property name="target" type="object" value="2002"/>
+    <property name="none" type="object" value="0"/>
+    <property name="settings" type="class" propertytype="Settings"><properties>
+      <property name="label" value="nested"/>
+      <property name="link" type="class" propertytype="Link"><properties>
+        <property name="target" type="object" value="1001"/>
+      </properties></property>
+    </properties></property>
+  </properties>
+    <image source="../mixed-layers/image.png" width="16" height="16"/>
+  </imagelayer>
+  <objectgroup name="Gameplay"><properties>
+    <property name="label" value="objects"/>
+    <property name="enabled" type="bool" value="true"/>
+    <property name="count" type="int" value="42"/>
+    <property name="ratio" type="float" value="1.25"/>
+    <property name="tint" type="color" value="#80402010"/>
+    <property name="target" type="object" value="2002"/>
+    <property name="none" type="object" value="0"/>
+    <property name="settings" type="class" propertytype="Settings"><properties>
+      <property name="label" value="nested"/>
+      <property name="link" type="class" propertytype="Link"><properties>
+        <property name="target" type="object" value="1001"/>
+      </properties></property>
+    </properties></property>
+  </properties>
+    <object id="1001" name="Switch" x="8" y="8"><point/><properties>
+    <property name="label" value="switch"/>
+    <property name="enabled" type="bool" value="true"/>
+    <property name="count" type="int" value="42"/>
+    <property name="ratio" type="float" value="1.25"/>
+    <property name="tint" type="color" value="#80402010"/>
+    <property name="target" type="object" value="2002"/>
+    <property name="none" type="object" value="0"/>
+    <property name="settings" type="class" propertytype="Settings"><properties>
+      <property name="label" value="nested"/>
+      <property name="link" type="class" propertytype="Link"><properties>
+        <property name="target" type="object" value="1001"/>
+      </properties></property>
+    </properties></property>
+  </properties></object>
+    <object id="2002" name="Door" x="16" y="16" width="8" height="8"><properties>
+    <property name="label" value="door"/>
+    <property name="enabled" type="bool" value="true"/>
+    <property name="count" type="int" value="42"/>
+    <property name="ratio" type="float" value="1.25"/>
+    <property name="tint" type="color" value="#80402010"/>
+    <property name="target" type="object" value="2002"/>
+    <property name="none" type="object" value="0"/>
+    <property name="settings" type="class" propertytype="Settings"><properties>
+      <property name="label" value="nested"/>
+      <property name="link" type="class" propertytype="Link"><properties>
+        <property name="target" type="object" value="1001"/>
+      </properties></property>
+    </properties></property>
+  </properties></object>
+  </objectgroup>
+  <layer name="Empty" width="2" height="2"><data encoding="csv">0,0,0,0</data></layer>
+</map>
