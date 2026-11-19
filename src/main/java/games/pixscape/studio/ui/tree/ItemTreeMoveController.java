@@ -258,22 +258,9 @@ final class ItemTreeMoveController {
         var ids = context.identityRegistry();
         int parent = target.parent.isLayerNode() ? 0 : ids.getStableId(target.parent.getEntityId());
         int layer = target.parent.isLayerNode() ? target.parent.getEntityId() : context.layerService().getEffectiveLayerEntity(target.parent.getEntityId());
-        var destination = new ItemMovePreparation.Destination(document, ids.getStableId(layer), parent, 0);
-        var first = ItemMovePreparation.prepare(document, sources, destination);
-        if (!first.accepted() || target.anchor == null) return first;
-        var group = new ItemMovePreparation.Group(parent == 0 ? destination.layerStableId() : 0, parent);
-        var order = first.move().orders().stream().filter(o -> o.group().equals(group)).findFirst().orElseThrow();
-        Set<Integer> moving = new HashSet<>(first.move().sources());
-        int anchor = ids.getStableId(target.anchor.getEntityId()), slot = 0;
-        for (int id : order.before()) {
-            if (id == anchor) {
-                if (target.after && !moving.contains(id)) slot++;
-                break;
-            }
-            if (!moving.contains(id)) slot++;
-        }
-        return slot == 0 ? first : ItemMovePreparation.prepare(document, sources,
-                new ItemMovePreparation.Destination(document, destination.layerStableId(), parent, slot));
+        int anchor = target.anchor == null ? 0 : ids.getStableId(target.anchor.getEntityId());
+        return ItemMovePreparation.prepareRelative(document, sources, ids.getStableId(layer),
+                parent, anchor, target.after);
     }
 
     private void showPreview(EntityNode hit, float hitStageY) {

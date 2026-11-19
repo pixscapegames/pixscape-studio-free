@@ -36,8 +36,10 @@ public final class MoveItemsCommand implements Command, OutcomeAwareCommand {
 
     @Override
     public CommandOutcome executeOutcome() {
-        if (!move.isCurrent()) return CommandOutcome.REJECTED;
-        CommandOutcome outcome = apply(false);
+        if (!move.validateExecution()) {
+            return CommandOutcome.REJECTED;
+        }
+        CommandOutcome outcome = applyValidated(false);
         executed = outcome == CommandOutcome.APPLIED;
         return outcome;
     }
@@ -66,6 +68,10 @@ public final class MoveItemsCommand implements Command, OutcomeAwareCommand {
 
     private CommandOutcome apply(boolean undo) {
         if (!move.validate(undo)) return CommandOutcome.REJECTED;
+        return applyValidated(undo);
+    }
+
+    private CommandOutcome applyValidated(boolean undo) {
         if (move.isNoop()) return CommandOutcome.NO_CHANGE;
         var world = move.world;
         var ids = move.owner.context().identityRegistry();

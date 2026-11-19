@@ -1,5 +1,7 @@
 package games.pixscape.studio.history.commands;
 
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
+
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.artemis.managers.WorldSerializationManager;
@@ -677,6 +679,86 @@ public class MoveItemsCommandTest {
             assertEquals(0, f.parent(b));
             assertEquals(0, f.index(b).layerIndex);
             assertTrue(bw.closeTo(f.pose(b)));
+        }
+    }
+
+    @Test
+    public void relativeInsertionRemovesMovingSiblingsBeforeResolvingTheAnchorGap() {
+        for (int anchorIndex = 0; anchorIndex < 4; anchorIndex++) {
+            for (boolean after : new boolean[]{false, true}) {
+                try (F f = new F()) {
+                    int a = f.sprite(0, 4), b = f.sprite(0, 3), c = f.sprite(0, 2), d = f.sprite(0, 1);
+                    int anchor = new int[]{a, b, c, d}[anchorIndex];
+                    var result = ItemMovePreparation.prepareRelative(f.document, List.of(f.stable(c), f.stable(b)),
+                            f.stable(f.context.layerService().getLayerEntity(0)), 0, f.stable(anchor), after);
+                    assertTrue(result.refusal(), result.accepted());
+                    List<Integer> expected = anchorIndex == 0 && !after ? List.of(b, c, a, d)
+                            : anchorIndex == 3 && after ? List.of(a, d, b, c) : List.of(a, b, c, d);
+                    f.execute(result.move());
+                    assertEquals(expected, f.order(0));
+                    if (!result.move().isNoop()) {
+                        for (int cycle = 0; cycle < 3; cycle++) {
+                            f.context.historyManager().undo();
+                            assertEquals(List.of(a, b, c, d), f.order(0));
+                            f.context.historyManager().redo();
+                            assertEquals(expected, f.order(0));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    public void relativeInsertionIntoAnotherParentNormalizesDescendantsAndPreservesWorldPose() {
+        for (boolean after : new boolean[]{false, true}) {
+            try (F f = new F()) {
+                int p = f.root(0, 2), child = f.sprite(0, 1), q = f.root(1, 3);
+                int a = f.sprite(1, 2), b = f.sprite(1, 1);
+                f.attach(child, p, 1);
+                f.attach(a, q, 2);
+                f.attach(b, q, 1);
+                f.t(q).x = 200;
+                f.t(q).rotationRad = .3f;
+                f.publish();
+                var pose = f.pose(p);
+                var result = ItemMovePreparation.prepareRelative(f.document, List.of(f.stable(child), f.stable(p)),
+                        f.stable(f.context.layerService().getLayerEntity(1)), f.stable(q), f.stable(b), after);
+                assertTrue(result.refusal(), result.accepted());
+                assertEquals(List.of(f.stable(p)), result.move().sources());
+                assertEquals(after ? 2 : 1, result.move().destination().insertionIndex());
+                f.execute(result.move());
+                assertEquals(f.stable(q), f.parent(p));
+                assertEquals(f.stable(p), f.parent(child));
+                assertTrue(f.z(a) > f.z(p));
+                assertEquals(after, f.z(b) > f.z(p));
+                assertTrue(pose.closeTo(f.pose(p)));
+                f.context.historyManager().undo();
+                assertEquals(0, f.parent(p));
+                f.context.historyManager().redo();
+                assertTrue(pose.closeTo(f.pose(p)));
+            }
+        }
+    }
+
+    @Test
+    public void successfulPreflightDoesNotRetainStateAcrossLaterPhysicsOrSpatialChanges() {
+        for (boolean physics : new boolean[]{false, true}) {
+            try (F f = new F()) {
+                int a = f.sprite(0, 9), parent = f.root(1, 0);
+                f.t(parent).scaleX = f.t(parent).scaleY = 2;
+                var plan = f.prepare(1, parent, 0, a);
+                assertTrue(plan.validateExecution());
+                if (physics) {
+                    f.world.getMapper(PhysicsBodyComponent.class).create(a);
+                } else {
+                    f.world.getMapper(SpatialFootprintComponent.class).create(a);
+                }
+                f.execute(plan);
+                assertEquals(0, f.parent(a));
+                assertEquals(9, f.z(a));
+                assertEquals(0, f.context.historyManager().getCursor());
+            }
         }
     }
 

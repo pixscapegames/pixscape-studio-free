@@ -35,6 +35,7 @@
 * Added explicit `Copy visual only`, which omits physics while retaining included spatial capabilities and representation settings.
 
 ### Changed
+* Items moves resolve before/after insertion from one fresh preparation and share the drop preflight's current-state read. Stale-plan checks and independent Undo/Redo validation are preserved.
 * Clipboard instantiation no longer creates an unused deep snapshot before applying the destination layer and translation. The final independent snapshot and reference remapping are preserved.
 * Removed the inspector's Add child button; child creation remains available in Items.
 * Game Object roots can have their own visuals. Physics-backed compositions support explicit placement, and physics-backed entities support visual scaling.

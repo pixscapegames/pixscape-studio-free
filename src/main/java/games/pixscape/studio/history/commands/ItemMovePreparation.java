@@ -166,11 +166,30 @@ public final class ItemMovePreparation {
          */
         public boolean isCurrent() {
             if (!sameDocument()) return false;
-            Result current = prepare(owner, requested, destination);
-            if (!current.accepted()) return false;
-            Prepared p = current.move;
+            try {
+                return isCurrent(new Current(owner));
+            } catch (IllegalArgumentException | IllegalStateException ex) {
+                return false;
+            }
+        }
+
+        private boolean isCurrent(Current current) {
+            Prepared p = prepare(owner, current, requested, destination, 0, false);
             return sources.equals(p.sources) && changes.equals(p.changes) && orders.equals(p.orders)
                     && guards.equals(p.guards) && layers.equals(p.layers);
+        }
+
+        /** Fresh drop preflight; both guards share this read only until the first command write. */
+        boolean validateExecution() {
+            if (!sameDocument()) {
+                return false;
+            }
+            try {
+                Current current = new Current(owner);
+                return isCurrent(current) && validate(current, false);
+            } catch (IllegalArgumentException | IllegalStateException ex) {
+                return false;
+            }
         }
 
         boolean sameDocument() {
@@ -184,44 +203,62 @@ public final class ItemMovePreparation {
         boolean validate(boolean undo) {
             if (!sameDocument()) return false;
             try {
-                Current current = new Current(owner);
-                Set<Integer> currentSubtrees = new HashSet<>();
-                for (int source : sources) current.collectSubtree(source, currentSubtrees);
-                if (!subtreeIds.equals(currentSubtrees)) return false;
-                Map<Integer, State> expected = new HashMap<>();
-                Map<Integer, Change> byId = new HashMap<>();
-                for (Change change : changes) byId.put(change.before.stableId, change);
-                for (State state : guards) expected.put(state.stableId, state);
-                if (undo) for (Change change : changes) expected.put(change.after.stableId, change.after);
-                for (State state : expected.values())
-                    if (!state.equals(current.states.get(state.stableId))) return false;
-                for (Layer layer : layers)
-                    if (!layer.equals(current.layers.get(layer.stableId)) || layer.locked) return false;
-                // Z/parent values are checked above. Restored ECS IDs may change the legacy
-                // tie-break without changing authored state, so history checks membership here.
-                for (Order order : orders)
-                    if (!new HashSet<>(current.order(order.group))
-                            .equals(new HashSet<>(undo ? order.after : order.before))) return false;
-                Map<Integer, Integer> parentOverrides = new HashMap<>();
-                for (int source : sources) {
-                    Change change = byId.get(source);
-                    State target = change == null ? current.states.get(source) : undo ? change.before : change.after;
-                    int layer = current.layerOf(source);
-                    // During undo the old parent/layer supplies the destination, not the historical member index.
-                    if (target.parentStableId != 0) layer = current.layerOf(target.parentStableId);
-                    else layer = current.layerByIndex(target.storedLayer).stableId;
-                    current.validateSource(source, target.parentStableId, layer);
-                    parentOverrides.put(source, target.parentStableId);
-                }
-                current.validateSpatialMapOwnership(parentOverrides);
-                return true;
+                return validate(new Current(owner), undo);
             } catch (IllegalArgumentException | IllegalStateException ex) {
                 return false;
             }
         }
+
+        private boolean validate(Current current, boolean undo) {
+            Set<Integer> currentSubtrees = new HashSet<>();
+            for (int source : sources) current.collectSubtree(source, currentSubtrees);
+            if (!subtreeIds.equals(currentSubtrees)) return false;
+            Map<Integer, State> expected = new HashMap<>();
+            Map<Integer, Change> byId = new HashMap<>();
+            for (Change change : changes) byId.put(change.before.stableId, change);
+            for (State state : guards) expected.put(state.stableId, state);
+            if (undo) for (Change change : changes) expected.put(change.after.stableId, change.after);
+            for (State state : expected.values())
+                if (!state.equals(current.states.get(state.stableId))) return false;
+            for (Layer layer : layers)
+                if (!layer.equals(current.layers.get(layer.stableId)) || layer.locked) return false;
+            // Z/parent values are checked above. Restored ECS IDs may change the legacy
+            // tie-break without changing authored state, so history checks membership here.
+            for (Order order : orders)
+                if (!new HashSet<>(current.order(order.group))
+                        .equals(new HashSet<>(undo ? order.after : order.before))) return false;
+            Map<Integer, Integer> parentOverrides = new HashMap<>();
+            for (int source : sources) {
+                Change change = byId.get(source);
+                State target = change == null ? current.states.get(source) : undo ? change.before : change.after;
+                int layer = current.layerOf(source);
+                // During undo the old parent/layer supplies the destination, not the historical member index.
+                if (target.parentStableId != 0) layer = current.layerOf(target.parentStableId);
+                else layer = current.layerByIndex(target.storedLayer).stableId;
+                current.validateSource(source, target.parentStableId, layer);
+                parentOverrides.put(source, target.parentStableId);
+            }
+            current.validateSpatialMapOwnership(parentOverrides);
+            return true;
+        }
     }
 
     public static Result prepare(OpenEditorDocument document, List<Integer> sourceStableIds, Destination destination) {
+        return prepare(document, sourceStableIds, destination, 0, false);
+    }
+
+    /**
+     * Resolves a before/after slot after removing normalized sources, within one fresh projection.
+     * A zero anchor denotes insertion at the beginning of the destination group.
+     */
+    public static Result prepareRelative(OpenEditorDocument document, List<Integer> sourceStableIds,
+                                         int layerStableId, int parentStableId, int anchorStableId, boolean after) {
+        return prepare(document, sourceStableIds,
+                new Destination(document, layerStableId, parentStableId, 0), anchorStableId, after);
+    }
+
+    private static Result prepare(OpenEditorDocument document, List<Integer> sourceStableIds,
+                                  Destination destination, int anchorStableId, boolean afterAnchor) {
         try {
             if (!(document instanceof SceneEditorDocument owner) || owner.isClosed() || !owner.context().isInitialized())
                 throw new IllegalArgumentException("Items moves require an open Scene document; HUD and Game Object assets are excluded.");
@@ -229,107 +266,128 @@ public final class ItemMovePreparation {
                 throw new IllegalArgumentException("Source and destination must belong to the same Scene document.");
             if (sourceStableIds == null || sourceStableIds.isEmpty())
                 throw new IllegalArgumentException("Select at least one item.");
-            Current current = new Current(owner);
-            Layer targetLayer = current.requireLayer(destination.layerStableId);
-            int parent = destination.parentStableId;
-            if (parent != 0 && current.layerOf(parent) != targetLayer.stableId)
-                throw new IllegalArgumentException("The destination parent belongs to another layer.");
-            Set<Integer> selected = new HashSet<>(sourceStableIds);
-            for (int id : selected)
-                if (!current.states.containsKey(id))
-                    throw new IllegalArgumentException("A source is missing or is not an item.");
-            List<Integer> sources = new ArrayList<>();
-            // Preorder gives deterministic reading order across layers/parents and removes selected descendants.
-            Set<Integer> covered = new HashSet<>();
-            for (int id : current.readingOrder) {
-                State state = current.states.get(id);
-                if (covered.contains(state.parentStableId)) covered.add(id);
-                else if (selected.contains(id)) {
-                    sources.add(id);
-                    covered.add(id);
-                }
-            }
-            if (sources.isEmpty()) throw new IllegalArgumentException("No movable source items.");
-            Group targetGroup = new Group(parent == 0 ? targetLayer.stableId : 0, parent);
-            LinkedHashMap<Group, List<Integer>> before = new LinkedHashMap<>();
-            for (int id : sources) {
-                current.validateSource(id, parent, targetLayer.stableId);
-                Group group = current.groupOf(id);
-                before.putIfAbsent(group, current.order(group));
-            }
-            Map<Integer, Integer> parentOverrides = new HashMap<>();
-            for (int id : sources) {
-                parentOverrides.put(id, parent);
-            }
-            current.validateSpatialMapOwnership(parentOverrides);
-            before.putIfAbsent(targetGroup, current.order(targetGroup));
-            Map<Group, List<Integer>> after = new LinkedHashMap<>();
-            Set<Integer> moving = new HashSet<>(sources);
-            before.forEach((group, list) -> after.put(group, new ArrayList<>(list.stream().filter(id -> !moving.contains(id)).toList())));
-            List<Integer> target = after.get(targetGroup);
-            if (destination.insertionIndex < 0 || destination.insertionIndex > target.size())
-                throw new IllegalArgumentException("Insertion must be between remaining siblings, after removing sources.");
-            target.addAll(destination.insertionIndex, sources);
-            List<Order> orders = new ArrayList<>();
-            Map<Integer, State> updated = new HashMap<>();
-            for (int id : sources) {
-                State old = current.states.get(id);
-                Pose pose = old.pose;
-                if (old.parentStableId != parent) {
-                    TransformComponent original = GameObjectHierarchyCommandSupport.worldTransform(current.world, current.ids, current.entity(id));
-                    boolean root = current.world.getMapper(GameObjectComponent.class).has(current.entity(id));
-                    TransformComponent parentWorld = parent == 0 ? null : GameObjectHierarchyCommandSupport.worldTransform(current.world, current.ids, current.entity(parent));
-                    TransformComponent local = parent == 0 ? original : GameObjectTransformMath.worldToLocal(parentWorld, original, root, new TransformComponent());
-                    TransformComponent restored = parent == 0 ? local : GameObjectTransformMath.localToWorld(parentWorld, local, root, new TransformComponent());
-                    if (!Pose.read(original).closeTo(Pose.read(restored)))
-                        throw new IllegalArgumentException("Parent conversion exceeds world-pose tolerance.");
-                    pose = Pose.read(local);
-                }
-                // Tile rendering mirrors the effective scene layer into EntityIndex during composition.
-                // Capture that value in history now, so publication cannot invalidate the undo guard.
-                boolean tileLayer = current.world.getMapper(TiledLayerComponent.class).has(current.entity(id));
-                int storedLayer = parent == 0 || tileLayer ? targetLayer.index : old.storedLayer;
-                updated.put(id, new State(id, parent, storedLayer, old.z, pose, old.composition));
-            }
-            for (var entry : before.entrySet()) {
-                Group group = entry.getKey();
-                List<Integer> next = after.get(group);
-                orders.add(new Order(group, entry.getValue(), next));
-                // Identical order is a true no-op, even for sparse or tied Z values.
-                if (entry.getValue().equals(next)) continue;
-                if (next.size() - 1 > SortKey64.MAX_Z)
-                    throw new IllegalArgumentException("Too many siblings for Runtime Z range.");
-                for (int i = 0; i < next.size(); i++) {
-                    int id = next.get(i);
-                    State state = updated.getOrDefault(id, current.states.get(id));
-                    updated.put(id, new State(id, state.parentStableId, state.storedLayer, next.size() - 1 - i, state.pose, state.composition));
-                }
-            }
-            if (parent != 0 && !current.states.get(parent).composition) {
-                State old = updated.getOrDefault(parent, current.states.get(parent));
-                Pose pose = Pose.read(GameObjectHierarchyCommandSupport.promotedParentLocal(
-                        current.world, current.ids, current.entity(parent)));
-                updated.put(parent, new State(parent, old.parentStableId, old.storedLayer, old.z, pose, true));
-            }
-            List<Change> changes = new ArrayList<>();
-            Set<Integer> guarded = new HashSet<>(covered);
-            before.values().forEach(guarded::addAll);
-            for (int id : sources) current.guardAncestors(id, guarded);
-            if (parent != 0) current.guardAncestors(parent, guarded);
-            for (int id : current.readingOrder) {
-                State old = current.states.get(id), next = updated.get(id);
-                if (next != null && !old.equals(next)) changes.add(new Change(old, next,
-                        current.layerOf(id), moving.contains(id) ? targetLayer.stableId : current.layerOf(id)));
-            }
-            List<State> guards = guarded.stream().sorted().map(current.states::get).toList();
-            Set<Integer> layerIds = new TreeSet<>();
-            layerIds.add(targetLayer.stableId);
-            for (int id : sources) layerIds.add(current.layerOf(id));
-            return new Result(new Prepared(owner, sourceStableIds, destination, sources, changes, orders,
-                    guards, covered, layerIds.stream().map(current.layers::get).toList()), null);
+            return new Result(prepare(owner, new Current(owner), sourceStableIds, destination,
+                    anchorStableId, afterAnchor), null);
         } catch (IllegalArgumentException | IllegalStateException ex) {
             return new Result(null, ex.getMessage());
         }
+    }
+
+    private static Prepared prepare(SceneEditorDocument owner, Current current, List<Integer> sourceStableIds,
+                                    Destination destination, int anchorStableId, boolean afterAnchor) {
+        Layer targetLayer = current.requireLayer(destination.layerStableId);
+        int parent = destination.parentStableId;
+        if (parent != 0 && current.layerOf(parent) != targetLayer.stableId)
+            throw new IllegalArgumentException("The destination parent belongs to another layer.");
+        Set<Integer> selected = new HashSet<>(sourceStableIds);
+        for (int id : selected)
+            if (!current.states.containsKey(id))
+                throw new IllegalArgumentException("A source is missing or is not an item.");
+        List<Integer> sources = new ArrayList<>();
+        // Preorder gives deterministic reading order across layers/parents and removes selected descendants.
+        Set<Integer> covered = new HashSet<>();
+        for (int id : current.readingOrder) {
+            State state = current.states.get(id);
+            if (covered.contains(state.parentStableId)) covered.add(id);
+            else if (selected.contains(id)) {
+                sources.add(id);
+                covered.add(id);
+            }
+        }
+        if (sources.isEmpty()) throw new IllegalArgumentException("No movable source items.");
+        Group targetGroup = new Group(parent == 0 ? targetLayer.stableId : 0, parent);
+        LinkedHashMap<Group, List<Integer>> before = new LinkedHashMap<>();
+        for (int id : sources) {
+            current.validateSource(id, parent, targetLayer.stableId);
+            Group group = current.groupOf(id);
+            before.putIfAbsent(group, current.order(group));
+        }
+        Map<Integer, Integer> parentOverrides = new HashMap<>();
+        for (int id : sources) {
+            parentOverrides.put(id, parent);
+        }
+        current.validateSpatialMapOwnership(parentOverrides);
+        before.putIfAbsent(targetGroup, current.order(targetGroup));
+        Map<Group, List<Integer>> after = new LinkedHashMap<>();
+        Set<Integer> moving = new HashSet<>(sources);
+        before.forEach((group, list) -> after.put(group, new ArrayList<>(list.stream().filter(id -> !moving.contains(id)).toList())));
+        List<Integer> target = after.get(targetGroup);
+        if (anchorStableId != 0) {
+            int slot = 0;
+            // A selected anchor still marks its original gap among the remaining siblings.
+            for (int id : before.get(targetGroup)) {
+                if (id == anchorStableId) {
+                    if (afterAnchor && !moving.contains(id)) {
+                        slot++;
+                    }
+                    break;
+                }
+                if (!moving.contains(id)) {
+                    slot++;
+                }
+            }
+            destination = new Destination(owner, targetLayer.stableId, parent, slot);
+        }
+        if (destination.insertionIndex < 0 || destination.insertionIndex > target.size())
+            throw new IllegalArgumentException("Insertion must be between remaining siblings, after removing sources.");
+        target.addAll(destination.insertionIndex, sources);
+        List<Order> orders = new ArrayList<>();
+        Map<Integer, State> updated = new HashMap<>();
+        for (int id : sources) {
+            State old = current.states.get(id);
+            Pose pose = old.pose;
+            if (old.parentStableId != parent) {
+                TransformComponent original = GameObjectHierarchyCommandSupport.worldTransform(current.world, current.ids, current.entity(id));
+                boolean root = current.world.getMapper(GameObjectComponent.class).has(current.entity(id));
+                TransformComponent parentWorld = parent == 0 ? null : GameObjectHierarchyCommandSupport.worldTransform(current.world, current.ids, current.entity(parent));
+                TransformComponent local = parent == 0 ? original : GameObjectTransformMath.worldToLocal(parentWorld, original, root, new TransformComponent());
+                TransformComponent restored = parent == 0 ? local : GameObjectTransformMath.localToWorld(parentWorld, local, root, new TransformComponent());
+                if (!Pose.read(original).closeTo(Pose.read(restored)))
+                    throw new IllegalArgumentException("Parent conversion exceeds world-pose tolerance.");
+                pose = Pose.read(local);
+            }
+            // Tile rendering mirrors the effective scene layer into EntityIndex during composition.
+            // Capture that value in history now, so publication cannot invalidate the undo guard.
+            boolean tileLayer = current.world.getMapper(TiledLayerComponent.class).has(current.entity(id));
+            int storedLayer = parent == 0 || tileLayer ? targetLayer.index : old.storedLayer;
+            updated.put(id, new State(id, parent, storedLayer, old.z, pose, old.composition));
+        }
+        for (var entry : before.entrySet()) {
+            Group group = entry.getKey();
+            List<Integer> next = after.get(group);
+            orders.add(new Order(group, entry.getValue(), next));
+            // Identical order is a true no-op, even for sparse or tied Z values.
+            if (entry.getValue().equals(next)) continue;
+            if (next.size() - 1 > SortKey64.MAX_Z)
+                throw new IllegalArgumentException("Too many siblings for Runtime Z range.");
+            for (int i = 0; i < next.size(); i++) {
+                int id = next.get(i);
+                State state = updated.getOrDefault(id, current.states.get(id));
+                updated.put(id, new State(id, state.parentStableId, state.storedLayer, next.size() - 1 - i, state.pose, state.composition));
+            }
+        }
+        if (parent != 0 && !current.states.get(parent).composition) {
+            State old = updated.getOrDefault(parent, current.states.get(parent));
+            Pose pose = Pose.read(GameObjectHierarchyCommandSupport.promotedParentLocal(
+                    current.world, current.ids, current.entity(parent)));
+            updated.put(parent, new State(parent, old.parentStableId, old.storedLayer, old.z, pose, true));
+        }
+        List<Change> changes = new ArrayList<>();
+        Set<Integer> guarded = new HashSet<>(covered);
+        before.values().forEach(guarded::addAll);
+        for (int id : sources) current.guardAncestors(id, guarded);
+        if (parent != 0) current.guardAncestors(parent, guarded);
+        for (int id : current.readingOrder) {
+            State old = current.states.get(id), next = updated.get(id);
+            if (next != null && !old.equals(next)) changes.add(new Change(old, next,
+                    current.layerOf(id), moving.contains(id) ? targetLayer.stableId : current.layerOf(id)));
+        }
+        List<State> guards = guarded.stream().sorted().map(current.states::get).toList();
+        Set<Integer> layerIds = new TreeSet<>();
+        layerIds.add(targetLayer.stableId);
+        for (int id : sources) layerIds.add(current.layerOf(id));
+        return new Prepared(owner, sourceStableIds, destination, sources, changes, orders,
+                guards, covered, layerIds.stream().map(current.layers::get).toList());
     }
 
     /**
