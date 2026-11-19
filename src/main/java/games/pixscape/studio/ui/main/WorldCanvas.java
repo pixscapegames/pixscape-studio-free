@@ -44,6 +44,7 @@ import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
+import games.pixscape.studio.document.EditorDocumentType;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.batch.BatchFactoryStudio;
@@ -327,12 +328,17 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
      * Creates a fully live but suspended Scene context without publishing a document tab.
      */
     public SceneEditorContext createSceneContext(String canonicalSceneIdentity, SceneMeta sceneMeta) {
+        return createEditorContext(canonicalSceneIdentity, sceneMeta, EditorDocumentType.SCENE);
+    }
+
+    public SceneEditorContext createEditorContext(String canonicalSceneIdentity, SceneMeta sceneMeta,
+                                                 EditorDocumentType documentType) {
         SceneEditorContext previous = sceneEditorContext;
         SceneBinding previousBinding = previous != null ? SceneBinding.capture(this) : null;
         if (previous != null) sceneBindings.put(previous, previousBinding);
 
         SceneEditorContext candidate = new SceneEditorContext(
-                canonicalSceneIdentity, studioEditingModeService);
+                canonicalSceneIdentity, studioEditingModeService, documentType);
         try {
             createWorld(candidate, sceneMeta);
             candidate.captureView(0f, 0f, 1f);
@@ -698,7 +704,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 entityId -> {
                     if (entityId >= 0) targetContext.selectionService().selectOnly(entityId);
                     else targetContext.selectionService().clearSelection();
-                }, selectionService(), physicsService, () -> targetSceneMeta != null && targetSceneMeta.physicsEnabled);
+                }, selectionService(), physicsService, () -> targetSceneMeta != null && targetSceneMeta.physicsEnabled,
+                targetContext.documentType());
 
         var objectEditor = new games.pixscape.studio.service.tiled.TiledObjectEditor(world(), historyManager(),
                 selectionService(), layerService(), studioEditingModeService, tiledToolService);
@@ -2313,7 +2320,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         try {
             asset = gameObjectAssetService.loadGameObjectAsset(assetFile);
             SpatialActorAdmission.requireAssetDestination(
-                    world(), asset, selectionService().getActiveLayerIndex());
+                    world(), asset, selectionService().getActiveLayerIndex(), requireBoundContext().documentType());
         } catch (RuntimeException ex) {
             showCompositionDiagnostic(ex.getMessage());
             Gdx.app.error("GameObjectDrop", "Failed to load Game Object: " + p.path, ex);

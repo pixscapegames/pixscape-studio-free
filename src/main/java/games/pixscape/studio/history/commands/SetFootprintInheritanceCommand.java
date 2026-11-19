@@ -7,6 +7,7 @@ import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.service.SpatialActorPose;
 import games.pixscape.runtime.spatial.SpatialActorGeometry;
 import games.pixscape.runtime.system.GameObjectHierarchySystem;
+import games.pixscape.studio.document.EditorDocumentType;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.SpatialActorShapeSupport;
@@ -16,12 +17,17 @@ public final class SetFootprintInheritanceCommand implements Command, HistoryMan
     private final ToggleSpatialActorCommand delegate;
 
     public SetFootprintInheritanceCommand(World world, HistoryIdRegistry ids, int entity, boolean inherited) {
+        this(world, ids, entity, inherited, EditorDocumentType.SCENE);
+    }
+
+    public SetFootprintInheritanceCommand(World world, HistoryIdRegistry ids, int entity, boolean inherited,
+                                          EditorDocumentType documentType) {
         int ancestor = SpatialActorShapeSupport.ancestorOwner(world, entity);
         if (ancestor < 0) {
             throw new IllegalArgumentException("A spatial ancestor is required to change footprint inheritance.");
         }
         SpatialFootprintComponent initial = inherited ? null : convertedFootprint(world, ancestor, entity);
-        delegate = new ToggleSpatialActorCommand(world, ids, entity, !inherited, true, initial, false);
+        delegate = new ToggleSpatialActorCommand(world, ids, entity, !inherited, true, initial, false, documentType);
     }
 
     private static SpatialFootprintComponent convertedFootprint(World world, int owner, int target) {

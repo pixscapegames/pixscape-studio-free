@@ -40,6 +40,110 @@ public class GameObjectAssetServiceTest {
     public TemporaryFolder temp = new TemporaryFolder();
 
     @Test
+    public void autonomousSpatialAuthoringSurvivesHistorySaveAndReopeningWithoutSpatialLayer() throws Exception {
+        var type = games.pixscape.studio.document.EditorDocumentType.GAME_OBJECT;
+        var context = new games.pixscape.studio.scene.SceneEditorContext(null,
+                new games.pixscape.studio.service.StudioEditingModeService(), type);
+        World world = new World(new WorldConfiguration());
+        var meta = new games.pixscape.studio.configuration.SceneMeta();
+        meta.nextEntityStableId = 1000;
+        meta.physicsEnabled = false;
+        context.initializeWorld(world, new games.pixscape.studio.service.tiled.TiledAllocatorService(), meta);
+        var reopenedContext = new games.pixscape.studio.scene.SceneEditorContext(null,
+                new games.pixscape.studio.service.StudioEditingModeService(), type);
+        var sceneContext = new games.pixscape.studio.scene.SceneEditorContext("scene",
+                new games.pixscape.studio.service.StudioEditingModeService());
+        try {
+            int layerIndex = context.layerService().addLayerTop("Asset internal layer");
+            int root = entity(world, 10, -1, true, 0, 0);
+            int child = entity(world, 11, 10, false, 4, 1);
+            world.getMapper(TextureRegionComponent.class).create(child);
+            world.getMapper(AssetRefComponent.class).create(child).assetId = 7;
+            context.identityRegistry().rebuild();
+            world.process();
+            var file = new FileHandle(temp.getRoot()).child("authored-spatial.gameobject");
+            var document = new games.pixscape.studio.document.GameObjectEditorDocument(
+                    "authored-spatial", "Spatial", file, context, root);
+            Assert.assertEquals(type, document.context().documentType());
+            Assert.assertTrue(context.layerService().admitsSpatialActor(root));
+            var layer = world.getMapper(LayerComponent.class).get(context.layerService().getLayerEntity(layerIndex));
+            Assert.assertFalse(layer.spatialEnabled);
+            var history = context.historyManager();
+            history.execute(new games.pixscape.studio.history.commands.ToggleSpatialActorCommand(
+                    world, history.historyIds(), root, true, true,
+                    new games.pixscape.runtime.component.spatial.SpatialFootprintComponent(), type));
+            var footprints = world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class);
+            var representations = world.getMapper(SpatialRepresentationComponent.class);
+            for (int cycle = 0; cycle < 3; cycle++) {
+                Assert.assertTrue(footprints.has(root));
+                Assert.assertFalse(footprints.has(child));
+                Assert.assertFalse(representations.has(root));
+                Assert.assertNotNull(representations.get(child).rectangles.staticRectangle);
+                history.undo();
+                Assert.assertFalse(footprints.has(root));
+                Assert.assertFalse(representations.has(child));
+                history.redo();
+            }
+            history.execute(new games.pixscape.studio.history.commands.SetFootprintInheritanceCommand(
+                    world, history.historyIds(), child, false, type));
+            Assert.assertTrue(footprints.has(child));
+            history.undo();
+            Assert.assertFalse(footprints.has(child));
+            history.redo();
+            Assert.assertTrue(footprints.has(child));
+            history.execute(new games.pixscape.studio.history.commands.ToggleSpatialActorCommand(
+                    world, history.historyIds(), root, false, true, null, type));
+            Assert.assertFalse(footprints.has(root));
+            history.undo();
+            Assert.assertTrue(footprints.has(root));
+            new GameObjectAssetService(world).saveGameObject(file,
+                    new EntityGraphCaptureService(world).captureForGameObject(IntArray.with(root)));
+            var saved = new GameObjectAssetLoader().load(file);
+            Assert.assertNotNull(saved.entities.get(1).spatialRepresentation.rectangles.staticRectangle);
+            Assert.assertFalse(layer.spatialEnabled);
+            Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(root));
+
+            World reopened = new World(new WorldConfiguration());
+            reopenedContext.initializeWorld(reopened, new games.pixscape.studio.service.tiled.TiledAllocatorService(),
+                    new games.pixscape.studio.configuration.SceneMeta());
+            int internalLayer = reopenedContext.layerService().addLayerTop("Internal");
+            reopened.process();
+            var service = new GameObjectAssetService(reopened, reopenedContext.historyManager(),
+                    reopenedContext.identityRegistry(), null, null, null, null, () -> false, type);
+            var result = service.instantiateGameObject(file, "authored-spatial", internalLayer, 0, 0);
+            reopened.process();
+            Assert.assertEquals(2, result.createdIds().size);
+            Assert.assertTrue(reopened.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class)
+                    .has(result.createdIds().first()));
+            Assert.assertNotNull(reopened.getMapper(SpatialRepresentationComponent.class)
+                    .get(result.createdIds().get(1)).rectangles.staticRectangle);
+            Assert.assertFalse(reopened.getMapper(LayerComponent.class)
+                    .get(reopenedContext.layerService().getLayerEntity(internalLayer)).spatialEnabled);
+            // Insert the same asset into a distinct scene document.
+            World sceneWorld = new World(new WorldConfiguration());
+            sceneContext.initializeWorld(sceneWorld, new games.pixscape.studio.service.tiled.TiledAllocatorService(),
+                    new games.pixscape.studio.configuration.SceneMeta());
+            int sceneLayer = sceneContext.layerService().addLayerTop("Scene layer");
+            sceneWorld.process();
+            var sceneService = new GameObjectAssetService(sceneWorld, sceneContext.historyManager(),
+                    sceneContext.identityRegistry(), null, null, null, null, () -> false, sceneContext.documentType());
+            int nextId = sceneContext.sceneMeta().nextEntityStableId;
+            int cursor = sceneContext.historyManager().getCursor();
+            Assert.assertThrows(IllegalArgumentException.class,
+                    () -> sceneService.instantiateGameObject(file, "authored-spatial", sceneLayer, 0, 0));
+            Assert.assertEquals(nextId, sceneContext.sceneMeta().nextEntityStableId);
+            Assert.assertEquals(cursor, sceneContext.historyManager().getCursor());
+            sceneWorld.getMapper(LayerComponent.class)
+                    .get(sceneContext.layerService().getLayerEntity(sceneLayer)).spatialEnabled = true;
+            Assert.assertEquals(2, sceneService.instantiateGameObject(file, "authored-spatial", sceneLayer, 0, 0).createdIds().size);
+        } finally {
+            context.dispose();
+            reopenedContext.dispose();
+            sceneContext.dispose();
+        }
+    }
+
+    @Test
     public void spatialAssetDestinationIsCheckedBeforeIdentitiesAndHistoryButNotForAssetEditing() throws Exception {
         World world = new World(new WorldConfiguration());
         IdentityRegistry identities = new IdentityRegistry();
@@ -81,7 +185,9 @@ public class GameObjectAssetServiceTest {
             history.undo();
             world.process();
             spatial.spatialEnabled = false;
-            Assert.assertFalse(service.instantiateForAssetEditing(file, "spatial", 3).createdIds().isEmpty());
+            GameObjectAssetService assetEditor = new GameObjectAssetService(world, history, identities, null, null,
+                    null, null, () -> false, games.pixscape.studio.document.EditorDocumentType.GAME_OBJECT);
+            Assert.assertFalse(assetEditor.instantiateGameObject(file, "spatial", 3, 0, 0).createdIds().isEmpty());
         } finally {
             identities.bind(null, null);
             world.dispose();

@@ -13,6 +13,7 @@ import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.studio.document.EditorDocumentType;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.Command;
 import games.pixscape.studio.history.commands.CompositeCommand;
@@ -31,6 +32,7 @@ public final class EntityGraphInstantiationService {
 
 
     private final World world;
+    private final EditorDocumentType documentType;
     private final HistoryManager historyManager;
     private final IdentityRegistry identityRegistry;
     private final PhysicsService physicsService;
@@ -51,6 +53,14 @@ public final class EntityGraphInstantiationService {
             IdentityRegistry identityRegistry, PhysicsService physicsService,
             BooleanSupplier scenePhysicsEnabled,
             IntConsumer onCreatedEntity) {
+        this(world, historyManager, identityRegistry, physicsService, scenePhysicsEnabled, onCreatedEntity, EditorDocumentType.SCENE);
+    }
+
+    public EntityGraphInstantiationService(
+            World world, HistoryManager historyManager, IdentityRegistry identityRegistry,
+            PhysicsService physicsService, BooleanSupplier scenePhysicsEnabled,
+            IntConsumer onCreatedEntity, EditorDocumentType documentType) {
+        this.documentType = java.util.Objects.requireNonNull(documentType, "documentType");
         this.world = world;
         this.historyManager = historyManager;
         this.identityRegistry = identityRegistry;
@@ -81,7 +91,7 @@ public final class EntityGraphInstantiationService {
             return EntityGraphInstantiationResult.empty();
         }
 
-        SpatialActorAdmission.requireGraphDestination(world, graph, activeLayerIndex);
+        SpatialActorAdmission.requireGraphDestination(world, graph, activeLayerIndex, documentType);
         if (!historyManager.prepareLightCreation(graph.activeLightCount(),
                 () -> instantiate(graph, activeLayerIndex, dx, dy, commandName)))
             return EntityGraphInstantiationResult.empty();

@@ -23,6 +23,7 @@ import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.studio.document.EditorDocumentType;
 import games.pixscape.studio.helper.AuthoredGeometryTransform;
 import games.pixscape.studio.helper.GameObjectGizmoGeometry;
 import games.pixscape.studio.history.HistoryManager;
@@ -72,6 +73,7 @@ public final class GameObjectAssetService {
     private static final String SAVE_ACTION_LABEL = "Save as Game Object Asset…";
 
     private final World world;
+    private final EditorDocumentType documentType;
     private final HistoryManager historyManager;
     private final IdentityRegistry identityRegistry;
     private final IntConsumer onCreatedEntity;
@@ -116,6 +118,15 @@ public final class GameObjectAssetService {
             IdentityRegistry identityRegistry, IntConsumer onCreatedEntity,
             IntConsumer rootSelection, SelectionService selectionService,
             PhysicsService physicsService, BooleanSupplier scenePhysicsEnabled) {
+        this(world, historyManager, identityRegistry, onCreatedEntity, rootSelection, selectionService,
+                physicsService, scenePhysicsEnabled, EditorDocumentType.SCENE);
+    }
+
+    public GameObjectAssetService(
+            World world, HistoryManager historyManager, IdentityRegistry identityRegistry,
+            IntConsumer onCreatedEntity, IntConsumer rootSelection, SelectionService selectionService,
+            PhysicsService physicsService, BooleanSupplier scenePhysicsEnabled, EditorDocumentType documentType) {
+        this.documentType = java.util.Objects.requireNonNull(documentType, "documentType");
         if (world == null) throw new IllegalArgumentException("World is required.");
         this.world = world;
         this.historyManager = historyManager;
@@ -285,25 +296,11 @@ public final class GameObjectAssetService {
     public EntityGraphInstantiationResult instantiateGameObject(
             FileHandle file, String logicalAssetId, int destinationLayer,
             float rootWorldX, float rootWorldY) {
-        return instantiateGameObject(file, logicalAssetId, destinationLayer, rootWorldX, rootWorldY, true);
-    }
-
-    /** Isolated asset document construction has no scene destination contract. */
-    public EntityGraphInstantiationResult instantiateForAssetEditing(
-            FileHandle file, String logicalAssetId, int internalLayer) {
-        return instantiateGameObject(file, logicalAssetId, internalLayer, 0f, 0f, false);
-    }
-
-    private EntityGraphInstantiationResult instantiateGameObject(
-            FileHandle file, String logicalAssetId, int destinationLayer,
-            float rootWorldX, float rootWorldY, boolean sceneDestination) {
         if (historyManager == null || identityRegistry == null) {
             throw new IllegalStateException("Game Object instantiation dependencies are not configured.");
         }
         GameObjectAsset asset = loader.load(file);
-        if (sceneDestination) {
-            SpatialActorAdmission.requireAssetDestination(world, asset, destinationLayer);
-        }
+        SpatialActorAdmission.requireAssetDestination(world, asset, destinationLayer, documentType);
         if (!scenePhysicsEnabled.getAsBoolean() && containsAuthoredPhysics(asset)) {
             throw new IllegalStateException(
                     "Cannot instantiate a Game Object with authored Physics while scene Physics is disabled.");
@@ -314,7 +311,7 @@ public final class GameObjectAssetService {
                     data.visibility == null || data.visibility.visible, data.pointLight != null, data.pointLight != null && data.pointLight.enabled,
                     data.coneLight != null, data.coneLight != null && data.coneLight.enabled)) activeLights++;
         if (!historyManager.prepareLightCreation(activeLights,
-                () -> instantiateGameObject(file, logicalAssetId, destinationLayer, rootWorldX, rootWorldY, sceneDestination)))
+                () -> instantiateGameObject(file, logicalAssetId, destinationLayer, rootWorldX, rootWorldY)))
             return EntityGraphInstantiationResult.empty();
         String canonicalId = GameObjectAssetId.normalize(logicalAssetId);
         IntIntMap sourceToStable = new IntIntMap(asset.entities.size);

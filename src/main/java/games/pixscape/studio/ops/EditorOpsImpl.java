@@ -1069,7 +1069,7 @@ public class EditorOpsImpl implements EditorOps {
                 .collectCurrentChildrenByParentStableId(world, identityRegistry);
         for (int i = 0; i < entities.size; i++) {
             SpatialActorAdmission.requireMoveDestination(
-                    world, entities.get(i), -1, targetLayerIndex, children);
+                    world, entities.get(i), -1, targetLayerIndex, children, editingContext.layerService().documentType());
         }
 
 

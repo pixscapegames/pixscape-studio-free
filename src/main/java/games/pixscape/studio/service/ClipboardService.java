@@ -50,7 +50,8 @@ public final class ClipboardService {
         this.graphInstantiationService = new EntityGraphInstantiationService(
                 world, historyManager, identityRegistry, canvas.getPhysicsService(),
                 () -> editingContext.sceneMeta() != null && editingContext.sceneMeta().physicsEnabled,
-                entityId -> canvas.requestParticleRuntimeAvailabilityRefreshIfParticleEntity(editingContext, entityId));
+                entityId -> canvas.requestParticleRuntimeAvailabilityRefreshIfParticleEntity(editingContext, entityId),
+                editingContext.layerService().documentType());
 
     }
 
@@ -151,7 +152,7 @@ public final class ClipboardService {
         }
         try {
             SpatialActorAdmission.requireGraphDestination(
-                    world, graph, destination.layerIndex());
+                    world, graph, destination.layerIndex(), editingContext.layerService().documentType());
         } catch (IllegalArgumentException rejected) {
             canvas.showCompositionDiagnostic(rejected.getMessage());
             return false;

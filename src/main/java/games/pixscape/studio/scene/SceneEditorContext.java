@@ -3,6 +3,7 @@ package games.pixscape.studio.scene;
 import com.artemis.World;
 import com.badlogic.gdx.utils.Disposable;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.studio.document.EditorDocumentType;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
@@ -19,7 +20,7 @@ import games.pixscape.studio.service.tiled.TiledAllocatorService;
 import java.util.Objects;
 
 /**
- * Owns the mutable editor state for one open Scene document.
+ * Owns the mutable editor state for one open Scene or Game Object document.
  *
  * <p>The context remains alive while its document tab is open. Activation only attaches its
  * state to the shared WorldCanvas; it never reloads or disposes the World.</p>
@@ -28,6 +29,7 @@ public final class SceneEditorContext implements Disposable {
     public static final int DEFAULT_HISTORY_CAPACITY = 1024;
 
     private final HistoryManager historyManager;
+    private final EditorDocumentType documentType;
     /**
      * Non-owning compatibility projection; HUD/document activation remains application-owned.
      */
@@ -62,6 +64,15 @@ public final class SceneEditorContext implements Disposable {
 
     public SceneEditorContext(String initialSceneIdentity,
                               StudioEditingModeService editingModeService) {
+        this(initialSceneIdentity, editingModeService, EditorDocumentType.SCENE);
+    }
+
+    public SceneEditorContext(String initialSceneIdentity, StudioEditingModeService editingModeService,
+                              EditorDocumentType documentType) {
+        if (documentType != EditorDocumentType.SCENE && documentType != EditorDocumentType.GAME_OBJECT) {
+            throw new IllegalArgumentException("A world editing context requires a Scene or Game Object document.");
+        }
+        this.documentType = documentType;
         this.editingModeService = Objects.requireNonNull(editingModeService, "editingModeService");
         activeEventScope = EventFlow.i().newSubscriptionScope(this::isActive);
         historyManager = new HistoryManager(DEFAULT_HISTORY_CAPACITY);
@@ -89,7 +100,7 @@ public final class SceneEditorContext implements Disposable {
                 world,
                 Objects.requireNonNull(tiledAllocatorService, "tiledAllocatorService"),
                 historyManager.historyIds(),
-                identityRegistry);
+                identityRegistry, documentType);
         selectionService = new SelectionService(world, layerService, editingModeService);
         layerService.bindEditorVisibility(
                 games.pixscape.studio.configuration.ProjectConfig.getInstance().projectDirectoryPath,
@@ -130,6 +141,10 @@ public final class SceneEditorContext implements Disposable {
         ensureInitialized();
         sceneIdentity = Objects.requireNonNull(
                 normalizeIdentity(canonicalSceneIdentity), "canonicalSceneIdentity");
+    }
+
+    public EditorDocumentType documentType() {
+        return documentType;
     }
 
     public String sceneIdentity() {

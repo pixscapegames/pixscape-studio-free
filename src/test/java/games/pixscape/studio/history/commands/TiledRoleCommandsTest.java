@@ -43,6 +43,9 @@ public class TiledRoleCommandsTest {
                 assertFalse(f.world.getMapper(PhysicsBodyComponent.class).has(structure));
                 assertThrows(IllegalArgumentException.class, () -> f.history.execute(new ToggleSpatialActorCommand(
                         f.world, f.history.historyIds(), structure, true, true, new SpatialFootprintComponent())));
+                assertThrows(IllegalArgumentException.class, () -> f.history.execute(new ToggleSpatialActorCommand(
+                        f.world, f.history.historyIds(), structure, true, true, new SpatialFootprintComponent(),
+                        games.pixscape.studio.document.EditorDocumentType.GAME_OBJECT)));
                 assertFalse(f.world.getMapper(SpatialFootprintComponent.class).has(structure));
             }
             assertFalse(f.world.getMapper(GameObjectMemberComponent.class).has(sprite));

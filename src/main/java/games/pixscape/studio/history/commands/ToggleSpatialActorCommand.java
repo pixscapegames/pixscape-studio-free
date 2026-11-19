@@ -5,6 +5,7 @@ import games.pixscape.runtime.tiled.TiledEntityRole;
 import com.artemis.World;
 import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.studio.document.EditorDocumentType;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
@@ -16,17 +17,25 @@ public final class ToggleSpatialActorCommand implements Command, HistoryManager.
     private final HistoryIdRegistry ids;
     private final long id;
     private final boolean enable;
+    private final EditorDocumentType documentType;
     private final SpatialFootprintComponent before, after;
     private final boolean noop;
     private final SpatialRepresentationInitialization representations;
 
     public ToggleSpatialActorCommand(World world, HistoryIdRegistry ids,
             int entity, boolean enable, boolean eligible, SpatialFootprintComponent initial) {
-        this(world, ids, entity, enable, eligible, initial, true);
+        this(world, ids, entity, enable, eligible, initial, true, EditorDocumentType.SCENE);
+    }
+
+    public ToggleSpatialActorCommand(World world, HistoryIdRegistry ids,
+            int entity, boolean enable, boolean eligible, SpatialFootprintComponent initial, EditorDocumentType documentType) {
+        this(world, ids, entity, enable, eligible, initial, true, documentType);
     }
 
     ToggleSpatialActorCommand(World world, HistoryIdRegistry ids,
-            int entity, boolean enable, boolean eligible, SpatialFootprintComponent initial, boolean initializeVisuals) {
+            int entity, boolean enable, boolean eligible, SpatialFootprintComponent initial,
+            boolean initializeVisuals, EditorDocumentType documentType) {
+        this.documentType = java.util.Objects.requireNonNull(documentType, "documentType");
         this.world = world;
         this.ids = ids;
         this.enable = enable;
@@ -34,7 +43,7 @@ public final class ToggleSpatialActorCommand implements Command, HistoryManager.
             TiledEntityRole.requireActorCapability(world, entity, "Footprint");
         }
         boolean valid = world != null && ids != null && entity >= 0 && world.getEntityManager().isActive(entity)
-                && (!enable || activationRejection(world, entity) == null);
+                && (!enable || activationRejection(world, entity, documentType) == null);
         id = valid ? ids.ensureForEntity(entity) : -1;
         SpatialFootprintComponent current = valid ? world.getMapper(SpatialFootprintComponent.class).getSafe(entity, null) : null;
         before = current == null ? null : current.copy();
@@ -74,7 +83,7 @@ public final class ToggleSpatialActorCommand implements Command, HistoryManager.
     public CommandOutcome redoOutcome() {
         if (enable && !noop) {
             int entity = ids.entityOfHistoryId(id);
-            if (activationRejection(world, entity) != null) {
+            if (activationRejection(world, entity, documentType) != null) {
                 return CommandOutcome.REJECTED;
             }
         }
@@ -87,10 +96,17 @@ public final class ToggleSpatialActorCommand implements Command, HistoryManager.
 
     /** Cold command preflight; ownership remains independent of participation. */
     public static String activationRejection(World world, int entity) {
+        return activationRejection(world, entity, EditorDocumentType.SCENE);
+    }
+
+    public static String activationRejection(World world, int entity, EditorDocumentType documentType) {
         if (world == null || entity < 0 || !world.getEntityManager().isActive(entity)) {
             return "Object is unavailable.";
         }
         try {
+            if (documentType == EditorDocumentType.GAME_OBJECT) {
+                return null;
+            }
             int layer = games.pixscape.studio.service.entitygraph.CurrentGameObjectRelations.layerIndex(world, entity);
             return SpatialActorAdmission.layerRejection(world, layer);
         } catch (IllegalArgumentException ex) {

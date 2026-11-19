@@ -772,7 +772,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
             editingMeta.lightingEnabled = false;
             editingMeta.physicsEnabled = true;
             editingMeta.gravityY = 0f;
-            candidate = canvas.createSceneContext(null, editingMeta);
+            candidate = canvas.createEditorContext(null, editingMeta, EditorDocumentType.GAME_OBJECT);
             canvas.attach(candidate);
             var asset = canvas.getGameObjectAssetService().loadGameObjectAsset(assetFile);
             int layerIndex = candidate.layerService().addLayerTop("Game Object");
@@ -782,8 +782,8 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
             candidate.world().process();
             candidate.selectionService().setActivelayerId(layerEntityId);
 
-            var result = canvas.getGameObjectAssetService().instantiateForAssetEditing(
-                    assetFile, assetId, layerIndex);
+            var result = canvas.getGameObjectAssetService().instantiateGameObject(
+                    assetFile, assetId, layerIndex, 0f, 0f);
             RenderRebindHelper.rebindEntitiesAfterAtlasChange(
                     canvas, null, canvas.getAssetVisualResolver(), result.createdIds(), null);
             candidate.world().process();

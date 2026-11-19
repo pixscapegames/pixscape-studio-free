@@ -91,7 +91,7 @@ public final class SpatialActorPanel extends CollapsibleWidget {
                     return;
                 }
                 executeCommand(new games.pixscape.studio.history.commands.SetFootprintInheritanceCommand(
-                        ctx.world, ctx.history.historyIds(), entityId, inheritedToggle.isChecked()));
+                        ctx.world, ctx.history.historyIds(), entityId, inheritedToggle.isChecked(), ctx.layerService.documentType()));
                 refreshFromModel(entityId);
                 event.stop();
             }
@@ -244,7 +244,7 @@ public final class SpatialActorPanel extends CollapsibleWidget {
                 != games.pixscape.runtime.tiled.TiledEntityRole.NONE) {
             return "Tiled structures do not own actor footprints.";
         }
-        return ToggleSpatialActorCommand.activationRejection(ctx.world, entityId);
+        return ToggleSpatialActorCommand.activationRejection(ctx.world, entityId, ctx.layerService.documentType());
     }
 
     public void addFootprint() {
@@ -254,7 +254,7 @@ public final class SpatialActorPanel extends CollapsibleWidget {
             return;
         }
         executeCommand(new ToggleSpatialActorCommand(ctx.world, ctx.history.historyIds(),
-                entityId, true, true, createDefaultFootprint(entityId)));
+                entityId, true, true, createDefaultFootprint(entityId), ctx.layerService.documentType()));
         refreshFromModel(entityId);
     }
 

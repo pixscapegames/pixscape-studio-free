@@ -8,6 +8,7 @@ import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.TiledMapComponent;
 import games.pixscape.runtime.component.TiledMapLayerComponent;
 import games.pixscape.runtime.system.GameObjectCompositionSystem;
+import games.pixscape.studio.document.EditorDocumentType;
 import games.pixscape.studio.configuration.EditorSettings;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
@@ -36,6 +37,7 @@ import java.util.function.IntConsumer;
  */
 public final class LayerService {
     private final World world;
+    private final EditorDocumentType documentType;
 
     private final ComponentMapper<LayerComponent> mL;
     private final ComponentMapper<LayerMetaComponent> mMeta;
@@ -116,6 +118,13 @@ public final class LayerService {
 
     public LayerService(World world, TiledAllocatorService tiledAllocatorService,
                         HistoryIdRegistry historyIds, IdentityRegistry identityRegistry) {
+        this(world, tiledAllocatorService, historyIds, identityRegistry, EditorDocumentType.SCENE);
+    }
+
+    public LayerService(World world, TiledAllocatorService tiledAllocatorService,
+                        HistoryIdRegistry historyIds, IdentityRegistry identityRegistry,
+                        EditorDocumentType documentType) {
+        this.documentType = Objects.requireNonNull(documentType, "documentType");
         this.world = world;
         this.tiledAllocatorService = tiledAllocatorService;
         this.historyIds = historyIds;
@@ -309,8 +318,15 @@ public final class LayerService {
         return layer != null && layer.spatialEnabled;
     }
 
-    /** Published effective layer lookup, including descendants with inherited footprints. */
+    public EditorDocumentType documentType() {
+        return documentType;
+    }
+
+    /** Asset authoring is layer-independent; scenes use the published effective layer. */
     public boolean admitsSpatialActor(int entity) {
+        if (documentType == EditorDocumentType.GAME_OBJECT) {
+            return true;
+        }
         int layer = getLayerEntity(getPublishedEffectiveLayerIndex(entity));
         return layer >= 0 && isSpatialActorLayer(mL.getSafe(layer, null));
     }

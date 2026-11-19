@@ -12,6 +12,7 @@ import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.SpatialScenePolicy;
+import games.pixscape.studio.document.EditorDocumentType;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
 
 /** Cold editing admission. Dormant representations do not make spatial actors. */
@@ -33,7 +34,10 @@ public final class SpatialActorAdmission {
         }
     }
 
-    public static void requireGraphDestination(World world, EntityGraph graph, int layer) {
+    public static void requireGraphDestination(World world, EntityGraph graph, int layer, EditorDocumentType documentType) {
+        if (documentType == EditorDocumentType.GAME_OBJECT) {
+            return;
+        }
         for (var entry : graph.entries()) {
             if (entry.initializer().toSnapshotData(entry.sourceEntityId()).spatialFootprint != null) {
                 requireLayer(world, layer);
@@ -42,7 +46,10 @@ public final class SpatialActorAdmission {
         }
     }
 
-    public static void requireAssetDestination(World world, GameObjectAsset asset, int layer) {
+    public static void requireAssetDestination(World world, GameObjectAsset asset, int layer, EditorDocumentType documentType) {
+        if (documentType == EditorDocumentType.GAME_OBJECT) {
+            return;
+        }
         for (var entity : asset.entities) {
             if (entity.spatialFootprint != null) {
                 requireLayer(world, layer);
@@ -71,6 +78,14 @@ public final class SpatialActorAdmission {
     /** Evaluate ownership after reparenting: the old parent's footprint is irrelevant. */
     public static void requireMoveDestination(World world, int root, int newParent, int layer,
                                              IntMap<IntArray> children) {
+        requireMoveDestination(world, root, newParent, layer, children, EditorDocumentType.SCENE);
+    }
+
+    public static void requireMoveDestination(World world, int root, int newParent, int layer,
+                                             IntMap<IntArray> children, EditorDocumentType documentType) {
+        if (documentType == EditorDocumentType.GAME_OBJECT) {
+            return;
+        }
         if (hasFootprintOwner(world, newParent)) {
             requireLayer(world, layer);
             return;

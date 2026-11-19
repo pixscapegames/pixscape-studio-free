@@ -43,6 +43,35 @@ import java.nio.file.Path;
 
 public class ClipboardServiceFlowTest {
     @Test
+    public void autonomousClipboardAndInternalLayerMoveAcceptFootprintsWithoutActivatingLayers() throws Exception {
+        Harness h = new Harness(games.pixscape.studio.document.EditorDocumentType.GAME_OBJECT);
+        try {
+            h.sceneMeta.physicsEnabled = false;
+            int source = createEntity(h.world, 10, 20, 0);
+            h.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(source);
+            h.world.process();
+            h.selection.selectOnly(source);
+            Assert.assertTrue(h.clipboard.copySelection());
+            Assert.assertTrue(h.clipboard.paste());
+            h.world.process();
+            int pasted = h.selection.getFirstSelectedEntityId();
+            Assert.assertTrue(h.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).has(pasted));
+            int otherLayer = h.addLayer(1, false);
+            var ops = new games.pixscape.studio.ops.EditorOpsImpl(h.canvas, h.identities);
+            ops.applyLayer(IntArray.with(pasted), otherLayer);
+            Assert.assertEquals(1, h.world.getMapper(EntityIndexComponent.class).get(pasted).layerIndex);
+            h.history.undo();
+            Assert.assertEquals(0, h.world.getMapper(EntityIndexComponent.class).get(pasted).layerIndex);
+            h.history.redo();
+            Assert.assertEquals(1, h.world.getMapper(EntityIndexComponent.class).get(pasted).layerIndex);
+            Assert.assertFalse(h.world.getMapper(LayerComponent.class).get(h.classicLayer).spatialEnabled);
+            Assert.assertFalse(h.world.getMapper(LayerComponent.class).get(otherLayer).spatialEnabled);
+        } finally {
+            h.world.dispose();
+        }
+    }
+
+    @Test
     public void rejectedSpatialPasteKeepsSelectionClipboardAllocationsAndRedoWithPhysicsDisabled() throws Exception {
         Harness h = new Harness();
         try {
@@ -904,6 +933,10 @@ public class ClipboardServiceFlowTest {
         final int classicLayer;
 
         Harness() throws Exception {
+            this(games.pixscape.studio.document.EditorDocumentType.SCENE);
+        }
+
+        Harness(games.pixscape.studio.document.EditorDocumentType documentType) throws Exception {
             ProjectConfig config = new ProjectConfig();
             config.createSceneMeta("Main");
             ProjectConfig.setInstance(config);
@@ -913,7 +946,7 @@ public class ClipboardServiceFlowTest {
             identities.bind(world, sceneMeta);
             identities.rebuild();
             physicsService = new PhysicsService(world, null, sceneMeta);
-            layers = new LayerService(world, null, history.historyIds(), identities);
+            layers = new LayerService(world, null, history.historyIds(), identities, documentType);
             classicLayer = addLayer(0, false);
             selection = new SelectionService(world, layers);
             selection.setActivelayerId(classicLayer);

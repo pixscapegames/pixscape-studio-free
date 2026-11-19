@@ -13,6 +13,27 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class ToggleSpatialActorCommandTest {
+    @Test
+    public void ordinarySceneLayerRejectsActivationWithoutHistoryAllocation() {
+        World world = new World(new WorldConfiguration());
+        try {
+            int actor = world.create();
+            world.getMapper(games.pixscape.runtime.component.EntityIndexComponent.class).create(actor).layerIndex = 0;
+            world.getMapper(games.pixscape.runtime.component.TransformComponent.class).create(actor);
+            world.getMapper(games.pixscape.runtime.component.LayerComponent.class).create(world.create());
+            world.process();
+            HistoryManager history = new HistoryManager(16);
+            long next = history.historyIds().allocateHistoryId();
+            history.execute(new ToggleSpatialActorCommand(world, history.historyIds(), actor, true, true,
+                    new SpatialFootprintComponent(), games.pixscape.studio.document.EditorDocumentType.SCENE));
+            Assert.assertFalse(world.getMapper(SpatialFootprintComponent.class).has(actor));
+            Assert.assertFalse(history.canUndo());
+            Assert.assertEquals(next + 1, history.historyIds().allocateHistoryId());
+        } finally {
+            world.dispose();
+        }
+    }
+
     @Test public void activationUndoRedoNeverCreatesPhysics() {
         World world = new World(new WorldConfiguration());
         try {
