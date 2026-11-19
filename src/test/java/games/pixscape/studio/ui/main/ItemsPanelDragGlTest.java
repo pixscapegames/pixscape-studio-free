@@ -32,6 +32,8 @@ public class ItemsPanelDragGlTest {
             var layers = context.layerService();
             var history = context.historyManager();
             int ground = layers.getLayerEntity(0);
+            int middleOne = layers.getLayerEntity(layers.addLayerTop("middle-one"));
+            int middleTwo = layers.getLayerEntity(layers.addLayerTop("middle-two"));
             int tilesLayer = layers.getLayerEntity(layers.addLayerTop("tiles"));
             var created = new java.util.concurrent.atomic.AtomicInteger(-1);
             history.execute(new games.pixscape.studio.history.commands.AddTiledMapCommand(layers, ground,
@@ -67,7 +69,15 @@ public class ItemsPanelDragGlTest {
             assertEquals(cursor, history.getCursor());
             assertEquals(fromStable, parent(studio, source));
             end = point(studio, tree(studio).findNode(to), .5f);
-            begin(studio, source, end);
+            begin(studio, source, point(studio, tree(studio).findNode(middleOne), .5f));
+            settle(studio);
+            assertNotNull("Crossing an incompatible scene layer must keep the drag active",
+                    field(field(studio.getItemTreePanel(), "itemMoves"), "document"));
+            drag(studio, point(studio, tree(studio).findNode(middleTwo), .5f));
+            settle(studio);
+            assertNotNull("Crossing a second scene layer must keep the drag active",
+                    field(field(studio.getItemTreePanel(), "itemMoves"), "document"));
+            drag(studio, end);
             assertNotNull("Map center-drop must prepare a tile-layer transfer", plan(studio));
             release(studio, end);
             assertEquals(cursor + 1, history.getCursor());

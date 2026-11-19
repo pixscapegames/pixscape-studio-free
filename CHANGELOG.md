@@ -47,6 +47,7 @@
 * Refreshed the distributed HTML Preview player for the current Game Object composition formats and the Runtime physics bootstrap correction.
 
 ### Fixed
+* Long Items drag-and-drop refusal messages no longer resize the panel and cancel the gesture. Tile layers can cross incompatible scene-layer rows on their way to a compatible map.
 * Items shows cell dimensions on Tiled Map nodes only. Tile editing follows the owning map's scene layer after a transfer or scene-layer deletion.
 * Tiled maps now expose Add tile layer in the Items context menu. The empty layer inherits its map's grid, becomes the tile editing target, and preserves its identity and parent through Undo/Redo.
 * The Tiled Map inspector now displays the shared projection, cell size and grid dimensions in its Grid section. Tile-layer inspectors retain their local offsets, chunk size, spatial and collision settings.

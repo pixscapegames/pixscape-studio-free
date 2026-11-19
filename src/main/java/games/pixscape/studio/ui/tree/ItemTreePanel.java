@@ -152,7 +152,8 @@ public class ItemTreePanel extends DockablePanel {
         };
 
         root.add(scroller).grow().row();
-        root.add(moveFeedback).growX().height(0).row();
+        // Status text uses the available width; a long refusal must not resize the drag viewport.
+        root.add(moveFeedback).minWidth(0).prefWidth(0).growX().height(0).row();
         // A sibling above the viewport keeps eye clicks outside ScrollPane's scrollbar capture listener.
         root.addActor(visibilityColumn);
 
