@@ -47,6 +47,9 @@
 * Refreshed the distributed HTML Preview player for the current Game Object composition formats and the Runtime physics bootstrap correction.
 
 ### Fixed
+* Spatial inspector group titles now have consistent spacing above their fields when footprint inheritance controls are hidden.
+* Inspector transform fields now refresh after Game Object reparenting, detachment and Undo/Redo without reselecting or creating another edit. Notifications preserve the Physics ancestor scale lock.
+* Reparenting and detaching Game Objects now share Runtime pose capture and prepared local-pose application. Accurate Runtime hierarchy conversions preserve distant descendants and physical compositions through repeated edits and Undo/Redo; editor validation and history remain Studio-owned.
 * Autonomous Game Object documents now allow Spatial authoring, clipboard copies, asset insertion and internal layer moves without a scene Spatial layer. The explicit document type also governs footprint inheritance commands; activation still initializes each visual's rectangle/pivot, while scene insertion and editing retain strict Spatial-layer admission and Tiled exclusions.
 * Spatial actor admission now shares one scene-layer rule across Add Spatial, clipboard paste, layer moves/reparenting and Game Object asset insertion. Rejections precede identity/history allocation and preserve selection and redo; dormant representations remain movable and inherited visual representations are still initialized by editing commands.
 * Spatial Game Object assets remain editable in their isolated asset document without a scene destination requirement.

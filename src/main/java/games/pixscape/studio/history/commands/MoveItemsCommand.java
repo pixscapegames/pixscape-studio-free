@@ -2,8 +2,7 @@ package games.pixscape.studio.history.commands;
 
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.GameObjectComponent;
-import games.pixscape.runtime.component.GameObjectMemberComponent;
-import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.hierarchy.GameObjectHierarchyMutation;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
@@ -70,9 +69,7 @@ public final class MoveItemsCommand implements Command, OutcomeAwareCommand {
         if (move.isNoop()) return CommandOutcome.NO_CHANGE;
         var world = move.world;
         var ids = move.owner.context().identityRegistry();
-        var members = world.getMapper(GameObjectMemberComponent.class);
         var indexes = world.getMapper(EntityIndexComponent.class);
-        var transforms = world.getMapper(TransformComponent.class);
         var dirty = world.getSystem(DirtyTrackerSystem.class);
         representations.apply(undo);
         // All targets and complete before/after states were checked above. No callbacks during writes.
@@ -84,12 +81,11 @@ public final class MoveItemsCommand implements Command, OutcomeAwareCommand {
             } else {
                 world.getMapper(GameObjectComponent.class).remove(entity);
             }
-            if (target.parentStableId() == 0) members.remove(entity);
-            else members.create(entity).parentStableId = target.parentStableId();
+            GameObjectHierarchyMutation.applyPreparedLocalPose(
+                    world, entity, target.parentStableId(), target.pose().component());
             var index = indexes.get(entity);
             index.layerIndex = target.storedLayer();
             index.zIndex = target.z();
-            GameObjectHierarchyCommandSupport.apply(transforms.get(entity), target.pose().component());
         }
         for (var change : move.changes) {
             int entity = ids.findByStableId(change.before().stableId());
@@ -98,6 +94,8 @@ public final class MoveItemsCommand implements Command, OutcomeAwareCommand {
                 dirty.layer(entity);
                 dirty.order(entity);
             }
+            GameObjectHierarchyCommandSupport.notifyTransformChanged(entity,
+                    change.before().pose().component(), change.after().pose().component(), EventFlow.tag(this));
         }
         // Readers see the complete result. Source and destination layers both need a tree rebuild.
         for (int layer : move.affectedLayerIndices())

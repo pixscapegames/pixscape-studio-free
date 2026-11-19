@@ -25,13 +25,9 @@ import java.util.*;
  */
 public final class ItemMovePreparation {
     /**
-     * Absolute/relative tolerance for the authored-TRS conversion round trip, not a bound on
-     * Runtime matrix positions or displayed pixels. Runtime multiplies each ancestor's frame;
-     * recomposing accumulated angles uses different quantized trigonometric samples.
-     * Small positional drift is accepted, including on descendants of a moved group, rather
-     * than decomposing matrices or compensating descendant transforms during drag preparation.
-     * Its world-space magnitude depends on offsets/scales/depth; screen-space drift also depends
-     * on zoom. Undo/redo restores the captured authored poses exactly, without recomputation.
+     * Absolute/relative tolerance for the authored-TRS conversion round trip. Runtime hierarchy
+     * frames and cold conversions use accurate trigonometry; float rounding still depends on
+     * offsets/scales/depth. Undo/redo restores captured authored poses without recomputation.
      */
     public static final float WORLD_POSE_EPSILON = 0.0001f;
 

@@ -36,6 +36,94 @@ public class EntityActionsInspectorTest {
     private static com.badlogic.gdx.graphics.GL20 originalGl;
 
     @Test
+    public void hierarchyCommandsRefreshSelectedFieldsWithoutEditingOrReselecting() throws Exception {
+        try (Harness h = new Harness()) {
+            int parent = h.sprite(), child = h.sprite();
+            h.world.getMapper(GameObjectComponent.class).create(parent);
+            var p = h.world.getMapper(TransformComponent.class).get(parent);
+            p.x = 100; p.y = -40; p.rotationRad = .4f; p.scaleX = p.scaleY = 2;
+            var t = h.world.getMapper(TransformComponent.class).get(child);
+            t.x = 20; t.y = 30; t.rotationRad = -.2f;
+            t.scaleX = -1; t.scaleY = 3; t.originX = 7; t.originY = 9;
+            h.select(child);
+            games.pixscape.studio.event.EventFlow.i().flush();
+            Object panel = field(h.panel, "transformPanel", TransformPanel.class);
+            String[] names = {"xField", "yField", "rotationField", "scalexField", "scaleyField", "originxField", "originyField"};
+            var fields = new games.pixscape.studio.ui.widget.FloatField[names.length];
+            for (int i = 0; i < names.length; i++) {
+                fields[i] = field(panel, names[i], games.pixscape.studio.ui.widget.FloatField.class);
+                fields[i].setDisplayDecimals(5);
+            }
+            h.history.execute(new games.pixscape.studio.history.commands.AddEntityToGameObjectCommand(
+                    h.world, h.history.historyIds(), h.identities, child, parent, 0));
+            assertHierarchyFields(h, child, fields, 1);
+            for (int cycle = 0; cycle < 3; cycle++) {
+                h.history.undo();
+                assertHierarchyFields(h, child, fields, 0);
+                h.history.redo();
+                assertHierarchyFields(h, child, fields, 1);
+            }
+            h.history.execute(new games.pixscape.studio.history.commands.RemoveEntityFromGameObjectCommand(
+                    h.world, h.history.historyIds(), h.identities, child, 0));
+            assertHierarchyFields(h, child, fields, 2);
+            for (int cycle = 0; cycle < 3; cycle++) {
+                h.history.undo();
+                assertHierarchyFields(h, child, fields, 1);
+                h.history.redo();
+                assertHierarchyFields(h, child, fields, 2);
+            }
+        }
+    }
+
+    @Test
+    public void hierarchyRefreshKeepsPhysicalAncestorScaleLocked() throws Exception {
+        try (Harness h = new Harness()) {
+            int parent = h.sprite(), group = h.sprite(), child = h.sprite();
+            h.world.getMapper(GameObjectComponent.class).create(parent);
+            h.world.getMapper(GameObjectComponent.class).create(group);
+            h.world.getMapper(PhysicsBodyComponent.class).create(child);
+            h.world.getMapper(GameObjectMemberComponent.class).create(child).parentStableId = h.identities.getStableId(group);
+            h.world.getMapper(TransformComponent.class).get(parent).rotationRad = .4f;
+            h.select(group);
+            var panel = field(h.panel, "transformPanel", TransformPanel.class);
+            var scale = field(panel, "uniformScaleField", games.pixscape.studio.ui.widget.FloatField.class);
+            assertTrue(scale.isDisabled());
+            h.history.execute(new games.pixscape.studio.history.commands.AddEntityToGameObjectCommand(
+                    h.world, h.history.historyIds(), h.identities, group, parent, 0));
+            for (int step = 0; step < 6; step++) {
+                if (step == 1 || step == 4) {
+                    h.history.undo();
+                } else if (step == 2 || step == 5) {
+                    h.history.redo();
+                } else if (step == 3) {
+                    h.history.execute(new games.pixscape.studio.history.commands.RemoveEntityFromGameObjectCommand(
+                            h.world, h.history.historyIds(), h.identities, group, 0));
+                }
+                games.pixscape.studio.event.EventFlow.i().flush();
+                assertTrue(scale.isDisabled());
+                assertEquals(group, h.selection.getFirstSelectedEntityId());
+                assertEquals(new int[]{1, 0, 1, 2, 1, 2}[step], h.history.getCursor());
+            }
+        }
+    }
+
+    private static void assertHierarchyFields(Harness h, int child,
+            games.pixscape.studio.ui.widget.FloatField[] fields, int cursor) {
+        var t = h.world.getMapper(TransformComponent.class).get(child);
+        float[] before = {t.x, t.y, t.rotationRad, t.scaleX, t.scaleY, t.originX, t.originY};
+        games.pixscape.studio.event.EventFlow.i().flush();
+        // Sprite position fields use the existing origin-relative display convention.
+        float[] displayed = {t.x - t.originX, t.y - t.originY, games.pixscape.studio.helper.GeometryHelper.rotationRadToEditorDeg(t.rotationRad),
+                t.scaleX, t.scaleY, t.originX, t.originY};
+        for (int i = 0; i < fields.length; i++) {
+            assertEquals("field " + i, displayed[i], Float.parseFloat(fields[i].getText()), .0001f);
+        }
+        assertArrayEquals(before, new float[]{t.x, t.y, t.rotationRad, t.scaleX, t.scaleY, t.originX, t.originY}, 0);
+        assertEquals(cursor, h.history.getCursor());
+        assertEquals(child, h.selection.getFirstSelectedEntityId());
+    }
+
+    @Test
     public void addComponentOffersSpatialOnlyInTheEffectiveSpatialLayer() throws Exception {
         try (Harness h = new Harness()) {
             var batch = (com.badlogic.gdx.graphics.g2d.Batch) java.lang.reflect.Proxy.newProxyInstance(
@@ -158,6 +246,18 @@ public class EntityActionsInspectorTest {
             assertFalse(labels.contains("Selected image / local pixels"));
             var titles = labels.stream().filter(t -> t.equals("Footprint") || t.equals("Occlusion rectangle") || t.equals("Shadow pivot")).toList();
             assertEquals(java.util.List.of("Footprint", "Occlusion rectangle", "Shadow pivot"), titles);
+            spatial.setSize(400, spatial.getPrefHeight());
+            spatial.validate();
+            var representation = field(spatial, "representationFields", games.pixscape.studio.ui.widget.CollapsibleVisTable.class);
+            Actor footprintTitle = details.getCells().first().getActor();
+            Actor occlusionTitle = representation.content().getCells().first().getActor();
+            Actor altitude = field(spatial, "altitudeField", games.pixscape.studio.ui.widget.FloatField.class);
+            Actor width = spatial.findActor("actor-spatial-rectangle-0");
+            float footprintGap = footprintTitle.localToAscendantCoordinates(spatial, new com.badlogic.gdx.math.Vector2()).y
+                    - altitude.localToAscendantCoordinates(spatial, new com.badlogic.gdx.math.Vector2(0, altitude.getHeight())).y;
+            float occlusionGap = occlusionTitle.localToAscendantCoordinates(spatial, new com.badlogic.gdx.math.Vector2()).y
+                    - width.localToAscendantCoordinates(spatial, new com.badlogic.gdx.math.Vector2(0, width.getHeight())).y;
+            assertEquals("Title-to-field spacing", occlusionGap, footprintGap, 1f);
         }
     }
 

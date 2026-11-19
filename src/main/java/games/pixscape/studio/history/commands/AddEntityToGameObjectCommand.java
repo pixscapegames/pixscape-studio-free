@@ -3,6 +3,7 @@ package games.pixscape.studio.history.commands;
 import com.artemis.World;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.hierarchy.GameObjectTransformMath;
+import games.pixscape.runtime.hierarchy.GameObjectHierarchyMutation;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.IdentityRegistry;
@@ -90,13 +91,11 @@ public final class AddEntityToGameObjectCommand implements Command {
         if (promoteParent) {
             world.getMapper(GameObjectComponent.class).create(parent);
             GameObjectHierarchyCommandSupport.apply(world.getMapper(TransformComponent.class).get(parent), afterParentLocal);
-            dirty(parent);
+            dirty(parent, beforeParentLocal, afterParentLocal);
         }
-        GameObjectHierarchyCommandSupport.apply(
-                world.getMapper(TransformComponent.class).get(child), afterLocal);
+        GameObjectHierarchyMutation.applyPreparedLocalPose(world, child, parentStableId, afterLocal);
         world.getMapper(EntityIndexComponent.class).get(child).zIndex = afterLocalZ;
-        world.getMapper(GameObjectMemberComponent.class).create(child).parentStableId = parentStableId;
-        dirty(child);
+        dirty(child, beforeWorld, afterLocal);
     }
 
     @Override
@@ -108,9 +107,7 @@ public final class AddEntityToGameObjectCommand implements Command {
             throw new IllegalStateException("Game Object membership changed before attach undo.");
         }
         representations.apply(true);
-        world.getMapper(GameObjectMemberComponent.class).remove(child);
-        GameObjectHierarchyCommandSupport.apply(
-                world.getMapper(TransformComponent.class).get(child), beforeWorld);
+        GameObjectHierarchyMutation.applyPreparedLocalPose(world, child, 0, beforeWorld);
         EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).get(child);
         index.layerIndex = beforeLayer;
         index.zIndex = beforeZ;
@@ -118,9 +115,9 @@ public final class AddEntityToGameObjectCommand implements Command {
             int parent = resolve(parentHistoryId, "parent");
             world.getMapper(GameObjectComponent.class).remove(parent);
             GameObjectHierarchyCommandSupport.apply(world.getMapper(TransformComponent.class).get(parent), beforeParentLocal);
-            dirty(parent);
+            dirty(parent, beforeParentLocal, afterParentLocal);
         }
-        dirty(child);
+        dirty(child, beforeWorld, afterLocal);
     }
 
     private int resolve(long historyId, String role) {
@@ -129,13 +126,14 @@ public final class AddEntityToGameObjectCommand implements Command {
         return entityId;
     }
 
-    private void dirty(int entityId) {
+    private void dirty(int entityId, TransformComponent before, TransformComponent after) {
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
         if (dirty != null) {
             dirty.geometry(entityId, GeometryDirty.ALL);
             dirty.layer(entityId);
             dirty.order(entityId);
         }
+        GameObjectHierarchyCommandSupport.notifyTransformChanged(entityId, before, after, sourceTag);
         EventFlow.i().publish(new EventFlow.EntityZOrderChanged(
                 CurrentGameObjectRelations.layerIndex(world, entityId), sourceTag));
     }

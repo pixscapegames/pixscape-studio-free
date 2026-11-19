@@ -299,7 +299,7 @@ public class MoveItemsCommandTest {
 
     @Test
     public void detachmentMeasuresPositionAgainstResolvedRuntimeInsteadOfPreparationHelper() {
-        for (float distance : new float[]{1000f, 10000f})
+        for (float distance : new float[]{1f, 1000f, 10000f, 100000f})
             try (F f = new F()) {
                 int outer = f.root(0, 2), inner = f.root(0, 1), child = f.sprite(0, 0);
                 f.attach(inner, outer, 1);
@@ -311,8 +311,6 @@ public class MoveItemsCommandTest {
                 f.t(child).x = distance;
                 f.publish();
                 Vector2 before = f.resolvedPosition(child);
-                assertEquals(.825239563f * distance, before.x, .002f);
-                assertEquals(.564782776f * distance, before.y, .002f);
                 var authoredBefore = ItemMovePreparation.Pose.read(f.t(child));
                 int stable = f.stable(child), next = f.meta.nextEntityStableId;
                 var plan = f.prepare(1, 0, 0, child);
@@ -327,9 +325,10 @@ public class MoveItemsCommandTest {
                 f.publish();
                 Vector2 after = f.resolvedPosition(child);
                 assertEquals(1, f.context.historyManager().getCursor());
-                // Characterizes these two .3-radian fixtures, not a general world/pixel error bound.
-                // Measured drift: .19170812 at 1000 units; 1.917622 at 10000 units.
-                assertTrue("Runtime position drift: " + before.dst(after), before.dst(after) <= distance * .0002f);
+                // Eight float ULPs cover the short chain of matrix/TRS operations in this fixture.
+                float tolerance = 8 * Math.ulp(distance);
+                System.out.println("detach distance=" + distance + " error=" + before.dst(after));
+                assertTrue("Runtime position drift: " + before.dst(after), before.dst(after) <= tolerance);
                 for (int i = 0; i < 4; i++) {
                     f.context.historyManager().undo();
                     assertEquals(authoredBefore, ItemMovePreparation.Pose.read(f.t(child)));
@@ -354,6 +353,107 @@ public class MoveItemsCommandTest {
     }
 
     @Test
+    public void repeatedAttachDetachMeasuresDistanceDependentDriftThroughHistory() {
+        float worstUlps = 0;
+        for (float distance : new float[]{1f, 1000f, 10000f, 100000f}) {
+            try (F f = new F()) {
+                int outer = f.root(0, 2), inner = f.root(0, 1), child = f.sprite(0, 0);
+                f.attach(inner, outer, 1);
+                f.attach(child, inner, 0);
+                for (int entity : new int[]{outer, inner, child}) {
+                    f.t(entity).x = f.t(entity).y = f.t(entity).originX = f.t(entity).originY = 0;
+                }
+                f.t(outer).rotationRad = f.t(inner).rotationRad = .3f;
+                f.t(child).x = distance;
+                f.publish();
+                Vector2 original = f.resolvedPosition(child);
+                float first = 0, maximum = 0;
+                var history = f.context.historyManager();
+                for (int cycle = 0; cycle < 20; cycle++) {
+                    history.execute(new RemoveEntityFromGameObjectCommand(f.world, history.historyIds(),
+                            f.context.identityRegistry(), child, 0));
+                    f.publish();
+                    float error = original.dst(f.resolvedPosition(child));
+                    if (cycle == 0) {
+                        first = error;
+                    }
+                    maximum = Math.max(maximum, error);
+                    history.execute(new AddEntityToGameObjectCommand(f.world, history.historyIds(),
+                            f.context.identityRegistry(), child, inner, 0));
+                    f.publish();
+                    maximum = Math.max(maximum, original.dst(f.resolvedPosition(child)));
+                }
+                System.out.println("cycles distance=" + distance + " first=" + first + " max20=" + maximum);
+                worstUlps = Math.max(worstUlps, maximum / Math.ulp(distance));
+                Vector2 finalPose = f.resolvedPosition(child);
+                for (int cycle = 0; cycle < 5; cycle++) {
+                    history.undo();
+                    f.publish();
+                    history.redo();
+                    f.publish();
+                    assertEquals(finalPose, f.resolvedPosition(child));
+                }
+            }
+        }
+        // Twenty fresh conversions may accumulate rounding; history itself replays exact snapshots.
+        assertTrue("Accumulated drift in float ULPs: " + worstUlps, worstUlps <= 64);
+    }
+
+    @Test
+    public void transformedPhysicalHierarchyKeepsBodiesGeometryAndHistoryPoses() {
+        for (int bodyOwner : new int[]{0, 1, 2}) {
+            try (F f = new F()) {
+                int outer = bodyOwner == 2 ? f.body(0) : f.root(0, 2);
+                int group = bodyOwner == 1 ? f.body(0) : f.root(0, 1);
+                f.world.getMapper(GameObjectComponent.class).create(outer);
+                f.world.getMapper(GameObjectComponent.class).create(group);
+                int child = bodyOwner == 0 ? f.body(0) : f.sprite(0, 0);
+                f.attach(group, outer, 1);
+                f.attach(child, group, 0);
+                f.t(outer).rotationRad = f.t(group).rotationRad = .3f;
+                f.t(outer).originX = 7;
+                f.t(group).originY = 9;
+                f.t(child).x = 10000;
+                int physical = bodyOwner == 0 ? child : bodyOwner == 1 ? group : outer;
+                var config = f.world.getMapper(PhysicsBodyComponent.class).get(physical);
+                config.bullet = true;
+                config.linearDamping = .7f;
+                f.sync.setStepEnabled(false);
+                f.publish();
+                var body = f.world.getMapper(PhysicsRuntimeBodyComponent.class).get(physical).body;
+                var fixture = body.getFixtureList().first();
+                Vector2 bodyBefore = body.getPosition().cpy();
+                float angleBefore = body.getAngle();
+                Vector2 childBefore = f.resolvedPosition(child);
+                var bounds = f.world.getMapper(OrientedBoundsComponent.class).get(child);
+                Vector2 centerBefore = new Vector2(bounds.cx, bounds.cy);
+                var authoredChild = ItemMovePreparation.Pose.read(f.t(child));
+                f.execute(f.prepare(1, 0, 0, group));
+                for (int cycle = 0; cycle < 5; cycle++) {
+                    for (int frame = 0; frame < 3; frame++) {
+                        f.publish();
+                        assertTrue(childBefore.dst(f.resolvedPosition(child)) <= .008f);
+                        assertTrue(centerBefore.dst(bounds.cx, bounds.cy) <= .008f);
+                        assertTrue(bodyBefore.dst(body.getPosition()) <= .00008f); // .008 px at 100 px/m.
+                        assertEquals(angleBefore, body.getAngle(), .000001f);
+                        assertSame(body, f.world.getMapper(PhysicsRuntimeBodyComponent.class).get(physical).body);
+                        assertSame(fixture, body.getFixtureList().first());
+                    }
+                    f.context.historyManager().undo();
+                    f.publish();
+                    assertTrue(childBefore.dst(f.resolvedPosition(child)) <= .008f);
+                    f.context.historyManager().redo();
+                }
+                assertEquals(authoredChild, ItemMovePreparation.Pose.read(f.t(child)));
+                assertEquals(f.stable(group), f.parent(child));
+                assertTrue(config.bullet);
+                assertEquals(.7f, config.linearDamping, 0);
+                assertEquals(.7f, body.getLinearDamping(), 0);
+            }
+        }
+    }
+
+    @Test
     public void detachedGroupMeasuresDescendantPositionAgainstResolvedRuntime() {
         try (F f = new F()) {
             int outer = f.root(0, 2), group = f.root(0, 1), left = f.sprite(0, 1), right = f.sprite(0, 0);
@@ -374,10 +474,9 @@ public class MoveItemsCommandTest {
             f.publish();
             Vector2 afterLeft = f.resolvedPosition(left), afterRight = f.resolvedPosition(right);
             assertEquals(new Vector2(), f.resolvedPosition(group));
-            // The unchanged pivot does not imply unchanged descendant positions: the two ends
-            // drift in opposite directions. Translating only the group cannot correct both.
-            assertTrue(beforeLeft.dst(afterLeft) <= .2f);
-            assertTrue("Runtime descendant drift: " + beforeRight.dst(afterRight), beforeRight.dst(afterRight) <= .2f);
+            // Check both descendants: an unchanged group pivot alone does not prove world preservation.
+            assertTrue(beforeLeft.dst(afterLeft) <= 8 * Math.ulp(1000f));
+            assertTrue("Runtime descendant drift: " + beforeRight.dst(afterRight), beforeRight.dst(afterRight) <= 8 * Math.ulp(1000f));
             assertEquals(localLeft, ItemMovePreparation.Pose.read(f.t(left)));
             assertEquals(localRight, ItemMovePreparation.Pose.read(f.t(right)));
             assertEquals(0, f.index(left).layerIndex);
@@ -421,6 +520,48 @@ public class MoveItemsCommandTest {
             var change = plan.changes().stream().filter(c -> c.before().stableId() == f.stable(a)).findFirst().orElseThrow();
             assertEquals(f.stable(f.context.layerService().getLayerEntity(0)), change.beforeEffectiveLayerStableId());
             assertEquals(f.stable(f.context.layerService().getLayerEntity(1)), change.afterEffectiveLayerStableId());
+        }
+    }
+
+    @Test
+    public void reparentAndDetachNotifySelectedTransformAfterEachHistoryOperation() {
+        try (F f = new F()) {
+            int parent = f.root(0, 1), destination = f.root(1, 1), child = f.sprite(0, 0);
+            f.attach(child, parent, 0);
+            f.t(parent).rotationRad = .4f;
+            f.t(destination).rotationRad = -.3f;
+            f.t(destination).scaleX = f.t(destination).scaleY = 2;
+            f.context.selectionService().selectOnly(child);
+            f.publish();
+            EventFlow.i().flush();
+            var changed = java.util.EnumSet.noneOf(TransformOp.class);
+            EventFlow.Listener<EventFlow.EntityChanged> listener = event -> {
+                if (event.entityId() == child) {
+                    changed.add(event.op());
+                }
+            };
+            EventFlow.i().subscribe(EventFlow.EntityChanged.class, listener);
+            try {
+                f.execute(f.prepare(1, destination, 0, child));
+                for (int step = 0; step < 6; step++) {
+                    if (step == 1 || step == 4) {
+                        f.context.historyManager().undo();
+                    } else if (step == 2 || step == 5) {
+                        f.context.historyManager().redo();
+                    } else if (step == 3) {
+                        f.execute(f.prepare(0, 0, 0, child));
+                    }
+                    var pose = ItemMovePreparation.Pose.read(f.t(child));
+                    EventFlow.i().flush();
+                    assertTrue(changed.containsAll(java.util.EnumSet.of(TransformOp.MOVE, TransformOp.ROTATE, TransformOp.SCALE)));
+                    changed.clear();
+                    assertEquals(pose, ItemMovePreparation.Pose.read(f.t(child)));
+                    assertEquals(new int[]{1, 0, 1, 2, 1, 2}[step], f.context.historyManager().getCursor());
+                    assertEquals(child, f.context.selectionService().getFirstSelectedEntityId());
+                }
+            } finally {
+                EventFlow.i().unsubscribe(EventFlow.EntityChanged.class, listener);
+            }
         }
     }
 
@@ -522,9 +663,9 @@ public class MoveItemsCommandTest {
             assertTrue(f.z(a) > f.z(b));
             f.publish();
             assertTrue(aw.closeTo(f.pose(a)));
-            // Independent Runtime oracle, with a fixture-specific world-unit drift allowance.
-            assertTrue(runtimeA.dst(f.resolvedPosition(a)) <= .05f);
-            assertTrue(runtimeB.dst(f.resolvedPosition(b)) <= .05f);
+            // Independent Runtime oracle after publication, including signed/non-uniform leaf scale.
+            assertTrue(runtimeA.dst(f.resolvedPosition(a)) <= .0001f);
+            assertTrue(runtimeB.dst(f.resolvedPosition(b)) <= .0001f);
             f.context.historyManager().undo();
             assertEquals(f.stable(p), f.parent(a));
             assertEquals(f.stable(nested), f.parent(b));
@@ -862,7 +1003,7 @@ public class MoveItemsCommandTest {
             box2d = new Box2dWorldService(100f, new Vector2());
             sync = new Box2dSyncSystem(box2d);
             world = new World(new WorldConfigurationBuilder().with(new DirtyTrackerSystem(32),
-                    new GameObjectHierarchySystem(32), sync, new WorldSerializationManager()).build());
+                    new GameObjectHierarchySystem(32), sync, new games.pixscape.runtime.system.UpdateWorldGeometrySystem(), new WorldSerializationManager()).build());
             context.initializeWorld(world, new TiledAllocatorService(), meta);
             if (createLayers) {
                 context.layerService().addLayerTop("A");

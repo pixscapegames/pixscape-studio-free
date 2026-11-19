@@ -97,7 +97,7 @@ public final class SpatialActorPanel extends CollapsibleWidget {
             }
         });
         inheritedMessage.content().add(inheritedToggle).left();
-        details.add(inheritedMessage).colspan(2).padLeft(CommonLayout.PAD_LEFT_SUBMENU).growX().row();
+        details.add(inheritedMessage).colspan(2).space(0).padLeft(CommonLayout.PAD_LEFT_SUBMENU).growX().row();
         VisTable fields = ownFields.content();
         fields.defaults().left().pad(1);
         String[] labels = {"Altitude (px):", "Radius (px):", "X (px):", "Y (px):"};
@@ -156,7 +156,12 @@ public final class SpatialActorPanel extends CollapsibleWidget {
         boolean own = hasMarkedFootprint(eid);
         showValidation("");
         ownFields.show(own);
-        inheritedMessage.show(SpatialActorShapeSupport.ancestorOwner(ctx.world, eid) >= 0);
+        boolean inherited = SpatialActorShapeSupport.ancestorOwner(ctx.world, eid) >= 0;
+        inheritedMessage.show(inherited);
+        // A collapsed row must not add another gap between the title and its first field.
+        var details = detailsBlock.content();
+        details.getCell(inheritedMessage).padTop(inherited ? 1 : 0).padBottom(inherited ? 1 : 0);
+        details.getCell(ownFields).spaceTop(inherited ? details.defaults().getSpaceTop() : 0);
         refreshingInheritance = true;
         inheritedToggle.setChecked(!own);
         refreshingInheritance = false;

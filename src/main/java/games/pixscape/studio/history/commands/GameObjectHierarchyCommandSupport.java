@@ -81,56 +81,26 @@ public final class GameObjectHierarchyCommandSupport {
         }
     }
 
-    static TransformComponent worldTransform(
-            World world, IdentityRegistry identities, int entityId) {
-        TransformComponent authored = world.getMapper(TransformComponent.class)
-                .getSafe(entityId, null);
-        if (authored == null) {
-            throw new IllegalArgumentException("Hierarchy entity requires TransformComponent.");
+    /** Notify existing field bindings after a hierarchy edit has applied its complete local pose. */
+    static void notifyTransformChanged(int entityId, TransformComponent before,
+                                       TransformComponent after, int sourceTag) {
+        var events = games.pixscape.studio.event.EventFlow.i();
+        // Position also depends on the node's drawable/GameObject role, not just numeric X/Y.
+        events.publish(new games.pixscape.studio.event.EventFlow.EntityChanged(entityId, TransformOp.MOVE, sourceTag));
+        if (Float.compare(before.rotationRad, after.rotationRad) != 0) {
+            events.publish(new games.pixscape.studio.event.EventFlow.EntityChanged(entityId, TransformOp.ROTATE, sourceTag));
         }
-        games.pixscape.runtime.system.PhysicsPoseAuthority authority =
-                world.getSystem(games.pixscape.runtime.system.PhysicsPoseAuthority.class);
-        if (authority != null && authority.isRuntimePhysics()) {
-            GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
-            games.pixscape.runtime.hierarchy.WorldTransformState poses =
-                    hierarchy == null ? null : hierarchy.worldTransforms();
-            if (poses == null || !poses.isResolved(entityId)) {
-                throw new IllegalStateException("Hierarchy mutation requires a published world pose.");
-            }
-            TransformComponent pose = copy(authored);
-            pose.x = poses.x[entityId];
-            pose.y = poses.y[entityId];
-            pose.rotationRad = poses.rotationRad[entityId];
-            pose.scaleX = poses.scaleX[entityId];
-            pose.scaleY = poses.scaleY[entityId];
-            pose.refreshCaches();
-            return pose;
+        if (Float.compare(before.scaleX, after.scaleX) != 0 || Float.compare(before.scaleY, after.scaleY) != 0) {
+            events.publish(new games.pixscape.studio.event.EventFlow.EntityChanged(entityId, TransformOp.SCALE, sourceTag));
         }
-        GameObjectMemberComponent member = world.getMapper(GameObjectMemberComponent.class)
-                .getSafe(entityId, null);
-        if (member == null) return copy(authored);
-        int parentEntityId = identities.findByStableId(member.parentStableId);
-        requireActive(world, parentEntityId, "parent");
-        TransformComponent parentWorld = worldTransform(world, identities, parentEntityId, 1);
-        return GameObjectTransformMath.localToWorld(
-                parentWorld, authored,
-                world.getMapper(GameObjectComponent.class).has(entityId),
-                new TransformComponent());
+        if (Float.compare(before.originX, after.originX) != 0 || Float.compare(before.originY, after.originY) != 0) {
+            events.publish(new games.pixscape.studio.event.EventFlow.EntityChanged(entityId, TransformOp.ORIGIN, sourceTag));
+        }
     }
 
-    private static TransformComponent worldTransform(
-            World world, IdentityRegistry identities, int entityId, int depth) {
-        if (depth > MAX_DEPTH) throw new IllegalArgumentException("Hierarchy depth limit exceeded.");
-        TransformComponent authored = world.getMapper(TransformComponent.class).get(entityId);
-        GameObjectMemberComponent member = world.getMapper(GameObjectMemberComponent.class)
-                .getSafe(entityId, null);
-        if (member == null) return copy(authored);
-        int parent = identities.findByStableId(member.parentStableId);
-        requireActive(world, parent, "parent");
-        return GameObjectTransformMath.localToWorld(
-                worldTransform(world, identities, parent, depth + 1), authored,
-                world.getMapper(GameObjectComponent.class).has(entityId),
-                new TransformComponent());
+    static TransformComponent worldTransform(
+            World world, IdentityRegistry identities, int entityId) {
+        return games.pixscape.runtime.hierarchy.GameObjectHierarchyMutation.captureWorldPose(world, entityId);
     }
 
     static TransformComponent promotedParentLocal(World world, IdentityRegistry identities, int entityId) {

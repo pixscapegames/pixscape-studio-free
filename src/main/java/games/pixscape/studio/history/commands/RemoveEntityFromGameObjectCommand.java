@@ -4,6 +4,7 @@ import com.artemis.World;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.hierarchy.GameObjectHierarchyMutation;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.IdentityRegistry;
@@ -87,9 +88,7 @@ public final class RemoveEntityFromGameObjectCommand implements Command {
         if (member == null || member.parentStableId != parentStableId) {
             throw new IllegalStateException("Game Object membership changed before detach redo.");
         }
-        world.getMapper(GameObjectMemberComponent.class).remove(child);
-        GameObjectHierarchyCommandSupport.apply(
-                world.getMapper(TransformComponent.class).get(child), afterWorld);
+        GameObjectHierarchyMutation.applyPreparedLocalPose(world, child, 0, afterWorld);
         EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).get(child);
         index.layerIndex = afterLayer;
         index.zIndex = afterZ;
@@ -104,12 +103,10 @@ public final class RemoveEntityFromGameObjectCommand implements Command {
         }
         int parent = identities.findByStableId(parentStableId);
         GameObjectHierarchyCommandSupport.requireAttachCandidate(world, identities, child, parent);
-        GameObjectHierarchyCommandSupport.apply(
-                world.getMapper(TransformComponent.class).get(child), beforeLocal);
+        GameObjectHierarchyMutation.applyPreparedLocalPose(world, child, parentStableId, beforeLocal);
         EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).get(child);
         index.layerIndex = beforeLayer;
         index.zIndex = beforeLocalZ;
-        world.getMapper(GameObjectMemberComponent.class).create(child).parentStableId = parentStableId;
         dirty(child);
     }
 
@@ -126,6 +123,7 @@ public final class RemoveEntityFromGameObjectCommand implements Command {
             dirty.layer(entityId);
             dirty.order(entityId);
         }
+        GameObjectHierarchyCommandSupport.notifyTransformChanged(entityId, beforeLocal, afterWorld, sourceTag);
         EventFlow.i().publish(new EventFlow.EntityZOrderChanged(
                 CurrentGameObjectRelations.layerIndex(world, entityId), sourceTag));
     }
