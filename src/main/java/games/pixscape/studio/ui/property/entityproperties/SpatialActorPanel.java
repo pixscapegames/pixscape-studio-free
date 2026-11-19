@@ -244,8 +244,7 @@ public final class SpatialActorPanel extends CollapsibleWidget {
                 != games.pixscape.runtime.tiled.TiledEntityRole.NONE) {
             return "Tiled structures do not own actor footprints.";
         }
-        return ctx.layerService.admitsSpatialActor(entityId) ? null
-                : "Enable Spatial on this object's scene layer first (one actor layer per scene).";
+        return ToggleSpatialActorCommand.activationRejection(ctx.world, entityId);
     }
 
     public void addFootprint() {

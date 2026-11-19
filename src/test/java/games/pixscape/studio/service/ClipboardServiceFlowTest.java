@@ -43,6 +43,65 @@ import java.nio.file.Path;
 
 public class ClipboardServiceFlowTest {
     @Test
+    public void rejectedSpatialPasteKeepsSelectionClipboardAllocationsAndRedoWithPhysicsDisabled() throws Exception {
+        Harness h = new Harness();
+        try {
+            h.sceneMeta.physicsEnabled = false;
+            int spatialLayer = h.addLayer(1, true);
+            int source = createEntity(h.world, 10, 20, 1);
+            h.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(source);
+            h.world.process();
+            h.selection.selectOnly(source);
+            Assert.assertTrue(h.clipboard.copySelection());
+            h.selection.setActivelayerId(spatialLayer);
+            Assert.assertTrue(h.clipboard.paste());
+            h.history.undo();
+            h.world.process();
+            h.selection.setActivelayerId(h.classicLayer);
+            h.selection.selectOnly(source);
+            int nextId = h.sceneMeta.nextEntityStableId;
+            int count = countAll(h.world);
+            long nextHistory = h.history.historyIds().allocateHistoryId();
+            long revision = h.history.getMutationRevision();
+            Assert.assertFalse(h.clipboard.paste());
+            Assert.assertTrue(((DiagnosticCanvas) h.canvas).diagnostic.contains("Spatial actor layer"));
+            Assert.assertTrue(h.clipboard.hasContent());
+            Assert.assertEquals(source, h.selection.getFirstSelectedEntityId());
+            Assert.assertEquals(nextId, h.sceneMeta.nextEntityStableId);
+            Assert.assertEquals(nextHistory + 1, h.history.historyIds().allocateHistoryId());
+            Assert.assertEquals(revision, h.history.getMutationRevision());
+            Assert.assertTrue(h.history.canRedo());
+            h.world.process();
+            Assert.assertEquals(count, countAll(h.world));
+        } finally {
+            h.world.dispose();
+        }
+    }
+
+    @Test
+    public void editorLayerMoveRejectsFootprintBeforeAllocatingHistoryIds() throws Exception {
+        Harness h = new Harness();
+        try {
+            int spatialLayer = h.addLayer(1, true);
+            int source = createEntity(h.world, 10, 20, 1);
+            h.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(source);
+            h.identities.ensureStableId(source);
+            h.world.process();
+            var ops = new games.pixscape.studio.ops.EditorOpsImpl(h.canvas, h.identities);
+            long next = h.history.historyIds().allocateHistoryId();
+            Assert.assertThrows(IllegalArgumentException.class,
+                    () -> ops.applyLayer(IntArray.with(source), h.classicLayer));
+            Assert.assertEquals(next + 1, h.history.historyIds().allocateHistoryId());
+            Assert.assertEquals(1, h.world.getMapper(EntityIndexComponent.class).get(source).layerIndex);
+            Assert.assertFalse(h.history.canUndo());
+            ops.applyLayer(IntArray.with(source), spatialLayer);
+            Assert.assertFalse(h.history.canUndo());
+        } finally {
+            h.world.dispose();
+        }
+    }
+
+    @Test
     public void copiedTiledContourCanBeEditedWithoutChangingSourceAndSurvivesHistory() throws Exception {
         Harness h = new Harness();
         try {
@@ -867,9 +926,23 @@ public class ClipboardServiceFlowTest {
             int entity = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
             layer.layerIndex = index;
+            layer.spatialEnabled = spatialEnabled;
             world.getMapper(LayerMetaComponent.class).create(entity);
             world.process();
             return entity;
+        }
+    }
+
+    private static final class DiagnosticCanvas extends WorldCanvas {
+        String diagnostic;
+
+        private DiagnosticCanvas() {
+            super(null, null, null, null);
+        }
+
+        @Override
+        public void showCompositionDiagnostic(String message) {
+            diagnostic = message;
         }
     }
 
@@ -880,7 +953,7 @@ public class ClipboardServiceFlowTest {
             LayerService layers,
             PhysicsService physicsService) throws Exception {
         Unsafe unsafe = getUnsafe();
-        WorldCanvas canvas = (WorldCanvas) unsafe.allocateInstance(WorldCanvas.class);
+        WorldCanvas canvas = (WorldCanvas) unsafe.allocateInstance(DiagnosticCanvas.class);
         SceneEditorContext context = (SceneEditorContext) unsafe.allocateInstance(SceneEditorContext.class);
         setFieldUnsafe(unsafe, context, "world", world);
         setFieldUnsafe(unsafe, context, "sceneMeta", ProjectConfig.getInstance().getCurrentSceneMeta());
@@ -901,7 +974,7 @@ public class ClipboardServiceFlowTest {
 
     private static void setFieldUnsafe(
             Unsafe unsafe, Object target, String fieldName, Object value) throws Exception {
-        Field field = target.getClass().getDeclaredField(fieldName);
+        Field field = (target instanceof WorldCanvas ? WorldCanvas.class : target.getClass()).getDeclaredField(fieldName);
         field.setAccessible(true);
         unsafe.putObject(target, unsafe.objectFieldOffset(field), value);
     }

@@ -40,6 +40,55 @@ public class GameObjectAssetServiceTest {
     public TemporaryFolder temp = new TemporaryFolder();
 
     @Test
+    public void spatialAssetDestinationIsCheckedBeforeIdentitiesAndHistoryButNotForAssetEditing() throws Exception {
+        World world = new World(new WorldConfiguration());
+        IdentityRegistry identities = new IdentityRegistry();
+        try {
+            int root = entity(world, 10, -1, true, 0, 0);
+            world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(root);
+            int layer = world.create();
+            var spatial = world.getMapper(LayerComponent.class).create(layer);
+            spatial.layerIndex = 3;
+            spatial.spatialEnabled = true;
+            world.getMapper(LayerMetaComponent.class).create(layer);
+            world.process();
+            FileHandle file = new FileHandle(temp.getRoot()).child("spatial.gameobject");
+            new GameObjectAssetService(world).saveGameObject(file,
+                    new EntityGraphCaptureService(world).captureForGameObject(IntArray.with(root)));
+            SceneMetaRuntime meta = new SceneMetaRuntime();
+            meta.nextEntityStableId = 1000;
+            identities.bind(world, meta);
+            identities.rebuild();
+            HistoryManager history = new HistoryManager(16);
+            GameObjectAssetService service = new GameObjectAssetService(world, history, identities, null, null);
+            service.instantiateGameObject(file, "spatial", 3, 0, 0);
+            history.undo();
+            world.process();
+            int nextId = meta.nextEntityStableId;
+            int count = world.getAspectSubscriptionManager().get(Aspect.all()).getEntities().size();
+            long nextHistory = history.historyIds().allocateHistoryId();
+            long revision = history.getMutationRevision();
+            Assert.assertThrows(IllegalArgumentException.class,
+                    () -> service.instantiateGameObject(file, "spatial", 1, 0, 0));
+            world.process();
+            Assert.assertEquals(nextId, meta.nextEntityStableId);
+            Assert.assertEquals(nextHistory + 1, history.historyIds().allocateHistoryId());
+            Assert.assertEquals(count, world.getAspectSubscriptionManager().get(Aspect.all()).getEntities().size());
+            Assert.assertEquals(revision, history.getMutationRevision());
+            Assert.assertTrue(history.canRedo());
+            Assert.assertFalse(history.canUndo());
+            history.redo();
+            history.undo();
+            world.process();
+            spatial.spatialEnabled = false;
+            Assert.assertFalse(service.instantiateForAssetEditing(file, "spatial", 3).createdIds().isEmpty());
+        } finally {
+            identities.bind(null, null);
+            world.dispose();
+        }
+    }
+
+    @Test
     public void assetTagsAndRepeatSurviveInsertionAndDeletionHistoryWithoutDuplication() throws Exception {
         World world = new World(new WorldConfiguration());
         IdentityRegistry identities = new IdentityRegistry();

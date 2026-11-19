@@ -2,14 +2,13 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
-import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.spatial.ActorSpatialRectangles;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.service.entitygraph.CurrentGameObjectRelations;
+import games.pixscape.studio.service.spatial.SpatialActorAdmission;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,20 +29,7 @@ final class SpatialRepresentationInitialization {
 
     /** Reads current authored ancestry at a command boundary, including unpublished creations. */
     static boolean hasFootprintOwner(World world, int entity) {
-        var footprints = world.getMapper(SpatialFootprintComponent.class);
-        var members = world.getMapper(GameObjectMemberComponent.class);
-        var identities = IdentityRegistry.boundTo(world);
-        for (int depth = 0; entity >= 0 && depth < 1024; depth++) {
-            if (footprints.has(entity)) {
-                return true;
-            }
-            var member = members.getSafe(entity, null);
-            if (member == null) {
-                return false;
-            }
-            entity = identities == null ? -1 : identities.findByStableId(member.parentStableId);
-        }
-        return false;
+        return SpatialActorAdmission.hasFootprintOwner(world, entity);
     }
 
     /** One cold hierarchy-index construction, then O(affected subtree), with no frame polling. */

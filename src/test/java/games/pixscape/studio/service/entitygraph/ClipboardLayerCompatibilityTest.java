@@ -34,6 +34,11 @@ public class ClipboardLayerCompatibilityTest {
         config.createSceneMeta("Main");
         ProjectConfig.setInstance(config);
         world = new World(new WorldConfiguration());
+        int spatialLayer = world.create();
+        LayerComponent layer = world.getMapper(LayerComponent.class).create(spatialLayer);
+        layer.layerIndex = 8;
+        layer.spatialEnabled = true;
+        world.process();
         history = new HistoryManager(32);
         nextSourceShapeId = 100;
         sceneMeta = new SceneMeta();
@@ -46,28 +51,26 @@ public class ClipboardLayerCompatibilityTest {
     }
 
     @Test
-    public void spatialActorToOrdinaryLayerKeepsOrdinaryPhysicsAndSpatialState() {
+    public void spatialPasteRejectionPreservesEntitiesAllocatorsAndRedo() {
         int source = spatialActor(true);
-        EntityGraphInstantiationResult result = paste(
-                capture(source), 7);
-        int pasted = result.createdIds().first();
-
-        Assert.assertEquals(7, world.getMapper(EntityIndexComponent.class).get(pasted).layerIndex);
-        Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(pasted));
-        Assert.assertTrue(world.getMapper(SpatialRepresentationComponent.class).has(pasted));
-        PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).get(pasted);
-        Assert.assertEquals(2, shapes.shapes.size);
-    }
-
-    @Test
-    public void spatialActorWithOneCollisionToOrdinaryLayerKeepsBody() {
-        int source = spatialActor(false);
-        int pasted = paste(capture(source), 7)
-                .createdIds().first();
-
-        Assert.assertTrue(world.getMapper(SpatialRepresentationComponent.class).has(pasted));
-        Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(pasted));
-        Assert.assertTrue(world.getMapper(PhysicsShapesComponent.class).has(pasted));
+        EntityGraph graph = capture(source);
+        paste(graph, 8);
+        history.undo();
+        world.process();
+        int active = activeEntityCount();
+        int stable = sceneMeta.nextEntityStableId;
+        int shape = sceneMeta.nextPhysicsShapeId;
+        IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class,
+                () -> paste(graph, 7));
+        Assert.assertTrue(failure.getMessage().contains("Spatial actor layer"));
+        world.process();
+        Assert.assertEquals(active, activeEntityCount());
+        Assert.assertEquals(stable, sceneMeta.nextEntityStableId);
+        Assert.assertEquals(shape, sceneMeta.nextPhysicsShapeId);
+        Assert.assertFalse(history.canUndo());
+        Assert.assertTrue(history.canRedo());
+        history.redo();
+        Assert.assertTrue(latestEntityWithLayer(8) >= 0);
     }
 
     @Test
@@ -178,13 +181,10 @@ public class ClipboardLayerCompatibilityTest {
         int source = spatialActor(true);
         EntityGraph clipboardGraph = capture(source);
 
-        int classicPaste = paste(clipboardGraph, 1)
-                .createdIds().first();
-        int spatialPaste = paste(clipboardGraph, 9)
+        Assert.assertThrows(IllegalArgumentException.class, () -> paste(clipboardGraph, 1));
+        int spatialPaste = paste(clipboardGraph, 8)
                 .createdIds().first();
 
-        Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(classicPaste));
-        Assert.assertTrue(world.getMapper(SpatialRepresentationComponent.class).has(classicPaste));
         Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(spatialPaste));
         Assert.assertTrue(world.getMapper(SpatialRepresentationComponent.class).has(spatialPaste));
         Assert.assertTrue(hasCircleCollision(
@@ -198,7 +198,7 @@ public class ClipboardLayerCompatibilityTest {
     @Test
     public void spatialPasteUndoRedoRemainsOneAtomicHistoryOperation() {
         int source = spatialActor(true);
-        int pasted = paste(capture(source), 5)
+        int pasted = paste(capture(source), 8)
                 .createdIds().first();
         Assert.assertTrue(history.canUndo());
         Assert.assertTrue(world.getEntityManager().isActive(pasted));
@@ -210,7 +210,7 @@ public class ClipboardLayerCompatibilityTest {
         Assert.assertTrue(history.canRedo());
 
         history.redo();
-        int restored = latestEntityWithLayer(5);
+        int restored = latestEntityWithLayer(8);
         Assert.assertTrue(restored >= 0);
         Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(restored));
         Assert.assertTrue(world.getMapper(SpatialRepresentationComponent.class).has(restored));
@@ -249,7 +249,7 @@ public class ClipboardLayerCompatibilityTest {
     }
 
     @Test
-    public void gameObjectHierarchyWithOwnFootprintIsAllowedOnOrdinaryLayer() {
+    public void gameObjectHierarchyWithOwnFootprintRejectsOrdinaryLayer() {
         sceneMeta.nextEntityStableId = 1_000;
         int root = gameObject(100, -1);
         int member = gameObject(200, 100);
@@ -258,8 +258,8 @@ public class ClipboardLayerCompatibilityTest {
         EntityGraph graph = new EntityGraphCaptureService(world)
                 .captureGameObjectClipboard(new IntArray(new int[]{root}));
 
-        Assert.assertTrue(service.isInstantiationAllowed(
-                graph));
+        Assert.assertThrows(IllegalArgumentException.class, () -> paste(graph, 6));
+        Assert.assertFalse(history.canUndo());
     }
 
     @Test
@@ -273,7 +273,7 @@ public class ClipboardLayerCompatibilityTest {
         Assert.assertEquals(active, activeEntityCount());
         Assert.assertEquals(nextStable, sceneMeta.nextEntityStableId);
         EntityGraph visual = new EntityGraphCaptureService(world).captureVisualOnly(new IntArray(new int[]{source}));
-        int pasted = paste(visual, 4).createdIds().first();
+        int pasted = paste(visual, 8).createdIds().first();
         Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(pasted));
         Assert.assertFalse(world.getMapper(PhysicsShapesComponent.class).has(pasted));
         Assert.assertTrue(world.getMapper(SpatialRepresentationComponent.class).has(pasted));

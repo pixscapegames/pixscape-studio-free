@@ -10,6 +10,7 @@ import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.DeleteEntitiesCommandFactory;
 import games.pixscape.studio.service.entitygraph.*;
 import games.pixscape.studio.ui.main.WorldCanvas;
+import games.pixscape.studio.service.spatial.SpatialActorAdmission;
 
 
 public final class ClipboardService {
@@ -146,6 +147,13 @@ public final class ClipboardService {
                         "Clipboard",
                         "Cannot paste physical content into a scene with Physics disabled.");
             }
+            return false;
+        }
+        try {
+            SpatialActorAdmission.requireGraphDestination(
+                    world, graph, destination.layerIndex());
+        } catch (IllegalArgumentException rejected) {
+            canvas.showCompositionDiagnostic(rejected.getMessage());
             return false;
         }
         if (!historyManager.prepareLightCreation(graph.activeLightCount(), this::paste)) return false;

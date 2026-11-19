@@ -14,6 +14,7 @@ import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.document.OpenEditorDocument;
 import games.pixscape.studio.document.SceneEditorDocument;
 import games.pixscape.studio.service.zorder.LayerLogicalOrderService;
+import games.pixscape.studio.service.spatial.SpatialActorAdmission;
 
 import java.util.*;
 
@@ -479,6 +480,8 @@ public final class ItemMovePreparation {
             } else if (world.getMapper(GameObjectComponent.class).has(entity)) {
                 GameObjectHierarchyCommandSupport.validateCurrentSubtree(world, ids, entity, children);
             }
+            SpatialActorAdmission.requireMoveDestination(
+                    world, entity, parent == 0 ? -1 : entity(parent), target.index, children);
         }
 
         private void requireCompatibleTileMap(int source, int parent) {

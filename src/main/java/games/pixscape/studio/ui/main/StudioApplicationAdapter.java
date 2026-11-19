@@ -782,8 +782,8 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
             candidate.world().process();
             candidate.selectionService().setActivelayerId(layerEntityId);
 
-            var result = canvas.getGameObjectAssetService().instantiateGameObject(
-                    assetFile, assetId, layerIndex, 0f, 0f);
+            var result = canvas.getGameObjectAssetService().instantiateForAssetEditing(
+                    assetFile, assetId, layerIndex);
             RenderRebindHelper.rebindEntitiesAfterAtlasChange(
                     canvas, null, canvas.getAssetVisualResolver(), result.createdIds(), null);
             candidate.world().process();

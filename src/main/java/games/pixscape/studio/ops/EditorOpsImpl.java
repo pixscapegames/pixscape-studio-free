@@ -51,6 +51,7 @@ import games.pixscape.studio.service.physics.ResolvedPhysicsPose;
 import games.pixscape.studio.service.spatial.*;
 import games.pixscape.studio.ui.main.WorldCanvas;
 
+import games.pixscape.studio.service.spatial.SpatialActorAdmission;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -1064,6 +1065,13 @@ public class EditorOpsImpl implements EditorOps {
             throw new IllegalStateException("Layer entity missing LayerComponent: " + layerEntityId);
         }
         int targetLayerIndex = mLayerIndex.get(layerEntityId).layerIndex;
+        var children = games.pixscape.studio.service.entitygraph.CurrentGameObjectRelations
+                .collectCurrentChildrenByParentStableId(world, identityRegistry);
+        for (int i = 0; i < entities.size; i++) {
+            SpatialActorAdmission.requireMoveDestination(
+                    world, entities.get(i), -1, targetLayerIndex, children);
+        }
+
 
         for (int i = 0; i < entities.size; i++) {
             int entityId = entities.get(i);

@@ -81,6 +81,7 @@ import games.pixscape.studio.ui.contextmenu.StudioContextMenu;
 import games.pixscape.studio.ui.modal.Dialogs;
 import games.pixscape.studio.ui.modal.StudioDialog;
 import games.pixscape.studio.ui.widget.TextInputWidget;
+import games.pixscape.studio.service.spatial.SpatialActorAdmission;
 import space.earlygrey.shapedrawer.ShapeDrawer;
 
 import java.util.IdentityHashMap;
@@ -2311,7 +2312,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         GameObjectAsset asset;
         try {
             asset = gameObjectAssetService.loadGameObjectAsset(assetFile);
+            SpatialActorAdmission.requireAssetDestination(
+                    world(), asset, selectionService().getActiveLayerIndex());
         } catch (RuntimeException ex) {
+            showCompositionDiagnostic(ex.getMessage());
             Gdx.app.error("GameObjectDrop", "Failed to load Game Object: " + p.path, ex);
             return;
         }

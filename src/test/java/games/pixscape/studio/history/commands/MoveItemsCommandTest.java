@@ -37,6 +37,74 @@ import static org.junit.Assert.*;
 
 public class MoveItemsCommandTest {
     @Test
+    public void spatialSubtreeMoveRejectsOrdinaryLayerWithoutChangingSelectionOrHistory() {
+        try (F f = new F()) {
+            int group = f.root(0, 0), nested = f.root(1, 0), actor = f.root(1, 0);
+            f.attach(nested, group, 0);
+            f.attach(actor, nested, 0);
+            f.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(actor);
+            f.world.getMapper(LayerComponent.class).get(f.context.layerService().getLayerEntity(0)).spatialEnabled = true;
+            f.publish();
+            f.context.selectionService().selectOnly(actor);
+            var history = f.context.historyManager();
+            int stable = f.meta.nextEntityStableId;
+            long nextHistory = history.historyIds().allocateHistoryId();
+            var pose = f.pose(group);
+            var refusal = f.result(1, 0, 0, group);
+            assertFalse(refusal.accepted());
+            assertTrue(refusal.refusal().contains("Spatial actor layer"));
+            assertEquals(stable, f.meta.nextEntityStableId);
+            assertEquals(nextHistory + 1, history.historyIds().allocateHistoryId());
+            assertEquals(pose, f.pose(group));
+            assertEquals(IntArray.with(actor), f.context.selectionService().getSelectionSnapshot());
+            assertFalse(history.canUndo());
+            assertFalse(history.canRedo());
+            // The selected descendant's stored layer is historical; Add Spatial uses the root.
+            assertNull(ToggleSpatialActorCommand.activationRejection(f.world, nested));
+            f.execute(f.prepare(0, 0, 0, actor));
+            history.undo();
+            f.publish();
+            long revision = history.getMutationRevision();
+            assertFalse(f.result(1, 0, 0, group).accepted());
+            assertTrue(history.canRedo());
+            assertEquals(revision, history.getMutationRevision());
+            var spatialLayer = f.world.getMapper(LayerComponent.class).get(f.context.layerService().getLayerEntity(0));
+            spatialLayer.spatialEnabled = false;
+            history.redo();
+            assertTrue(history.canRedo());
+            assertEquals(revision, history.getMutationRevision());
+            spatialLayer.spatialEnabled = true;
+            history.redo();
+            assertEquals(0, f.parent(actor));
+        }
+    }
+
+    @Test
+    public void detachingInheritedVisualToOrdinaryLayerKeepsDormantRepresentation() {
+        try (F f = new F()) {
+            int parent = f.root(0, 0), middle = f.root(1, 0), visual = f.sprite(1, 0);
+            f.attach(middle, parent, 0);
+            f.attach(visual, middle, 0);
+            f.world.getMapper(LayerComponent.class).get(f.context.layerService().getLayerEntity(0)).spatialEnabled = true;
+            f.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(parent);
+            games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(
+                    f.world.getMapper(SpatialRepresentationComponent.class).create(visual), 2f);
+            f.publish();
+            f.execute(f.prepare(1, 0, 0, middle));
+            for (int cycle = 0; cycle < 3; cycle++) {
+                assertEquals(0, f.parent(middle));
+                assertEquals(1, f.index(middle).layerIndex);
+                assertEquals(2, f.world.getMapper(SpatialRepresentationComponent.class).get(visual).rectangles.staticRectangle.height, 0);
+                f.context.historyManager().undo();
+                f.publish();
+                assertEquals(f.stable(parent), f.parent(middle));
+                f.context.historyManager().redo();
+                f.publish();
+            }
+        }
+    }
+
+    @Test
     public void tileLayerTransferPreservesContentWorldPosePhysicsAndSurvivesSourceLayerDeletion() {
         try (F f = new F()) {
             int from = f.map(), to = f.map(), tiles = f.tileLayer(from);
@@ -152,9 +220,11 @@ public class MoveItemsCommandTest {
     @Test
     public void attachingVisualSubtreeInitializesOnlyMissingRepresentationsInTheMoveHistory() {
         try (F f = new F()) {
-            int parent = f.root(0, 0), group = f.root(0, 1), child = f.sprite(0, 0);
+            int owner = f.root(0, 0), parent = f.root(1, 0), group = f.root(0, 1), child = f.sprite(0, 0);
+            f.attach(parent, owner, 0);
             f.attach(child, group, 0);
-            f.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(parent);
+            f.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(owner);
+            f.world.getMapper(LayerComponent.class).get(f.context.layerService().getLayerEntity(0)).spatialEnabled = true;
             f.publish();
             var representations = f.world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class);
             assertFalse(representations.has(child));

@@ -8,6 +8,7 @@ import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.service.spatial.SpatialActorAdmission;
 
 /** Changes the selected footprint and prepares missing visual representations during activation. */
 public final class ToggleSpatialActorCommand implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
@@ -89,15 +90,12 @@ public final class ToggleSpatialActorCommand implements Command, HistoryManager.
         if (world == null || entity < 0 || !world.getEntityManager().isActive(entity)) {
             return "Object is unavailable.";
         }
-        var index = world.getMapper(games.pixscape.runtime.component.EntityIndexComponent.class).getSafe(entity, null);
-        var composition = world.getSystem(games.pixscape.runtime.system.GameObjectCompositionSystem.class);
-        int layerIndex = composition != null && entity < composition.state().effectiveLayer.length
-                ? composition.state().effectiveLayer[entity] : index == null ? -1 : index.layerIndex;
-        var layers = world.getAspectSubscriptionManager().get(com.artemis.Aspect.all(
-                games.pixscape.runtime.component.LayerComponent.class)).getEntities();
-        int spatialLayer = games.pixscape.runtime.service.SpatialScenePolicy.actorLayerIndex(world, layers);
-        return layerIndex >= 0 && layerIndex == spatialLayer ? null
-                : "A footprint can be added only in the Spatial actor layer.";
+        try {
+            int layer = games.pixscape.studio.service.entitygraph.CurrentGameObjectRelations.layerIndex(world, entity);
+            return SpatialActorAdmission.layerRejection(world, layer);
+        } catch (IllegalArgumentException ex) {
+            return ex.getMessage();
+        }
     }
 
     private CommandOutcome apply(SpatialFootprintComponent footprint) {

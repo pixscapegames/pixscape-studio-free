@@ -20,6 +20,7 @@ import games.pixscape.studio.history.commands.CreateEntityCommand;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
 import games.pixscape.studio.service.property.PropertyReferenceMapper;
+import games.pixscape.studio.service.spatial.SpatialActorAdmission;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -80,6 +81,7 @@ public final class EntityGraphInstantiationService {
             return EntityGraphInstantiationResult.empty();
         }
 
+        SpatialActorAdmission.requireGraphDestination(world, graph, activeLayerIndex);
         if (!historyManager.prepareLightCreation(graph.activeLightCount(),
                 () -> instantiate(graph, activeLayerIndex, dx, dy, commandName)))
             return EntityGraphInstantiationResult.empty();

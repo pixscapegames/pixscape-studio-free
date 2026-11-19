@@ -36,6 +36,7 @@ import games.pixscape.studio.service.entitygraph.EntityGraphEntry;
 import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationResult;
 import games.pixscape.studio.service.property.PropertyReferenceMapper;
 import games.pixscape.studio.service.zorder.LayerLogicalOrderService;
+import games.pixscape.studio.service.spatial.SpatialActorAdmission;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -284,10 +285,25 @@ public final class GameObjectAssetService {
     public EntityGraphInstantiationResult instantiateGameObject(
             FileHandle file, String logicalAssetId, int destinationLayer,
             float rootWorldX, float rootWorldY) {
+        return instantiateGameObject(file, logicalAssetId, destinationLayer, rootWorldX, rootWorldY, true);
+    }
+
+    /** Isolated asset document construction has no scene destination contract. */
+    public EntityGraphInstantiationResult instantiateForAssetEditing(
+            FileHandle file, String logicalAssetId, int internalLayer) {
+        return instantiateGameObject(file, logicalAssetId, internalLayer, 0f, 0f, false);
+    }
+
+    private EntityGraphInstantiationResult instantiateGameObject(
+            FileHandle file, String logicalAssetId, int destinationLayer,
+            float rootWorldX, float rootWorldY, boolean sceneDestination) {
         if (historyManager == null || identityRegistry == null) {
             throw new IllegalStateException("Game Object instantiation dependencies are not configured.");
         }
         GameObjectAsset asset = loader.load(file);
+        if (sceneDestination) {
+            SpatialActorAdmission.requireAssetDestination(world, asset, destinationLayer);
+        }
         if (!scenePhysicsEnabled.getAsBoolean() && containsAuthoredPhysics(asset)) {
             throw new IllegalStateException(
                     "Cannot instantiate a Game Object with authored Physics while scene Physics is disabled.");
@@ -298,7 +314,7 @@ public final class GameObjectAssetService {
                     data.visibility == null || data.visibility.visible, data.pointLight != null, data.pointLight != null && data.pointLight.enabled,
                     data.coneLight != null, data.coneLight != null && data.coneLight.enabled)) activeLights++;
         if (!historyManager.prepareLightCreation(activeLights,
-                () -> instantiateGameObject(file, logicalAssetId, destinationLayer, rootWorldX, rootWorldY)))
+                () -> instantiateGameObject(file, logicalAssetId, destinationLayer, rootWorldX, rootWorldY, sceneDestination)))
             return EntityGraphInstantiationResult.empty();
         String canonicalId = GameObjectAssetId.normalize(logicalAssetId);
         IntIntMap sourceToStable = new IntIntMap(asset.entities.size);
