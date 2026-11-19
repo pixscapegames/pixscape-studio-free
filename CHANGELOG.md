@@ -41,6 +41,7 @@
 * Refreshed the distributed HTML Preview player for the current Game Object composition formats and the Runtime physics bootstrap correction.
 
 ### Fixed
+* Preserve custom properties when deleting and undoing standalone entities. Generic snapshots and transfers retain absent/empty components and deep-copy all supported values; hierarchy and Game Object restoration use the remapped properties without a second write.
 * Tiled points and polylines use the dedicated tiled-point and tiled-polyline skin drawables in Items and entity inspector headers instead of the image fallback.
 * Empty Runtime availability categories share one asset-neutral drop message, matching automatic asset-type recognition during drag-and-drop.
 * Add child menus in Items and the inspector omit unavailable choices instead of displaying gray entries. Sprite/Animation entries require a compatible selected asset; adding assets onto a node by drag-and-drop remains unchanged. Incompatible parents no longer expose a disabled Add child submenu.

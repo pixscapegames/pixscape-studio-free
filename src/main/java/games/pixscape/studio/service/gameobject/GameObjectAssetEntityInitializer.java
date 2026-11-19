@@ -20,7 +20,6 @@ final class GameObjectAssetEntityInitializer implements Initializer {
     private String sourceAssetId;
     private int parentStableId;
     private Array<String> tags;
-    private PropertySet properties;
     private GameObjectAsset.RepeatData repeat;
     private GameObjectAsset.PointLightData pointLight;
     private GameObjectAsset.ConeLightData coneLight;
@@ -38,7 +37,7 @@ final class GameObjectAssetEntityInitializer implements Initializer {
         this.parentStableId = parentStableId;
         this.sourceAssetId = sourceAssetId != null ? sourceAssetId : "";
         if (data.tags != null) this.tags = new Array<>(data.tags.values);
-        this.properties = remappedProperties != null ? remappedProperties.copy() : null;
+        generic.setCustomProperties(remappedProperties);
         this.repeat = copy(data.repeat);
         this.pointLight = copy(data.pointLight);
         this.coneLight = copy(data.coneLight);
@@ -64,8 +63,6 @@ final class GameObjectAssetEntityInitializer implements Initializer {
         parentStableId = member != null ? member.parentStableId : -1;
         PixscapeTagComponent tagComponent = world.getMapper(PixscapeTagComponent.class).getSafe(entityId, null);
         tags = tagComponent != null && tagComponent.tags != null ? new Array<>(tagComponent.tags) : null;
-        CustomPropertiesComponent custom = world.getMapper(CustomPropertiesComponent.class).getSafe(entityId, null);
-        properties = custom != null && custom.properties != null ? custom.properties.copy() : null;
         RenderRepeatComponent repeated = world.getMapper(RenderRepeatComponent.class).getSafe(entityId, null);
         repeat = repeated != null ? repeat(repeated.repeatX, repeated.repeatY) : null;
         pointLight = copy(world.getMapper(PointLightComponent.class).getSafe(entityId, null));
@@ -84,9 +81,6 @@ final class GameObjectAssetEntityInitializer implements Initializer {
         if (tags != null) {
             PixscapeTagComponent component = world.getMapper(PixscapeTagComponent.class).create(entityId);
             component.tags.addAll(tags);
-        }
-        if (properties != null) {
-            world.getMapper(CustomPropertiesComponent.class).create(entityId).properties = properties.copy();
         }
         if (repeat != null) {
             RenderRepeatComponent component = world.getMapper(RenderRepeatComponent.class).create(entityId);

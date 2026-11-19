@@ -18,6 +18,44 @@ import static org.junit.Assert.*;
 
 public class DeleteGameObjectHierarchyCommandTest {
     @Test
+    public void hierarchyDeletionRestoresPropertiesWithOneAuthority() {
+        Fixture f = new Fixture();
+        try {
+            int root = f.root(23, -1);
+            int child = f.root(24, 23);
+            int empty = f.root(25, 24);
+            f.world.getMapper(CustomPropertiesComponent.class).create(root).properties =
+                    StandaloneCustomPropertiesRestorationTest.allTypes();
+            f.world.getMapper(CustomPropertiesComponent.class).create(child).properties =
+                    StandaloneCustomPropertiesRestorationTest.allTypes().putObjectStableId("self", 124);
+            f.world.getMapper(CustomPropertiesComponent.class).create(empty);
+            f.process();
+            long rootId = f.history.historyIds().ensureForEntity(root);
+            long childId = f.history.historyIds().ensureForEntity(child);
+            long emptyId = f.history.historyIds().ensureForEntity(empty);
+            f.history.execute(DeleteEntitiesCommandFactory.create(f.world, f.history.historyIds(),
+                    new IntArray(new int[]{root}), null));
+            f.process();
+            for (int cycle = 0; cycle < 3; cycle++) {
+                f.history.undo();
+                f.process();
+                var mapper = f.world.getMapper(CustomPropertiesComponent.class);
+                StandaloneCustomPropertiesRestorationTest.assertProperties(
+                        StandaloneCustomPropertiesRestorationTest.allTypes(),
+                        mapper.get(f.history.historyIds().entityOfHistoryId(rootId)).properties);
+                StandaloneCustomPropertiesRestorationTest.assertProperties(
+                        StandaloneCustomPropertiesRestorationTest.allTypes().putObjectStableId("self", 124),
+                        mapper.get(f.history.historyIds().entityOfHistoryId(childId)).properties);
+                assertTrue(mapper.get(f.history.historyIds().entityOfHistoryId(emptyId)).properties.isEmpty());
+                f.history.redo();
+                f.process();
+            }
+        } finally {
+            f.close();
+        }
+    }
+
+    @Test
     public void repeatedWheelJointHierarchyDeletionDoesNotLeaveOrphansOnReusedEcsIds() {
         Fixture f = new Fixture();
         try {

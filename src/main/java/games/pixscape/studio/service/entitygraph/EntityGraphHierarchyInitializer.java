@@ -1,7 +1,6 @@
 package games.pixscape.studio.service.entitygraph;
 
 import com.artemis.World;
-import games.pixscape.runtime.component.CustomPropertiesComponent;
 import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.property.PropertySet;
@@ -17,7 +16,6 @@ final class EntityGraphHierarchyInitializer implements Initializer {
     private boolean gameObjectRoot;
     private String gameObjectSourceAssetId;
     private int parentStableId;
-    private PropertySet customProperties;
 
     EntityGraphHierarchyInitializer(
             World world,
@@ -31,7 +29,7 @@ final class EntityGraphHierarchyInitializer implements Initializer {
         this.gameObjectRoot = gameObjectRoot;
         this.gameObjectSourceAssetId = gameObjectSourceAssetId != null ? gameObjectSourceAssetId : "";
         this.parentStableId = parentStableId;
-        this.customProperties = customProperties != null ? customProperties.copy() : null;
+        generic.setCustomProperties(customProperties);
     }
 
     @Override
@@ -50,10 +48,6 @@ final class EntityGraphHierarchyInitializer implements Initializer {
         GameObjectMemberComponent member = world.getMapper(GameObjectMemberComponent.class)
                 .getSafe(entityId, null);
         parentStableId = member != null ? member.parentStableId : -1;
-        CustomPropertiesComponent properties = world.getMapper(CustomPropertiesComponent.class)
-                .getSafe(entityId, null);
-        customProperties = properties != null && properties.properties != null
-                ? properties.properties.copy() : null;
     }
 
     @Override
@@ -65,9 +59,6 @@ final class EntityGraphHierarchyInitializer implements Initializer {
         if (parentStableId > 0) {
             world.getMapper(GameObjectMemberComponent.class).create(entityId)
                     .parentStableId = parentStableId;
-        }
-        if (customProperties != null) {
-            world.getMapper(CustomPropertiesComponent.class).create(entityId).properties = customProperties.copy();
         }
         games.pixscape.runtime.service.IdentityRegistry.boundTo(world).indexEntityImmediately(entityId);
     }

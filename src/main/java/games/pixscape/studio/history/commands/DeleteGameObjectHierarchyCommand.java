@@ -4,14 +4,12 @@ import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.IntSet;
-import games.pixscape.runtime.component.CustomPropertiesComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.Box2dSyncSystem;
@@ -120,7 +118,7 @@ public final class DeleteGameObjectHierarchyCommand implements Command {
             initializer.syncFrom(entityId);
             if (initializer instanceof GenericEntityInitializer generic) generic.preparePhysicsCandidate();
             snapshots.add(new Snapshot(historyIds.ensureForEntity(entityId), initializer, -1,
-                    false, "", captureProperties(entityId)));
+                    false, ""));
             removedEntities.add(entityId);
         }
 
@@ -162,10 +160,6 @@ public final class DeleteGameObjectHierarchyCommand implements Command {
                 world.getMapper(GameObjectComponent.class).create(entityId)
                         .sourceAssetId = snapshot.sourceAssetId;
             }
-            if (snapshot.properties != null) {
-                world.getMapper(CustomPropertiesComponent.class).create(entityId)
-                        .properties.copyFrom(snapshot.properties);
-            }
             if (snapshot.parentStableId > 0) {
                 world.getMapper(GameObjectMemberComponent.class)
                         .create(entityId).parentStableId = snapshot.parentStableId;
@@ -204,14 +198,6 @@ public final class DeleteGameObjectHierarchyCommand implements Command {
             world.delete(entityId);
         }
         historyIds.unbindHistoryId(historyId);
-    }
-
-    private PropertySet captureProperties(int entityId) {
-        var properties = world.getMapper(CustomPropertiesComponent.class).getSafe(entityId, null);
-        if (properties == null) return null;
-        if (properties.properties == null)
-            throw new IllegalArgumentException("Custom properties require a PropertySet.");
-        return properties.properties.copy();
     }
 
     private void captureJoint(int entityId, IntSet captured) {
@@ -273,8 +259,7 @@ public final class DeleteGameObjectHierarchyCommand implements Command {
         snapshots.add(new Snapshot(
                 historyIds.ensureForEntity(entityId), initializer,
                 member != null ? member.parentStableId : -1, gameObject,
-                root != null && root.sourceAssetId != null ? root.sourceAssetId : "",
-                captureProperties(entityId)));
+                root != null && root.sourceAssetId != null ? root.sourceAssetId : ""));
 
         if (!gameObject) return;
         PixscapeIdentityComponent identity = world.getMapper(PixscapeIdentityComponent.class)
@@ -290,8 +275,7 @@ public final class DeleteGameObjectHierarchyCommand implements Command {
             Initializer initializer,
             int parentStableId,
             boolean gameObject,
-            String sourceAssetId,
-            PropertySet properties) {
+            String sourceAssetId) {
     }
 
     private record JointEntry(long historyId, GenericEntityInitializer initializer,

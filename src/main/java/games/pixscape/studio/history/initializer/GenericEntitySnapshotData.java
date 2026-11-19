@@ -4,9 +4,12 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.property.PropertySet;
 
 public final class GenericEntitySnapshotData {
     public TiledEntitySnapshot tiledEntity;
+    /** In-memory snapshot only; null means the component was absent. */
+    public PropertySet customProperties;
     public games.pixscape.runtime.component.SurfaceLightingComponent surfaceLighting;
     public int sourceEntityId;
     public boolean hasTransform;

@@ -63,7 +63,8 @@ public class EntityGraphGameObjectClipboardCaptureTest {
             assertEquals(3, copied.getClassValue("links").properties()
                     .getObjectStableId("nested", -2));
 
-            f.properties.get(leaf).properties = null;
+            // Remove the references to the outer root before capturing only the nested subtree.
+            f.properties.remove(leaf);
             EntityGraph nestedOnly = new EntityGraphCaptureService(f.world)
                     .captureGameObjectClipboard(new IntArray(new int[]{nested}));
             GenericEntitySnapshotData nestedRootSnapshot = nestedOnly.entries().get(0)

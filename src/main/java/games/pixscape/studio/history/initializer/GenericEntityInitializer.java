@@ -13,6 +13,7 @@ import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
+import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -37,6 +38,8 @@ import games.pixscape.studio.model.EntityKind;
  */
 public class GenericEntityInitializer extends AbstractCommonInitializer {
     private TiledEntitySnapshot tiledEntity;
+    // Null means absent; an empty set retains an authored component.
+    private PropertySet customProperties;
     private PreparedPhysicsBodyCandidate preparedPhysicsCandidate;
     // --- TextureRegion (runtime) ---
     protected boolean hasTextureRegion;
@@ -186,6 +189,11 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     @Override
     public void syncFrom(int e) {
         super.syncFrom(e);
+        CustomPropertiesComponent properties = world.getMapper(CustomPropertiesComponent.class).getSafe(e, null);
+        if (properties != null && properties.properties == null) {
+            throw new IllegalArgumentException("Custom properties require a PropertySet.");
+        }
+        setCustomProperties(properties != null ? properties.properties : null);
         tiledEntity = TiledEntitySnapshot.capture(world, e);
 
         ComponentMapper<TextureRegionComponent> mTR = world.getMapper(TextureRegionComponent.class);
@@ -552,6 +560,9 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             preparedPhysicsCandidate = null;
         }
         super.init(e);
+        if (customProperties != null) {
+            world.getMapper(CustomPropertiesComponent.class).create(e).properties = customProperties.copy();
+        }
         if (tiledEntity != null) {
             tiledEntity.restore(world, e);
         }
@@ -907,9 +918,15 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
                         : null;
     }
 
+    /** Replaces the captured values with the graph/asset properties after reference remapping. */
+    public void setCustomProperties(PropertySet properties) {
+        customProperties = properties != null ? properties.copy() : null;
+    }
+
     public GenericEntitySnapshotData toSnapshotData(int sourceEntityId) {
         GenericEntitySnapshotData out = new GenericEntitySnapshotData();
         out.tiledEntity = tiledEntity != null ? tiledEntity.copy() : null;
+        out.customProperties = customProperties != null ? customProperties.copy() : null;
         out.sourceEntityId = sourceEntityId;
         out.hasTransform = hasTransform;
         out.x = trX;
@@ -1066,6 +1083,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     }
 
     public GenericEntityInitializer applySnapshotData(GenericEntitySnapshotData in) {
+        setCustomProperties(in.customProperties);
         tiledEntity = in.tiledEntity != null ? in.tiledEntity.copy() : null;
         hasTransform = in.hasTransform;
         trX = in.x;
@@ -1675,6 +1693,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
      */
     public GenericEntityInitializer duplicateFor(World destination) {
         GenericEntityInitializer copy = new GenericEntityInitializer(destination);
+        copy.setCustomProperties(customProperties);
         copy.tiledEntity = tiledEntity != null ? tiledEntity.copy() : null;
 
         // --- TextureRegion ---
