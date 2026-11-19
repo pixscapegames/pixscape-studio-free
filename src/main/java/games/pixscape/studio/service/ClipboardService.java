@@ -174,6 +174,9 @@ public final class ClipboardService {
     }
 
     private IntArray normalizeClipboardSelection() {
+        if (selectionService.getInspectedFootprintOwner() >= 0) {
+            return null;
+        }
         try {
             return selectionNormalizer.normalize(selectionService.getSelectionSnapshot());
         } catch (IllegalArgumentException ignored) {

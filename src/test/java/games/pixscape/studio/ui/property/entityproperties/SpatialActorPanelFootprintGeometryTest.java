@@ -47,6 +47,11 @@ public class SpatialActorPanelFootprintGeometryTest {
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);
         int entityId = world.create();
+        world.getMapper(games.pixscape.runtime.component.EntityIndexComponent.class).create(entityId).layerIndex = 0;
+        world.getMapper(games.pixscape.runtime.component.TransformComponent.class).create(entityId);
+        int spatialLayer = world.create();
+        world.getMapper(games.pixscape.runtime.component.LayerComponent.class).create(spatialLayer).spatialEnabled = true;
+        world.process();
         games.pixscape.runtime.component.spatial.SpatialFootprintComponent footprint = new games.pixscape.runtime.component.spatial.SpatialFootprintComponent();
         footprint.radiusPx = 50f;
 

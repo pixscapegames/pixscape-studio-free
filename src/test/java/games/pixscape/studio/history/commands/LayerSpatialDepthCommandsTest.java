@@ -34,6 +34,51 @@ import java.nio.file.Path;
 
 public class LayerSpatialDepthCommandsTest {
     @Test
+    public void severalDepthLayersOfOneMapUndoTogetherAndSecondMapIsRejectedAtomically() {
+        World world = new World();
+        try {
+            HistoryManager history = new HistoryManager(16);
+            int lower = createMap(world, 0, 4, false);
+            int upper = createMap(world, 0, 4, false);
+            int other = createMap(world, 2, 4, false);
+            var ids = games.pixscape.runtime.service.IdentityRegistry.boundTo(world);
+            int parentStableId = world.getMapper(games.pixscape.runtime.component.GameObjectMemberComponent.class)
+                    .get(lower).parentStableId;
+            games.pixscape.runtime.tiled.TiledMapHierarchy.attachLayer(world, ids,
+                    ids.findByStableId(parentStableId), upper,
+                    games.pixscape.runtime.component.TiledMapLayerComponent.Kind.TILE, 1);
+            world.process();
+            var staleOther = new ToggleTiledMapSpatialDepthCommand(world, history.historyIds(), other, true, 3, 9);
+            history.execute(new ToggleTiledMapSpatialDepthCommand(world, history.historyIds(), lower, true, 1, 8));
+            history.execute(new ToggleTiledMapSpatialDepthCommand(world, history.historyIds(), upper, true, 2, 16));
+            int cursor = history.getCursor();
+            history.execute(staleOther);
+            Assert.assertEquals(cursor, history.getCursor());
+            TiledLayerComponent untouched = world.getMapper(TiledLayerComponent.class).get(other);
+            Assert.assertFalse(untouched.spatialEnabled);
+            Assert.assertFalse(untouched.data.spatialEnabled);
+            Assert.assertEquals(0, untouched.defaultTileAltitude, 0);
+            for (int i = 0; i < 3; i++) {
+                history.undo();
+                Assert.assertTrue(world.getMapper(TiledLayerComponent.class).get(lower).spatialEnabled);
+                Assert.assertFalse(world.getMapper(TiledLayerComponent.class).get(upper).spatialEnabled);
+                Assert.assertNotNull(games.pixscape.runtime.service.SpatialScenePolicy.tiledActivationRejection(world, other));
+                history.undo();
+                Assert.assertNull(games.pixscape.runtime.service.SpatialScenePolicy.tiledActivationRejection(world, other));
+                history.redo();
+                history.redo();
+                Assert.assertTrue(world.getMapper(TiledLayerComponent.class).get(upper).spatialEnabled);
+            }
+        } finally {
+            var ids = games.pixscape.runtime.service.IdentityRegistry.boundTo(world);
+            if (ids != null) {
+                ids.bind(null, null);
+            }
+            world.dispose();
+        }
+    }
+
+    @Test
     public void mapSpatialDepthNeverChangesOwningLayer() {
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);
@@ -50,6 +95,7 @@ public class LayerSpatialDepthCommandsTest {
         tiled.chunkSize = 4;
         tiled.data = tiled.createLayerData();
 
+        attachToMap(world, mapId);
         history.execute(new ToggleTiledMapSpatialDepthCommand(
                 world, history.historyIds(), mapId, true, 2f, 32f));
 
@@ -300,6 +346,8 @@ public class LayerSpatialDepthCommandsTest {
     @Test
     public void tiledMapSpatialState_persistsThroughSceneSaveReload() throws Exception {
         World world = serializableWorld();
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        new games.pixscape.runtime.service.IdentityRegistry().bind(world, meta);
         int mapId = createTiledMap(world, 0);
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(mapId);
         tiled.spatialEnabled = true;
@@ -313,7 +361,7 @@ public class LayerSpatialDepthCommandsTest {
         SceneService.saveScene(world, sceneFile, false);
 
         World loaded = serializableWorld();
-        SceneLoader.loadScene(loaded, sceneFile, false, new games.pixscape.runtime.loading.SceneMetaRuntime());
+        SceneLoader.loadScene(loaded, sceneFile, false, meta);
 
         IntBag entities = loaded.getAspectSubscriptionManager()
                 .get(Aspect.all(EntityIndexComponent.class, TiledLayerComponent.class)
@@ -332,6 +380,8 @@ public class LayerSpatialDepthCommandsTest {
     @Test
     public void mapsPersistIndependentSpatialAndCollisionState() throws Exception {
         World world = serializableWorld();
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        new games.pixscape.runtime.service.IdentityRegistry().bind(world, meta);
         createLayer(world, 0);
         int mapA = createMap(world, 0, 4, false);
         int mapB = createMap(world, 0, 8, true);
@@ -346,7 +396,7 @@ public class LayerSpatialDepthCommandsTest {
         SceneService.saveScene(world, sceneFile, false);
 
         World loaded = serializableWorld();
-        SceneMetaRuntime sceneMeta = new SceneMetaRuntime();
+        SceneMetaRuntime sceneMeta = meta;
         sceneMeta.physicsEnabled = true;
         SceneLoader.loadScene(loaded, sceneFile, false, sceneMeta);
 
@@ -396,6 +446,22 @@ public class LayerSpatialDepthCommandsTest {
         Assert.assertTrue(visibility.inView);
     }
 
+    private static void attachToMap(World world, int tiles) {
+        var ids = games.pixscape.runtime.service.IdentityRegistry.boundTo(world);
+        if (ids == null) {
+            ids = new games.pixscape.runtime.service.IdentityRegistry();
+            ids.bind(world, new SceneMetaRuntime());
+        }
+        var tiled = world.getMapper(TiledLayerComponent.class).get(tiles);
+        world.getMapper(games.pixscape.runtime.component.TransformComponent.class).create(tiles);
+        int map = games.pixscape.runtime.tiled.TiledMapHierarchy.createMap(world, ids, "Map",
+                world.getMapper(EntityIndexComponent.class).get(tiles).layerIndex, 0,
+                tiled.projection, tiled.tileWidth, tiled.tileHeight, tiled.mapWidthCells, tiled.mapHeightCells);
+        games.pixscape.runtime.tiled.TiledMapHierarchy.attachLayer(world, ids, map, tiles,
+                games.pixscape.runtime.component.TiledMapLayerComponent.Kind.TILE, 0);
+        world.process();
+    }
+
     private static int createTiledMap(World world, int layerIndex) {
         createLayer(world, layerIndex);
         int mapId = world.create();
@@ -408,6 +474,7 @@ public class LayerSpatialDepthCommandsTest {
         tiled.mapHeightCells = 4;
         tiled.chunkSize = 4;
         tiled.data = new TiledLayerData(4, 4, 16, 32, 4);
+        attachToMap(world, mapId);
         return mapId;
     }
 
@@ -434,6 +501,7 @@ public class LayerSpatialDepthCommandsTest {
         tiled.spatialEnabled = spatialEnabled;
         tiled.defaultTileHeight = spatialEnabled ? 32f : 0f;
         tiled.data = tiled.createLayerData();
+        attachToMap(world, mapId);
         return mapId;
     }
 

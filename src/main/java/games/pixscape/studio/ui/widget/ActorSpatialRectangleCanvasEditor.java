@@ -42,7 +42,6 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
     private static final float HIT_RADIUS = 9f;
     private ActorSpatialGeometry geometry;
     private final ActorSpatialGeometry dragGeometry = new ActorSpatialGeometry();
-    private final ActorSpatialRectangleData defaultRectangle = new ActorSpatialRectangleData();
     private final float[] localPoint = new float[2];
     private float displayX, displayY, localPressX, localPressY;
     private int owner = -1, gestureOwner = -1, dragTriangle;
@@ -226,12 +225,9 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
         }
         var h = spatial(ctx, e);
         current = h == null || h.rectangles == null ? null : h.rectangles.get(asset(ctx, e), clip(ctx, e));
-        if (current == null) {
-            current = defaultRectangle;
-        }
         var d = canvas.getDynamicEntityState();
         int slot = d == null ? -1 : d.renderSlotForEntity(e);
-        visual = slot >= 0 && d.visible[slot] && d.enabled[slot]
+        visual = current != null && slot >= 0 && d.visible[slot] && d.enabled[slot]
                 && ctx.world().getMapper(games.pixscape.runtime.component.DimensionsComponent.class).has(e);
         displayX = visual ? d.offsetX[slot] : 0f;
         displayY = visual ? d.offsetY[slot] : 0f;

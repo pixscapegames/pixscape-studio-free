@@ -142,6 +142,13 @@ public final class TiledMapProperties extends VisTable {
                 TiledLayerComponent tiled = mTiled.get(mapEntityId);
                 boolean requested = spatialDepthCheckBox.isChecked();
                 if (requested == tiled.spatialEnabled) return;
+                String rejection = requested ? games.pixscape.runtime.service.SpatialScenePolicy
+                        .tiledActivationRejection(world, mapEntityId) : null;
+                if (rejection != null) {
+                    com.kotcrab.vis.ui.util.dialog.Dialogs.showOKDialog(getStage(), "Spatial Depth", rejection);
+                    refreshFromModel();
+                    return;
+                }
                 execute(new ToggleTiledMapSpatialDepthCommand(
                         world,
                         history.historyIds(),

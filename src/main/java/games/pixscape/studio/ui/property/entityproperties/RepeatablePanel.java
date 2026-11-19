@@ -46,6 +46,7 @@ public final class RepeatablePanel extends CollapsibleWidget {
         root.add(new VisLabel("Repeat requires rotation 0°.")).left().padBottom(4).row();
         root.add(repeatXBox).left().row();
         root.add(repeatYBox).left().row();
+
     }
 
     public void setEntityId(int entityId) {
@@ -63,11 +64,7 @@ public final class RepeatablePanel extends CollapsibleWidget {
     }
 
     private boolean isRepeatableEntity(int eid) {
-        return eid >= 0
-                && ctx.world.getEntityManager().isActive(eid)
-                && !ctx.mAnim.has(eid)
-                && ctx.mTexRegion.has(eid)
-                && ctx.mMat.has(eid);
+        return EditRenderRepeatCommand.activationRejection(ctx.world, eid) == null;
     }
 
     private boolean readRepeatX(int eid) {
@@ -80,8 +77,25 @@ public final class RepeatablePanel extends CollapsibleWidget {
         return repeat != null && repeat.repeatY;
     }
 
+    public void addRepeat(boolean repeatX, boolean repeatY) {
+        if (entityId >= 0 && !ctx.mRepeat.has(entityId)) {
+            applyRepeatChange(entityId, repeatX, repeatY);
+        }
+    }
+
+    public void removeRepeat() {
+        applyRepeatChange(entityId, false, false);
+    }
+
     private void applyRepeatChange(Integer eid, boolean repeatX, boolean repeatY) {
-        if (eid == null || eid < 0 || !isRepeatableEntity(eid)) return;
+        if (eid == null || eid < 0 || !ctx.world.getEntityManager().isActive(eid)) {
+            return;
+        }
+        String refusal = repeatX || repeatY ? EditRenderRepeatCommand.activationRejection(ctx.world, eid) : null;
+        if (refusal != null) {
+            com.kotcrab.vis.ui.util.dialog.Dialogs.showOKDialog(getStage(), "Cannot add Repeat", refusal);
+            return;
+        }
 
         EditRenderRepeatCommand.Snapshot before =
                 EditRenderRepeatCommand.Snapshot.capture(ctx.mRepeat.getSafe(eid, null));

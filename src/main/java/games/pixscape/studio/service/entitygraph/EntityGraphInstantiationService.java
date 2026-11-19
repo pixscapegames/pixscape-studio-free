@@ -195,7 +195,34 @@ public final class EntityGraphInstantiationService {
         }
         validateTiledHierarchy(orderedEntries, snapshots);
         validateGameObjectHierarchyPhysics(orderedEntries, snapshots);
+        validateSpatialMapAdmission(orderedEntries, snapshots);
         return prepared;
+    }
+
+    private void validateSpatialMapAdmission(List<EntityGraphEntry> entries,
+                                             IntMap<GenericEntitySnapshotData> snapshots) {
+        int mapSource = -1;
+        for (EntityGraphEntry entry : entries) {
+            var tiled = snapshots.get(entry.sourceEntityId()).tiledEntity;
+            if (tiled != null && games.pixscape.runtime.service.SpatialScenePolicy.enabled(tiled.tiles)) {
+                int parent = entry.parentSourceEntityId();
+                if (mapSource >= 0 && mapSource != parent) {
+                    throw new IllegalArgumentException("Spatial Depth must belong to a single Tiled map.");
+                }
+                mapSource = parent;
+            }
+        }
+        if (mapSource < 0) {
+            return;
+        }
+        var tiles = world.getAspectSubscriptionManager().get(com.artemis.Aspect.all(
+                games.pixscape.runtime.component.TiledLayerComponent.class)).getEntities();
+        for (int i = 0; i < tiles.size(); i++) {
+            if (games.pixscape.runtime.service.SpatialScenePolicy.enabled(world.getMapper(
+                    games.pixscape.runtime.component.TiledLayerComponent.class).get(tiles.get(i)))) {
+                throw new IllegalArgumentException("Another Tiled map already uses Spatial Depth. Disable its Spatial Depth layers before pasting this map.");
+            }
+        }
     }
 
 

@@ -123,6 +123,7 @@ public class GizmoInfluenceSelectionTest {
             int eid = world.create();
             layer = world.getMapper(LayerComponent.class).create(eid);
             layer.layerIndex = 0;
+            layer.spatialEnabled = true;
             actor = world.create();
             world.getMapper(EntityIndexComponent.class).create(actor).layerIndex = 0;
             TransformComponent transform = world.getMapper(TransformComponent.class).create(actor);

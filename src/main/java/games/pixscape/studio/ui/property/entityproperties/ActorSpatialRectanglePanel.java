@@ -13,7 +13,7 @@ import games.pixscape.studio.ui.widget.FloatField;
 import java.util.Objects;
 
 /**
- * Rectangle controls share their parent property table columns; no nested margins or layout.
+ * Selected-visual controls use the same field widths and indentation as the Footprint group.
  */
 final class ActorSpatialRectanglePanel {
     private final EntityPropertiesContext ctx;
@@ -21,15 +21,14 @@ final class ActorSpatialRectanglePanel {
     private final float[] displayed = new float[6];
     private int entity = -1, asset;
     private String clip;
-    private final ActorSpatialRectangleData defaultRectangle = new ActorSpatialRectangleData();
 
     ActorSpatialRectanglePanel(EntityPropertiesContext ctx, VisTable table) {
         this.ctx = ctx;
-        table.add(new VisLabel("Occlusion zone (image pixels)")).colspan(2).row();
-        String[] names = {"Width:", "Height:", "Rectangle X:", "Rectangle Y:", "Pivot X:", "Pivot Y:"};
+        SpatialActorPanel.addGroupTitle(table, "Occlusion rectangle", "Selected image / local pixels");
+        String[] names = {"Width (px):", "Height (px):", "X (px):", "Y (px):", "X (px):", "Y (px):"};
         for (int i = 0; i < fields.length; i++) {
             if (i == 4) {
-                table.add(new VisLabel("Shadow pivot (footprint pixels)")).colspan(2).row();
+                SpatialActorPanel.addGroupTitle(table, "Shadow pivot", "Selected representation / footprint-relative (px)");
             }
             final int property = i;
             FloatField field = new FloatField(ctx.world, e -> readPixels(e, property), e -> rectangle(e) != null).setDisplayDecimals(2);
@@ -57,8 +56,9 @@ final class ActorSpatialRectanglePanel {
                 ctx.history.execute(new EditActorSpatialRectangleCommand(ctx.world, ctx.history.historyIds(), e, asset, clip, next, ctx.markCurrentSceneSaveRequired));
             });
             fields[i] = field;
-            table.add(new VisLabel(names[i])).width(CommonLayout.LABEL_WIDTH);
-            table.add(field).width(CommonLayout.FIELD_WIDTH).row();
+            table.add(new VisLabel(names[i])).width(CommonLayout.LABEL_WIDTH).padLeft(CommonLayout.PAD_LEFT_SUBMENU)
+                    .expandX().left().padBottom(i == 3 ? 15 : 1);
+            table.add(field).width(CommonLayout.FIELD_WIDTH).padBottom(i == 3 ? 15 : 1).row();
         }
     }
 
@@ -68,8 +68,7 @@ final class ActorSpatialRectanglePanel {
         if (size == null || size.width <= 0 || size.height <= 0) {
             return null;
         }
-        ActorSpatialRectangleData rectangle = s == null || s.rectangles == null ? null : s.rectangles.get(asset, clip);
-        return rectangle == null ? defaultRectangle : rectangle;
+        return s == null || s.rectangles == null ? null : s.rectangles.get(asset, clip);
     }
 
     void refresh(int e) {

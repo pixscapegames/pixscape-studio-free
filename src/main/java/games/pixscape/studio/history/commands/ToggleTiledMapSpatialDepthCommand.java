@@ -8,10 +8,10 @@ import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 
 /**
- * Toggles Spatial Depth on one Tiled Map without changing an ordinary host Layer.
+ * Toggles one tile layer of the single participating map, independent of its host scene layer.
  */
 public final class ToggleTiledMapSpatialDepthCommand
-        implements Command, HistoryManager.SupportsNoop {
+        implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
     private final World world;
     private final HistoryIdRegistry historyIds;
     private final long mapHistoryId;
@@ -29,7 +29,9 @@ public final class ToggleTiledMapSpatialDepthCommand
         this.historyIds = historyIds;
 
         TiledLayerComponent tiled = validMap(mapEntityId);
-        this.mapHistoryId = tiled != null
+        boolean allowed = tiled != null && (!enabled || games.pixscape.runtime.service.SpatialScenePolicy
+                .tiledActivationRejection(world, mapEntityId) == null);
+        this.mapHistoryId = tiled != null && allowed
                 ? historyIds.ensureForEntity(mapEntityId)
                 : -1L;
 
@@ -66,18 +68,39 @@ public final class ToggleTiledMapSpatialDepthCommand
 
     @Override
     public void redo() {
-        if (!noop) apply(after);
+        redoOutcome();
     }
 
     @Override
     public void undo() {
-        if (!noop) apply(before);
+        undoOutcome();
     }
 
-    private void apply(Snapshot snapshot) {
+    @Override
+    public CommandOutcome executeOutcome() {
+        return redoOutcome();
+    }
+
+    @Override
+    public CommandOutcome redoOutcome() {
+        return noop ? CommandOutcome.NO_CHANGE : apply(after);
+    }
+
+    @Override
+    public CommandOutcome undoOutcome() {
+        return noop ? CommandOutcome.NO_CHANGE : apply(before);
+    }
+
+    private CommandOutcome apply(Snapshot snapshot) {
         int mapEntityId = resolve(mapHistoryId);
         TiledLayerComponent tiled = validMap(mapEntityId);
-        if (tiled == null || snapshot == null) return;
+        if (tiled == null || snapshot == null) {
+            return CommandOutcome.NO_CHANGE;
+        }
+        if (snapshot.mapSpatialEnabled && games.pixscape.runtime.service.SpatialScenePolicy
+                .tiledActivationRejection(world, mapEntityId) != null) {
+            return CommandOutcome.REJECTED;
+        }
 
         tiled.spatialEnabled = snapshot.mapSpatialEnabled;
         tiled.defaultTileAltitude = snapshot.defaultAltitude;
@@ -92,6 +115,7 @@ public final class ToggleTiledMapSpatialDepthCommand
         markDirty(mapEntityId);
         EventFlow.i().publish(new EventFlow.LayerSpatialDepthChanged(
                 mapEntityId, EventFlow.tag(this)));
+        return CommandOutcome.APPLIED;
     }
 
     private TiledLayerComponent validMap(int entityId) {

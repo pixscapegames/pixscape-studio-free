@@ -76,6 +76,12 @@ public class IconResolver {
             case POLYGON -> {
                 return VisUI.getSkin().getDrawable("tiled-polygon");
             }
+            case TILED_POINT -> {
+                return VisUI.getSkin().getDrawable("tiled-point");
+            }
+            case POLYLINE -> {
+                return VisUI.getSkin().getDrawable("tiled-polyline");
+            }
             case GAME_OBJECT -> {
                 return VisUI.getSkin().getDrawable("cube");
             }

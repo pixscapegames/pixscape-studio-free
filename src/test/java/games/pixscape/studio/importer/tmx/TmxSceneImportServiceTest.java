@@ -559,6 +559,7 @@ public class TmxSceneImportServiceTest {
         SceneMeta importedMeta = h.cfg.getSceneMeta(result.sceneName());
         IdentityRegistry identities = new IdentityRegistry();
         identities.bind(world, importedMeta);
+        identities.rebuild();
         HistoryManager history = new HistoryManager(16);
         LayerService layers = new LayerService(world, null, history.historyIds(), identities);
         assertEquals(1, layers.count());

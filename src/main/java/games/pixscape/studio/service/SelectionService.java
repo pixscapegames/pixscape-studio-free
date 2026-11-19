@@ -42,6 +42,8 @@ public final class SelectionService {
 
     private final IntSet selection = new IntSet();
     private int firstSelectedEntityId = -1;
+    private int inspectedFootprintOwner = -1;
+    private int inspectedFootprintStableId = -1;
     private EntityEditMode entityEditMode = EntityEditMode.TRANSFORM;
     private int quadEditEntityId = -1;
 
@@ -92,6 +94,7 @@ public final class SelectionService {
     }
 
     public void setActivelayerId(int layer, SelectionSource source) {
+        inspectedFootprintOwner = -1;
         setActivelayerIdInternal(layer, -1, source);
     }
 
@@ -254,6 +257,30 @@ public final class SelectionService {
         this.hoveredEntityId = -1;
     }
 
+    /** Component inspection is deliberately not an entity selection for copy, delete or composition. */
+    public void inspectFootprint(int owner) {
+        if (!isEntityActive(owner) || !passesGatesForSelection(owner, SelectionSource.TREE)
+                || !world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).has(owner)) {
+            return;
+        }
+        exitQuadEdit();
+        selection.clear();
+        firstSelectedEntityId = -1;
+        inspectedFootprintOwner = owner;
+        var identity = world.getMapper(PixscapeIdentityComponent.class).getSafe(owner, null);
+        inspectedFootprintStableId = identity == null ? -1 : identity.stableId;
+        publish(SelectionSource.TREE);
+    }
+
+    /** Keeps the owner's inspector after removal; a normal entity selection ends component inspection. */
+    public int getInspectedFootprintOwner() {
+        if (!isEntityActive(inspectedFootprintOwner)) {
+            return -1;
+        }
+        var identity = world.getMapper(PixscapeIdentityComponent.class).getSafe(inspectedFootprintOwner, null);
+        return identity != null && identity.stableId == inspectedFootprintStableId ? inspectedFootprintOwner : -1;
+    }
+
     public IntArray getSelectionSnapshot() {
         IntArray out = new IntArray(selection.size);
         for (IntSet.IntSetIterator it = selection.iterator(); it.hasNext; ) out.add(it.next());
@@ -265,6 +292,7 @@ public final class SelectionService {
     }
 
     public void clearSelection(SelectionSource source) {
+        inspectedFootprintOwner = -1;
         exitQuadEdit();
         selection.clear();
         firstSelectedEntityId = -1;
@@ -313,6 +341,7 @@ public final class SelectionService {
     }
 
     public void selectAdd(int e, SelectionSource source) {
+        inspectedFootprintOwner = -1;
         if (!isEntityActive(e)) return;
         if (!passesGatesForSelection(e, source)) return;
         if (source == SelectionSource.TREE) exitQuadEdit();
@@ -332,6 +361,7 @@ public final class SelectionService {
     }
 
     public void selectOnly(int e, SelectionSource source) {
+        inspectedFootprintOwner = -1;
         exitQuadEdit();
         if (!isEntityActive(e)) {
             clearSelection(source);
@@ -351,6 +381,7 @@ public final class SelectionService {
      * Replaces the entity selection atomically and publishes only the final snapshot.
      */
     public void replaceSelection(IntArray entityIds, SelectionSource source) {
+        inspectedFootprintOwner = -1;
         exitQuadEdit();
         IntArray accepted = new IntArray();
         IntSet unique = new IntSet();
@@ -381,6 +412,7 @@ public final class SelectionService {
     }
 
     public void toggle(int e, SelectionSource source) {
+        inspectedFootprintOwner = -1;
         if (!isEntityActive(e)) return;
         if (!passesGatesForSelection(e, source)) return;
         exitQuadEdit();

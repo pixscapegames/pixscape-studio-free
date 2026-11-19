@@ -13,6 +13,7 @@ public class EntityNode extends VisTree.Node {
         LAYER,
         ENTITY,
         BODY,
+        FOOTPRINT,
         JOINT,
         TILED_MAP,
         SPATIAL_BLOCKS,
@@ -66,6 +67,10 @@ public class EntityNode extends VisTree.Node {
 
     public boolean isBodyNode() {
         return kind == NodeKind.BODY;
+    }
+
+    public boolean isFootprintNode() {
+        return kind == NodeKind.FOOTPRINT;
     }
 
     public boolean isJointNode() {

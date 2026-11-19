@@ -287,6 +287,34 @@ public final class LayerService {
         return mL.getSafe(layerEntityId, null) != null;
     }
 
+    /**
+     * Returns whether another ordinary layer already owns the Spatial actor slot.
+     */
+    public boolean hasOtherSpatialActorLayer(int currentLayerEntityId) {
+        rebuildIfDirty();
+        for (int i = 0; i < layerEntities.size; i++) {
+            int layerEntity = layerEntities.get(i);
+            if (layerEntity == currentLayerEntityId) {
+                continue;
+            }
+            LayerComponent layer = mL.getSafe(layerEntity, null);
+            if (isSpatialActorLayer(layer)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean isSpatialActorLayer(LayerComponent layer) {
+        return layer != null && layer.spatialEnabled;
+    }
+
+    /** Published effective layer lookup, including descendants with inherited footprints. */
+    public boolean admitsSpatialActor(int entity) {
+        int layer = getLayerEntity(getPublishedEffectiveLayerIndex(entity));
+        return layer >= 0 && isSpatialActorLayer(mL.getSafe(layer, null));
+    }
+
     public LayerMetaComponent meta(int index) {
         rebuildIfDirty();
         int e = layerEntities.get(index);

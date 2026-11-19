@@ -456,6 +456,7 @@ public class PropertiesPanel extends DockablePanel {
                     }
                     app.getSceneService().refreshSceneTextureAtlas(ctx.world, sceneContext.sceneMeta(), tag);
                 });
+        entityProperties.setAddChildAction((entity, anchor) -> app.getItemTreePanel().showAddChildMenu(entity, anchor));
         bodyProperties = new BodyProperties(ctx);
         fixtureProperties = new FixturesPanel(ctx);
         pointLightProperties = new PointLightProperties(ctx);
@@ -1067,6 +1068,14 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     public void onSelectionChanged(IntArray selectionSnapshot) {
+        int footprintOwner = selectionService.getInspectedFootprintOwner();
+        if (footprintOwner >= 0) {
+            if (boundEntity != footprintOwner) {
+                showEntityProperties(footprintOwner);
+            }
+            entityProperties.revealSpatial();
+            return;
+        }
         if (selectionSnapshot == null || selectionSnapshot.size == 0) {
             if (hasValidPhysicsContext() && isExplicitPhysicsContextActive()) {
                 if (physicsContextBody != boundBody) showBodyProperties(physicsContextBody);

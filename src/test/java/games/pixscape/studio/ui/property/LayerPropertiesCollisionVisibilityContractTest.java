@@ -33,8 +33,8 @@ public class LayerPropertiesCollisionVisibilityContractTest {
         String refresh = methodBody(source, "private void refreshFromModel(int layerEntityId)");
 
         assertFalse(source.contains("new VisCheckBox(\"Spatial Depth\")"));
-        assertFalse(source.contains("new VisCheckBox(\"Spatial\")"));
-        assertFalse(source.contains("new ToggleSpatialActorLayerCommand("));
+        assertTrue(source.contains("new VisCheckBox(\"Spatial\")"));
+        assertTrue(source.contains("new ToggleSpatialActorLayerCommand("));
         assertFalse(source.contains("ToggleTiledMapSpatialDepthCommand"));
         assertFalse(source.contains("TiledMapProperties"));
         assertFalse(source.contains("StudioEditingMode.SPATIAL"));
@@ -62,10 +62,10 @@ public class LayerPropertiesCollisionVisibilityContractTest {
         assertFalse(source.contains("SpatialHeightPanel"));
         assertTrue(source.contains("SpatialActorPanel"));
         assertTrue(source.contains("new ToggleSection(\"Spatial\""));
-        assertTrue(source.contains("boolean isSprite = ctx.world.getMapper(TextureRegionComponent.class).has(currentEntityId) && !isAnim;"));
-        assertTrue(source.contains("spatialSection.setApplicable(isSpatialApplicable(isSprite, isAnim));"));
+        assertTrue(source.contains("spatialSection.setApplicable(isSpatialApplicable());"));
+        assertTrue(source.contains("currentEntityId >= 0 && ctx.mTransform.has(currentEntityId)"));
         assertFalse(source.contains("isEntityInSpatialEnabledLayer"));
-        assertFalse(source.contains("EventFlow.LayerSpatialDepthChanged.class"));
+        assertTrue(source.contains("EventFlow.LayerSpatialDepthChanged.class"));
         assertTrue(source.contains("EventFlow.SpatialActorChanged.class"));
     }
 

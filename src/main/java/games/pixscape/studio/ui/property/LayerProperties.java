@@ -5,6 +5,7 @@ import com.artemis.World;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.utils.Align;
 import com.kotcrab.vis.ui.widget.VisCheckBox;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
@@ -14,7 +15,10 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.LayerParallaxComponent;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.history.commands.Command;
+import games.pixscape.studio.history.commands.ToggleSpatialActorLayerCommand;
 import games.pixscape.studio.service.LayerService;
+import games.pixscape.studio.ui.modal.StudioDialog;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
 import games.pixscape.studio.ui.widget.TextField;
@@ -24,6 +28,8 @@ import games.pixscape.studio.ui.widget.UiFieldFactory;
 public class LayerProperties extends VisTable {
 
     private final World world;
+    private final HistoryManager history;
+    private final LayerService layerService;
 
     private final ComponentMapper<LayerComponent> mIndex;
     private final ComponentMapper<LayerParallaxComponent> mParallax;
@@ -36,12 +42,15 @@ public class LayerProperties extends VisTable {
     private final UiBinders.FloatSpinnerBinder parallaxYBinder;
 
     private final VisCheckBox parallaxCheckBox;
+    private final VisCheckBox spatialCheckBox;
 
     private final CollapsibleVisTable parallaxSection = new CollapsibleVisTable(true, true);
     private final CollapsibleVisTable parallaxBlock = new CollapsibleVisTable(true, true);
+    private final CollapsibleVisTable spatialSection = new CollapsibleVisTable(true, true);
 
     private final int MY_TAG = EventFlow.tag(this);
     private boolean internalParallaxRefresh = false;
+    private boolean internalSpatialRefresh = false;
     private final Runnable markCurrentSceneSaveRequired;
 
     public LayerProperties(
@@ -50,6 +59,8 @@ public class LayerProperties extends VisTable {
             Runnable markCurrentSceneSaveRequired) {
         super(true);
         this.world = world;
+        this.history = history;
+        this.layerService = layerService;
         this.markCurrentSceneSaveRequired = markCurrentSceneSaveRequired;
 
         this.mIndex = world.getMapper(LayerComponent.class);
@@ -74,6 +85,8 @@ public class LayerProperties extends VisTable {
         parallaxCheckBox = new VisCheckBox("Parallax");
         parallaxCheckBox.left();
 
+        spatialCheckBox = new VisCheckBox("Spatial");
+        spatialCheckBox.left();
 
         SimpleFloatSpinnerModel modelX = new SimpleFloatSpinnerModel(1f, 0f, 10f, 0.01f);
         SimpleFloatSpinnerModel modelY = new SimpleFloatSpinnerModel(1f, 0f, 10f, 0.01f);
@@ -149,6 +162,35 @@ public class LayerProperties extends VisTable {
             }
         });
 
+        spatialCheckBox.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                if (internalSpatialRefresh) {
+                    return;
+                }
+
+                int layerEntityId = nameField.getEntityId();
+                if (layerEntityId < 0) {
+                    return;
+                }
+
+                boolean currentlyActive = mIndex.get(layerEntityId).spatialEnabled;
+                boolean requestedActive = spatialCheckBox.isChecked();
+                if (requestedActive == currentlyActive) {
+                    refreshFromModel(layerEntityId);
+                    return;
+                }
+
+                if (!requestedActive && ToggleSpatialActorLayerCommand.footprintOwners(
+                        world, mIndex.get(layerEntityId).layerIndex).notEmpty()) {
+                    showDisableSpatialDialog(layerEntityId);
+                } else {
+                    executeOrdinarySpatialToggle(layerEntityId, requestedActive);
+                }
+                refreshFromModel(layerEntityId);
+            }
+        });
+
         parallaxBlock.content().add(parallaxXSpinner).width(80).left().growX().row();
         parallaxBlock.content().add(parallaxYSpinner).width(80).left().growX().row();
         parallaxBlock.show(false);
@@ -173,7 +215,21 @@ public class LayerProperties extends VisTable {
         parallaxSection.content().add(parallaxBlock).padLeft(55).left().growX().row();
         parallaxSection.show(false);
 
+        VisLabel spatialTitle = new VisLabel("SPATIAL");
+        spatialTitle.setAlignment(Align.center);
+
+        spatialSection.content().addSeparator().growX().row();
+        spatialSection.content().add(spatialTitle)
+                .colspan(2)
+                .center()
+                .padBottom(CommonLayout.PROPERTY_SECTION_TITLE_BOTTOM_PAD)
+                .expandX()
+                .row();
+        spatialSection.content().add(spatialCheckBox).left().growX().row();
+        spatialSection.show(false);
+
         add(parallaxSection).colspan(2).left().growX().row();
+        add(spatialSection).colspan(2).left().growX().row();
     }
 
     private void flagPreviewSaveRequired() {
@@ -201,6 +257,11 @@ public class LayerProperties extends VisTable {
         }
 
         indexValueLabel.setText(lic.layerIndex);
+        boolean ordinarySpatialVisible = shouldShowOrdinarySpatialProperty(
+                lic.spatialEnabled,
+                layerService.hasOtherSpatialActorLayer(layerEntityId));
+        boolean spatialSupported = ordinarySpatialVisible;
+        boolean spatialActive = lic.spatialEnabled;
         boolean supportsParallax = supportsEditableParallax(lic);
         boolean hasParallax = mParallax.has(layerEntityId);
 
@@ -221,6 +282,15 @@ public class LayerProperties extends VisTable {
             parallaxYBinder.setEntityId(-1);
         }
 
+        internalSpatialRefresh = true;
+        try {
+            spatialCheckBox.setText("Spatial");
+            spatialCheckBox.setChecked(spatialActive);
+            spatialSection.show(spatialSupported);
+        } finally {
+            internalSpatialRefresh = false;
+        }
+
         invalidateHierarchy();
     }
 
@@ -231,6 +301,62 @@ public class LayerProperties extends VisTable {
 
     private boolean supportsEditableParallax(LayerComponent lic) {
         return lic != null;
+    }
+
+    private void executeCommand(Command command) {
+        if (command instanceof HistoryManager.SupportsNoop supportsNoop && supportsNoop.isNoop()) {
+            return;
+        }
+        long revision = history.getMutationRevision();
+        history.execute(command);
+        if (history.getMutationRevision() != revision) {
+            flagPreviewSaveRequired();
+        }
+    }
+
+    private void showDisableSpatialDialog(int layerEntityId) {
+        if (getStage() == null) {
+            return;
+        }
+        long revision = history.getMutationRevision();
+        var layer = mIndex.get(layerEntityId);
+        StudioDialog dialog = new StudioDialog("Disable Spatial") {
+            @Override
+            protected void result(Object result) {
+                if (Boolean.TRUE.equals(result) && history.getMutationRevision() == revision
+                        && world.getEntityManager().isActive(layerEntityId)
+                        && mIndex.getSafe(layerEntityId, null) == layer && layer.spatialEnabled) {
+                    executeOrdinarySpatialToggle(layerEntityId, false);
+                }
+                refreshFromModel(nameField.getEntityId());
+            }
+        };
+        dialog.setName("disable-layer-spatial-dialog");
+        dialog.text("Disabling Spatial will remove all footprints in this layer,\n"
+                + "including those owned by objects inside its compositions.\n"
+                + "This operation can be undone.");
+        dialog.button("Cancel", false);
+        dialog.button("OK", true);
+        dialog.closeOnEscape();
+        dialog.setModal(true);
+        dialog.setResizable(false);
+        dialog.show(getStage());
+    }
+
+    static boolean shouldShowOrdinarySpatialProperty(
+            boolean currentlyEnabled,
+            boolean anotherOrdinaryLayerEnabled) {
+        return currentlyEnabled || !anotherOrdinaryLayerEnabled;
+    }
+
+    private void executeOrdinarySpatialToggle(int layerEntityId, boolean enabled) {
+        executeCommand(new ToggleSpatialActorLayerCommand(
+                world,
+                history.historyIds(),
+                layerService,
+                layerEntityId,
+                enabled
+        ));
     }
 
 }

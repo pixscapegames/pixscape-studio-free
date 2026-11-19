@@ -177,7 +177,7 @@ public class LinkedPhysicsUiContractTest {
         Assert.assertFalse(fixtures.contains(
                 "restitutionField.setDisabled(linked)"));
         Assert.assertTrue(body.contains(
-                "addPhysicsBox.setDisabled(hasLinkedShape(eid));"));
+                "&& !hasLinkedShape(entityId);"));
         Assert.assertTrue(body.contains(
                 "bodyTypeBox.setDisabled(mTiled.has(eid));"));
         Assert.assertTrue(body.contains(

@@ -11,10 +11,49 @@ import org.junit.Test;
 
 public class EditRenderRepeatCommandTest {
     @Test
+    public void staleActivationRejectsBeforeChangingRotationOrHistory() {
+        World world = new World();
+        try {
+            int entity = sprite(world);
+            TransformComponent transform = world.getMapper(TransformComponent.class).get(entity);
+            transform.rotationRad = .8f;
+            HistoryManager history = new HistoryManager(8);
+            EditRenderRepeatCommand command = new EditRenderRepeatCommand(world, history.historyIds(), entity,
+                    EditRenderRepeatCommand.Snapshot.disabled(), new EditRenderRepeatCommand.Snapshot(true, false));
+            world.getMapper(games.pixscape.runtime.component.QuadDeformComponent.class).create(entity).trX = 2;
+            history.execute(command);
+            Assert.assertFalse(history.canUndo());
+            Assert.assertFalse(world.getMapper(RenderRepeatComponent.class).has(entity));
+            Assert.assertEquals(.8f, transform.rotationRad, 0);
+        } finally {
+            world.dispose();
+        }
+    }
+
+    @Test
+    public void animationAndTiledRolesCannotActivateRepeat() {
+        World world = new World();
+        try {
+            int entity = sprite(world);
+            world.getMapper(games.pixscape.runtime.component.AnimationComponent.class).create(entity);
+            HistoryManager history = new HistoryManager(8);
+            history.execute(new EditRenderRepeatCommand(world, history.historyIds(), entity,
+                    EditRenderRepeatCommand.Snapshot.disabled(), new EditRenderRepeatCommand.Snapshot(true, true)));
+            Assert.assertFalse(history.canUndo());
+            Assert.assertFalse(world.getMapper(RenderRepeatComponent.class).has(entity));
+            world.getMapper(games.pixscape.runtime.component.AnimationComponent.class).remove(entity);
+            world.getMapper(games.pixscape.runtime.component.TiledMapComponent.class).create(entity);
+            Assert.assertNotNull(EditRenderRepeatCommand.activationRejection(world, entity));
+        } finally {
+            world.dispose();
+        }
+    }
+
+    @Test
     public void editRenderRepeat_addsRemovesAndRestoresComponent() {
         World world = new World(new WorldConfiguration().setSystem(new DirtyTrackerSystem(128)));
         HistoryManager history = new HistoryManager(8);
-        int entityId = world.create();
+        int entityId = sprite(world);
         history.historyIds().ensureForEntity(entityId);
 
         EditRenderRepeatCommand enableX = new EditRenderRepeatCommand(
@@ -71,7 +110,7 @@ public class EditRenderRepeatCommandTest {
     public void editRenderRepeat_marksPreviewRequiredOnRedoAndUndo() {
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);
-        int entityId = world.create();
+        int entityId = sprite(world);
         history.historyIds().ensureForEntity(entityId);
         int[] calls = {0};
 
@@ -95,7 +134,7 @@ public class EditRenderRepeatCommandTest {
     public void enablingRepeatXOnRotatedSprite_resetsRotationToZero() {
         World world = new World(new WorldConfiguration().setSystem(new DirtyTrackerSystem(128)));
         HistoryManager history = new HistoryManager(8);
-        int entityId = world.create();
+        int entityId = sprite(world);
         history.historyIds().ensureForEntity(entityId);
 
         TransformComponent transform = world.getMapper(TransformComponent.class).create(entityId);
@@ -123,7 +162,7 @@ public class EditRenderRepeatCommandTest {
     public void enablingRepeatYOnRotatedSprite_resetsRotationToZero() {
         World world = new World(new WorldConfiguration().setSystem(new DirtyTrackerSystem(128)));
         HistoryManager history = new HistoryManager(8);
-        int entityId = world.create();
+        int entityId = sprite(world);
         history.historyIds().ensureForEntity(entityId);
 
         TransformComponent transform = world.getMapper(TransformComponent.class).create(entityId);
@@ -142,4 +181,14 @@ public class EditRenderRepeatCommandTest {
         Assert.assertTrue(repeat.repeatY);
         Assert.assertEquals(0f, transform.rotationRad, 0.0001f);
     }
+    private static int sprite(World world) {
+        int entity = world.create();
+        world.getMapper(games.pixscape.studio.component.EntityMetaComponent.class).create(entity).kind =
+                games.pixscape.studio.model.EntityKind.SPRITE;
+        world.getMapper(TransformComponent.class).create(entity);
+        world.getMapper(games.pixscape.runtime.component.TextureRegionComponent.class).create(entity);
+        world.getMapper(games.pixscape.runtime.component.RenderMaterialComponent.class).create(entity);
+        return entity;
+    }
+
 }

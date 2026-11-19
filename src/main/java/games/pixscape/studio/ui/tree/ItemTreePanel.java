@@ -342,7 +342,8 @@ public class ItemTreePanel extends DockablePanel {
             rebuildTreeFromWorld();
         } else {
             for (IntSet.IntSetIterator it = dirtySpatialLabelRoots.iterator(); it.hasNext;) {
-                collectSubtreeLabels(tree.findNode(it.next()));
+                EntityNode owner = tree.findNode(it.next());
+                collectSubtreeLabels(owner);
             }
             for (IntSet.IntSetIterator it = dirtyEntityLabels.iterator(); it.hasNext;) {
                 int entityId = it.next();
@@ -360,6 +361,9 @@ public class ItemTreePanel extends DockablePanel {
                 }
             }
         }
+        if (!dirtySpatialLabelRoots.isEmpty()) {
+            syncTreeSelectionFromModel(selectionService.getSelectionSnapshot(), false);
+        }
         dirtyEntityLabels.clear();
         dirtySpatialLabelRoots.clear();
     }
@@ -370,6 +374,7 @@ public class ItemTreePanel extends DockablePanel {
             return;
         }
         if (node.isEntityNode()) {
+            syncFootprintRow(node);
             dirtyEntityLabels.add(node.getEntityId());
         }
         var children = node.getChildren();
@@ -471,11 +476,21 @@ public class ItemTreePanel extends DockablePanel {
 
         handlingTreeSelection = true;
         try {
+            EntityNode footprintNode = nodes.size == 1 && nodes.first().isFootprintNode() ? nodes.first() : null;
             EntityNode mapNode = findFirstTiledMapNode(nodes);
             EntityNode bodyNode = findFirstBodyNode(nodes);
             EntityNode jointNode = findFirstJointNode(nodes);
             EntityNode spatialNode = findFirstSpatialBlocksNode(nodes);
-            if (jointNode != null && nodes.size == 1) {
+            if (footprintNode != null) {
+                explicitTiledMapEntityId = -1;
+                if (propertiesPanel != null) {
+                    propertiesPanel.clearTiledMapMode();
+                }
+                exitExplicitPhysicsEditMode();
+                exitExplicitSpatialBlockMode();
+                activateLayerForEntity(footprintNode.getEntityId(), SelectionService.SelectionSource.TREE);
+                selectionService.inspectFootprint(footprintNode.getEntityId());
+            } else if (jointNode != null && nodes.size == 1) {
                 handleJointNodeSelection(jointNode);
             } else if (mapNode != null && nodes.size == 1) {
                 handleTiledMapNodeSelection(mapNode);
@@ -877,7 +892,39 @@ public class ItemTreePanel extends DockablePanel {
                     "Delete image layer").showMenu(stage, stageX, stageY);
             return;
         }
-        PopupMenu addMenu = buildGameObjectAddMenu(
+        String rejection = games.pixscape.studio.history.commands.CreateGameObjectChildCommand.parentRejection(world, parentEntityId);
+        PopupMenu menu = buildGameObjectContextMenu(childMenu(parentEntityId, selectedAsset), rejection);
+        if (menu.getChildren().notEmpty()) {
+            menu.showMenu(stage, stageX, stageY);
+        }
+    }
+
+    /** Inspector and Items share the same creation choices and command validation. */
+    public void showAddChildMenu(int parentEntityId, Actor anchor) {
+        if (anchor.getStage() == null) {
+            return;
+        }
+        String rejection = games.pixscape.studio.history.commands.CreateGameObjectChildCommand.parentRejection(world, parentEntityId);
+        if (rejection != null) {
+            return;
+        }
+        PopupMenu menu = childMenu(parentEntityId, selectedAssetNode());
+        com.badlogic.gdx.math.Vector2 position = anchor.localToStageCoordinates(new com.badlogic.gdx.math.Vector2(0, 0));
+        menu.showMenu(anchor.getStage(), position.x, position.y);
+    }
+
+    private PopupMenu childMenu(int parentEntityId, AssetNode selectedAsset) {
+        World targetWorld = world;
+        var identity = world.getMapper(PixscapeIdentityComponent.class).getSafe(parentEntityId, null);
+        int stableId = identity == null ? 0 : identity.stableId;
+        boolean allowLighting = lightingEnabled();
+        java.util.function.BooleanSupplier current = () -> world == targetWorld
+                && world.getEntityManager().isActive(parentEntityId)
+                && world.getMapper(PixscapeIdentityComponent.class).has(parentEntityId)
+                && world.getMapper(PixscapeIdentityComponent.class).get(parentEntityId).stableId == stableId
+                && selectionService.isOnlySelected(parentEntityId)
+                && selectedAssetNode() == selectedAsset && lightingEnabled() == allowLighting;
+        return buildGameObjectAddMenu(
                 selectedAsset,
                 new GameObjectChildMenuActions() {
                     @Override
@@ -906,23 +953,15 @@ public class ItemTreePanel extends DockablePanel {
                     public void addGameObject() {
                         editorOps.createGameObjectInGameObject(parentEntityId);
                     }
-                }, lightingEnabled());
-
-        String rejection = games.pixscape.studio.history.commands.CreateGameObjectChildCommand.parentRejection(world, parentEntityId);
-        buildGameObjectContextMenu(addMenu, rejection).showMenu(stage, stageX, stageY);
+                }, allowLighting, current);
     }
 
     static PopupMenu buildGameObjectContextMenu(PopupMenu addMenu, String rejection) {
         PopupMenu menu = new PopupMenu();
-        MenuItem add = new MenuItem("Add");
-        add.setSubMenu(addMenu);
-        menu.addItem(add);
-        if (rejection != null) {
-            add.setDisabled(true);
-            // Disabled items do not reliably receive hover; keep the refusal visible.
-            MenuItem explanation = new MenuItem(rejection);
-            explanation.setDisabled(true);
-            menu.addItem(explanation);
+        if (rejection == null && addMenu.getChildren().notEmpty()) {
+            MenuItem add = new MenuItem("Add child…");
+            add.setSubMenu(addMenu);
+            menu.addItem(add);
         }
         return menu;
     }
@@ -973,36 +1012,58 @@ public class ItemTreePanel extends DockablePanel {
     }
 
     static PopupMenu buildGameObjectAddMenu(AssetNode selectedAsset, GameObjectChildMenuActions actions, boolean allowLighting) {
-        PopupMenu addMenu = new PopupMenu();
+        return buildGameObjectAddMenu(selectedAsset, actions, allowLighting, () -> true);
+    }
 
-        MenuItem addSprite = new MenuItem(addAssetActionLabel("Sprite", selectedAsset));
-        addSprite.setDisabled(!isSpriteAsset(selectedAsset));
-        addSprite.addListener(new ClickListener() {
+    private static PopupMenu buildGameObjectAddMenu(AssetNode selectedAsset, GameObjectChildMenuActions actions,
+                                                    boolean allowLighting, java.util.function.BooleanSupplier current) {
+        PopupMenu addMenu = new PopupMenu() {
             @Override
-            public void clicked(InputEvent event, float x, float y) {
-                if (!addSprite.isDisabled()) actions.addSprite();
-                event.handle();
+            public void act(float delta) {
+                if (!current.getAsBoolean()) {
+                    remove();
+                    return;
+                }
+                super.act(delta);
             }
-        });
-        addMenu.addItem(addSprite);
+        };
 
-        MenuItem addAnimation = new MenuItem(addAssetActionLabel("Animation", selectedAsset));
-        addAnimation.setDisabled(!isAnimationAsset(selectedAsset));
-        addAnimation.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                if (!addAnimation.isDisabled()) actions.addAnimation();
-                event.handle();
-            }
-        });
-        addMenu.addItem(addAnimation);
+        if (isSpriteAsset(selectedAsset)) {
+            MenuItem addSprite = new MenuItem(addAssetActionLabel("Sprite", selectedAsset));
+            addSprite.addListener(new ClickListener() {
+                @Override
+                public void clicked(InputEvent event, float x, float y) {
+                    if (current.getAsBoolean()) {
+                        actions.addSprite();
+                    }
+                    event.handle();
+                }
+            });
+            addMenu.addItem(addSprite);
+        }
+
+        if (isAnimationAsset(selectedAsset)) {
+            MenuItem addAnimation = new MenuItem(addAssetActionLabel("Animation", selectedAsset));
+            addAnimation.addListener(new ClickListener() {
+                @Override
+                public void clicked(InputEvent event, float x, float y) {
+                    if (current.getAsBoolean()) {
+                        actions.addAnimation();
+                    }
+                    event.handle();
+                }
+            });
+            addMenu.addItem(addAnimation);
+        }
 
         PopupMenu lights = new PopupMenu();
         MenuItem point = new MenuItem("Point Light");
         point.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                actions.addPointLight();
+                if (current.getAsBoolean()) {
+                    actions.addPointLight();
+                }
                 event.handle();
             }
         });
@@ -1011,7 +1072,9 @@ public class ItemTreePanel extends DockablePanel {
         cone.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                actions.addConeLight();
+                if (current.getAsBoolean()) {
+                    actions.addConeLight();
+                }
                 event.handle();
             }
         });
@@ -1024,11 +1087,14 @@ public class ItemTreePanel extends DockablePanel {
         addGameObject.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                actions.addGameObject();
+                if (current.getAsBoolean()) {
+                    actions.addGameObject();
+                }
                 event.handle();
             }
         });
         addMenu.addItem(addGameObject);
+
         return addMenu;
     }
 
@@ -1140,7 +1206,29 @@ public class ItemTreePanel extends DockablePanel {
             entityNode.add(bodyNode);
             tree.registerNode(bodyNode, entityId);
         }
+        syncFootprintRow(entityNode);
         return entityNode;
+    }
+
+    private void syncFootprintRow(EntityNode owner) {
+        if (owner == null || !owner.isEntityNode()) {
+            return;
+        }
+        int entity = owner.getEntityId();
+        EntityNode existing = tree.findFootprintNode(entity);
+        boolean hasFootprint = world.getEntityManager().isActive(entity)
+                && world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).has(entity);
+        if (!hasFootprint && existing != null) {
+            tree.unregisterNode(existing);
+            existing.remove();
+        } else if (hasFootprint && existing == null) {
+            EntityNode footprint = new EntityNode("Footprint", com.kotcrab.vis.ui.VisUI.getSkin().getDrawable("footprint"),
+                    entity, owner.isSelectable(), EntityNode.NodeKind.FOOTPRINT);
+            footprint.getLabel().setColor(owner.getLabel().getColor());
+            // Keep component rows before composition children, including after Undo.
+            owner.insert(tree.findBodyNode(entity) == null ? 0 : 1, footprint);
+            tree.registerNode(footprint, entity);
+        }
     }
 
     public void onSelectionChanged(IntArray selectionSnapshot) {
@@ -1155,6 +1243,19 @@ public class ItemTreePanel extends DockablePanel {
         tree.getSelection().setProgrammaticChangeEvents(false);
         tree.getSelection().clear();
 
+        int footprintOwner = selectionService.getInspectedFootprintOwner();
+        if (footprintOwner >= 0) {
+            EntityNode footprint = tree.findFootprintNode(footprintOwner);
+            EntityNode inspected = footprint != null ? footprint : tree.findNode(footprintOwner);
+            if (inspected != null) {
+                tree.getSelection().add(inspected);
+                if (applyFocus) {
+                    focusNode(inspected);
+                }
+            }
+            tree.getSelection().setProgrammaticChangeEvents(true);
+            return;
+        }
         EntityNode physicsNode = resolvePhysicsContextNode();
         if (physicsNode != null) {
             tree.getSelection().add(physicsNode);

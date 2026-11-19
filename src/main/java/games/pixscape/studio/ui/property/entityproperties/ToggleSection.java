@@ -4,6 +4,9 @@ import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
+import com.badlogic.gdx.scenes.scene2d.ui.Button;
+import com.badlogic.gdx.scenes.scene2d.ui.Cell;
+import com.kotcrab.vis.ui.VisUI;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.kotcrab.vis.ui.widget.CollapsibleWidget;
 import com.kotcrab.vis.ui.widget.Tooltip;
@@ -16,6 +19,10 @@ public final class ToggleSection extends VisTable {
     private Tooltip titleTooltip;
     private final VisTextButton button;
     private final CollapsibleWidget panel;
+    private final VisTable header = new VisTable();
+    private Button removeButton;
+    private Cell<Button> removeCell;
+    private Runnable removal;
 
     private boolean applicable = true;
 
@@ -32,7 +39,8 @@ public final class ToggleSection extends VisTable {
 
         panel.setCollapsed(false); // not collapsed by default
 
-        add(button).growX().row();
+        header.add(button).growX();
+        add(header).growX().row();
         add(panel).growX().row();
 
         button.addListener(new ChangeListener() {
@@ -45,6 +53,39 @@ public final class ToggleSection extends VisTable {
             }
         });
 
+        syncButtonText();
+    }
+
+    /** Optional capability removal; independent from the collapsible title button. */
+    public void setRemovalAction(String name, String tooltip, Runnable action) {
+        removal = action;
+        removeButton = new Button(VisUI.getSkin(), "delete");
+        removeButton.setName(name);
+        new Tooltip.Builder(tooltip).target(removeButton).build();
+        removeButton.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                if (applicable && removeButton.isVisible() && !removeButton.isDisabled()) {
+                    removal.run();
+                }
+                event.stop();
+            }
+        });
+        removeCell = header.add(removeButton).right();
+    }
+
+    public void setRemovalAvailable(boolean visible, boolean enabled) {
+        if (removeButton == null) {
+            return;
+        }
+        removeButton.setVisible(visible);
+        removeButton.setDisabled(!enabled);
+        removeCell.size(visible ? removeButton.getPrefWidth() : 0, visible ? removeButton.getPrefHeight() : 0);
+        header.invalidateHierarchy();
+    }
+
+    public void expand() {
+        panel.setCollapsed(false);
         syncButtonText();
     }
 

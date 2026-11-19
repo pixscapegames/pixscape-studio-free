@@ -37,6 +37,29 @@ import static org.junit.Assert.*;
 
 public class MoveItemsCommandTest {
     @Test
+    public void attachingVisualSubtreeInitializesOnlyMissingRepresentationsInTheMoveHistory() {
+        try (F f = new F()) {
+            int parent = f.root(0, 0), group = f.root(0, 1), child = f.sprite(0, 0);
+            f.attach(child, group, 0);
+            f.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(parent);
+            f.publish();
+            var representations = f.world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class);
+            assertFalse(representations.has(child));
+            f.execute(f.prepare(0, parent, 0, group));
+            for (int cycle = 0; cycle < 3; cycle++) {
+                assertTrue(representations.has(child));
+                assertFalse(representations.has(group));
+                assertEquals(1, representations.get(child).rectangles.staticRectangle.height, 0);
+                f.context.historyManager().undo();
+                f.publish();
+                assertFalse(representations.has(child));
+                f.context.historyManager().redo();
+                f.publish();
+            }
+        }
+    }
+
+    @Test
     public void tiledDragPreparationAllowsSceneMovesAndLayerOrderButRejectsGenericOwnership() {
         try (F f = new F()) {
             int map = f.map(), tiles = f.tileLayer(map), generic = f.root(0, 5);

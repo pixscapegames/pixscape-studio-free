@@ -14,9 +14,20 @@ import games.pixscape.studio.event.EventFlow;
 public final class MoveItemsCommand implements Command, OutcomeAwareCommand {
     private final ItemMovePreparation.Prepared move;
     private boolean executed;
+    private final SpatialRepresentationInitialization representations;
 
     MoveItemsCommand(ItemMovePreparation.Prepared move) {
         this.move = move;
+        representations = new SpatialRepresentationInitialization(move.world, move.owner.context().historyManager().historyIds());
+        var identities = move.owner.context().identityRegistry();
+        int parent = identities.findByStableId(move.destination.parentStableId());
+        if (SpatialRepresentationInitialization.hasFootprintOwner(move.world, parent)) {
+            var roots = new com.badlogic.gdx.utils.IntArray();
+            for (int stableId : move.sources) {
+                roots.add(identities.findByStableId(stableId));
+            }
+            representations.prepareSubtrees(roots);
+        }
     }
 
     @Override
@@ -63,6 +74,7 @@ public final class MoveItemsCommand implements Command, OutcomeAwareCommand {
         var indexes = world.getMapper(EntityIndexComponent.class);
         var transforms = world.getMapper(TransformComponent.class);
         var dirty = world.getSystem(DirtyTrackerSystem.class);
+        representations.apply(undo);
         // All targets and complete before/after states were checked above. No callbacks during writes.
         for (var change : move.changes) {
             var target = undo ? change.before() : change.after();

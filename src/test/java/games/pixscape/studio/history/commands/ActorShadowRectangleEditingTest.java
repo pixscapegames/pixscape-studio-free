@@ -18,6 +18,28 @@ import static org.junit.Assert.assertTrue;
 
 public class ActorShadowRectangleEditingTest {
     @Test
+    public void explicitFullImageRepresentationIsNotANoopAndUndoRestoresAbsence() {
+        World world = new World();
+        try {
+            int entity = world.create();
+            world.process();
+            var history = new games.pixscape.studio.history.HistoryManager(8);
+            var command = new EditActorSpatialRectangleCommand(world, history.historyIds(), entity,
+                    0, null, new ActorSpatialRectangleData(), null);
+            assertFalse(command.isNoop());
+            history.execute(command);
+            for (int cycle = 0; cycle < 3; cycle++) {
+                assertTrue(world.getMapper(SpatialRepresentationComponent.class).has(entity));
+                history.undo();
+                assertFalse(world.getMapper(SpatialRepresentationComponent.class).has(entity));
+                history.redo();
+            }
+        } finally {
+            world.dispose();
+        }
+    }
+
+    @Test
     public void commandRejectsZeroConfiguredDimensionsWithoutCreatingRepresentation() {
         World world = new World();
         try {

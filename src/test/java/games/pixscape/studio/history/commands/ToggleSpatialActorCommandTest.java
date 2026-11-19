@@ -17,6 +17,11 @@ public class ToggleSpatialActorCommandTest {
         World world = new World(new WorldConfiguration());
         try {
             int actor = world.create();
+            world.getMapper(games.pixscape.runtime.component.EntityIndexComponent.class).create(actor).layerIndex = 0;
+            world.getMapper(games.pixscape.runtime.component.TransformComponent.class).create(actor);
+            int spatialLayer = world.create();
+            world.getMapper(games.pixscape.runtime.component.LayerComponent.class).create(spatialLayer).spatialEnabled = true;
+            world.process();
             HistoryManager history = new HistoryManager(16);
             SpatialFootprintComponent initial = new SpatialFootprintComponent();
             initial.radiusPx = 25;
@@ -41,6 +46,11 @@ public class ToggleSpatialActorCommandTest {
         World world = new World(new WorldConfiguration());
         try {
             int actor = world.create();
+            world.getMapper(games.pixscape.runtime.component.EntityIndexComponent.class).create(actor).layerIndex = 0;
+            world.getMapper(games.pixscape.runtime.component.TransformComponent.class).create(actor);
+            int spatialLayer = world.create();
+            world.getMapper(games.pixscape.runtime.component.LayerComponent.class).create(spatialLayer).spatialEnabled = true;
+            world.process();
             HistoryManager history = new HistoryManager(16);
             PhysicsService physics = new PhysicsService(world, null, new SceneMeta());
             physics.ensurePhysics(actor);
@@ -63,6 +73,11 @@ public class ToggleSpatialActorCommandTest {
         World world = new World(new WorldConfiguration());
         try {
             int actor = world.create();
+            world.getMapper(games.pixscape.runtime.component.EntityIndexComponent.class).create(actor).layerIndex = 0;
+            world.getMapper(games.pixscape.runtime.component.TransformComponent.class).create(actor);
+            int spatialLayer = world.create();
+            world.getMapper(games.pixscape.runtime.component.LayerComponent.class).create(spatialLayer).spatialEnabled = true;
+            world.process();
             HistoryManager history = new HistoryManager(16);
             PhysicsService physics = new PhysicsService(world, null, new SceneMeta());
             physics.ensurePhysics(actor);

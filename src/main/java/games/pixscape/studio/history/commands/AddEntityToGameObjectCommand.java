@@ -30,6 +30,7 @@ public final class AddEntityToGameObjectCommand implements Command {
     private final int beforeZ;
     private final int afterLocalZ;
     private final int sourceTag = EventFlow.tag(this);
+    private final SpatialRepresentationInitialization representations;
 
     public AddEntityToGameObjectCommand(
             World world, HistoryIdRegistry historyIds, IdentityRegistry identities,
@@ -66,6 +67,10 @@ public final class AddEntityToGameObjectCommand implements Command {
         beforeLayer = index.layerIndex;
         beforeZ = index.zIndex;
         afterLocalZ = localZ;
+        representations = new SpatialRepresentationInitialization(world, historyIds);
+        if (SpatialRepresentationInitialization.hasFootprintOwner(world, parentEntityId)) {
+            representations.prepareSubtree(childEntityId);
+        }
     }
 
     @Override
@@ -81,6 +86,7 @@ public final class AddEntityToGameObjectCommand implements Command {
         if (world.getMapper(PixscapeIdentityComponent.class).get(parent).stableId != parentStableId) {
             throw new IllegalStateException("Game Object parent stable identity changed.");
         }
+        representations.apply(false);
         if (promoteParent) {
             world.getMapper(GameObjectComponent.class).create(parent);
             GameObjectHierarchyCommandSupport.apply(world.getMapper(TransformComponent.class).get(parent), afterParentLocal);
@@ -101,6 +107,7 @@ public final class AddEntityToGameObjectCommand implements Command {
         if (member == null || member.parentStableId != parentStableId) {
             throw new IllegalStateException("Game Object membership changed before attach undo.");
         }
+        representations.apply(true);
         world.getMapper(GameObjectMemberComponent.class).remove(child);
         GameObjectHierarchyCommandSupport.apply(
                 world.getMapper(TransformComponent.class).get(child), beforeWorld);

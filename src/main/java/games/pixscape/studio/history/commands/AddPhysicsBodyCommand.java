@@ -38,6 +38,22 @@ public final class AddPhysicsBodyCommand
         return refusal;
     }
 
+    public static String actorRejection(World world, int entity) {
+        if (world == null || entity < 0 || !world.getEntityManager().isActive(entity)) {
+            return "Select an entity.";
+        }
+        if (world.getMapper(PhysicsBodyComponent.class).has(entity)) {
+            return "Physics is already present.";
+        }
+        try {
+            TiledEntityRole.requireActorCapability(world, entity, "Body");
+            GameObjectHierarchyCommandSupport.requirePhysicsAncestry(world, IdentityRegistry.boundTo(world), entity);
+            return null;
+        } catch (RuntimeException ex) {
+            return ex.getMessage();
+        }
+    }
+
     public AddPhysicsBodyCommand(
             World world,
             HistoryIdRegistry historyIds,
@@ -99,7 +115,10 @@ public final class AddPhysicsBodyCommand
                 throw new IllegalArgumentException("Tiled collisions require a tile layer.");
             }
         } else {
-            TiledEntityRole.requireActorCapability(world, entityId, "Body");
+            String reason = actorRejection(world, entityId);
+            if (reason != null) {
+                throw new IllegalArgumentException(reason);
+            }
         }
     }
 

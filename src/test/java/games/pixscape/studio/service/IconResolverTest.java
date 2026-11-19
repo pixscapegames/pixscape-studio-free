@@ -9,6 +9,8 @@ import org.junit.After;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertNotSame;
 
 public class IconResolverTest {
     private final World world = new World();
@@ -38,6 +40,28 @@ public class IconResolverTest {
 
         assertEquals(EntityKind.TILED_MAP, resolver.kindForEntity(map));
         assertEquals(EntityKind.TILED_LAYER, resolver.kindForEntity(layer));
+    }
+
+    @Test
+    public void tiledObjectsUseDedicatedDrawablesFromTheStudioSkin() {
+        games.pixscape.studio.ui.widget.VisUiTestBootstrap.loadSkin();
+        try {
+            var skin = com.kotcrab.vis.ui.VisUI.getSkin();
+            EntityKind[] kinds = {EntityKind.TILED_POINT, EntityKind.POLYLINE,
+                    EntityKind.TILED_RECTANGLE, EntityKind.POLYGON};
+            String[] names = {"tiled-point", "tiled-polyline", "tiled-rectangle", "tiled-polygon"};
+            int entity = world.create();
+            var meta = world.getMapper(EntityMetaComponent.class).create(entity);
+            for (int i = 0; i < kinds.length; i++) {
+                meta.kind = kinds[i];
+                var expected = skin.getDrawable(names[i]);
+                assertSame(expected, resolver.iconForEntity(entity));
+                assertSame(expected, IconResolver.iconForEntity(kinds[i]));
+                assertNotSame(skin.getDrawable("image_icon16"), expected);
+            }
+        } finally {
+            games.pixscape.studio.ui.widget.VisUiTestBootstrap.unloadSkin();
+        }
     }
 
     @Test

@@ -246,6 +246,11 @@ public final class CreateGameObjectChildCommand implements Command {
             index.zIndex = localZ;
             world.getMapper(GameObjectMemberComponent.class)
                     .create(targetEid).parentStableId = parentStableId;
+            if (!captured && SpatialRepresentationInitialization.hasFootprintOwner(world, currentParent)) {
+                var representations = new SpatialRepresentationInitialization(world, historyIds);
+                representations.prepareEntity(targetEid);
+                representations.apply(false);
+            }
         }
 
         @Override

@@ -35,6 +35,9 @@ public class ItemsPanelDragGlTest {
             int root = ops.createGameObject(0, 0);
             int child = ops.createStandaloneSprite("hero.png", 50, 20, "child");
             int sibling = ops.createStandaloneSprite("hero.png", -50, 20, "sibling");
+            world.getMapper(LayerComponent.class).get(context.layerService().getLayerEntity(0)).spatialEnabled = true;
+            world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(root);
+            world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(child);
             settle(studio);
             for (int entity : new int[]{child, sibling}) {
                 context.historyManager().execute(new games.pixscape.studio.history.commands.AddEntityToGameObjectCommand(
@@ -57,6 +60,9 @@ public class ItemsPanelDragGlTest {
                 assertEquals(restoredRoot, topology.parentEntityId[restoredSibling]);
                 assertNotNull("Child tree row at cycle " + cycle, tree(studio).findNode(restoredChild));
                 assertNotNull("Sibling tree row at cycle " + cycle, tree(studio).findNode(restoredSibling));
+                assertNotNull(tree(studio).findFootprintNode(restoredRoot));
+                assertNotNull(tree(studio).findFootprintNode(restoredChild));
+                assertNull(tree(studio).findFootprintNode(restoredSibling));
                 context.historyManager().redo();
                 settle(studio);
             }
@@ -77,6 +83,9 @@ public class ItemsPanelDragGlTest {
             var world = context.world();
             var history = context.historyManager();
             var ops = studio.getCanvas().getEditorOps();
+            int actorLayer = context.layerService().getFirstLayerEntity();
+            history.execute(new games.pixscape.studio.history.commands.ToggleSpatialActorLayerCommand(
+                    world, history.historyIds(), context.layerService(), actorLayer, true));
             int hero = ops.createStandaloneSprite("hero.png", -160, 30, "hero");
             int child = ops.createStandaloneSprite("hero.png", -60, 30, "child");
             int bodyOnly = ops.createStandaloneSprite("hero.png", 60, 30, "body only");
@@ -91,19 +100,49 @@ public class ItemsPanelDragGlTest {
             click(studio, hero);
             settle(studio);
             var properties = field(field(studio, "propertiesPanel"), "entityProperties");
-            var toggle = (com.kotcrab.vis.ui.widget.VisCheckBox) field(field(properties, "spatialPanel"), "enabledBox");
-            assertFalse(toggle.isDisabled());
-            toggle.setChecked(true); // Exercise the Inspector's real command listener.
+            var spatialPanel = (games.pixscape.studio.ui.property.entityproperties.SpatialActorPanel) field(properties, "spatialPanel");
+            assertNull(spatialPanel.activationRejection());
+            spatialPanel.addFootprint(); // Exercise the Inspector's real command listener.
             settle(studio);
             assertEquals("hero (spatial)", tree(studio).findNode(hero).getLabel().getText().toString());
             assertEquals("Dynamic body", tree(studio).findBodyNode(hero).getLabel().getText().toString());
+            assertNotNull(tree(studio).findFootprintNode(hero));
+            tree(studio).findNode(hero).setExpanded(true);
+            settle(studio);
+            Vector2 footprintPoint = point(studio, tree(studio).findFootprintNode(hero), .5f);
+            down(studio, footprintPoint);
+            release(studio, footprintPoint);
+            settle(studio);
+            assertEquals(hero, context.selectionService().getInspectedFootprintOwner());
+            assertTrue("Component inspection must not select an entity for generic commands",
+                    context.selectionService().getSelectionSnapshot().isEmpty());
+            assertFalse(studio.getCanvas().getClipboardService().copySelection());
+            assertFalse(studio.getCanvas().getClipboardService().cutSelection());
+            int cursorBeforeDrag = history.getCursor();
+            footprintPoint = point(studio, tree(studio).findFootprintNode(hero), .5f);
+            down(studio, footprintPoint);
+            drag(studio, new Vector2(footprintPoint.x + 30, footprintPoint.y));
+            release(studio, new Vector2(footprintPoint.x + 30, footprintPoint.y));
+            settle(studio);
+            assertEquals(cursorBeforeDrag, history.getCursor());
+            assertTrue(world.getEntityManager().isActive(hero));
+            click(studio, hero);
+            settle(studio);
             history.undo();
             settle(studio);
             assertEquals("hero", tree(studio).findNode(hero).getLabel().getText().toString());
             history.redo();
             settle(studio);
             assertEquals("hero (spatial)", tree(studio).findNode(hero).getLabel().getText().toString());
-            toggle.setChecked(false);
+            ((games.pixscape.studio.ui.property.entityproperties.EntityProperties) properties).findActor("remove-spatial").fire(new com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent());
+            var removalDialog = ((games.pixscape.studio.ui.property.entityproperties.EntityProperties) properties).getStage().getRoot()
+                    .<games.pixscape.studio.ui.modal.StudioDialog>findActor("remove-spatial-dialog");
+            removalDialog.getButtonsTable().getChildren().get(1).fire(new com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent());
+            // Complete Scene2D's defined fade/removal lifecycle before finding another same-named dialog.
+            studio.getUiStage().act(com.kotcrab.vis.ui.widget.VisDialog.FADE_TIME);
+            studio.getUiStage().act(0);
+            studio.getUiStage().act(0);
+            assertNull(removalDialog.getStage());
             settle(studio);
             assertEquals("hero", tree(studio).findNode(hero).getLabel().getText().toString());
             history.undo();
@@ -115,8 +154,17 @@ public class ItemsPanelDragGlTest {
             assertTrue(world.getMapper(GameObjectComponent.class).has(hero));
             assertEquals("hero (spatial)", tree(studio).findNode(hero).getLabel().getText().toString());
             assertEquals("child (spatial)", tree(studio).findNode(child).getLabel().getText().toString());
+            assertNull("Inherited footprints have no duplicate component row", tree(studio).findFootprintNode(child));
             var inheritedChildNode = tree(studio).findNode(child);
-            toggle.setChecked(false);
+            ((games.pixscape.studio.ui.property.entityproperties.EntityProperties) properties).findActor("remove-spatial").fire(new com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent());
+            removalDialog = ((games.pixscape.studio.ui.property.entityproperties.EntityProperties) properties).getStage().getRoot()
+                    .<games.pixscape.studio.ui.modal.StudioDialog>findActor("remove-spatial-dialog");
+            removalDialog.getButtonsTable().getChildren().get(1).fire(new com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent());
+            // Complete Scene2D's defined fade/removal lifecycle before finding another same-named dialog.
+            studio.getUiStage().act(com.kotcrab.vis.ui.widget.VisDialog.FADE_TIME);
+            studio.getUiStage().act(0);
+            studio.getUiStage().act(0);
+            assertNull(removalDialog.getStage());
             settle(studio);
             assertSame("Footprint changes refresh labels without rebuilding the tree",
                     inheritedChildNode, tree(studio).findNode(child));
@@ -134,11 +182,34 @@ public class ItemsPanelDragGlTest {
             click(studio, child);
             settle(studio);
             properties = field(field(studio, "propertiesPanel"), "entityProperties");
-            toggle = (com.kotcrab.vis.ui.widget.VisCheckBox) field(field(properties, "spatialPanel"), "enabledBox");
-            assertFalse(toggle.isDisabled());
-            toggle.setChecked(true);
+            spatialPanel = (games.pixscape.studio.ui.property.entityproperties.SpatialActorPanel) field(properties, "spatialPanel");
+            assertNotNull(spatialPanel.activationRejection());
+            var inheritedToggle = spatialPanel.<com.kotcrab.vis.ui.widget.VisCheckBox>findActor("spatial-inherited-footprint");
+            assertTrue(inheritedToggle.isChecked());
+            inheritedToggle.setChecked(false);
             settle(studio);
             assertEquals("child (spatial)", tree(studio).findNode(child).getLabel().getText().toString());
+            history.execute(new games.pixscape.studio.history.commands.ToggleSpatialActorLayerCommand(
+                    world, history.historyIds(), context.layerService(), actorLayer, false));
+            for (int cycle = 0; cycle < 3; cycle++) {
+                settle(studio);
+                assertNull(tree(studio).findFootprintNode(hero));
+                assertNull(tree(studio).findFootprintNode(child));
+                assertEquals("hero", tree(studio).findNode(hero).getLabel().getText().toString());
+                assertEquals("child", tree(studio).findNode(child).getLabel().getText().toString());
+                assertEquals("Dynamic body", tree(studio).findBodyNode(hero).getLabel().getText().toString());
+                assertFalse(((Actor) field(properties, "spatialSection")).isVisible());
+                history.undo();
+                settle(studio);
+                assertNotNull(tree(studio).findFootprintNode(hero));
+                assertNotNull(tree(studio).findFootprintNode(child));
+                assertEquals("hero (spatial)", tree(studio).findNode(hero).getLabel().getText().toString());
+                assertEquals("child (spatial)", tree(studio).findNode(child).getLabel().getText().toString());
+                assertTrue(((Actor) field(properties, "spatialSection")).isVisible());
+                if (cycle < 2) {
+                    history.redo();
+                }
+            }
             click(studio, hero);
             settle(studio);
             properties = field(field(studio, "propertiesPanel"), "entityProperties");

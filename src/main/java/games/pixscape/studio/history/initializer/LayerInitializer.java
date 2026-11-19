@@ -15,6 +15,7 @@ public final class LayerInitializer extends AbstractCommonInitializer {
 
     private boolean hasLayerIndex;
     private int layerIndex;
+    private boolean spatialEnabled;
 
     private boolean hasLayerMeta;
     private String layerName = "Layer";
@@ -42,6 +43,7 @@ public final class LayerInitializer extends AbstractCommonInitializer {
             LayerComponent li = mLayer.get(e);
             hasLayerIndex = true;
             layerIndex = li.layerIndex;
+            spatialEnabled = li.spatialEnabled;
         } else {
             hasLayerIndex = false;
         }
@@ -79,6 +81,7 @@ public final class LayerInitializer extends AbstractCommonInitializer {
         if (hasLayerIndex) {
             LayerComponent li = mLayer.has(e) ? mLayer.get(e) : mLayer.create(e);
             li.layerIndex = layerIndex;
+            li.spatialEnabled = spatialEnabled;
             if (dirty != null) {
                 dirty.layer(e);
                 dirty.order(e);
@@ -107,6 +110,7 @@ public final class LayerInitializer extends AbstractCommonInitializer {
     public LayerInitializer configureNewLayer(String name, int index) {
         hasLayerIndex = true;
         layerIndex = index;
+        spatialEnabled = false;
 
         hasMeta = true;
         metaKind = EntityKind.LAYER;

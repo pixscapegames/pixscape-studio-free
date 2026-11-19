@@ -15,6 +15,12 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.MetaTagsHelper;
 import games.pixscape.studio.history.commands.ChangeEntityNameCommand;
 import games.pixscape.studio.history.commands.TransformOp;
+import games.pixscape.studio.history.commands.AddPhysicsBodyCommand;
+import games.pixscape.studio.history.commands.EditRenderRepeatCommand;
+import com.kotcrab.vis.ui.widget.MenuItem;
+import com.kotcrab.vis.ui.widget.PopupMenu;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.ui.config.CommonLayout;
@@ -25,6 +31,7 @@ import games.pixscape.studio.ui.widget.UiBinders;
 import java.util.List;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
+import java.util.function.BiConsumer;
 
 public class EntityProperties extends VisTable {
 
@@ -76,6 +83,11 @@ public class EntityProperties extends VisTable {
 
     private int currentEntityId = -1;
     private boolean scenePhysicsEnabled = false;
+    private final VisTextButton addComponent = new VisTextButton("Add component…");
+    private final VisTextButton addChild = new VisTextButton("Add child…");
+    private BiConsumer<Integer, Actor> addChildAction;
+    private PopupMenu componentMenu;
+    private boolean sectionsRefreshRequired;
 
     public EntityProperties(EntityPropertiesContext ctx,
                             StudioAssetVisualResolver visualResolver,
@@ -138,16 +150,20 @@ public class EntityProperties extends VisTable {
         lightingSection = new ToggleSection("Lighting", lightingContent);
         animationSection = new ToggleSection("Animation", animationPanel);
         particleSection = new ToggleSection("Particle FX", particleFxPanel);
-        repeatableSection = new ToggleSection("Repeatable", repeatablePanel);
+        repeatableSection = new ToggleSection("Repeat", repeatablePanel);
         spatialSection = new ToggleSection("Spatial", spatialPanel);
         physicsSection = new ToggleSection("Physics", bodyPanel);
+        spatialSection.setRemovalAction("remove-spatial", "Remove Spatial from this object and its descendants", spatialPanel::removeSpatial);
+        physicsSection.setRemovalAction("remove-physics",
+                "Remove Body, shapes and dependent joints.\nUse Undo to restore them and their previous physics parameters.",
+                bodyPanel::removeBody);
+        repeatableSection.setRemovalAction("remove-repeat", "Remove Repeat", repeatablePanel::removeRepeat);
         VisTable gameObjectPanel = new VisTable();
         gameObjectPanel.left();
-        gameObjectPanel.add(new VisLabel("Source asset:")).width(CommonLayout.LABEL_WIDTH).left();
         gameObjectPanel.add(sourceAssetValue).left();
         CollapsibleWidget gameObjectContent = new CollapsibleWidget();
         gameObjectContent.setTable(gameObjectPanel);
-        gameObjectSection = new ToggleSection("Game Object", gameObjectContent);
+        gameObjectSection = new ToggleSection("Source asset", gameObjectContent);
 
         defaults().left().top().pad(5);
 
@@ -164,6 +180,7 @@ public class EntityProperties extends VisTable {
         add(physicsSection).growX().left().pad(0).row();
 
         EventFlow.i().subscribe(EventFlow.EntityChanged.class, evt -> {
+            closeComponentMenu();
             if (evt.entityId() != currentEntityId) return;
             onFieldsChanged(evt.op());
         });
@@ -179,20 +196,34 @@ public class EntityProperties extends VisTable {
             syncScenePhysicsEnabled();
             updateSectionsVisibility();
         });
+        EventFlow.i().subscribe(EventFlow.SceneLightingChanged.class, evt -> {
+            if (evt.scene() != ctx.sceneMeta) {
+                return;
+            }
+            closeComponentMenu();
+            sectionsRefreshRequired = true;
+        });
         EventFlow.i().subscribe(EventFlow.PhysicsBodyStructureChanged.class, evt -> {
+            closeComponentMenu();
             if (evt.entityId() != currentEntityId) return;
             bodyPanel.setEntityId(currentEntityId);
             spatialPanel.refreshFromModel(currentEntityId);
             updateSectionsVisibility();
         });
+        EventFlow.i().subscribe(EventFlow.LayerSpatialDepthChanged.class, evt -> {
+            closeComponentMenu();
+            sectionsRefreshRequired = true;
+        });
         EventFlow.i().subscribe(EventFlow.SpatialActorChanged.class, evt -> {
-            if (evt.entityId() != currentEntityId) return;
-            spatialPanel.setEntityId(currentEntityId);
-            updateSectionsVisibility();
+            closeComponentMenu();
+            // An ancestor may be the selected child's effective owner. Read after publication.
+            sectionsRefreshRequired = true;
         });
         EventFlow.i().subscribe(EventFlow.RenderRepeatChanged.class, evt -> {
+            closeComponentMenu();
             if (evt.entityId() != currentEntityId) return;
             repeatablePanel.refresh();
+            sectionsRefreshRequired = true;
         });
         EventFlow.i().subscribe(EventFlow.ParticleFlagsChanged.class, evt -> {
             if (evt.entityId() == currentEntityId) particleFxPanel.refresh();
@@ -247,6 +278,26 @@ public class EntityProperties extends VisTable {
         header.add(zIndexValueLabel).colspan(2).left().row();
 
         header.add(visibleCheckBox).colspan(3).left().padTop(6).row();
+        addComponent.setName("entity-add-component");
+        addChild.setName("entity-add-child");
+        addComponent.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                showComponentMenu();
+            }
+        });
+        addChild.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                if (addChildAction != null) {
+                    addChildAction.accept(currentEntityId, addChild);
+                }
+            }
+        });
+        VisTable actions = new VisTable(true);
+        actions.add(addComponent);
+        actions.add(addChild);
+        header.add(actions).colspan(3).left().padTop(6).row();
 
         header.pack();
         return header;
@@ -255,6 +306,9 @@ public class EntityProperties extends VisTable {
     public void setEntityId(int entityId) {
         if (entityId < 0 || !ctx.world.getEntityManager().isActive(entityId)) return;
 
+        if (componentMenu != null) {
+            componentMenu.remove();
+        }
         currentEntityId = entityId;
         syncScenePhysicsEnabled();
 
@@ -278,7 +332,7 @@ public class EntityProperties extends VisTable {
         if (member) {
             zIndexValueLabel.setText("Local: " + (entityIndex != null ? entityIndex.zIndex : 0));
         }
-        visibleCheckBox.setVisible(gameObject == null);
+        visibleCheckBox.setVisible(mV.has(entityId));
         String sourceAssetId = gameObject != null ? gameObject.sourceAssetId : null;
         sourceAssetValue.setText(sourceAssetId == null || sourceAssetId.isBlank()
                 ? "Scene-only" : sourceAssetId);
@@ -339,7 +393,8 @@ public class EntityProperties extends VisTable {
 
     private void updateSectionsVisibility() {
         textureSection.setApplicable(texturePanel.isApplicable(currentEntityId));
-        lightingSection.setApplicable(currentEntityId >= 0 && ctx.world.getMapper(RenderMaterialComponent.class).has(currentEntityId)
+        lightingSection.setApplicable(ctx.sceneMeta != null && ctx.sceneMeta.lightingEnabled
+                && currentEntityId >= 0 && ctx.mMat.has(currentEntityId)
                 && !ctx.world.getMapper(ParticleEmitterComponent.class).has(currentEntityId));
         if (currentEntityId < 0) return;
 
@@ -348,21 +403,27 @@ public class EntityProperties extends VisTable {
 
         boolean isParticle = kind == EntityKind.PARTICLE;
         boolean isAnim = ctx.world.getMapper(AnimationComponent.class).has(currentEntityId);
-        boolean isSprite = ctx.world.getMapper(TextureRegionComponent.class).has(currentEntityId) && !isAnim;
-        boolean isGameObject = ctx.world.getMapper(GameObjectComponent.class).has(currentEntityId);
+        GameObjectComponent composition = ctx.world.getMapper(GameObjectComponent.class).getSafe(currentEntityId, null);
         boolean tiledStructure = TiledEntityRole.of(ctx.world, currentEntityId)
                 != TiledEntityRole.NONE;
 
         transformSection.setApplicable(true);
-        gameObjectSection.setApplicable(isGameObject && !tiledStructure);
+        gameObjectSection.setApplicable(composition != null && composition.sourceAssetId != null
+                && !composition.sourceAssetId.isBlank() && !tiledStructure);
+        addComponent.setVisible(!tiledStructure);
+        addChild.setVisible(!tiledStructure);
         materialSection.setApplicable(isMaterialApplicable(kind, ctx.mMat.has(currentEntityId)));
         animationSection.setApplicable(isAnim);
         particleSection.setApplicable(isParticle);
-        repeatableSection.setApplicable(repeatablePanel.isApplicable() && isSprite);
+        repeatableSection.setApplicable(ctx.mRepeat.has(currentEntityId) && !tiledStructure);
 
         boolean physicsApplicable = isPhysicsApplicable();
-        spatialSection.setApplicable(isSpatialApplicable(isSprite, isAnim));
+        spatialSection.setApplicable(isSpatialApplicable());
         physicsSection.setApplicable(physicsApplicable);
+        spatialSection.setRemovalAvailable(ctx.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).has(currentEntityId)
+                && games.pixscape.studio.service.SpatialActorShapeSupport.ancestorOwner(ctx.world, currentEntityId) < 0, true);
+        physicsSection.setRemovalAvailable(true, bodyPanel.canRemoveBody());
+        repeatableSection.setRemovalAvailable(true, true);
 
         invalidateHierarchy();
     }
@@ -371,20 +432,155 @@ public class EntityProperties extends VisTable {
         return kind != EntityKind.PARTICLE && hasMaterial;
     }
 
-    private boolean isSpatialApplicable(boolean isSprite, boolean isAnim) {
+    private boolean isSpatialApplicable() {
         return currentEntityId >= 0 && ctx.mTransform.has(currentEntityId)
                 && TiledEntityRole.of(ctx.world, currentEntityId)
-                == TiledEntityRole.NONE;
+                == TiledEntityRole.NONE
+                && games.pixscape.studio.service.SpatialActorShapeSupport.hasActorState(ctx.world, currentEntityId);
     }
 
     private boolean isPhysicsApplicable() {
-        return scenePhysicsEnabled && TiledEntityRole.of(ctx.world, currentEntityId)
-                == TiledEntityRole.NONE;
+        return scenePhysicsEnabled && ctx.mPhysBody.has(currentEntityId)
+                && TiledEntityRole.of(ctx.world, currentEntityId) == TiledEntityRole.NONE;
     }
 
     private void syncScenePhysicsEnabled() {
         SceneMeta meta = ctx.sceneMeta;
         scenePhysicsEnabled = meta != null && meta.physicsEnabled;
+    }
+
+    public void setAddChildAction(BiConsumer<Integer, Actor> action) {
+        addChildAction = action;
+    }
+
+    private void closeComponentMenu() {
+        if (componentMenu != null) {
+            componentMenu.remove();
+            componentMenu = null;
+        }
+    }
+
+    @Override
+    public void act(float delta) {
+        if (sectionsRefreshRequired) {
+            sectionsRefreshRequired = false;
+            if (currentEntityId >= 0 && ctx.world.getEntityManager().isActive(currentEntityId)) {
+                spatialPanel.setEntityId(currentEntityId);
+                updateSectionsVisibility();
+            }
+        }
+        super.act(delta);
+    }
+
+    private String physicsRejection() {
+        if (ctx.sceneMeta == null || !ctx.sceneMeta.physicsEnabled) {
+            return "Enable Physics in the scene first.";
+        }
+        return AddPhysicsBodyCommand.actorRejection(ctx.world, currentEntityId);
+    }
+
+    private String repeatRejection() {
+        if (currentEntityId >= 0 && ctx.mRepeat.has(currentEntityId)) {
+            return "Repeat is already present.";
+        }
+        return EditRenderRepeatCommand.activationRejection(ctx.world, currentEntityId);
+    }
+
+    private boolean isInspectedEntity(int entity) {
+        return ctx.selectionService.isOnlySelected(entity)
+                || ctx.selectionService.getInspectedFootprintOwner() == entity;
+    }
+
+    public void revealSpatial() {
+        spatialSection.expand();
+        validate();
+        for (Actor ancestor = getParent(); ancestor != null; ancestor = ancestor.getParent()) {
+            if (ancestor instanceof com.badlogic.gdx.scenes.scene2d.ui.ScrollPane scroll) {
+                scroll.validate();
+                var position = spatialSection.localToAscendantCoordinates(scroll.getActor(), new com.badlogic.gdx.math.Vector2());
+                scroll.scrollTo(position.x, position.y, spatialSection.getWidth(), spatialSection.getHeight());
+                scroll.updateVisualScroll();
+                break;
+            }
+        }
+    }
+
+    private void showComponentMenu() {
+        if (getStage() == null || currentEntityId < 0) {
+            return;
+        }
+        if (componentMenu != null) {
+            componentMenu.remove();
+        }
+        int target = currentEntityId;
+        var identity = ctx.mIdentity.getSafe(target, null);
+        int stableId = displayedPersistentId(identity);
+        boolean physicsEnabled = ctx.sceneMeta != null && ctx.sceneMeta.physicsEnabled;
+        boolean spatialLayer = ctx.layerService.admitsSpatialActor(target);
+        componentMenu = new PopupMenu() {
+            @Override
+            public void act(float delta) {
+                if (currentEntityId != target || EntityProperties.this.getStage() != getStage()
+                        || !isInspectedEntity(target)
+                        || displayedPersistentId(ctx.mIdentity.getSafe(target, null)) != stableId
+                        || physicsEnabled != (ctx.sceneMeta != null && ctx.sceneMeta.physicsEnabled)
+                        || spatialLayer != ctx.layerService.admitsSpatialActor(target)) {
+                    remove();
+                    return;
+                }
+                super.act(delta);
+            }
+        };
+        if (spatialLayer && !games.pixscape.studio.service.SpatialActorShapeSupport.hasActorState(ctx.world, target)) {
+            addCapabilityItem(componentMenu, "Spatial", spatialPanel.activationRejection(),
+                    spatialPanel::activationRejection, spatialPanel::addFootprint);
+        }
+        if (!ctx.mPhysBody.has(target)) {
+            addCapabilityItem(componentMenu, "Physics", physicsRejection(), this::physicsRejection, bodyPanel::addBody);
+        }
+        if (!ctx.mRepeat.has(target)) {
+            String repeatReason = repeatRejection();
+            MenuItem repeat = addCapabilityItem(componentMenu, "Repeat", repeatReason, this::repeatRejection, () -> { });
+            if (repeatReason == null) {
+                PopupMenu axes = new PopupMenu();
+                addCapabilityItem(axes, "Repeat X", null, this::repeatRejection, () -> repeatablePanel.addRepeat(true, false));
+                addCapabilityItem(axes, "Repeat Y", null, this::repeatRejection, () -> repeatablePanel.addRepeat(false, true));
+                addCapabilityItem(axes, "Repeat X and Y", null, this::repeatRejection, () -> repeatablePanel.addRepeat(true, true));
+                repeat.setSubMenu(axes);
+                new Tooltip.Builder("Activation sets local rotation to 0°. Inherited rotation is unchanged.")
+                        .target(repeat).build();
+            }
+        }
+        if (componentMenu.getChildren().notEmpty()) {
+            var position = addComponent.localToStageCoordinates(new com.badlogic.gdx.math.Vector2());
+            componentMenu.showMenu(getStage(), position.x, position.y);
+        }
+    }
+
+    private MenuItem addCapabilityItem(PopupMenu menu, String label, String reason,
+                                       Supplier<String> validate, Runnable action) {
+        if (reason != null) {
+            return null;
+        }
+        MenuItem item = new MenuItem(label);
+        int target = currentEntityId;
+        item.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                if (item.isDisabled() || target != currentEntityId || !isInspectedEntity(target)) {
+                    return;
+                }
+                String refusal = validate.get();
+                if (refusal == null) {
+                    action.run();
+                    sectionsRefreshRequired = true;
+                } else {
+                    com.kotcrab.vis.ui.util.dialog.Dialogs.showOKDialog(getStage(), "Cannot add component", refusal);
+                }
+            }
+        });
+        menu.addItem(item);
+        return item;
     }
 
     private void refreshTagsLabel() {

@@ -17,6 +17,193 @@ import static org.junit.Assert.*;
 
 public class CreateGameObjectChildCommandTest {
     @Test
+    public void inheritedOverridePreservesWorldCircleAndSubtreeRemovalRestoresEveryOwner() {
+        Fixture f = new Fixture();
+        try {
+            int layer = f.world.create();
+            f.world.getMapper(LayerComponent.class).create(layer).spatialEnabled = true;
+            int root = f.root(10, 0, 0), middle = f.root(11, 0, 0), child = f.root(12, 0, 0);
+            f.world.getMapper(GameObjectMemberComponent.class).create(middle).parentStableId = 10;
+            f.world.getMapper(GameObjectMemberComponent.class).create(child).parentStableId = 11;
+            int grandchild = f.core(13, 0, 0);
+            f.world.getMapper(GameObjectMemberComponent.class).create(grandchild).parentStableId = 12;
+            f.setTransform(root, 60, -37, .7f, 2, 2);
+            f.setTransform(middle, 18, 20, -.3f, 1.5f, 1.5f);
+            f.setTransform(child, -24, 9, .5f, 1, 1);
+            var footprints = f.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class);
+            var parentFoot = footprints.create(root);
+            parentFoot.radiusPx = 13.5f;
+            parentFoot.altitude = 17.25f;
+            parentFoot.localOffsetXPx = 9;
+            parentFoot.localOffsetYPx = -6;
+            var representations = f.world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class);
+            var settings = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+            var rectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+            rectangle.width = .35f;
+            rectangle.pivotX = -7;
+            settings.put(0, null, rectangle);
+            representations.create(child).rectangles = settings;
+            var body = f.world.getMapper(games.pixscape.runtime.component.physics.PhysicsBodyComponent.class).create(child);
+            body.gravityScale = 4;
+            f.process();
+            var before = new games.pixscape.runtime.spatial.SpatialActorGeometry.Footprint();
+            assertTrue(games.pixscape.runtime.service.SpatialActorPose.resolve(root,
+                    GameObjectHierarchyCommandSupport.worldTransform(f.world, f.identities, root), parentFoot, null, before));
+            f.history.execute(new SetFootprintInheritanceCommand(f.world, f.history.historyIds(), child, false));
+            var own = footprints.get(child).copy();
+            var after = new games.pixscape.runtime.spatial.SpatialActorGeometry.Footprint();
+            assertTrue(games.pixscape.runtime.service.SpatialActorPose.resolve(child,
+                    GameObjectHierarchyCommandSupport.worldTransform(f.world, f.identities, child), footprints.get(child), null, after));
+            assertEquals(before.footX, after.footX, .0001f);
+            assertEquals(before.footY, after.footY, .0001f);
+            assertEquals(parentFoot.radiusPx, own.radiusPx, 0);
+            assertEquals(parentFoot.altitude, own.altitude, 0);
+            assertEquals(child, games.pixscape.studio.service.SpatialActorShapeSupport.ancestorOwner(f.world, grandchild));
+            f.history.execute(new SetFootprintInheritanceCommand(f.world, f.history.historyIds(), child, true));
+            for (int cycle = 0; cycle < 3; cycle++) {
+                assertFalse(footprints.has(child));
+                f.history.undo();
+                assertEquals(own.localOffsetXPx, footprints.get(child).localOffsetXPx, 0);
+                f.history.redo();
+            }
+            f.history.undo(); // Restore the own override before removing the whole spatial composition.
+            f.history.execute(new RemoveSpatialSubtreeCommand(f.world, f.history.historyIds(), root));
+            for (int cycle = 0; cycle < 3; cycle++) {
+                assertFalse(footprints.has(root));
+                assertFalse(footprints.has(child));
+                assertEquals(-1, games.pixscape.studio.service.SpatialActorShapeSupport.ancestorOwner(f.world, grandchild));
+                assertSame(settings, representations.get(child).rectangles);
+                assertSame(body, f.world.getMapper(games.pixscape.runtime.component.physics.PhysicsBodyComponent.class).get(child));
+                assertEquals(4, body.gravityScale, 0);
+                f.history.undo();
+                assertEquals(13.5f, footprints.get(root).radiusPx, 0);
+                assertEquals(own.localOffsetYPx, footprints.get(child).localOffsetYPx, 0);
+                assertEquals(child, games.pixscape.studio.service.SpatialActorShapeSupport.ancestorOwner(f.world, grandchild));
+                f.history.redo();
+            }
+        } finally {
+            f.close();
+        }
+    }
+
+    @Test
+    public void visualChildCreationInitializesItsRepresentationWithinTheSameHistoryEntry() {
+        Fixture fixture = new Fixture();
+        try {
+            int parent = fixture.root(10, 0, 0);
+            fixture.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(parent);
+            int template = fixture.core(20, 0, 1);
+            fixture.world.getMapper(TextureRegionComponent.class).create(template);
+            var size = fixture.world.getMapper(DimensionsComponent.class).create(template);
+            size.width = 80;
+            size.height = 40;
+            fixture.process();
+            var initializer = new games.pixscape.studio.history.initializer.GenericEntityInitializer(fixture.world);
+            initializer.syncFrom(template);
+            initializer.setIdentityStableId(30);
+            var command = new CreateGameObjectChildCommand(fixture.world, fixture.history.historyIds(),
+                    fixture.identities, parent, initializer, null);
+            fixture.history.execute(command);
+            var representations = fixture.world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class);
+            for (int cycle = 0; cycle < 3; cycle++) {
+                fixture.process();
+                int child = command.getCreatedEntityId();
+                assertTrue(representations.has(child));
+                assertEquals(1, representations.get(child).rectangles.staticRectangle.width, 0);
+                assertEquals(0, representations.get(child).rectangles.staticRectangle.pivotX, 0);
+                assertFalse(fixture.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).has(child));
+                assertFalse(representations.has(parent));
+                fixture.history.undo();
+                fixture.process();
+                assertFalse(fixture.history.canUndo());
+                fixture.history.redo();
+            }
+        } finally {
+            fixture.close();
+        }
+    }
+
+    @Test
+    public void addingSpatialInitializesNestedVisualsAndPreservesExistingSettings() {
+        Fixture fixture = new Fixture();
+        try {
+            int layer = fixture.world.create();
+            fixture.world.getMapper(LayerComponent.class).create(layer).spatialEnabled = true;
+            int root = fixture.root(10, 0, 0);
+            int nested = fixture.root(11, 0, 0);
+            fixture.world.getMapper(GameObjectMemberComponent.class).create(nested).parentStableId = 10;
+            int visual = fixture.core(20, 0, 0);
+            fixture.world.getMapper(TextureRegionComponent.class).create(visual);
+            fixture.world.getMapper(GameObjectMemberComponent.class).create(visual).parentStableId = 11;
+            int configured = fixture.core(21, 0, 1);
+            fixture.world.getMapper(TextureRegionComponent.class).create(configured);
+            fixture.world.getMapper(GameObjectMemberComponent.class).create(configured).parentStableId = 10;
+            var representations = fixture.world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class);
+            var authored = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+            authored.width = .3f;
+            authored.pivotX = 12;
+            representations.create(configured).rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+            representations.get(configured).rectangles.put(0, null, authored);
+            fixture.process();
+            fixture.history.execute(new ToggleSpatialActorCommand(fixture.world, fixture.history.historyIds(),
+                    root, true, true, new games.pixscape.runtime.component.spatial.SpatialFootprintComponent()));
+            for (int cycle = 0; cycle < 3; cycle++) {
+                assertTrue(representations.has(visual));
+                assertFalse(representations.has(root));
+                assertFalse(representations.has(nested));
+                assertSame(authored, representations.get(configured).rectangles.staticRectangle);
+                fixture.history.undo();
+                assertFalse(representations.has(visual));
+                assertSame(authored, representations.get(configured).rectangles.staticRectangle);
+                assertFalse(fixture.history.canUndo());
+                fixture.history.redo();
+            }
+        } finally {
+            fixture.close();
+        }
+    }
+
+    @Test
+    public void compositionDoesNotReplaceSpriteAnimationOrNeutralIdentity() {
+        for (EntityKind kind : new EntityKind[]{EntityKind.SPRITE, EntityKind.ANIMATION, EntityKind.GAME_OBJECT}) {
+            Fixture fixture = new Fixture();
+            try {
+                int parent = kind == EntityKind.GAME_OBJECT ? fixture.root(10, 0, 0) : fixture.core(10, 0, 0);
+                fixture.world.getMapper(EntityMetaComponent.class).create(parent).kind = kind;
+                if (kind != EntityKind.GAME_OBJECT) {
+                    fixture.world.getMapper(TextureRegionComponent.class).create(parent);
+                    fixture.world.getMapper(VisibilityComponent.class).create(parent).visible = false;
+                }
+                if (kind == EntityKind.ANIMATION) {
+                    fixture.world.getMapper(AnimationComponent.class).create(parent);
+                }
+                fixture.process();
+                TestChildInitializer initializer = new TestChildInitializer(fixture.world, EntityKind.SPRITE);
+                initializer.setIdentityStableId(30);
+                CreateGameObjectChildCommand command = new CreateGameObjectChildCommand(fixture.world,
+                        fixture.history.historyIds(), fixture.identities, parent, initializer, null);
+                fixture.history.execute(command);
+                for (int cycle = 0; cycle < 3; cycle++) {
+                    fixture.process();
+                    assertEquals(kind, fixture.world.getMapper(EntityMetaComponent.class).get(parent).kind);
+                    assertTrue(fixture.world.getMapper(GameObjectComponent.class).has(parent));
+                    if (kind != EntityKind.GAME_OBJECT) {
+                        assertFalse(fixture.world.getMapper(VisibilityComponent.class).get(parent).visible);
+                    }
+                    fixture.history.undo();
+                    fixture.process();
+                    assertEquals(kind, fixture.world.getMapper(EntityMetaComponent.class).get(parent).kind);
+                    assertEquals(kind == EntityKind.GAME_OBJECT,
+                            fixture.world.getMapper(GameObjectComponent.class).has(parent));
+                    fixture.history.redo();
+                }
+            } finally {
+                fixture.close();
+            }
+        }
+    }
+
+    @Test
     public void addingToOrdinarySpritePromotesInOneUndoWithoutMovingItsPixels() {
         Fixture fixture = new Fixture();
         try {

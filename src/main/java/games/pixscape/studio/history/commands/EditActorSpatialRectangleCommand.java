@@ -34,7 +34,7 @@ public final class EditActorSpatialRectangleCommand implements Command, HistoryM
         hadRepresentation = spatial != null;
         before = spatial == null || spatial.rectangles == null ? null : spatial.rectangles.copy();
         ActorSpatialRectangleData current = before == null ? null : before.get(asset, clip);
-        noop = (current == null ? new ActorSpatialRectangleData() : current).same(after);
+        noop = current != null && current.same(after);
         this.after = before == null ? new ActorSpatialRectangles() : before.copy();
         this.after.put(asset, clip, after.copy());
     }

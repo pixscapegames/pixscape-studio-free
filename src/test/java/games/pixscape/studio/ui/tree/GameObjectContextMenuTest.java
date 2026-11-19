@@ -49,27 +49,37 @@ public class GameObjectContextMenuTest {
     }
 
     @Test
-    public void incompatibleParentShowsReasonWithoutHoveringDisabledAdd() {
+    public void incompatibleParentDoesNotOfferDisabledAddChild() {
         String reason = "Parent scale must be uniform";
         PopupMenu menu = ItemTreePanel.buildGameObjectContextMenu(
                 ItemTreePanel.buildGameObjectAddMenu(null, NO_OP_ACTIONS), reason);
-        assertTrue(item(menu, "Add").isDisabled());
-        assertTrue(item(menu, reason).isDisabled());
-        assertEquals(2, menu.getChildren().size);
+        assertNull(find(menu, "Add child…"));
+        assertNull(find(menu, reason));
+        assertEquals(0, menu.getChildren().size);
         PopupMenu allowed = ItemTreePanel.buildGameObjectContextMenu(
                 ItemTreePanel.buildGameObjectAddMenu(null, NO_OP_ACTIONS), null);
-        assertFalse(item(allowed, "Add").isDisabled());
+        assertFalse(item(allowed, "Add child…").isDisabled());
         assertEquals(1, allowed.getChildren().size);
     }
 
     @Test
-    public void noSelectedAssetDisablesSpriteAndAnimationOnly() {
+    public void noSelectedAssetOmitsSpriteAndAnimation() {
         PopupMenu menu = ItemTreePanel.buildGameObjectAddMenu(null, NO_OP_ACTIONS);
 
-        assertTrue(item(menu, "Add Sprite").isDisabled());
-        assertTrue(item(menu, "Add Animation").isDisabled());
+        assertNull(find(menu, "Add Sprite"));
+        assertNull(find(menu, "Add Animation"));
         assertFalse(item(menu, "Light").isDisabled());
         assertFalse(item(menu, "Game Object").isDisabled());
+    }
+
+    @Test
+    public void noAssetAndLightingDisabledOfferOnlyEmptyGameObjectCreation() {
+        PopupMenu menu = ItemTreePanel.buildGameObjectAddMenu(null, NO_OP_ACTIONS, false);
+        assertEquals(1, menu.getChildren().size);
+        assertFalse(item(menu, "Game Object").isDisabled());
+        assertNull(find(menu, "Light"));
+        assertNull(find(menu, "Add Sprite"));
+        assertNull(find(menu, "Add Animation"));
     }
 
     @Test
@@ -78,15 +88,15 @@ public class GameObjectContextMenuTest {
                 AssetNode.Kind.IMAGE, AssetNode.Root.IMAGES, "sprite.png", "Sprite", null);
         PopupMenu imageMenu = ItemTreePanel.buildGameObjectAddMenu(image, NO_OP_ACTIONS);
         assertFalse(item(imageMenu, "Add Sprite \"Sprite\"").isDisabled());
-        assertTrue(item(imageMenu, "Add Animation \"Sprite\"").isDisabled());
+        assertNull(find(imageMenu, "Add Animation \"Sprite\""));
 
         AssetNode animation = new AssetNode(
                 AssetNode.Kind.ANIMATION, AssetNode.Root.ANIMATIONS, "walk", "Walk", null);
         PopupMenu animationMenu = ItemTreePanel.buildGameObjectAddMenu(animation, NO_OP_ACTIONS);
-        assertTrue(item(animationMenu, "Add Sprite \"Walk\"").isDisabled());
+        assertNull(find(animationMenu, "Add Sprite \"Walk\""));
         assertFalse(item(animationMenu, "Add Animation \"Walk\"").isDisabled());
 
-        assertEquals(4, animationMenu.getChildren().size);
+        assertEquals(3, animationMenu.getChildren().size);
         MenuItem light = item(animationMenu, "Light");
         assertNotNull(light.getSubMenu());
         assertEquals(2, light.getSubMenu().getChildren().size);

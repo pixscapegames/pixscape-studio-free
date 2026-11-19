@@ -148,6 +148,35 @@ public class TiledRoleCommandsTest {
         }
     }
 
+    @Test
+    public void participatingMapPasteRejectsBeforeAllocatingThenWorksWhenSourceDepthIsDisabled() {
+        try (Fixture f = new Fixture(TiledProjection.ISO)) {
+            f.grid().spatialEnabled = f.grid().data.spatialEnabled = true;
+            var graph = new EntityGraphCaptureService(f.world).capture(IntArray.with(f.map));
+            int nextId = f.scene.nextEntityStableId;
+            int active = f.world.getAspectSubscriptionManager().get(com.artemis.Aspect.all()).getEntities().size();
+            var spawn = new games.pixscape.studio.service.entitygraph.EntityGraphInstantiationService(
+                    f.world, f.history, f.ids, f.physics, () -> false);
+            assertThrows(IllegalArgumentException.class, () -> spawn.instantiate(graph, 0, 0, 0, "Paste map"));
+            assertEquals(nextId, f.scene.nextEntityStableId);
+            assertEquals(active, f.world.getAspectSubscriptionManager().get(com.artemis.Aspect.all()).getEntities().size());
+            assertFalse(f.history.canUndo());
+            f.grid().spatialEnabled = f.grid().data.spatialEnabled = false;
+            spawn.instantiate(graph, 0, 0, 0, "Paste map");
+            f.world.process();
+            for (int i = 0; i < 3; i++) {
+                games.pixscape.runtime.service.SpatialScenePolicy.validateScene(f.world, f.ids,
+                        f.world.getAspectSubscriptionManager().get(com.artemis.Aspect.all()).getEntities());
+                assertTrue(f.history.canUndo());
+                f.history.undo();
+                f.world.process();
+                assertEquals(active, f.world.getAspectSubscriptionManager().get(com.artemis.Aspect.all()).getEntities().size());
+                f.history.redo();
+                f.world.process();
+            }
+        }
+    }
+
     private static final class Fixture implements AutoCloseable {
         final World world = new World(new WorldConfigurationBuilder()
                 .with(new DirtyTrackerSystem(32), new GameObjectHierarchySystem(32)).build());

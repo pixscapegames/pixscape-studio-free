@@ -53,25 +53,38 @@ public class SpatialHeightLivePreviewTest {
             Field altitude = SpatialActorPanel.class.getDeclaredField("altitudeField");
             altitude.setAccessible(true);
             FloatField altitudeField = (FloatField) altitude.get(h.panel);
-            com.badlogic.gdx.scenes.scene2d.ui.Table table = (com.badlogic.gdx.scenes.scene2d.ui.Table) h.field.getParent();
-            Assert.assertSame(table, altitudeField.getParent());
             for (float width : new float[]{220, 360, 600}) {
-                table.setSize(width, table.getPrefHeight());
-                table.validate();
-                Assert.assertEquals(altitudeField.getX(), h.field.getX(), .001f);
-                for (int i = 0; i < 6; i++) {
-                    FloatField rectangleField = table.findActor("actor-spatial-rectangle-" + i);
-                    Assert.assertSame(table, rectangleField.getParent());
-                    Assert.assertEquals(altitudeField.getX(), rectangleField.getX(), .001f);
-                    Assert.assertEquals(altitudeField.getWidth(), rectangleField.getWidth(), .001f);
-                }
+                h.panel.setSize(width, h.panel.getPrefHeight());
+                layoutTree(h.panel);
+                float altitudeX = altitudeField.localToAscendantCoordinates(h.panel, new com.badlogic.gdx.math.Vector2()).x;
                 float labelX = Float.NaN;
-                for (com.badlogic.gdx.scenes.scene2d.Actor child : table.getChildren()) {
-                    if (!(child instanceof com.kotcrab.vis.ui.widget.VisLabel label) || !label.getText().toString().endsWith(":"))
-                        continue;
-                    if (Float.isNaN(labelX)) labelX = child.getX();
-                    Assert.assertEquals(labelX, child.getX(), .001f);
+                for (int group = 0; group < 2; group++) {
+                    com.badlogic.gdx.scenes.scene2d.Group table = group == 0 ? altitudeField.getParent() : h.field.getParent();
+                    for (com.badlogic.gdx.scenes.scene2d.Actor child : table.getChildren()) {
+                        if (child instanceof FloatField field) {
+                            Assert.assertEquals(altitudeX, field.localToAscendantCoordinates(h.panel,
+                                    new com.badlogic.gdx.math.Vector2()).x, .001f);
+                            Assert.assertEquals(altitudeField.getWidth(), field.getWidth(), .001f);
+                        } else if (child instanceof com.kotcrab.vis.ui.widget.VisLabel label && label.getText().toString().endsWith(":")) {
+                            float x = child.localToAscendantCoordinates(h.panel, new com.badlogic.gdx.math.Vector2()).x;
+                            if (Float.isNaN(labelX)) {
+                                labelX = x;
+                            }
+                            Assert.assertEquals(labelX, x, .001f);
+                        }
+                    }
                 }
+            }
+        }
+    }
+
+    private static void layoutTree(com.badlogic.gdx.scenes.scene2d.Actor actor) {
+        if (actor instanceof com.badlogic.gdx.scenes.scene2d.utils.Layout layout) {
+            layout.validate();
+        }
+        if (actor instanceof com.badlogic.gdx.scenes.scene2d.Group group) {
+            for (var child : group.getChildren()) {
+                layoutTree(child);
             }
         }
     }
@@ -165,6 +178,7 @@ public class SpatialHeightLivePreviewTest {
             int layer = world.create();
             LayerComponent layerComponent = world.getMapper(LayerComponent.class).create(layer);
             layerComponent.layerIndex = 0;
+            layerComponent.spatialEnabled = true;
             actor = world.create();
             world.getMapper(EntityIndexComponent.class).create(actor).layerIndex = 0;
             TransformComponent transform = world.getMapper(TransformComponent.class).create(actor);
@@ -178,6 +192,7 @@ public class SpatialHeightLivePreviewTest {
             height.rectangles.staticRectangle.height = 80f / 300;
             height.rectangles.staticRectangle.x = 0;
             var dimensions = world.getMapper(games.pixscape.runtime.component.DimensionsComponent.class).create(actor);
+            world.getMapper(games.pixscape.runtime.component.TextureRegionComponent.class).create(actor);
             dimensions.width = 40;
             dimensions.height = 300;
             SpatialFootprintComponent footprint = world.getMapper(SpatialFootprintComponent.class).create(actor);

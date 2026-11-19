@@ -34,10 +34,9 @@ public final class BodyPanel extends CollapsibleWidget {
     private final ComponentMapper<PhysicsJointComponent> mJointBase;
     private final ComponentMapper<TiledLayerComponent> mTiled;
 
-    private final boolean showBodyToggle;
+    private final boolean showRemovalAction;
 
     private final VisTable root = new VisTable(true);
-    private final VisCheckBox addPhysicsBox = new VisCheckBox("Body");
     private final CollapsibleVisTable detailsBlock = new CollapsibleVisTable(true);
 
     private final VisSelectBox<String> bodyTypeBox = new VisSelectBox<>();
@@ -69,10 +68,10 @@ public final class BodyPanel extends CollapsibleWidget {
         this(ctx, true);
     }
 
-    public BodyPanel(EntityPropertiesContext ctx, boolean showBodyToggle) {
+    public BodyPanel(EntityPropertiesContext ctx, boolean showRemovalAction) {
         super();
         this.ctx = ctx;
-        this.showBodyToggle = showBodyToggle;
+        this.showRemovalAction = showRemovalAction;
         this.mJointBase = ctx.world.getMapper(PhysicsJointComponent.class);
         this.mTiled = ctx.world.getMapper(TiledLayerComponent.class);
 
@@ -104,21 +103,6 @@ public final class BodyPanel extends CollapsibleWidget {
 
         angularDamping.setApplier((eid, v) ->
                 submitBodyEdit(eid, s -> s.withAngularDamping(Math.max(0f, v))));
-
-        addPhysicsBox.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                if (!showBodyToggle || internalRefresh || entityId < 0) return;
-
-                boolean addBody = addPhysicsBox.isChecked();
-                boolean hadPhysicsBeforeChange = hasPhysics(entityId);
-
-                applyBodyPresenceChange(addBody, hadPhysicsBeforeChange);
-                refreshFromModel(entityId);
-
-                event.handle();
-            }
-        });
 
         editShapesBtn.addListener(new ChangeListener() {
             @Override
@@ -176,12 +160,7 @@ public final class BodyPanel extends CollapsibleWidget {
 
         d.add(actions).center().colspan(2).padTop(4).row();
 
-        if (showBodyToggle) {
-            root.add(addPhysicsBox).left().row();
-            root.add(detailsBlock).padLeft(CommonLayout.PAD_LEFT_SUBMENU).growX().left().row();
-        } else {
-            root.add(detailsBlock).growX().left().row();
-        }
+        root.add(detailsBlock).padLeft(showRemovalAction ? CommonLayout.PAD_LEFT_SUBMENU : 0).growX().left().row();
 
         detailsBlock.show(false);
 
@@ -249,6 +228,27 @@ public final class BodyPanel extends CollapsibleWidget {
         }
     }
 
+    public void addBody() {
+        if (ctx.sceneMeta == null || !ctx.sceneMeta.physicsEnabled || entityId < 0 || hasPhysics(entityId)) {
+            return;
+        }
+        applyBodyPresenceChange(true, false);
+        refreshFromModel(entityId);
+    }
+
+    public boolean canRemoveBody() {
+        return showRemovalAction && !internalRefresh && entityId >= 0 && hasPhysics(entityId)
+                && !hasLinkedShape(entityId);
+    }
+
+    public void removeBody() {
+        if (!canRemoveBody()) {
+            return;
+        }
+        applyBodyPresenceChange(false, true);
+        refreshFromModel(entityId);
+    }
+
     private void applyBodyPresenceChange(boolean addBody, boolean hadPhysicsBeforeChange) {
         if (addBody) {
             boolean createDefaultShape = !hadPhysicsBeforeChange
@@ -266,6 +266,9 @@ public final class BodyPanel extends CollapsibleWidget {
                 com.kotcrab.vis.ui.util.dialog.Dialogs.showOKDialog(getStage(), "Cannot add Body", command.refusal());
             } else {
                 ctx.history.execute(command);
+                if (command.refusal() != null) {
+                    com.kotcrab.vis.ui.util.dialog.Dialogs.showOKDialog(getStage(), "Cannot add Body", command.refusal());
+                }
             }
         } else {
             ctx.history.execute(new RemovePhysicsBodyCommand(
@@ -282,10 +285,7 @@ public final class BodyPanel extends CollapsibleWidget {
         try {
             boolean has = hasPhysics(eid);
 
-            if (showBodyToggle) {
-                addPhysicsBox.setChecked(has);
-                addPhysicsBox.setDisabled(hasLinkedShape(eid));
-            }
+
 
             detailsBlock.show(has);
 

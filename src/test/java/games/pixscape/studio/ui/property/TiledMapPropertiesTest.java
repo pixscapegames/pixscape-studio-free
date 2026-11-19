@@ -159,6 +159,8 @@ public class TiledMapPropertiesTest {
         try {
             int map = fixture.addMap(0, 16, 100);
             var identities = fixture.world.getMapper(PixscapeIdentityComponent.class);
+            identities.remove(map);
+            fixture.world.process();
             TiledMapProperties properties = fixture.properties();
             properties.setMapEntityId(map);
             SimpleTextField name = properties.findActor("tiledMapName");
@@ -333,7 +335,10 @@ public class TiledMapPropertiesTest {
         final LayerComponent layer = world.getMapper(LayerComponent.class)
                 .create(layerEntity);
 
+        final games.pixscape.runtime.service.IdentityRegistry identities = new games.pixscape.runtime.service.IdentityRegistry();
+
         Fixture() {
+            identities.bind(world, new SceneMeta());
             layer.layerIndex = 0;
         }
 
@@ -351,6 +356,12 @@ public class TiledMapPropertiesTest {
             tiled.mapHeightCells = 6;
             tiled.chunkSize = 4;
             tiled.data = tiled.createLayerData();
+            world.getMapper(games.pixscape.runtime.component.TransformComponent.class).create(entityId);
+            int root = games.pixscape.runtime.tiled.TiledMapHierarchy.createMap(world, identities, "Map", layerIndex,
+                    0, tiled.projection, tiled.tileWidth, tiled.tileHeight, mapWidth, 6);
+            games.pixscape.runtime.tiled.TiledMapHierarchy.attachLayer(world, identities, root, entityId,
+                    games.pixscape.runtime.component.TiledMapLayerComponent.Kind.TILE, 0);
+            world.process();
             return entityId;
         }
 

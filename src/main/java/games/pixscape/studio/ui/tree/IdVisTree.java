@@ -9,6 +9,7 @@ import com.kotcrab.vis.ui.widget.VisTree;
 public class IdVisTree extends VisTree<EntityNode, Integer> {
     private final IntMap<EntityNode> primaryNodesByEntityId = new IntMap<>();
     private final IntMap<EntityNode> bodyNodesByEntityId = new IntMap<>();
+    private final IntMap<EntityNode> footprintNodesByEntityId = new IntMap<>();
     private final IntMap<EntityNode> jointNodesByEntityId = new IntMap<>();
     private final IntMap<EntityNode> mapNodes = new IntMap<>();
     private final IntMap<EntityNode> spatialBlockNodes = new IntMap<>();
@@ -20,6 +21,7 @@ public class IdVisTree extends VisTree<EntityNode, Integer> {
         super.clearChildren();
         primaryNodesByEntityId.clear();
         bodyNodesByEntityId.clear();
+        footprintNodesByEntityId.clear();
         jointNodesByEntityId.clear();
         mapNodes.clear();
         spatialBlockNodes.clear();
@@ -34,7 +36,9 @@ public class IdVisTree extends VisTree<EntityNode, Integer> {
         if (node == null) return;
         if (node.getKind() == EntityNode.NodeKind.INFO) return;
 
-        if (node.getKind() == EntityNode.NodeKind.BODY) {
+        if (node.isFootprintNode()) {
+            footprintNodesByEntityId.put(id, node);
+        } else if (node.getKind() == EntityNode.NodeKind.BODY) {
             bodyNodesByEntityId.put(id, node);
         } else if (node.getKind() == EntityNode.NodeKind.SPATIAL_BLOCKS) {
             spatialBlockNodes.put(id, node);
@@ -66,12 +70,19 @@ public class IdVisTree extends VisTree<EntityNode, Integer> {
     public void unregisterNodeById(int id) {
         primaryNodesByEntityId.remove(id);
         bodyNodesByEntityId.remove(id);
+        footprintNodesByEntityId.remove(id);
     }
 
     public void unregisterNode(EntityNode node) {
         if (node == null) return;
 
         int nodeId = node.getEntityId();
+        if (node.isFootprintNode()) {
+            if (footprintNodesByEntityId.get(nodeId) == node) {
+                footprintNodesByEntityId.remove(nodeId);
+            }
+            return;
+        }
         if (node.getKind() == EntityNode.NodeKind.BODY) {
             if (bodyNodesByEntityId.get(nodeId) == node) {
                 bodyNodesByEntityId.remove(nodeId);
@@ -123,7 +134,14 @@ public class IdVisTree extends VisTree<EntityNode, Integer> {
         return findNodeByIntLinear(entityId, EntityNode.NodeKind.SPATIAL_BLOCKS);
     }
 
+    public EntityNode findFootprintNode(int owner) {
+        return footprintNodesByEntityId.get(owner);
+    }
+
     public EntityNode findNode(int entityId, EntityNode.NodeKind kind) {
+        if (kind == EntityNode.NodeKind.FOOTPRINT) {
+            return findFootprintNode(entityId);
+        }
         if (kind == EntityNode.NodeKind.BODY) {
             return findBodyNode(entityId);
         }
@@ -207,7 +225,8 @@ public class IdVisTree extends VisTree<EntityNode, Integer> {
     private boolean matchesKind(EntityNode.NodeKind actualKind, EntityNode.NodeKind wantedKind) {
         if (actualKind == null) return false;
         if (wantedKind != null) return actualKind == wantedKind;
-        return actualKind != EntityNode.NodeKind.BODY
+        return actualKind != EntityNode.NodeKind.FOOTPRINT
+                && actualKind != EntityNode.NodeKind.BODY
                 && actualKind != EntityNode.NodeKind.JOINT
                 && actualKind != EntityNode.NodeKind.SPATIAL_BLOCKS
                 && actualKind != EntityNode.NodeKind.INFO;

@@ -249,16 +249,18 @@ public class SceneServiceSingleLoadActivationTest {
             int[] assetIds,
             boolean linkedPhysics) {
         World authored = serializationWorld();
+        IdentityRegistry ids = new IdentityRegistry();
+        ids.bind(authored, new SceneMeta());
+        int root = games.pixscape.runtime.tiled.TiledMapHierarchy.createMap(authored, ids,
+                "Map", 0, 0, TiledProjection.ORTHO, 32, 32, 32, 32);
         for (int i = 0; i < counts.length; i++) {
             int layerEntity = authored.create();
-            authored.getMapper(PixscapeIdentityComponent.class)
-                    .create(layerEntity).stableId = i + 1;
+            ids.ensureStableId(layerEntity);
             LayerComponent layer = authored.getMapper(LayerComponent.class).create(layerEntity);
             layer.layerIndex = i;
             authored.getMapper(LayerMetaComponent.class).create(layerEntity).name = "Layer " + i;
             int mapEntity = authored.create();
-            authored.getMapper(PixscapeIdentityComponent.class)
-                    .create(mapEntity).stableId = 100 + i;
+            ids.ensureStableId(mapEntity);
             authored.getMapper(EntityIndexComponent.class).create(mapEntity).layerIndex = i;
             authored.getMapper(TransformComponent.class).create(mapEntity);
             authored.getMapper(VisibilityComponent.class).create(mapEntity);
@@ -269,6 +271,8 @@ public class SceneServiceSingleLoadActivationTest {
             tiled.mapWidthCells = 32;
             tiled.mapHeightCells = 32;
             tiled.chunkSize = 16;
+            games.pixscape.runtime.tiled.TiledMapHierarchy.attachLayer(authored, ids, root, mapEntity,
+                    games.pixscape.runtime.component.TiledMapLayerComponent.Kind.TILE, i);
             tiled.spatialEnabled = true;
             for (int cell = 0; cell < counts[i]; cell++) {
                 tiled.tileXs.add(cell % tiled.mapWidthCells);
@@ -307,21 +311,24 @@ public class SceneServiceSingleLoadActivationTest {
         }
         authored.process();
         SceneService.saveScene(authored, sceneFile, false);
+        ids.bind(null, null);
         authored.dispose();
     }
 
     private static void writeNonSpatialScene(FileHandle sceneFile, int[] counts, int[] assetIds) {
         World authored = serializationWorld();
+        IdentityRegistry ids = new IdentityRegistry();
+        ids.bind(authored, new SceneMeta());
+        int root = games.pixscape.runtime.tiled.TiledMapHierarchy.createMap(authored, ids,
+                "Map", 0, 0, TiledProjection.ORTHO, 32, 32, 32, 32);
         for (int i = 0; i < counts.length; i++) {
             int layerEntity = authored.create();
-            authored.getMapper(PixscapeIdentityComponent.class)
-                    .create(layerEntity).stableId = i + 1;
+            ids.ensureStableId(layerEntity);
             LayerComponent layer = authored.getMapper(LayerComponent.class).create(layerEntity);
             layer.layerIndex = i;
             authored.getMapper(LayerMetaComponent.class).create(layerEntity).name = "Layer " + i;
             int mapEntity = authored.create();
-            authored.getMapper(PixscapeIdentityComponent.class)
-                    .create(mapEntity).stableId = 100 + i;
+            ids.ensureStableId(mapEntity);
             authored.getMapper(EntityIndexComponent.class).create(mapEntity).layerIndex = i;
             authored.getMapper(TransformComponent.class).create(mapEntity);
             authored.getMapper(VisibilityComponent.class).create(mapEntity);
@@ -332,6 +339,8 @@ public class SceneServiceSingleLoadActivationTest {
             tiled.mapWidthCells = 32;
             tiled.mapHeightCells = 32;
             tiled.chunkSize = 16;
+            games.pixscape.runtime.tiled.TiledMapHierarchy.attachLayer(authored, ids, root, mapEntity,
+                    games.pixscape.runtime.component.TiledMapLayerComponent.Kind.TILE, i);
             for (int cell = 0; cell < counts[i]; cell++) {
                 tiled.tileXs.add(cell % tiled.mapWidthCells);
                 tiled.tileYs.add(cell / tiled.mapWidthCells);
@@ -341,6 +350,7 @@ public class SceneServiceSingleLoadActivationTest {
         }
         authored.process();
         SceneService.saveScene(authored, sceneFile, false);
+        ids.bind(null, null);
         authored.dispose();
     }
 

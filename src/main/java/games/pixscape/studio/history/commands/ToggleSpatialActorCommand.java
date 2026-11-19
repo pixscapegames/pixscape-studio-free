@@ -9,7 +9,7 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 
-/** Adds or removes only the selected entity footprint; representation settings remain authored. */
+/** Changes the selected footprint and prepares missing visual representations during activation. */
 public final class ToggleSpatialActorCommand implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
     private final World world;
     private final HistoryIdRegistry ids;
@@ -17,16 +17,23 @@ public final class ToggleSpatialActorCommand implements Command, HistoryManager.
     private final boolean enable;
     private final SpatialFootprintComponent before, after;
     private final boolean noop;
+    private final SpatialRepresentationInitialization representations;
 
     public ToggleSpatialActorCommand(World world, HistoryIdRegistry ids,
             int entity, boolean enable, boolean eligible, SpatialFootprintComponent initial) {
+        this(world, ids, entity, enable, eligible, initial, true);
+    }
+
+    ToggleSpatialActorCommand(World world, HistoryIdRegistry ids,
+            int entity, boolean enable, boolean eligible, SpatialFootprintComponent initial, boolean initializeVisuals) {
         this.world = world;
         this.ids = ids;
         this.enable = enable;
         if (enable) {
             TiledEntityRole.requireActorCapability(world, entity, "Footprint");
         }
-        boolean valid = world != null && ids != null && entity >= 0 && world.getEntityManager().isActive(entity);
+        boolean valid = world != null && ids != null && entity >= 0 && world.getEntityManager().isActive(entity)
+                && (!enable || activationRejection(world, entity) == null);
         id = valid ? ids.ensureForEntity(entity) : -1;
         SpatialFootprintComponent current = valid ? world.getMapper(SpatialFootprintComponent.class).getSafe(entity, null) : null;
         before = current == null ? null : current.copy();
@@ -35,6 +42,10 @@ public final class ToggleSpatialActorCommand implements Command, HistoryManager.
                 || !enable && before == null;
         if (after != null) {
             after.validate();
+        }
+        representations = new SpatialRepresentationInitialization(world, ids);
+        if (enable && !noop && initializeVisuals) {
+            representations.prepareSubtree(entity);
         }
     }
 
@@ -60,11 +71,33 @@ public final class ToggleSpatialActorCommand implements Command, HistoryManager.
     }
     @Override
     public CommandOutcome redoOutcome() {
+        if (enable && !noop) {
+            int entity = ids.entityOfHistoryId(id);
+            if (activationRejection(world, entity) != null) {
+                return CommandOutcome.REJECTED;
+            }
+        }
         return apply(enable ? after : null);
     }
     @Override
     public CommandOutcome undoOutcome() {
         return apply(before);
+    }
+
+    /** Cold command preflight; ownership remains independent of participation. */
+    public static String activationRejection(World world, int entity) {
+        if (world == null || entity < 0 || !world.getEntityManager().isActive(entity)) {
+            return "Object is unavailable.";
+        }
+        var index = world.getMapper(games.pixscape.runtime.component.EntityIndexComponent.class).getSafe(entity, null);
+        var composition = world.getSystem(games.pixscape.runtime.system.GameObjectCompositionSystem.class);
+        int layerIndex = composition != null && entity < composition.state().effectiveLayer.length
+                ? composition.state().effectiveLayer[entity] : index == null ? -1 : index.layerIndex;
+        var layers = world.getAspectSubscriptionManager().get(com.artemis.Aspect.all(
+                games.pixscape.runtime.component.LayerComponent.class)).getEntities();
+        int spatialLayer = games.pixscape.runtime.service.SpatialScenePolicy.actorLayerIndex(world, layers);
+        return layerIndex >= 0 && layerIndex == spatialLayer ? null
+                : "A footprint can be added only in the Spatial actor layer.";
     }
 
     private CommandOutcome apply(SpatialFootprintComponent footprint) {
@@ -75,6 +108,9 @@ public final class ToggleSpatialActorCommand implements Command, HistoryManager.
         var hierarchy = world.getSystem(games.pixscape.runtime.system.GameObjectHierarchySystem.class);
         if (hierarchy != null) {
             hierarchy.topologyForRemoval();
+        }
+        if (enable) {
+            representations.apply(footprint == null);
         }
         if (footprint == null) {
             world.getMapper(SpatialFootprintComponent.class).remove(entity);

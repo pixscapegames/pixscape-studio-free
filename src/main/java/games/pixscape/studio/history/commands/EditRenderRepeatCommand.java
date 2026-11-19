@@ -4,13 +4,42 @@ import com.artemis.ComponentMapper;
 import com.artemis.World;
 import games.pixscape.runtime.component.RenderRepeatComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.QuadDeformComponent;
+import games.pixscape.runtime.component.TextureRegionComponent;
+import games.pixscape.runtime.component.RenderMaterialComponent;
+import games.pixscape.runtime.component.AnimationComponent;
+import games.pixscape.runtime.tiled.TiledEntityRole;
+import games.pixscape.studio.component.EntityMetaComponent;
+import games.pixscape.studio.model.EntityKind;
+import games.pixscape.studio.system.StudioRenderSubmitSystem;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 
-public final class EditRenderRepeatCommand implements Command, HistoryManager.SupportsNoop {
+public final class EditRenderRepeatCommand implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
+    public static String activationRejection(World world, int entity) {
+        if (world == null || entity < 0 || !world.getEntityManager().isActive(entity)) {
+            return "Select a sprite.";
+        }
+        EntityMetaComponent meta = world.getMapper(EntityMetaComponent.class).getSafe(entity, null);
+        if (meta == null || meta.kind != EntityKind.SPRITE
+                || TiledEntityRole.of(world, entity) != TiledEntityRole.NONE
+                || world.getMapper(AnimationComponent.class).has(entity)
+                || !world.getMapper(TransformComponent.class).has(entity)
+                || !world.getMapper(TextureRegionComponent.class).has(entity)
+                || !world.getMapper(RenderMaterialComponent.class).has(entity)) {
+            return "Repeat requires a sprite with an image and material.";
+        }
+        QuadDeformComponent quad = world.getMapper(QuadDeformComponent.class).getSafe(entity, null);
+        if (quad != null && (quad.blX != 0 || quad.blY != 0 || quad.brX != 0 || quad.brY != 0
+                || quad.trX != 0 || quad.trY != 0 || quad.tlX != 0 || quad.tlY != 0)) {
+            return "Repeat is incompatible with quad deformation.";
+        }
+        StudioRenderSubmitSystem render = world.getSystem(StudioRenderSubmitSystem.class);
+        return render != null && render.isForwardEffective() ? "Repeat is unavailable with Forward lighting." : null;
+    }
     public record Snapshot(boolean repeatX, boolean repeatY) {
         public static Snapshot capture(RenderRepeatComponent component) {
             if (component == null) return disabled();
@@ -58,12 +87,14 @@ public final class EditRenderRepeatCommand implements Command, HistoryManager.Su
                                    Runnable markCurrentSceneSaveRequired) {
         this.world = world;
         this.historyIds = historyIds;
-        this.entityHistoryId = historyIds != null ? historyIds.ensureForEntity(entityId) : -1L;
         this.before = before != null ? before : Snapshot.disabled();
         this.after = after != null ? after : Snapshot.disabled();
+        boolean active = world != null && entityId >= 0 && world.getEntityManager().isActive(entityId);
+        boolean admitted = active && (!this.after.enabled() || activationRejection(world, entityId) == null);
+        this.entityHistoryId = historyIds != null && admitted ? historyIds.ensureForEntity(entityId) : -1L;
         this.markCurrentSceneSaveRequired = markCurrentSceneSaveRequired;
 
-        TransformComponent transform = world != null && entityId >= 0
+        TransformComponent transform = active
                 ? world.getMapper(TransformComponent.class).getSafe(entityId, null)
                 : null;
         this.beforeTransform = EditTransformCommand.Snapshot.capture(transform);
@@ -99,10 +130,32 @@ public final class EditRenderRepeatCommand implements Command, HistoryManager.Su
         apply(before, beforeTransform);
     }
 
-    private void apply(Snapshot snapshot, EditTransformCommand.Snapshot transformSnapshot) {
-        if (noop || snapshot == null) return;
+    @Override
+    public CommandOutcome executeOutcome() {
+        return redoOutcome();
+    }
+
+    @Override
+    public CommandOutcome redoOutcome() {
+        return apply(after, afterTransform);
+    }
+
+    @Override
+    public CommandOutcome undoOutcome() {
+        return apply(before, beforeTransform);
+    }
+
+    private CommandOutcome apply(Snapshot snapshot, EditTransformCommand.Snapshot transformSnapshot) {
+        if (noop || snapshot == null) {
+            return CommandOutcome.NO_CHANGE;
+        }
         int entityId = resolveEntityId();
-        if (entityId < 0) return;
+        if (entityId < 0) {
+            return CommandOutcome.NO_CHANGE;
+        }
+        if (snapshot.enabled() && activationRejection(world, entityId) != null) {
+            return CommandOutcome.REJECTED;
+        }
 
         boolean geometryChanged = false;
         if (transformSnapshot != null) {
@@ -132,6 +185,7 @@ public final class EditRenderRepeatCommand implements Command, HistoryManager.Su
         if (markCurrentSceneSaveRequired != null) {
             markCurrentSceneSaveRequired.run();
         }
+        return CommandOutcome.APPLIED;
     }
 
     private int resolveEntityId() {

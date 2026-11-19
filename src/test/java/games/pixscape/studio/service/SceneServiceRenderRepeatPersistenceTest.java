@@ -60,6 +60,10 @@ public class SceneServiceRenderRepeatPersistenceTest {
         HistoryManager history = new HistoryManager(8);
         int entityId = world.create();
         history.historyIds().ensureForEntity(entityId);
+        world.getMapper(games.pixscape.studio.component.EntityMetaComponent.class).create(entityId).kind =
+                games.pixscape.studio.model.EntityKind.SPRITE;
+        world.getMapper(games.pixscape.runtime.component.TextureRegionComponent.class).create(entityId);
+        world.getMapper(games.pixscape.runtime.component.RenderMaterialComponent.class).create(entityId);
 
         TransformComponent transform = world.getMapper(TransformComponent.class).create(entityId);
         transform.rotationRad = 0.8f;

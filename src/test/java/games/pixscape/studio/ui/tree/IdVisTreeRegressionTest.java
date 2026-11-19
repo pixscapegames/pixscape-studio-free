@@ -21,6 +21,29 @@ public class IdVisTreeRegressionTest {
     }
 
     @Test
+    public void footprintRowNeverReplacesItsOwnerOrFallsBackToAnEntityOnMiss() {
+        IdVisTree tree = new IdVisTree();
+        EntityNode owner = new EntityNode("Sprite", null, 1, true);
+        EntityNode footprint = new EntityNode("Footprint", com.kotcrab.vis.ui.VisUI.getSkin().getDrawable("footprint"),
+                1, true, EntityNode.NodeKind.FOOTPRINT);
+        tree.add(owner);
+        owner.add(footprint);
+        tree.registerNode(owner, 1);
+        tree.registerNode(footprint, 1);
+        assertSame(owner, tree.findNode(1));
+        assertSame(footprint, tree.findFootprintNode(1));
+        assertFalse(footprint.isEntityNode());
+        tree.selectIds(true, 1);
+        assertSame(owner, tree.getSelection().first());
+        tree.unregisterNode(footprint);
+        footprint.remove();
+        assertNull(tree.findNode(1, EntityNode.NodeKind.FOOTPRINT));
+        assertSame(owner, tree.findNode(1));
+        tree.clearNodes();
+        assertNull(tree.findFootprintNode(1));
+    }
+
+    @Test
     public void sharedRowKeepsSceneIconsRenameIndexesAndMultiSelection() {
         IdVisTree tree = new IdVisTree();
         BaseDrawable icon = new BaseDrawable();

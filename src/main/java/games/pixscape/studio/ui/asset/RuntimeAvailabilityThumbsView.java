@@ -362,23 +362,12 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
 
     private void showEmptyState() {
         grid.clear();
-        VisLabel label = new VisLabel(emptyStateText());
+        VisLabel label = new VisLabel("drop assets here to make them available at runtime");
         label.setWrap(true);
         label.setAlignment(Align.center);
         grid.add(label).growX().pad(16f).center();
         grid.invalidateHierarchy();
         content.invalidateHierarchy();
-    }
-
-    private String emptyStateText() {
-        return switch (category) {
-            case SPRITES -> "Drop sprites here to make them available at runtime.";
-            case ANIMATIONS -> "Drop animations here to make them available at runtime.";
-            case PARTICLES -> "Drop particle effects here to make them available at runtime.";
-            case GAME_OBJECTS -> "Drop Game Objects here to make them available at runtime.";
-            case TILED_TILES -> "Drop tiles here to make them available at runtime.";
-            case TILED_ANIMATIONS -> "Drop tiled animations here to make them available at runtime.";
-        };
     }
 
     private void showContextMenu(RuntimeAvailabilityItem item, float stageX, float stageY) {

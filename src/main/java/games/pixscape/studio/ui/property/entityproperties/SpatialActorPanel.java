@@ -1,11 +1,9 @@
 package games.pixscape.studio.ui.property.entityproperties;
 
-import com.badlogic.gdx.scenes.scene2d.Actor;
-import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.kotcrab.vis.ui.widget.CollapsibleWidget;
-import com.kotcrab.vis.ui.widget.VisCheckBox;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
+import com.kotcrab.vis.ui.widget.VisCheckBox;
 import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
@@ -21,7 +19,9 @@ import games.pixscape.studio.ui.widget.FloatField;
 public final class SpatialActorPanel extends CollapsibleWidget {
     private final EntityPropertiesContext ctx;
     private final VisTable root = new VisTable(true);
-    private final VisCheckBox enabledBox = new VisCheckBox("Own footprint");
+    private final CollapsibleVisTable ownFields = new CollapsibleVisTable(true);
+    private final CollapsibleVisTable representationFields = new CollapsibleVisTable(true);
+    private final CollapsibleVisTable inheritedMessage = new CollapsibleVisTable(false);
     private final VisLabel validationLabel = new VisLabel("");
     private final CollapsibleVisTable validationBlock = new CollapsibleVisTable(true, true);
     private final CollapsibleVisTable detailsBlock = new CollapsibleVisTable(true);
@@ -33,8 +33,8 @@ public final class SpatialActorPanel extends CollapsibleWidget {
 
     private int entityId = -1;
     private int footprintOwner = -1;
-    private final VisLabel ownerLabel = new VisLabel("");
-    private boolean internalRefresh = false;
+    private final VisCheckBox inheritedToggle = new VisCheckBox("Inherited from parent");
+    private boolean refreshingInheritance;
 
     public SpatialActorPanel(EntityPropertiesContext ctx) {
         super();
@@ -74,32 +74,6 @@ public final class SpatialActorPanel extends CollapsibleWidget {
                 }
             });
         }
-        enabledBox.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                if (internalRefresh || entityId < 0) {
-                    return;
-                }
-
-                boolean enable = enabledBox.isChecked();
-                boolean eligibleForActivation = isEligibleForActivation(entityId);
-                ToggleSpatialActorCommand command = new ToggleSpatialActorCommand(
-                        ctx.world,
-                        ctx.history.historyIds(),
-                        entityId,
-                        enable,
-                        eligibleForActivation,
-                        enable && eligibleForActivation ? createDefaultFootprint(entityId) : null
-                );
-                executeCommand(command);
-                refreshFromModel(entityId);
-                if (enable && command.isNoop()) {
-                    showValidation("A footprint requires a transform and a positive radius.");
-                }
-                event.handle();
-            }
-        });
-
         setTable(root);
         root.left().top();
         root.defaults().left().top().pad(1);
@@ -108,24 +82,47 @@ public final class SpatialActorPanel extends CollapsibleWidget {
         details.left().top();
         details.defaults().left().top().pad(1);
 
-        details.add(new VisLabel("Altitude:")).width(CommonLayout.LABEL_WIDTH).left();
-        details.add(altitudeField).width(CommonLayout.FIELD_WIDTH).left().row();
-
-        details.add(new VisLabel("Radius (px):")).width(CommonLayout.LABEL_WIDTH);
-        details.add(radiusField).width(CommonLayout.FIELD_WIDTH).row();
-        details.add(new VisLabel("Footprint X (px):")).width(CommonLayout.LABEL_WIDTH);
-        details.add(offsetXField).width(CommonLayout.FIELD_WIDTH).row();
-        details.add(new VisLabel("Footprint Y (px):")).width(CommonLayout.LABEL_WIDTH);
-        details.add(offsetYField).width(CommonLayout.FIELD_WIDTH).row();
-        rectanglePanel = new ActorSpatialRectanglePanel(ctx, details);
+        addGroupTitle(details, "Footprint", "Owner pose / local offsets (px)");
+        inheritedToggle.setName("spatial-inherited-footprint");
+        inheritedToggle.addListener(new com.badlogic.gdx.scenes.scene2d.utils.ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, com.badlogic.gdx.scenes.scene2d.Actor actor) {
+                if (refreshingInheritance) {
+                    return;
+                }
+                executeCommand(new games.pixscape.studio.history.commands.SetFootprintInheritanceCommand(
+                        ctx.world, ctx.history.historyIds(), entityId, inheritedToggle.isChecked()));
+                refreshFromModel(entityId);
+                event.stop();
+            }
+        });
+        inheritedMessage.content().add(inheritedToggle).left();
+        details.add(inheritedMessage).colspan(2).padLeft(CommonLayout.PAD_LEFT_SUBMENU).growX().row();
+        VisTable fields = ownFields.content();
+        fields.defaults().left().pad(1);
+        String[] labels = {"Altitude (px):", "Radius (px):", "X (px):", "Y (px):"};
+        for (int i = 0; i < footprintFields.length; i++) {
+            fields.add(new VisLabel(labels[i])).width(CommonLayout.LABEL_WIDTH)
+                    .padLeft(CommonLayout.PAD_LEFT_SUBMENU).expandX().left();
+            fields.add(footprintFields[i]).width(CommonLayout.FIELD_WIDTH).row();
+        }
+        details.add(ownFields).colspan(2).pad(0).padBottom(15).growX().row();
+        representationFields.content().left().top();
+        representationFields.content().defaults().left().top().pad(1);
+        rectanglePanel = new ActorSpatialRectanglePanel(ctx, representationFields.content());
+        details.add(representationFields).colspan(2).pad(0).growX().row();
 
         validationLabel.setWrap(true);
         validationBlock.content().add(validationLabel).growX().left().row();
-        root.add(enabledBox).left().row();
-        root.add(ownerLabel).left().row();
         root.add(validationBlock).width(CommonLayout.LABEL_WIDTH + CommonLayout.FIELD_WIDTH).left().row();
-        root.add(detailsBlock).padLeft(CommonLayout.PAD_LEFT_SUBMENU).growX().left().row();
+        root.add(detailsBlock).growX().left().row();
         detailsBlock.show(false);
+    }
+
+    static void addGroupTitle(VisTable table, String title, String coordinates) {
+        VisLabel label = new VisLabel(title);
+        table.add(label).colspan(2).left().padBottom(3).row();
+        new com.kotcrab.vis.ui.widget.Tooltip.Builder(coordinates).target(label).build();
     }
 
     @Override
@@ -136,7 +133,7 @@ public final class SpatialActorPanel extends CollapsibleWidget {
         if (owner != footprintOwner) {
             refreshFromModel(entityId);
         }
-        if (hasMarkedFootprint(footprintOwner)) {
+        if (footprintOwner == entityId && hasMarkedFootprint(entityId)) {
             var footprint = ctx.world.getMapper(SpatialFootprintComponent.class).get(footprintOwner);
             for (int i = 0; i < footprintFields.length; i++) {
                 float value = footprintValue(footprint, i);
@@ -155,32 +152,57 @@ public final class SpatialActorPanel extends CollapsibleWidget {
     }
 
     public void refreshFromModel(int eid) {
-        internalRefresh = true;
-        try {
-            footprintOwner = SpatialActorShapeSupport.owner(ctx.world, eid);
-            boolean own = hasMarkedFootprint(eid);
-            showValidation("");
-            enabledBox.setChecked(own);
-            enabledBox.setDisabled(!isEligibleForActivation(eid) && !own);
-            ownerLabel.setText(footprintOwner < 0 ? "No footprint (representation settings are retained)"
-                    : footprintOwner == eid ? "Footprint owned by this object"
-                    : "Shared footprint: " + ownerName(footprintOwner));
-            detailsBlock.show(true);
-            rectanglePanel.refresh(eid);
-            for (FloatField field : footprintFields) {
-                field.setEntityId(footprintOwner);
-                field.refreshFromModel();
-            }
-        } finally {
-            internalRefresh = false;
+        footprintOwner = SpatialActorShapeSupport.owner(ctx.world, eid);
+        boolean own = hasMarkedFootprint(eid);
+        showValidation("");
+        ownFields.show(own);
+        inheritedMessage.show(SpatialActorShapeSupport.ancestorOwner(ctx.world, eid) >= 0);
+        refreshingInheritance = true;
+        inheritedToggle.setChecked(!own);
+        refreshingInheritance = false;
+        if (!ctx.layerService.admitsSpatialActor(eid) && footprintOwner >= 0) {
+            showValidation("Retained footprint: this object is outside the Spatial actor layer.");
+        }
+        detailsBlock.show(true);
+        representationFields.show(eid >= 0 && ctx.mTexRegion.has(eid));
+        rectanglePanel.refresh(eid);
+        for (FloatField field : footprintFields) {
+            field.setEntityId(own ? eid : -1);
+            field.refreshFromModel();
         }
         invalidateHierarchy();
     }
 
-    private String ownerName(int owner) {
-        var identity = ctx.mIdentity.getSafe(owner, null);
-        return identity == null ? Integer.toString(owner)
-                : identity.name + " (#" + identity.stableId + ")";
+    public void removeSpatial() {
+        if (!hasMarkedFootprint(entityId) || SpatialActorShapeSupport.ancestorOwner(ctx.world, entityId) >= 0
+                || getStage() == null) {
+            return;
+        }
+        int target = entityId;
+        long revision = ctx.history.getMutationRevision();
+        var identity = ctx.mIdentity.getSafe(target, null);
+        var command = new games.pixscape.studio.history.commands.RemoveSpatialSubtreeCommand(
+                ctx.world, ctx.history.historyIds(), target);
+        var dialog = new games.pixscape.studio.ui.modal.StudioDialog("Remove Spatial") {
+            @Override
+            protected void result(Object result) {
+                if (Boolean.TRUE.equals(result) && ctx.history.getMutationRevision() == revision
+                        && ctx.world.getEntityManager().isActive(target)
+                        && ctx.mIdentity.getSafe(target, null) == identity) {
+                    executeCommand(command);
+                }
+                refreshFromModel(entityId);
+            }
+        };
+        dialog.setName("remove-spatial-dialog");
+        dialog.text("Remove Spatial from this object and all its descendants?\n"
+                + "Use Undo to restore all.");
+        dialog.button("Cancel", false);
+        dialog.button("OK", true);
+        dialog.closeOnEscape();
+        dialog.setModal(true);
+        dialog.setResizable(false);
+        dialog.show(getStage());
     }
 
     private static float footprintValue(SpatialFootprintComponent footprint, int property) {
@@ -197,10 +219,6 @@ public final class SpatialActorPanel extends CollapsibleWidget {
         validationBlock.show(!message.isEmpty());
     }
 
-    private boolean hasSpatialRepresentation(int eid) {
-        return eid >= 0 && ctx.mSpatialRepresentation.has(eid);
-    }
-
     private boolean hasMarkedFootprint(int eid) {
         return eid >= 0 && ctx.world.getMapper(SpatialFootprintComponent.class).has(eid);
     }
@@ -209,12 +227,36 @@ public final class SpatialActorPanel extends CollapsibleWidget {
         if (entityId < 0) {
             return;
         }
-        boolean actor = SpatialActorShapeSupport.hasActorState(ctx.world, entityId);
-        enabledBox.setDisabled(!isEligibleForActivation(entityId) && !actor);
+        refreshFromModel(entityId);
     }
 
-    private boolean isEligibleForActivation(int eid) {
-        return eid >= 0 && ctx.mTransform.has(eid);
+    public String activationRejection() {
+        if (entityId < 0 || !ctx.world.getEntityManager().isActive(entityId) || !ctx.mTransform.has(entityId)) {
+            return "A footprint requires an object with a transform.";
+        }
+        if (hasMarkedFootprint(entityId)) {
+            return "This object already owns a footprint.";
+        }
+        if (SpatialActorShapeSupport.ancestorOwner(ctx.world, entityId) >= 0) {
+            return "This object already belongs to a spatial composition.";
+        }
+        if (games.pixscape.runtime.tiled.TiledEntityRole.of(ctx.world, entityId)
+                != games.pixscape.runtime.tiled.TiledEntityRole.NONE) {
+            return "Tiled structures do not own actor footprints.";
+        }
+        return ctx.layerService.admitsSpatialActor(entityId) ? null
+                : "Enable Spatial on this object's scene layer first (one actor layer per scene).";
+    }
+
+    public void addFootprint() {
+        String rejection = activationRejection();
+        if (rejection != null) {
+            showValidation(rejection);
+            return;
+        }
+        executeCommand(new ToggleSpatialActorCommand(ctx.world, ctx.history.historyIds(),
+                entityId, true, true, createDefaultFootprint(entityId)));
+        refreshFromModel(entityId);
     }
 
     private SpatialFootprintComponent createDefaultFootprint(int eid) {
