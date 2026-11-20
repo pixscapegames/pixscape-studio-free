@@ -744,16 +744,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         // --- PointLight ---
         if (hasPointLight) {
             var l = mPL.has(e) ? mPL.get(e) : mPL.create(e);
-            l.enabled = pointEnabled;
-            l.intensity = pointIntensity;
-            l.radius = pointRadius;
-            l.falloff = pointFalloff;
-            l.height = pointHeight;
-            l.shadowQuality = pointShadowQuality;
-            l.shadowResolution = pointShadowResolution;
-            l.r = pointR;
-            l.g = pointG;
-            l.b = pointB;
+            copyPointLightTo(l);
 
             if (dirty != null) {
                 dirty.material(e);                  // shader params (falloff)
@@ -765,20 +756,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         // --- ConeLight ---
         if (hasConeLight) {
             var l = mCL.has(e) ? mCL.get(e) : mCL.create(e);
-            l.enabled = coneEnabled;
-            l.intensity = coneIntensity;
-            l.radius = coneRadius;
-            l.coneAngleDeg = coneAngleDeg;
-            l.inclinationDeg = coneInclinationDeg;
-            l.softness = coneSoftness;
-            l.falloff = coneFalloff;
-            l.height = coneHeight;
-            l.shadowQuality = coneShadowQuality;
-            l.shadowResolution = coneShadowResolution;
-            l.rotationDeg = coneRotationDeg;
-            l.r = coneR;
-            l.g = coneG;
-            l.b = coneB;
+            copyConeLightTo(l);
 
             if (dirty != null) {
                 dirty.material(e);
@@ -934,6 +912,56 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     /** Replaces the captured values with the graph/asset properties after reference remapping. */
     public void setCustomProperties(PropertySet properties) {
         customProperties = properties != null ? properties.copy() : null;
+    }
+
+    /** Returns an independent copy of the captured light, or null when absent. */
+    public PointLightComponent copyCapturedPointLight() {
+        if (!hasPointLight) {
+            return null;
+        }
+        PointLightComponent copy = new PointLightComponent();
+        copyPointLightTo(copy);
+        return copy;
+    }
+
+    /** Returns an independent copy of the captured light, or null when absent. */
+    public ConeLightComponent copyCapturedConeLight() {
+        if (!hasConeLight) {
+            return null;
+        }
+        ConeLightComponent copy = new ConeLightComponent();
+        copyConeLightTo(copy);
+        return copy;
+    }
+
+    private void copyPointLightTo(PointLightComponent target) {
+        target.enabled = pointEnabled;
+        target.intensity = pointIntensity;
+        target.radius = pointRadius;
+        target.falloff = pointFalloff;
+        target.height = pointHeight;
+        target.shadowQuality = pointShadowQuality;
+        target.shadowResolution = pointShadowResolution;
+        target.r = pointR;
+        target.g = pointG;
+        target.b = pointB;
+    }
+
+    private void copyConeLightTo(ConeLightComponent target) {
+        target.enabled = coneEnabled;
+        target.intensity = coneIntensity;
+        target.radius = coneRadius;
+        target.coneAngleDeg = coneAngleDeg;
+        target.inclinationDeg = coneInclinationDeg;
+        target.softness = coneSoftness;
+        target.falloff = coneFalloff;
+        target.height = coneHeight;
+        target.shadowQuality = coneShadowQuality;
+        target.shadowResolution = coneShadowResolution;
+        target.rotationDeg = coneRotationDeg;
+        target.r = coneR;
+        target.g = coneG;
+        target.b = coneB;
     }
 
     public GenericEntitySnapshotData toSnapshotData(int sourceEntityId) {

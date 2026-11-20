@@ -5,6 +5,7 @@ import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
@@ -17,6 +18,8 @@ import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyValue;
+import games.pixscape.runtime.property.EnumDefinition;
+import games.pixscape.runtime.property.PropertyType;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.IdentityRegistry;
@@ -38,6 +41,142 @@ import org.junit.rules.TemporaryFolder;
 public class GameObjectAssetServiceTest {
     @Rule
     public TemporaryFolder temp = new TemporaryFolder();
+
+    @Test
+    public void exportUsesCapturedLightsAndPropertiesWithIndependentRemappedValues() throws Exception {
+        World world = new World();
+        try {
+            int root = entity(world, 10, -1, true, 0, 0);
+            int child = entity(world, 20, 10, false, 4, 1);
+            PointLightComponent point = world.getMapper(PointLightComponent.class).create(child);
+            point.r = 0.2f;
+            point.g = 0.4f;
+            point.b = 0.6f;
+            point.intensity = 2f;
+            point.radius = 123f;
+            point.falloff = 2.5f;
+            point.height = 64f;
+            point.shadowQuality = 2;
+            point.shadowResolution = 1024;
+            point.enabled = false;
+            ConeLightComponent cone = world.getMapper(ConeLightComponent.class).create(child);
+            cone.r = 0.3f;
+            cone.g = 0.5f;
+            cone.b = 0.7f;
+            cone.intensity = 3f;
+            cone.radius = 234f;
+            cone.coneAngleDeg = 67f;
+            cone.rotationDeg = 23f;
+            cone.inclinationDeg = -31.25f;
+            cone.softness = 0.25f;
+            cone.falloff = 1.75f;
+            cone.height = 96f;
+            cone.shadowQuality = 0;
+            cone.shadowResolution = 256;
+            cone.enabled = false;
+            PropertySet properties = new PropertySet().putObjectStableId("target", 20)
+                    .putObjectStableId("none", -1)
+                    .putList("links", Array.with(PropertyValue.ofClass("Link", new PropertySet()
+                            .putObjectStableId("owner", 10).putFloat("precise", 16777217d)
+                            .put("flags", PropertyValue.ofEnum(new EnumDefinition("Flags",
+                                    PropertyType.INTEGER, true, "A", "B"), 3)))));
+            world.getMapper(CustomPropertiesComponent.class).create(child).properties = properties.copy();
+            world.process();
+            EntityGraph graph = new EntityGraphCaptureService(world)
+                    .captureForGameObject(new IntArray(new int[]{root}));
+            GameObjectAssetService service = new GameObjectAssetService(world);
+            FileHandle file = new FileHandle(temp.getRoot()).child("captured.gameobject");
+            service.saveGameObject(file, graph);
+            String expectedJson = file.readString("UTF-8");
+            GameObjectAssetLoader loader = new GameObjectAssetLoader();
+            var loaded = loader.load(file).entities.get(1);
+            Assert.assertArrayEquals(new float[]{0.2f, 0.4f, 0.6f, 2f, 123f, 2.5f, 64f},
+                    new float[]{loaded.pointLight.r, loaded.pointLight.g, loaded.pointLight.b,
+                            loaded.pointLight.intensity, loaded.pointLight.radius,
+                            loaded.pointLight.falloff, loaded.pointLight.height}, 0f);
+            Assert.assertEquals(2, loaded.pointLight.shadowQuality);
+            Assert.assertEquals(1024, loaded.pointLight.shadowResolution);
+            Assert.assertFalse(loaded.pointLight.enabled);
+            Assert.assertArrayEquals(new float[]{0.3f, 0.5f, 0.7f, 3f, 234f, 67f, 23f, -31.25f, 0.25f, 1.75f, 96f},
+                    new float[]{loaded.coneLight.r, loaded.coneLight.g, loaded.coneLight.b,
+                            loaded.coneLight.intensity, loaded.coneLight.radius, loaded.coneLight.coneAngleDeg,
+                            loaded.coneLight.rotationDeg, loaded.coneLight.inclinationDeg,
+                            loaded.coneLight.softness, loaded.coneLight.falloff, loaded.coneLight.height}, 0f);
+            Assert.assertEquals(0, loaded.coneLight.shadowQuality);
+            Assert.assertEquals(256, loaded.coneLight.shadowResolution);
+            Assert.assertFalse(loaded.coneLight.enabled);
+            PropertySet expectedProperties = properties.remapObjectReferences(id -> id == -1 ? -1 : id / 10);
+            Assert.assertTrue(expectedProperties.contentEquals(loaded.customProperties));
+
+            point.radius = 999f;
+            cone.inclinationDeg = 42f;
+            world.getMapper(CustomPropertiesComponent.class).get(child).properties.putList("links", new Array<>());
+            service.saveGameObject(file, graph);
+            Assert.assertEquals(expectedJson, file.readString("UTF-8"));
+
+            IntMap<Integer> stableToAsset = new IntMap<>();
+            stableToAsset.put(10, 1);
+            stableToAsset.put(20, 2);
+            var mapper = new GameObjectEntityDataMapper();
+            var exported = mapper.fromGraphEntry(world, graph.entries().get(1), stableToAsset);
+            exported.pointLight.radius = 777f;
+            exported.coneLight.inclinationDeg = 15f;
+            exported.customProperties.putList("links", new Array<>());
+            var exportedAgain = mapper.fromGraphEntry(world, graph.entries().get(1), stableToAsset);
+            Assert.assertEquals(123f, exportedAgain.pointLight.radius, 0f);
+            Assert.assertEquals(-31.25f, exportedAgain.coneLight.inclinationDeg, 0f);
+            Assert.assertTrue(expectedProperties.contentEquals(exportedAgain.customProperties));
+            Assert.assertTrue(properties.contentEquals(graph.entries().get(1).initializer()
+                    .toSnapshotData(child).customProperties));
+            Assert.assertEquals(999f, point.radius, 0f);
+            Assert.assertEquals(42f, cone.inclinationDeg, 0f);
+
+            world.getMapper(PointLightComponent.class).remove(child);
+            world.getMapper(ConeLightComponent.class).remove(child);
+            world.getMapper(CustomPropertiesComponent.class).remove(child);
+            world.process();
+            service.saveGameObject(file, graph);
+            Assert.assertEquals(expectedJson, file.readString("UTF-8"));
+            Assert.assertTrue(expectedProperties.contentEquals(loader.load(file).entities.get(1).customProperties));
+        } finally {
+            world.dispose();
+        }
+    }
+
+    @Test
+    public void exportKeepsCapturedAbsenceAndEmptyPropertiesWhenSourceGainsComponents() throws Exception {
+        World world = new World();
+        try {
+            int root = entity(world, 10, -1, true, 0, 0);
+            int empty = entity(world, 20, 10, false, 4, 1);
+            world.getMapper(CustomPropertiesComponent.class).create(empty);
+            world.process();
+            EntityGraph graph = new EntityGraphCaptureService(world)
+                    .captureForGameObject(new IntArray(new int[]{root}));
+            GameObjectAssetService service = new GameObjectAssetService(world);
+            FileHandle file = new FileHandle(temp.getRoot()).child("absent.gameobject");
+            service.saveGameObject(file, graph);
+            String expectedJson = file.readString("UTF-8");
+            for (int entity : new int[]{root, empty}) {
+                world.getMapper(PointLightComponent.class).create(entity);
+                world.getMapper(ConeLightComponent.class).create(entity);
+                world.getMapper(CustomPropertiesComponent.class).create(entity).properties =
+                        new PropertySet().putInt("added", 1);
+            }
+            world.process();
+            service.saveGameObject(file, graph);
+            Assert.assertEquals(expectedJson, file.readString("UTF-8"));
+            GameObjectAsset loaded = new GameObjectAssetLoader().load(file);
+            for (var data : loaded.entities) {
+                Assert.assertNull(data.pointLight);
+                Assert.assertNull(data.coneLight);
+            }
+            Assert.assertNull(loaded.entities.get(0).customProperties);
+            Assert.assertTrue(new PropertySet().contentEquals(loaded.entities.get(1).customProperties));
+        } finally {
+            world.dispose();
+        }
+    }
 
     @Test
     public void autonomousSpatialAuthoringSurvivesHistorySaveAndReopeningWithoutSpatialLayer() throws Exception {

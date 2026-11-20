@@ -26,6 +26,7 @@ final class GameObjectEntityDataMapper {
         copySnapshotToAsset(source, data);
         data.surfaceLighting = source.surfaceLighting == null ? null : source.surfaceLighting.copy();
 
+        // The Game Object marker still comes from the live World; authored values below are captured.
         int entityId = entry.sourceEntityId();
         if (world.getMapper(GameObjectComponent.class).has(entityId)) {
             data.gameObject = new GameObjectAsset.GameObjectData();
@@ -36,18 +37,15 @@ final class GameObjectEntityDataMapper {
                 data.tags.values.addAll(source.tags);
             }
         }
-        CustomPropertiesComponent properties = world.getMapper(CustomPropertiesComponent.class)
-                .getSafe(entityId, null);
-        if (properties != null && properties.properties != null) {
-            data.customProperties = remapProperties(properties.properties, stableToSource);
+        if (source.customProperties != null) {
+            data.customProperties = remapProperties(source.customProperties, stableToSource);
         }
         if (source.hasRepeat) {
             data.repeat = new GameObjectAsset.RepeatData();
             data.repeat.repeatX = source.repeatX;
             data.repeat.repeatY = source.repeatY;
         }
-        PointLightComponent point = world.getMapper(PointLightComponent.class)
-                .getSafe(entityId, null);
+        PointLightComponent point = entry.initializer().copyCapturedPointLight();
         if (point != null) {
             data.pointLight = new GameObjectAsset.PointLightData();
             data.pointLight.r = point.r;
@@ -61,8 +59,7 @@ final class GameObjectEntityDataMapper {
             data.pointLight.shadowResolution = point.shadowResolution;
             data.pointLight.enabled = point.enabled;
         }
-        ConeLightComponent cone = world.getMapper(ConeLightComponent.class)
-                .getSafe(entityId, null);
+        ConeLightComponent cone = entry.initializer().copyCapturedConeLight();
         if (cone != null) {
             data.coneLight = new GameObjectAsset.ConeLightData();
             data.coneLight.r = cone.r;
