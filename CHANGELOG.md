@@ -49,6 +49,7 @@
 * Refreshed the distributed HTML Preview player for the current Game Object composition formats and the Runtime physics bootstrap correction.
 
 ### Fixed
+* Spatial occlusion rectangle move/resize gestures now use the captured representation when preparing canvas geometry, avoiding an incomplete-representation exception. Rectangle and shadow-pivot clicks without changes no longer add empty history commands.
 * Game Object asset export now reads custom properties, PointLight and ConeLight from the captured initializer data. Independent copies retain component absence, all light parameters including cone inclination, and recursive typed-property reference remapping.
 * Spatial inspector group titles now have consistent spacing above their fields when footprint inheritance controls are hidden.
 * Inspector transform fields now refresh after Game Object reparenting, detachment and Undo/Redo without reselecting or creating another edit. Notifications preserve the Physics ancestor scale lock.

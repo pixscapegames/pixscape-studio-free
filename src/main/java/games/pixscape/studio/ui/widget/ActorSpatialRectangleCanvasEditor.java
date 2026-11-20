@@ -101,7 +101,7 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
                 if (handle >= 1 && handle <= 3) {
                     var d = canvas.getDynamicEntityState();
                     int slot = d.renderSlotForEntity(entity);
-                    dragGeometry.update(null, d.x1[slot], d.y1[slot], d.x2[slot], d.y2[slot],
+                    dragGeometry.update(before, d.x1[slot], d.y1[slot], d.x2[slot], d.y2[slot],
                             d.x3[slot], d.y3[slot], d.x4[slot], d.y4[slot],
                             d.u1[slot] > d.u2[slot], d.v1[slot] > d.v2[slot]);
                     float u = before.x + before.width * (handle == 2 ? 1f : .5f);
@@ -378,8 +378,11 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
                 gestureContext.world().getMapper(SpatialRepresentationComponent.class).remove(entity);
             }
             if (!cancelled) {
-                gestureContext.historyManager().execute(new EditActorSpatialRectangleCommand(gestureContext.world(),
-                        gestureContext.historyManager().historyIds(), entity, asset, clip, candidate, gestureContext::markExplicitSaveRequired));
+                var command = new EditActorSpatialRectangleCommand(gestureContext.world(),
+                        gestureContext.historyManager().historyIds(), entity, asset, clip, candidate, gestureContext::markExplicitSaveRequired);
+                if (!command.isNoop()) {
+                    gestureContext.historyManager().execute(command);
+                }
             }
         }
         handle = -1;
