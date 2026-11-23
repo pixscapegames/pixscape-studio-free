@@ -388,9 +388,11 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private void drawSelectedActorInfluenceQuads() {
-        // Actor/fixture selection exits the block-editing Spatial submode.
-        // Runtime eligibility identifies Spatial actors in Normal and Physics modes too.
         if (editingModeService != null && !editingModeService.hasActiveSceneDocument()) return;
+        if (isExplicitPhysicsEditMode()
+                || selectionService != null && selectionService.getInspectedFootprintOwner() >= 0) {
+            return;
+        }
         SpatialRenderOrderSystem spatial = world.getSystem(SpatialRenderOrderSystem.class);
         if (spatial == null) return;
         for (int entity : selected) drawActorInfluenceQuad(spatial, entity);

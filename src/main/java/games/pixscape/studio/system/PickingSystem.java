@@ -46,6 +46,7 @@ import games.pixscape.studio.input.InputState;
 import games.pixscape.studio.service.*;
 import games.pixscape.studio.service.physics.*;
 import games.pixscape.studio.service.spatial.*;
+import games.pixscape.studio.ui.asset.dnd.DragContext;
 
 import java.util.Objects;
 
@@ -201,6 +202,8 @@ public final class PickingSystem extends BaseSystem {
     private int resizingCircleFixtureId = PhysicsSelectionService.NO_SHAPE;
     private float resizeCircleBeforeRadius = 0f;
     private float circleRadiusDragCurrent = 0f;
+    private PhysicsShapeData resizingFixtureBefore;
+    private long resizingFixtureBodyHistoryId, resizingFixtureHistoryRevision;
     private int movingPolygonVertexBodyEid = -1;
     private int movingPolygonVertexFixtureId = PhysicsSelectionService.NO_SHAPE;
     private int movingPolygonVertexIndex = -1;
@@ -298,6 +301,7 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private void clearFixtureEditingState() {
+        cancelFixtureResize();
         clearFixtureMoveState();
         clearBoxResizeState();
         clearCircleResizeState();
@@ -345,6 +349,16 @@ public final class PickingSystem extends BaseSystem {
 
     @Override
     protected void processSystem() {
+        if (resizingFixtureBefore != null && (!isFixtureResizeTargetCurrent()
+                || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE))) {
+            cancelFixtureResize();
+            clearHoverState();
+            inputState.clearAll();
+        }
+        if (DragContext.get().active()) {
+            clearHoverState();
+            return;
+        }
         if (lightValueCursor) {
             setCursor(Cursor.SystemCursor.Arrow);
             lightValueCursor = false;
@@ -381,6 +395,7 @@ public final class PickingSystem extends BaseSystem {
 
         CornerProfileEditSession corner = spatialBlockSelectionService.cornerProfile();
         if (corner.active()) {
+            clearHoverState();
             if (!spatialBlockSelectionService.isEditingActive()
                     || !isSelectableInViewport(spatialBlockSelectionService.getEditingMapEntityId())
                     || spatialBlockSelectionService.getEditingMapEntityId() != corner.target().mapId()) {
@@ -425,6 +440,7 @@ public final class PickingSystem extends BaseSystem {
                 leftPressed && !inputState.isCtrl() && !inputState.isShift(), leftDown, leftReleased,
                 Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE), Gdx.input.isKeyJustPressed(Input.Keys.BACKSPACE),
                 isPointerOverUI())) {
+            clearHoverState();
             cancelLassoIfNeeded();
             selectionService.clearHoveredEntity();
             resetPressState();
@@ -440,6 +456,7 @@ public final class PickingSystem extends BaseSystem {
             return;
         }
         if (processPolygonDrawMode(mx, my, leftPressed)) {
+            clearHoverState();
             showLightValueHint(null);
             updateCursorForHover(
                     InputManipulationContext.Handle.NONE,
@@ -463,17 +480,25 @@ public final class PickingSystem extends BaseSystem {
             cancelQuadVertexMove();
         }
 
-        if (isPointerOverUI() && !tiledTranslation && !movingSpatialBlockActive && !resizingSpatialBlockActive && !lightRadiusDragActive) {
+        if (isPointerOverUI() && !tiledTranslation && !movingSpatialBlockActive && !resizingSpatialBlockActive
+                && !lightRadiusDragActive && !ctx.isDragging() && !translatingActive
+                && !resizingCircleActive && !resizingBoxActive && !movingFixtureActive
+                && !jointAnchorDragActive && !movingPolygonVertexActive && !movingQuadVertexActive) {
             showLightValueHint(null);
             cancelLassoIfNeeded();
             if (selectionService != null) selectionService.clearHoveredEntity();
             if (spatialBlockSelectionService != null) spatialBlockSelectionService.clearHover();
             if (spatialTileSelectionService != null) spatialTileSelectionService.clearHover();
+            clearHoverState();
             return;
         }
 
 
         if (isSpatialBlockModeActive()) {
+            clearPhysicsHover();
+            clearHoveredPolygonVertex();
+            hoveredQuadVertexIndex = -1;
+            ctx.setHovered(InputManipulationContext.Handle.NONE);
             showLightValueHint(null);
             cancelLassoIfNeeded();
             if (selectionService != null) selectionService.clearHoveredEntity();
@@ -490,6 +515,7 @@ public final class PickingSystem extends BaseSystem {
             InputManipulationContext.Handle cursorHandle = spatialBlockCursorHandle(
                     resizingSpatialBlockActive ? resizingSpatialBlockHandle : spatialHandle
             );
+            ctx.setHovered(cursorHandle);
             updateCursorForHover(
                     cursorHandle,
                     resizingSpatialBlockActive,
@@ -500,6 +526,7 @@ public final class PickingSystem extends BaseSystem {
         }
 
         if (isTiledModeActive() && !tiledTranslation) {
+            clearHoverState();
             showLightValueHint(null);
             cancelLassoIfNeeded();
             if (selectionService != null) selectionService.clearHoveredEntity();
@@ -1848,6 +1875,7 @@ public final class PickingSystem extends BaseSystem {
         resizingBoxBodyEid = bodyEid;
         resizingBoxFixtureId = physicsShapeId;
         resizingBoxHandle = ctx.hoveredHandle();
+        captureFixtureResize(bodyEid, fixture);
 
         resizeBoxBeforeOffsetX = fixture.geometry.offsetX;
         resizeBoxBeforeOffsetY = fixture.geometry.offsetY;
@@ -1890,10 +1918,47 @@ public final class PickingSystem extends BaseSystem {
         resizingCircleActive = true;
         resizingCircleBodyEid = bodyEid;
         resizingCircleFixtureId = physicsShapeId;
+        captureFixtureResize(bodyEid, fixture);
         resizeCircleBeforeRadius = fixture.geometry.radius;
         circleRadiusDragCurrent = fixture.geometry.radius;
         oldDrag.set(mx, my);
         return true;
+    }
+
+    private void captureFixtureResize(int bodyEid, PhysicsShapeData fixture) {
+        resizingFixtureBefore = fixture.copy();
+        resizingFixtureBodyHistoryId = historyIds.ensureForEntity(bodyEid);
+        resizingFixtureHistoryRevision = historyManager.getMutationRevision();
+    }
+
+    private boolean isFixtureResizeTargetCurrent() {
+        int body = resizingBoxActive ? resizingBoxBodyEid : resizingCircleBodyEid;
+        return isExplicitPhysicsEditMode()
+                && physicsSelectionService.getFocusedBodyEid() == body
+                && physicsSelectionService.getSelectedPhysicsShapeId() == resizingFixtureBefore.physicsShapeId
+                && historyIds.entityOfHistoryId(resizingFixtureBodyHistoryId) == body
+                && historyManager.getMutationRevision() == resizingFixtureHistoryRevision
+                && isFixtureGeometryEditable(world, body, resizingFixtureBefore.physicsShapeId);
+    }
+
+    /** Restores only the captured body's preview, never a newly selected or restored entity. */
+    public void cancelFixtureResize() {
+        if (resizingFixtureBefore == null) {
+            return;
+        }
+        int body = resizingBoxActive ? resizingBoxBodyEid : resizingCircleBodyEid;
+        if (historyIds.entityOfHistoryId(resizingFixtureBodyHistoryId) == body
+                && historyManager.getMutationRevision() == resizingFixtureHistoryRevision
+                && isFixtureGeometryEditable(world, body, resizingFixtureBefore.physicsShapeId)) {
+            Array<PhysicsShapeData> candidate = FixtureCommandSupport.copyFixtures(world, body);
+            int index = indexOfPhysicsShape(candidate, resizingFixtureBefore.physicsShapeId);
+            candidate.get(index).geometry = resizingFixtureBefore.geometry.copy();
+            FixtureCommandSupport.prepareAndPublish(world, body, candidate);
+            FixtureCommandSupport.markDirty(world, body);
+        }
+        clearBoxResizeState();
+        clearCircleResizeState();
+        resetPressState();
     }
 
     private void worldToBodyLocalPx(int bodyEid, float wx, float wy, Vector2 out) {
@@ -2009,6 +2074,7 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private void clearBoxResizeState() {
+        resizingFixtureBefore = null;
         resizingBoxActive = false;
         resizingBoxBodyEid = -1;
         resizingBoxFixtureId = PhysicsSelectionService.NO_SHAPE;
@@ -2056,6 +2122,7 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private void clearCircleResizeState() {
+        resizingFixtureBefore = null;
         resizingCircleActive = false;
         resizingCircleBodyEid = -1;
         resizingCircleFixtureId = PhysicsSelectionService.NO_SHAPE;
@@ -4350,16 +4417,23 @@ public final class PickingSystem extends BaseSystem {
     }
 
     public void cancelLightValueGesture() {
+        boolean ownedCursor = lightValueCursor || lightValueGesture != null && lightValueGesture.active();
         cancelLightRadiusDrag();
         if (lightValueGesture != null) lightValueGesture.cancel();
         showLightValueHint(null);
         if (lightOverlay != null) lightOverlay.setValueHandle(-1, null, false);
-        setCursor(Cursor.SystemCursor.Arrow);
-        osCursorHidden = false;
+        if (ownedCursor && !DragContext.get().active()) {
+            setCursor(Cursor.SystemCursor.Arrow);
+        }
+        lightValueCursor = false;
         resetPressState();
     }
 
     private void showLightValueCursor(boolean intensity) {
+        ctx.setHovered(InputManipulationContext.Handle.NONE);
+        clearHoveredPolygonVertex();
+        hoveredQuadVertexIndex = -1;
+        clearPhysicsHover();
         lightValueCursor = true;
         if (gizmoSystem != null) gizmoSystem.clearCursor();
         osCursorHidden = false;
@@ -4530,6 +4604,8 @@ public final class PickingSystem extends BaseSystem {
                 hasCustomCursor = true;
             }
         } else if (hovered != InputManipulationContext.Handle.NONE
+                && !isExplicitPhysicsEditMode()
+                && !isSpatialBlockModeActive()
                 && sel.size == 1
                 && GameObjectHierarchyCommandSupport.isPhysicsAncestorScaleLocked(
                 world, sel.first())) {
@@ -4555,6 +4631,24 @@ public final class PickingSystem extends BaseSystem {
                 setCursor(Cursor.SystemCursor.Arrow);
                 osCursorHidden = false;
             }
+        }
+    }
+
+    /** Releases picking's hover without taking the OS cursor from an asset drag or light tool. */
+    public void clearHoverState() {
+        ctx.setHovered(InputManipulationContext.Handle.NONE);
+        clearHoveredPolygonVertex();
+        hoveredQuadVertexIndex = -1;
+        clearPhysicsHover();
+        if (gizmoSystem != null) {
+            gizmoSystem.clearCursor();
+        }
+        if (osCursorHidden) {
+            if (!DragContext.get().active() && !lightValueCursor) {
+                setCursor(Cursor.SystemCursor.Arrow);
+            }
+            osCursorHidden = false;
+            lastCursor = Cursor.SystemCursor.Arrow;
         }
     }
 

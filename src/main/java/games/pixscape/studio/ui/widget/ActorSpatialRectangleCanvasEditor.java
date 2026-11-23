@@ -46,7 +46,7 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
     private float displayX, displayY, localPressX, localPressY;
     private int owner = -1, gestureOwner = -1, dragTriangle;
     private long entityHistoryId, ownerHistoryId;
-    private boolean visual, hadRepresentation;
+    private boolean visual, hadRepresentation, gestureFootprintInspection;
     private ActorSpatialRectangles rectanglesBefore;
     private SpatialRepresentationComponent gestureRepresentation;
     private ShapeDrawer drawer;
@@ -83,6 +83,7 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
                 }
                 gestureContext = canvas.getAttachedSceneContext();
                 entity = selected(gestureContext);
+                gestureFootprintInspection = inspectingFootprint(gestureContext);
                 asset = asset(gestureContext, entity);
                 clip = clip(gestureContext, entity);
                 gestureOwner = owner;
@@ -90,8 +91,8 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
                 ownerHistoryId = gestureContext.historyManager().historyIds().ensureForEntity(owner);
                 footprintBefore = currentFootprint.copy();
                 gestureFootprint = currentFootprint;
-                before = current.copy();
-                candidate = current.copy();
+                before = picked < 4 ? current.copy() : null;
+                candidate = before == null ? null : before.copy();
                 handle = picked;
                 pointer = p;
                 factor = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT) || Gdx.input.isKeyPressed(Input.Keys.SHIFT_RIGHT) ? .1f : 1f;
@@ -196,7 +197,16 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
     }
 
     private static int selected(SceneEditorContext c) {
-        return c != null && c.selectionService().getSelectionSet().size == 1 ? c.selectionService().getFirstSelectedEntityId() : -1;
+        if (c == null || c.isDisposed()) {
+            return -1;
+        }
+        int inspected = c.selectionService().getInspectedFootprintOwner();
+        return inspected >= 0 ? inspected : c.selectionService().getSelectionSet().size == 1
+                ? c.selectionService().getFirstSelectedEntityId() : -1;
+    }
+
+    private static boolean inspectingFootprint(SceneEditorContext c) {
+        return c != null && !c.isDisposed() && c.selectionService().getInspectedFootprintOwner() >= 0;
     }
 
     private static int asset(SceneEditorContext c, int e) {
@@ -227,7 +237,7 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
         current = h == null || h.rectangles == null ? null : h.rectangles.get(asset(ctx, e), clip(ctx, e));
         var d = canvas.getDynamicEntityState();
         int slot = d == null ? -1 : d.renderSlotForEntity(e);
-        visual = current != null && slot >= 0 && d.visible[slot] && d.enabled[slot]
+        visual = !inspectingFootprint(ctx) && current != null && slot >= 0 && d.visible[slot] && d.enabled[slot]
                 && ctx.world().getMapper(games.pixscape.runtime.component.DimensionsComponent.class).has(e);
         displayX = visual ? d.offsetX[slot] : 0f;
         displayY = visual ? d.offsetY[slot] : 0f;
@@ -322,10 +332,11 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
         var h = spatial(ctx, entity);
         if (!available.getAsBoolean() || ctx == null || ctx.isDisposed() || ctx != gestureContext
                 || selected(ctx) != entity
+                || inspectingFootprint(ctx) != gestureFootprintInspection
                 || ctx.historyManager().historyIds().entityOfHistoryId(entityHistoryId) != entity
                 || ctx.historyManager().historyIds().entityOfHistoryId(ownerHistoryId) != gestureOwner
                 || SpatialActorShapeSupport.owner(ctx.world(), entity) != gestureOwner
-                || asset(ctx, entity) != asset || !Objects.equals(clip, clip(ctx, entity))) {
+                || handle < 4 && (asset(ctx, entity) != asset || !Objects.equals(clip, clip(ctx, entity)))) {
             return false;
         }
         return handle >= 4 ? ctx.world().getMapper(SpatialFootprintComponent.class).getSafe(gestureOwner, null) == gestureFootprint

@@ -472,6 +472,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             if (picking != null) {
                 picking.cancelLightValueGesture();
                 picking.cancelTiledTranslationGesture();
+                picking.cancelFixtureResize();
+                picking.clearHoverState();
             }
         }
         gridStage.cancelTouchFocus();
@@ -1615,6 +1617,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     if (picking != null) {
                         picking.cancelLightValueGesture();
                         picking.cancelTiledTranslationGesture();
+                        picking.cancelFixtureResize();
+                        picking.clearHoverState();
                         if (picking.getTiledObjectEditor() != null) {
                             picking.getTiledObjectEditor().cancel();
                         }
