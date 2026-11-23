@@ -60,6 +60,116 @@ public class CursorOverlaySelectionGlTest {
     private int mouseX = 10, mouseY = 150;
 
     @Test
+    public void lightsNeverDrawOrPickGenericRectanglesButKeepTheirOwnControls() throws Exception {
+        withFixture(() -> {
+            ctx.sceneMeta().physicsEnabled = false;
+            int point = canvas.getEditorOps().createPointLight(0, 0);
+            int cone = canvas.getEditorOps().createConeLight(250, 0);
+            int visual = canvas.getEditorOps().createStandaloneSprite("audit.png", -200, 0);
+            refresh();
+            var modes = (games.pixscape.studio.service.StudioEditingModeService) field(gizmo, "editingModeService");
+            for (int light : new int[]{point, cone}) {
+                // Hierarchy capability must not redirect a light into the generic Game Object gizmo.
+                canvas.getEditorOps().createStandaloneSpriteInGameObject(light, "audit.png", "Child");
+                refresh();
+                assertTrue(ctx.world().getMapper(GameObjectComponent.class).has(light));
+                String before = lightData(light);
+                for (var mode : new games.pixscape.studio.service.StudioEditingMode[]{
+                        games.pixscape.studio.service.StudioEditingMode.NORMAL,
+                        games.pixscape.studio.service.StudioEditingMode.LIGHTS,
+                        games.pixscape.studio.service.StudioEditingMode.PHYSICS,
+                        games.pixscape.studio.service.StudioEditingMode.TILED,
+                        games.pixscape.studio.service.StudioEditingMode.SPATIAL}) {
+                    modes.activateSceneDocument(mode, 0);
+                    ctx.selectionService().selectOnly(light);
+                    pointer(new Vector2(10, 150));
+                    refresh();
+                    assertEquals(mode.toString(), 0, genericGizmoDraws());
+                    float[] corners = (float[]) invoke(picking, "computeOBBWorldCorners", new Class<?>[]{int.class}, light);
+                    assertNotNull(corners);
+                    for (int i = 0; i < corners.length; i += 2) {
+                        assertEquals(InputManipulationContext.Handle.NONE,
+                                invoke(picking, "detectHandleHover", new Class<?>[]{int.class, float.class, float.class},
+                                        light, corners[i], corners[i + 1]));
+                    }
+                    assertNotEquals("RESIZE", field(gizmo, "cursorKind").toString());
+                }
+                assertEquals(before, lightData(light));
+                modes.activateSceneDocument(games.pixscape.studio.service.StudioEditingMode.NORMAL, 0);
+                ctx.selectionService().selectOnly(visual);
+                refresh();
+                assertTrue("Visual selection still draws its rectangle", genericGizmoDraws() > 0);
+                ctx.selectionService().toggle(light);
+                refresh();
+                assertTrue("Mixed selection keeps the visual rectangle", genericGizmoDraws() > 0);
+                ctx.selectionService().selectOnly(light);
+                refresh();
+                assertEquals(0, genericGizmoDraws());
+
+                var lightOverlay = ctx.world().getSystem(games.pixscape.studio.system.LightIconOverlaySystem.class);
+                var draw = (games.pixscape.studio.helper.StudioDrawContext) field(lightOverlay, "ctx");
+                int calls = draw.batch.totalRenderCalls;
+                invoke(lightOverlay, "begin", new Class<?>[]{});
+                invoke(lightOverlay, "process", new Class<?>[]{int.class}, light);
+                invoke(lightOverlay, "end", new Class<?>[]{});
+                assertTrue("Dedicated light controls still draw", draw.batch.totalRenderCalls > calls);
+                var transform = ctx.world().getMapper(TransformComponent.class).get(light);
+                Vector2 radius = new Vector2();
+                invoke(picking, "computeLightRadiusHandleWorld", new Class<?>[]{int.class, TransformComponent.class, Vector2.class},
+                        light, transform, radius);
+                float oldRadius = (Float) invoke(picking, "readLightRadius", new Class<?>[]{int.class}, light);
+                int cursor = ctx.historyManager().getCursor();
+                assertTrue((Boolean) invoke(picking, "tryBeginLightRadiusDrag",
+                        new Class<?>[]{float.class, float.class, int.class}, radius.x, radius.y, light));
+                invoke(picking, "onLightRadiusDragging", new Class<?>[]{float.class, float.class, boolean.class, boolean.class},
+                        radius.x + 20, radius.y + 10, true, false);
+                invoke(picking, "onLightRadiusDragging", new Class<?>[]{float.class, float.class, boolean.class, boolean.class},
+                        radius.x + 20, radius.y + 10, false, true);
+                assertEquals(cursor + 1, ctx.historyManager().getCursor());
+                assertNotEquals(oldRadius, (Float) invoke(picking, "readLightRadius", new Class<?>[]{int.class}, light), 0);
+                ctx.historyManager().undo();
+                assertEquals(before, lightData(light));
+                Vector2 source = new Vector2();
+                invoke(picking, "computeLightRadiusAnchorWorld", new Class<?>[]{int.class, TransformComponent.class, Vector2.class},
+                        light, transform, source);
+                canvas.focusCameraAt(source.x, source.y);
+                refresh();
+                Vector2 start = screen(source);
+                Vector2 end = start.cpy().add(16, -12);
+                float x = transform.x, y = transform.y;
+                press(start);
+                assertEquals("The source icon captures a light move", true, field(picking, "pressStartedOnSelection"));
+                drag(end);
+                release(end);
+                assertEquals(light, ctx.selectionService().getFirstSelectedEntityId());
+                assertTrue("Light position still follows the canvas drag", transform.x != x || transform.y != y);
+                ctx.historyManager().undo();
+                assertEquals(before, lightData(light));
+            }
+            ctx.selectionService().selectOnly(point);
+            ctx.selectionService().toggle(cone);
+            pointer(new Vector2(10, 150));
+            refresh();
+            assertEquals("A lights-only multiselection has no generic rectangle", 0, genericGizmoDraws());
+        });
+    }
+
+    private int genericGizmoDraws() throws Exception {
+        var draw = (games.pixscape.studio.helper.StudioDrawContext) field(gizmo, "ctx");
+        int before = draw.batch.totalRenderCalls;
+        invoke(gizmo, "processSystem", new Class<?>[]{});
+        return draw.batch.totalRenderCalls - before;
+    }
+
+    private String lightData(int entity) {
+        var json = new com.badlogic.gdx.utils.Json();
+        return authored(entity)
+                + json.toJson(ctx.world().getMapper(games.pixscape.runtime.component.DimensionsComponent.class).getSafe(entity, null))
+                + json.toJson(ctx.world().getMapper(games.pixscape.runtime.component.light.PointLightComponent.class).getSafe(entity, null))
+                + json.toJson(ctx.world().getMapper(games.pixscape.runtime.component.light.ConeLightComponent.class).getSafe(entity, null));
+    }
+
+    @Test
     public void physicsResizeUsesGeometryPermissionAndKeepsTransformScaleLocked() throws Exception {
         withFixture(this::matrix);
     }

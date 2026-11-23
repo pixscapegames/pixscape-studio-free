@@ -317,6 +317,10 @@ public final class GizmoSystem extends BaseSystem {
             }
             if (entityGizmoEnabled && !physicsEditMode) {
                 for (int e : selected) {
+                    // Lights keep their dedicated controls, even when they also own a hierarchy.
+                    if (isLightEntity(e)) {
+                        continue;
+                    }
                     if (tiledObjectEditor != null && tiledObjectEditor.handles(e)) {
                         continue;
                     }
@@ -343,7 +347,6 @@ public final class GizmoSystem extends BaseSystem {
                             GizmoDrawHelper.drawUniformScaleHandlesObb(ctx, geometry);
                         }
                     } else if (mOBB.has(e)) {
-                        if (isLightEntity(e)) continue;
                         if (!isEntityVisibleForGizmo(e)) continue;
 
                         boolean quadEdit = selected.length == 1
