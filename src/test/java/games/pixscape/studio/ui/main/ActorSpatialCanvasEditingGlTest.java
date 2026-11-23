@@ -29,6 +29,106 @@ import static org.junit.Assert.*;
 /** Exercises the real Stage gesture listeners, rather than only their history commands. */
 public class ActorSpatialCanvasEditingGlTest {
     @Test
+    public void coincidentHandlesAndInspectorEditsKeepIndependentAnchorsAfterReload() throws Exception {
+        withStudio(850, (studio, root) -> {
+            var file = project(studio, root);
+            addImage(root, "anchors", 160, 240);
+            open(studio, file);
+            ((TopMenuBar) field(studio, "topMenuBar")).beginProject();
+            var canvas = studio.getCanvas();
+            var ctx = canvas.getAttachedSceneContext();
+            ctx.sceneMeta().physicsEnabled = false;
+            ctx.world().getMapper(LayerComponent.class).get(ctx.layerService().getLayerEntity(0)).spatialEnabled = true;
+            int entity = canvas.getEditorOps().createStandaloneSprite("anchors.png", 0, 0);
+            ctx.world().process();
+            ctx.historyManager().execute(new ToggleSpatialActorCommand(ctx.world(), ctx.historyManager().historyIds(),
+                    entity, true, true, new SpatialFootprintComponent()));
+            ctx.selectionService().selectOnly(entity);
+            canvas.focusCameraAt(80, 120);
+            studio.render();
+            numeric(studio, "actor-spatial-rectangle-4", 0);
+            numeric(studio, "actor-spatial-rectangle-5", 0);
+            numeric(studio, "spatial-footprint-1", 32);
+            var overlay = (ActorSpatialRectangleCanvasEditor) studio.getUiStage().getRoot()
+                    .findActor("actor-spatial-rectangle-editor");
+            center(studio, overlay);
+            var history = ctx.historyManager();
+            var foot = ctx.world().getMapper(SpatialFootprintComponent.class).get(entity);
+            var originalFoot = EditSpatialFootprintCommand.Snapshot.capture(foot);
+            var originalRectangle = rectangle(ctx, entity).copy();
+            assertEquals(handle(studio, overlay, 0), handle(studio, overlay, 4));
+
+            // Normal visual editing picks the pivot; footprint inspection picks the center at the same point.
+            Vector2 point = handle(studio, overlay, 0);
+            press(studio, overlay, point);
+            assertEquals(0, field(overlay, "handle"));
+            var end = point.cpy().add(18, -14);
+            studio.getUiStage().touchDragged(Math.round(end.x), Math.round(end.y), 0);
+            assertEquals(originalFoot, EditSpatialFootprintCommand.Snapshot.capture(foot));
+            release(studio, end);
+            history.undo();
+            assertTrue(originalRectangle.same(rectangle(ctx, entity)));
+
+            ctx.selectionService().inspectFootprint(entity);
+            studio.render();
+            int cursor = history.getCursor();
+            Vector2 oldCenter = footprintCenter(ctx, entity);
+            for (boolean cancel : new boolean[]{true, false}) {
+                point = handle(studio, overlay, 4);
+                press(studio, overlay, point);
+                assertEquals(4, field(overlay, "handle"));
+                end = point.cpy().add(18, -14);
+                studio.getUiStage().touchDragged(Math.round(end.x), Math.round(end.y), 0);
+                studio.render();
+                assertPivotCompensation(originalRectangle, rectangle(ctx, entity), oldCenter, footprintCenter(ctx, entity));
+                assertEquals(cursor, history.getCursor());
+                if (cancel) {
+                    studio.getUiStage().keyDown(Input.Keys.ESCAPE);
+                    assertEquals(originalFoot, EditSpatialFootprintCommand.Snapshot.capture(foot));
+                    assertTrue(originalRectangle.same(rectangle(ctx, entity)));
+                }
+                release(studio, end);
+            }
+            assertEquals(cursor + 1, history.getCursor());
+            var afterFoot = EditSpatialFootprintCommand.Snapshot.capture(foot);
+            var afterRectangle = rectangle(ctx, entity).copy();
+            history.undo();
+            assertEquals(originalFoot, EditSpatialFootprintCommand.Snapshot.capture(foot));
+            assertTrue(originalRectangle.same(rectangle(ctx, entity)));
+            history.redo();
+            assertEquals(afterFoot, EditSpatialFootprintCommand.Snapshot.capture(foot));
+            assertTrue(afterRectangle.same(rectangle(ctx, entity)));
+
+            ctx.selectionService().selectOnly(entity);
+            studio.render();
+            var preservedPivot = footprintCenter(ctx, entity).add(afterRectangle.pivotX, afterRectangle.pivotY);
+            numeric(studio, "spatial-footprint-2", foot.localOffsetXPx + 23);
+            numeric(studio, "spatial-footprint-3", foot.localOffsetYPx - 19);
+            assertEquals(preservedPivot.x, footprintCenter(ctx, entity).x + rectangle(ctx, entity).pivotX, .001f);
+            assertEquals(preservedPivot.y, footprintCenter(ctx, entity).y + rectangle(ctx, entity).pivotY, .001f);
+            var beforeRadius = rectangle(ctx, entity).copy();
+            numeric(studio, "spatial-footprint-1", foot.radiusPx + 8);
+            assertTrue(beforeRadius.same(rectangle(ctx, entity)));
+            var beforePivot = EditSpatialFootprintCommand.Snapshot.capture(foot);
+            numeric(studio, "actor-spatial-rectangle-4", rectangle(ctx, entity).pivotX + 13);
+            numeric(studio, "actor-spatial-rectangle-5", rectangle(ctx, entity).pivotY - 7);
+            assertEquals(beforePivot, EditSpatialFootprintCommand.Snapshot.capture(foot));
+            var expectedRectangle = rectangle(ctx, entity).copy();
+            int stableId = ctx.world().getMapper(PixscapeIdentityComponent.class).get(entity).stableId;
+            awaitAtlas(studio);
+            SceneService.saveScene(ctx.world(), root.child("scenes/scene1.json"), false);
+            ProjectConfig.ProjectIO.saveProject(ProjectConfig.getInstance(), file);
+            open(studio, file);
+            ((TopMenuBar) field(studio, "topMenuBar")).beginProject();
+            ctx = canvas.getAttachedSceneContext();
+            entity = ctx.identityRegistry().findByStableId(stableId);
+            assertEquals(beforePivot, EditSpatialFootprintCommand.Snapshot.capture(
+                    ctx.world().getMapper(SpatialFootprintComponent.class).get(entity)));
+            assertTrue(expectedRectangle.same(rectangle(ctx, entity)));
+        });
+    }
+
+    @Test
     public void initializedRectangleGesturesPreserveOtherSettingsAndHistory() throws Exception {
         withStudio(850, (studio, root) -> {
             var file = project(studio, root);
@@ -96,6 +196,12 @@ public class ActorSpatialCanvasEditingGlTest {
             assertNotNull("Creation under a spatial parent initializes the representation", rectangle(ctx, child));
             assertEquals(entity, SpatialActorShapeSupport.owner(ctx.world(), child));
             var siblingRectangle = rectangle(ctx, sibling).copy();
+            var parentTransform = ctx.world().getMapper(games.pixscape.runtime.component.TransformComponent.class).get(entity);
+            parentTransform.rotationRad = .4f;
+            parentTransform.scaleX = parentTransform.scaleY = 1.3f;
+            ctx.world().getSystem(games.pixscape.runtime.system.DirtyTrackerSystem.class)
+                    .geometry(entity, games.pixscape.runtime.render.GeometryDirty.ALL);
+            ctx.world().process();
             ctx.selectionService().selectOnly(child);
             studio.render();
             numeric(studio, "actor-spatial-rectangle-0", 90);
@@ -110,6 +216,8 @@ public class ActorSpatialCanvasEditingGlTest {
                 assertEquals(inherited ? entity : child, SpatialActorShapeSupport.owner(ctx.world(), child));
                 checkGesture(studio, ctx, overlay, child, 2);
                 checkGesture(studio, ctx, overlay, child, 0);
+                checkGesture(studio, ctx, overlay, child, 4);
+                checkGesture(studio, ctx, overlay, child, 5);
             }
             assertTrue(parentRectangle.same(rectangle(ctx, entity)));
             assertTrue(siblingRectangle.same(rectangle(ctx, sibling)));
@@ -154,6 +262,19 @@ public class ActorSpatialCanvasEditingGlTest {
             center(studio, overlay);
             checkGesture(studio, ctx, overlay, animation, 2);
             var idle = rectangle(ctx, animation).copy();
+            // Inactive clips must receive the same compensation before they become active.
+            var centerBefore = footprintCenter(ctx, animation);
+            var beforeClips = ctx.world().getMapper(SpatialRepresentationComponent.class).get(animation).rectangles.copy();
+            var animationFoot = ctx.world().getMapper(SpatialFootprintComponent.class).get(animation);
+            numeric(studio, "spatial-footprint-2", animationFoot.localOffsetXPx + 27);
+            var centerAfter = footprintCenter(ctx, animation);
+            for (var entry : beforeClips.clips) {
+                for (var clipEntry : entry.value) {
+                    assertPivotCompensation(clipEntry.value, ctx.world().getMapper(SpatialRepresentationComponent.class)
+                            .get(animation).rectangles.get(entry.key, clipEntry.key), centerBefore, centerAfter);
+                }
+            }
+            idle = rectangle(ctx, animation).copy();
             var component = ctx.world().getMapper(AnimationComponent.class).get(animation);
             var asset = ctx.world().getMapper(AssetRefComponent.class).get(animation);
             var beforeClip = EditAnimationCommand.Snapshot.capture(component, asset);
@@ -197,6 +318,7 @@ public class ActorSpatialCanvasEditingGlTest {
         int owner = SpatialActorShapeSupport.owner(ctx.world(), entity);
         var footprint = EditSpatialFootprintCommand.Snapshot.capture(
                 ctx.world().getMapper(SpatialFootprintComponent.class).get(owner));
+        Vector2 footprintCenter = footprintCenter(ctx, owner);
         int cursor = history.getCursor();
         Vector2 start = handle(studio, overlay, index);
         press(studio, overlay, start);
@@ -233,7 +355,7 @@ public class ActorSpatialCanvasEditingGlTest {
         var afterFootprint = EditSpatialFootprintCommand.Snapshot.capture(
                 ctx.world().getMapper(SpatialFootprintComponent.class).get(owner));
         if (index >= 4) {
-            assertTrue(before.same(after));
+            assertPivotCompensation(before, after, footprintCenter, footprintCenter(ctx, owner));
             assertNotEquals(footprint, afterFootprint);
         } else {
             assertEquals(footprint, afterFootprint);
@@ -267,6 +389,25 @@ public class ActorSpatialCanvasEditingGlTest {
         var animation = ctx.world().getMapper(AnimationComponent.class).getSafe(entity, null);
         return ctx.world().getMapper(SpatialRepresentationComponent.class).get(entity).rectangles
                 .get(asset.assetId, animation == null ? null : animation.currentClip);
+    }
+
+    static Vector2 footprintCenter(SceneEditorContext ctx, int owner) {
+        var circle = new games.pixscape.runtime.spatial.SpatialActorGeometry.Footprint();
+        assertTrue(games.pixscape.runtime.service.SpatialActorPose.resolve(owner,
+                ctx.world().getMapper(games.pixscape.runtime.component.TransformComponent.class).get(owner),
+                ctx.world().getMapper(SpatialFootprintComponent.class).get(owner),
+                ctx.world().getSystem(games.pixscape.runtime.system.GameObjectHierarchySystem.class).worldTransforms(), circle));
+        return new Vector2(circle.footX, circle.footY);
+    }
+
+    static void assertPivotCompensation(ActorSpatialRectangleData before, ActorSpatialRectangleData after,
+                                       Vector2 oldCenter, Vector2 newCenter) {
+        assertEquals(before.x, after.x, 0);
+        assertEquals(before.y, after.y, 0);
+        assertEquals(before.width, after.width, 0);
+        assertEquals(before.height, after.height, 0);
+        assertEquals(oldCenter.x + before.pivotX, newCenter.x + after.pivotX, .001f);
+        assertEquals(oldCenter.y + before.pivotY, newCenter.y + after.pivotY, .001f);
     }
 
     private static void center(StudioApplicationAdapter studio, ActorSpatialRectangleCanvasEditor overlay) throws Exception {

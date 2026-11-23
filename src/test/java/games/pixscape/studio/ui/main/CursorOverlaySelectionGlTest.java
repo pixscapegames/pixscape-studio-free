@@ -483,7 +483,9 @@ public class CursorOverlaySelectionGlTest {
         selectNode(entity, "findFootprintNode");
         assertFootprintHandlesOnly();
         for (int index : new int[]{4, 5}) {
-            String geometry = new com.badlogic.gdx.utils.Json().toJson(ctx.world().getMapper(SpatialRepresentationComponent.class).getSafe(entity, null));
+            var representation = ctx.world().getMapper(SpatialRepresentationComponent.class).getSafe(entity, null);
+            var rectangles = representation == null ? null : representation.rectangles.copy();
+            var oldCenter = ActorSpatialCanvasEditingGlTest.footprintCenter(ctx, entity);
             var collision = shape(entity).copy();
             var transform = ctx.world().getMapper(TransformComponent.class).get(entity);
             String visual = new com.badlogic.gdx.utils.Json().toJson(transform);
@@ -513,10 +515,26 @@ public class CursorOverlaySelectionGlTest {
             assertEquals(after, footprint(entity));
             assertTrue(collision.contentEquals(shape(entity)));
             assertEquals(visual, new com.badlogic.gdx.utils.Json().toJson(transform));
-            assertEquals(geometry, new com.badlogic.gdx.utils.Json().toJson(ctx.world().getMapper(SpatialRepresentationComponent.class).getSafe(entity, null)));
+            if (rectangles != null) {
+                var newCenter = ActorSpatialCanvasEditingGlTest.footprintCenter(ctx, entity);
+                if (rectangles.staticRectangle != null) {
+                    ActorSpatialCanvasEditingGlTest.assertPivotCompensation(rectangles.staticRectangle,
+                            representation.rectangles.staticRectangle, oldCenter, newCenter);
+                }
+                for (var asset : rectangles.clips) {
+                    for (var clip : asset.value) {
+                        ActorSpatialCanvasEditingGlTest.assertPivotCompensation(clip.value,
+                                representation.rectangles.get(asset.key, clip.key), oldCenter, newCenter);
+                    }
+                }
+            } else {
+                assertNull(ctx.world().getMapper(SpatialRepresentationComponent.class).getSafe(entity, null));
+            }
         }
         var before = footprint(entity);
         var otherBefore = footprint(other);
+        String beforePivots = representationData(entity);
+        String otherPivots = representationData(other);
         int history = ctx.historyManager().getCursor();
         beginFootprintDrag(4);
         ctx.selectionService().selectOnly(other);
@@ -524,6 +542,8 @@ public class CursorOverlaySelectionGlTest {
         assertFalse(((ActorSpatialRectangleCanvasEditor) overlay).isDragging());
         assertEquals(before, footprint(entity));
         assertEquals(otherBefore, footprint(other));
+        assertEquals(beforePivots, representationData(entity));
+        assertEquals(otherPivots, representationData(other));
         assertEquals(history, ctx.historyManager().getCursor());
         selectNode(entity, "findFootprintNode");
         beginFootprintDrag(5);
@@ -537,13 +557,20 @@ public class CursorOverlaySelectionGlTest {
         refresh();
         assertFalse(((ActorSpatialRectangleCanvasEditor) overlay).isDragging());
         assertEquals(before, footprint(entity));
+        assertEquals(beforePivots, representationData(entity));
         selectNode(entity, "findFootprintNode");
         beginFootprintDrag(4);
         ctx.selectionService().clearSelection();
         refresh();
         assertFalse(((ActorSpatialRectangleCanvasEditor) overlay).isDragging());
         assertEquals(before, footprint(entity));
+        assertEquals(beforePivots, representationData(entity));
         assertFalse(footprintVisible());
+    }
+
+    private String representationData(int entity) {
+        return new com.badlogic.gdx.utils.Json().toJson(
+                ctx.world().getMapper(SpatialRepresentationComponent.class).getSafe(entity, null));
     }
 
     private EditSpatialFootprintCommand.Snapshot footprint(int entity) {
@@ -635,6 +662,7 @@ public class CursorOverlaySelectionGlTest {
         awaitAtlas(app);
         selectNode(entity, "findFootprintNode");
         var before = footprint(entity);
+        String beforePivots = representationData(entity);
         int history = ctx.historyManager().getCursor();
         beginFootprintDrag(4);
         var scene = app.getEditorDocumentManager().activeDocument();
@@ -642,6 +670,7 @@ public class CursorOverlaySelectionGlTest {
         refresh();
         assertFalse(((ActorSpatialRectangleCanvasEditor) overlay).isDragging());
         assertEquals(before, footprint(entity));
+        assertEquals(beforePivots, representationData(entity));
         assertEquals(history, ctx.historyManager().getCursor());
         assertHoverCleared();
         app.getEditorDocumentManager().activate(scene.key());

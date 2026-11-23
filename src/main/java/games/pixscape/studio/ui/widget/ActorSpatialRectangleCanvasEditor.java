@@ -16,6 +16,8 @@ import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.spatial.ActorSpatialGeometry;
+import games.pixscape.runtime.spatial.SpatialActorGeometry;
+import games.pixscape.runtime.service.SpatialActorPose;
 import games.pixscape.runtime.spatial.ActorSpatialRectangles;
 import games.pixscape.studio.service.SpatialActorShapeSupport;
 import games.pixscape.runtime.service.TextureRegistry;
@@ -53,6 +55,8 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
     private SceneEditorContext gestureContext;
     private ActorSpatialRectangleData before, candidate, current;
     private SpatialFootprintComponent footprintBefore, gestureFootprint, currentFootprint;
+    private EditSpatialFootprintCommand.Preview footprintPreview;
+    private final SpatialActorGeometry.Footprint resolvedFootprint = new SpatialActorGeometry.Footprint();
     private float footprintX, footprintY, footprintRadius, ownerAngle;
     private int entity = -1, asset, handle = -1, pointer = -1;
     private String clip;
@@ -94,6 +98,10 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
                 before = picked < 4 ? current.copy() : null;
                 candidate = before == null ? null : before.copy();
                 handle = picked;
+                if (handle == 4) {
+                    footprintPreview = new EditSpatialFootprintCommand.Preview(gestureContext.world(),
+                            gestureContext.historyManager().historyIds(), gestureOwner);
+                }
                 pointer = p;
                 factor = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT) || Gdx.input.isKeyPressed(Input.Keys.SHIFT_RIGHT) ? .1f : 1f;
                 grid(x, y, scratch);
@@ -164,8 +172,10 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
                 if (handle == 4) {
                     float c = com.badlogic.gdx.math.MathUtils.cos(ownerAngle);
                     float s = com.badlogic.gdx.math.MathUtils.sin(ownerAngle);
-                    gestureFootprint.localOffsetXPx = footprintBefore.localOffsetXPx + c * dx + s * dy;
-                    gestureFootprint.localOffsetYPx = footprintBefore.localOffsetYPx - s * dx + c * dy;
+                    float norm = c * c + s * s;
+                    footprintPreview.update(EditSpatialFootprintCommand.Snapshot.capture(footprintBefore)
+                            .withOffsetX(footprintBefore.localOffsetXPx + (c * dx + s * dy) / norm)
+                            .withOffsetY(footprintBefore.localOffsetYPx + (c * dy - s * dx) / norm));
                 }
                 if (handle == 5) {
                     float radius = footprintBefore.radiusPx + dx;
@@ -248,15 +258,13 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
         var hierarchy = ctx.world().getSystem(GameObjectHierarchySystem.class);
         var poses = hierarchy == null ? null : hierarchy.worldTransforms();
         boolean resolved = poses != null && poses.isResolved(owner);
-        float x = resolved ? poses.x[owner] : t.x, y = resolved ? poses.y[owner] : t.y;
         ownerAngle = resolved ? poses.rotationRad[owner] : t.rotationRad;
         currentFootprint = ctx.world().getMapper(SpatialFootprintComponent.class).getSafe(owner, null);
-        if (currentFootprint == null) {
+        if (!SpatialActorPose.resolve(owner, t, currentFootprint, poses, resolvedFootprint)) {
             return false;
         }
-        float c = com.badlogic.gdx.math.MathUtils.cos(ownerAngle), sn = com.badlogic.gdx.math.MathUtils.sin(ownerAngle);
-        footprintX = x + c * currentFootprint.localOffsetXPx - sn * currentFootprint.localOffsetYPx;
-        footprintY = y + sn * currentFootprint.localOffsetXPx + c * currentFootprint.localOffsetYPx;
+        footprintX = resolvedFootprint.footX;
+        footprintY = resolvedFootprint.footY;
         screenPoint(footprintX, footprintY, handles[4]);
         screenPoint(footprintX + currentFootprint.radiusPx, footprintY, handles[5]);
         footprintRadius = handles[4].dst(handles[5]);
@@ -336,6 +344,7 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
                 || ctx.historyManager().historyIds().entityOfHistoryId(entityHistoryId) != entity
                 || ctx.historyManager().historyIds().entityOfHistoryId(ownerHistoryId) != gestureOwner
                 || SpatialActorShapeSupport.owner(ctx.world(), entity) != gestureOwner
+                || footprintPreview != null && !footprintPreview.isCurrent()
                 || handle < 4 && (asset(ctx, entity) != asset || !Objects.equals(clip, clip(ctx, entity)))) {
             return false;
         }
@@ -367,7 +376,17 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
     private void finish(boolean cancelled) {
         cancelled |= !sameTarget();
         var h = spatial(gestureContext, entity);
-        if (handle >= 4 && gestureContext != null && !gestureContext.isDisposed()
+        if (footprintPreview != null && gestureContext != null && !gestureContext.isDisposed()) {
+            if (cancelled) {
+                footprintPreview.cancel();
+            } else {
+                var command = footprintPreview.finish();
+                if (!command.isNoop()) {
+                    gestureContext.historyManager().execute(command);
+                    gestureContext.markExplicitSaveRequired();
+                }
+            }
+        } else if (handle >= 4 && gestureContext != null && !gestureContext.isDisposed()
                 && gestureContext.historyManager().historyIds().entityOfHistoryId(ownerHistoryId) == gestureOwner
                 && gestureContext.world().getMapper(SpatialFootprintComponent.class).getSafe(gestureOwner, null) == gestureFootprint) {
             var after = EditSpatialFootprintCommand.Snapshot.capture(gestureFootprint);
@@ -401,6 +420,7 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
         gestureContext = null;
         before = candidate = null;
         footprintBefore = gestureFootprint = null;
+        footprintPreview = null;
         gestureRepresentation = null;
         rectanglesBefore = null;
         restoreFocus();
