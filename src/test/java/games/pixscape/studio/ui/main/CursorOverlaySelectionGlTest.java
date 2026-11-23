@@ -485,7 +485,6 @@ public class CursorOverlaySelectionGlTest {
         for (int index : new int[]{4, 5}) {
             var representation = ctx.world().getMapper(SpatialRepresentationComponent.class).getSafe(entity, null);
             var rectangles = representation == null ? null : representation.rectangles.copy();
-            var oldCenter = ActorSpatialCanvasEditingGlTest.footprintCenter(ctx, entity);
             var collision = shape(entity).copy();
             var transform = ctx.world().getMapper(TransformComponent.class).get(entity);
             String visual = new com.badlogic.gdx.utils.Json().toJson(transform);
@@ -516,15 +515,14 @@ public class CursorOverlaySelectionGlTest {
             assertTrue(collision.contentEquals(shape(entity)));
             assertEquals(visual, new com.badlogic.gdx.utils.Json().toJson(transform));
             if (rectangles != null) {
-                var newCenter = ActorSpatialCanvasEditingGlTest.footprintCenter(ctx, entity);
                 if (rectangles.staticRectangle != null) {
-                    ActorSpatialCanvasEditingGlTest.assertPivotCompensation(rectangles.staticRectangle,
-                            representation.rectangles.staticRectangle, oldCenter, newCenter);
+                    ActorSpatialCanvasEditingGlTest.assertPivotUnchanged(rectangles.staticRectangle,
+                            representation.rectangles.staticRectangle);
                 }
                 for (var asset : rectangles.clips) {
                     for (var clip : asset.value) {
-                        ActorSpatialCanvasEditingGlTest.assertPivotCompensation(clip.value,
-                                representation.rectangles.get(asset.key, clip.key), oldCenter, newCenter);
+                        ActorSpatialCanvasEditingGlTest.assertPivotUnchanged(clip.value,
+                                representation.rectangles.get(asset.key, clip.key));
                     }
                 }
             } else {

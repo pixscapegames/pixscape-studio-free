@@ -28,7 +28,7 @@ final class ActorSpatialRectanglePanel {
         String[] names = {"Width (px):", "Height (px):", "X (px):", "Y (px):", "X (px):", "Y (px):"};
         for (int i = 0; i < fields.length; i++) {
             if (i == 4) {
-                SpatialActorPanel.addGroupTitle(table, "Shadow pivot", "Selected representation / footprint-relative (px)");
+                SpatialActorPanel.addGroupTitle(table, "Shadow pivot", "Selected representation / footprint owner origin (projected px)");
             }
             final int property = i;
             FloatField field = new FloatField(ctx.world, e -> readPixels(e, property), e -> rectangle(e) != null).setDisplayDecimals(2);

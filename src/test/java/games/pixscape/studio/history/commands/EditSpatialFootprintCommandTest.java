@@ -27,7 +27,7 @@ import static org.junit.Assert.*;
 
 public class EditSpatialFootprintCommandTest {
     @Test
-    public void compensatesInheritedStaticAndEveryClipInProjectedSpaceWithOneHistoryEntry() {
+    public void editingFootprintPreservesInheritedStaticAndEveryClipWithOneHistoryEntry() {
         try (Fixture f = new Fixture()) {
             int parent = f.entity(-1, false);
             f.pose(parent).rotationRad = .71f;
@@ -42,10 +42,12 @@ public class EditSpatialFootprintCommandTest {
             String original = f.data(owner, child, independent, independentChild);
             float[] pivots = f.pivots(owner, owner, child);
             String untouched = f.data(independent, independentChild);
+            String representations = new Json().toJson(f.rectangles(owner)) + new Json().toJson(f.rectangles(child));
             String transform = new Json().toJson(f.pose(owner));
             var before = f.snapshot(owner);
             f.history.execute(f.edit(owner, before.withOffsetX(26).withOffsetY(-19)));
             assertEquals(1, f.history.getCursor());
+            assertEquals(representations, new Json().toJson(f.rectangles(owner)) + new Json().toJson(f.rectangles(child)));
             assertArrayEquals(pivots, f.pivots(owner, owner, child), .0001f);
             assertEquals(untouched, f.data(independent, independentChild));
             assertEquals(transform, new Json().toJson(f.pose(owner)));
@@ -80,56 +82,6 @@ public class EditSpatialFootprintCommandTest {
     }
 
     @Test
-    public void previewCancellationRestoresExactFootprintAndAllClipOffsets() {
-        try (Fixture f = new Fixture()) {
-            int owner = f.entity(-1, true);
-            int child = f.entity(owner, false);
-            f.publish();
-            String original = f.data(owner, child);
-            float[] pivots = f.pivots(owner, owner, child);
-            var preview = new EditSpatialFootprintCommand.Preview(f.world, f.history.historyIds(), owner);
-            for (int i = 1; i <= 20; i++) {
-                preview.update(f.snapshot(owner).withOffsetX(i * 3.125f).withOffsetY(-i * 1.75f));
-                assertArrayEquals(pivots, f.pivots(owner, owner, child), .0001f);
-                assertEquals(0, f.history.getCursor());
-            }
-            preview.cancel();
-            assertEquals(original, f.data(owner, child));
-        }
-    }
-
-    @Test
-    public void previewCommitAndReloadRetainCompensationAcrossClips() {
-        try (Fixture f = new Fixture()) {
-            int owner = f.entity(-1, true);
-            int child = f.entity(owner, false);
-            f.publish();
-            var preview = new EditSpatialFootprintCommand.Preview(f.world, f.history.historyIds(), owner);
-            var initial = f.snapshot(owner);
-            String original = f.data(owner, child);
-            float[] pivots = f.pivots(owner, owner, child);
-            preview.update(initial.withOffsetX(71).withOffsetY(-26));
-            var command = preview.finish();
-            assertEquals(original, f.data(owner, child));
-            f.history.execute(command);
-            String changed = f.data(owner, child);
-            var json = new Json();
-            for (int e : new int[]{owner, child}) {
-                var value = f.world.getMapper(SpatialRepresentationComponent.class).get(e);
-                value.rectangles = json.fromJson(ActorSpatialRectangles.class, json.toJson(value.rectangles));
-            }
-            var footprint = f.world.getMapper(SpatialFootprintComponent.class).get(owner);
-            footprint.set(json.fromJson(SpatialFootprintComponent.class, json.toJson(footprint)));
-            assertEquals(changed, f.data(owner, child));
-            assertArrayEquals(pivots, f.pivots(owner, owner, child), .0001f);
-            f.history.undo();
-            assertEquals(original, f.data(owner, child));
-            f.history.redo();
-            assertEquals(changed, f.data(owner, child));
-        }
-    }
-
-    @Test
     public void movingTheActorStillMovesBothAnchorsTogether() {
         try (Fixture f = new Fixture()) {
             int owner = f.entity(-1, true);
@@ -137,7 +89,7 @@ public class EditSpatialFootprintCommandTest {
             f.history.execute(f.edit(owner, f.snapshot(owner).withOffsetX(25)));
             var circle = f.circle(owner);
             var rectangle = f.rectangles(owner).staticRectangle;
-            float x = circle.footX + rectangle.pivotX, y = circle.footY + rectangle.pivotY;
+            float x = f.originX(owner) + rectangle.pivotX, y = f.originY(owner) + rectangle.pivotY;
             f.pose(owner).x += 30;
             f.pose(owner).y -= 40;
             f.world.getSystem(DirtyTrackerSystem.class).geometry(owner, games.pixscape.runtime.render.GeometryDirty.ALL);
@@ -145,27 +97,8 @@ public class EditSpatialFootprintCommandTest {
             var moved = f.circle(owner);
             assertEquals(30, moved.footX - circle.footX, .0001f);
             assertEquals(-40, moved.footY - circle.footY, .0001f);
-            assertEquals(x + 30, moved.footX + rectangle.pivotX, .0001f);
-            assertEquals(y - 40, moved.footY + rectangle.pivotY, .0001f);
-        }
-    }
-
-    @Test
-    public void stalePreviewDoesNotRestoreOverReplacementRepresentation() {
-        try (Fixture f = new Fixture()) {
-            int owner = f.entity(-1, true);
-            f.publish();
-            var before = f.snapshot(owner);
-            var preview = new EditSpatialFootprintCommand.Preview(f.world, f.history.historyIds(), owner);
-            preview.update(before.withOffsetX(45));
-            var replacement = f.rectangles(owner).copy();
-            replacement.staticRectangle.pivotX = 123;
-            f.world.getMapper(SpatialRepresentationComponent.class).get(owner).rectangles = replacement;
-            assertFalse(preview.isCurrent());
-            preview.cancel();
-            assertSame(replacement, f.rectangles(owner));
-            assertEquals(123, f.rectangles(owner).staticRectangle.pivotX, 0);
-            assertEquals(before, f.snapshot(owner));
+            assertEquals(x + 30, f.originX(owner) + rectangle.pivotX, .0001f);
+            assertEquals(y - 40, f.originY(owner) + rectangle.pivotY, .0001f);
         }
     }
 
@@ -229,6 +162,14 @@ public class EditSpatialFootprintCommandTest {
             return result;
         }
 
+        float originX(int owner) {
+            return SpatialActorPose.originX(owner, pose(owner), world.getSystem(GameObjectHierarchySystem.class).worldTransforms());
+        }
+
+        float originY(int owner) {
+            return SpatialActorPose.originY(owner, pose(owner), world.getSystem(GameObjectHierarchySystem.class).worldTransforms());
+        }
+
         float[] pivots(int owner, int... visuals) {
             var circle = circle(owner);
             float[] result = new float[visuals.length * 6];
@@ -236,7 +177,7 @@ public class EditSpatialFootprintCommandTest {
             for (int e : visuals) {
                 var rectangles = rectangles(e);
                 for (var rectangle : new ActorSpatialRectangleData[]{rectangles.staticRectangle, rectangles.get(1, "idle"), rectangles.get(2, "walk")}) {
-                    float x = circle.footX + rectangle.pivotX, y = circle.footY + rectangle.pivotY;
+                    float x = originX(owner) + rectangle.pivotX, y = originY(owner) + rectangle.pivotY;
                     result[i++] = LightingCoordinates.worldX(x, y, circle.bottom);
                     result[i++] = LightingCoordinates.worldY(x, y, circle.bottom);
                 }

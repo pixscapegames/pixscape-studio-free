@@ -4,8 +4,9 @@
 ## [0.4.3-SNAPSHOT]
 
 ### Compatibility
-* Uses Runtime `0.2.5-SNAPSHOT`, scene schema 8, Game Object definition/fragment schema 7, asset catalog 4 and tileset profiles 2. Older formats are rejected without historical readers, conversion or migration.
+* Uses Runtime `0.2.5-SNAPSHOT`, scene schema 8, Game Object definition schema 7, Runtime fragment schema 6, asset catalog 4 and tileset profiles 2. Older formats are rejected without historical readers, conversion or migration.
 * Occlusion zones now use normalized image-local storage and are edited in logical image pixels. Existing files using the previous rectangle coordinates must be adapted explicitly.
+* Shadow pivots now reference the footprint owner's origin. Footprint edits no longer compensate pivot offsets or visit dependent clips/descendants. Existing offsets load unchanged and may place old pivots differently; no migration or additional format change is introduced.
 
 ### Added
 * Items supports dragging a tile layer into another map with matching projection, cell size and grid dimensions. Transfers preserve world placement and layer content through Undo/Redo, and reject splitting Spatial Depth across maps.
@@ -39,7 +40,7 @@
 * Clipboard instantiation no longer creates an unused deep snapshot before applying the destination layer and translation. The final independent snapshot and reference remapping are preserved.
 * Removed the inspector's Add child button; child creation remains available in Items.
 * Game Object roots can have their own visuals. Physics-backed compositions support explicit placement, and physics-backed entities support visual scaling.
-* The inspector distinguishes an entity's own footprint from the nearest inherited owner. Editing a shared footprint updates its identified owner; each selected visual keeps its own optional occlusion zone and footprint-relative shadow pivot. Removing a footprint preserves custom representation settings.
+* The inspector distinguishes an entity's own footprint from the nearest inherited owner. Editing a shared footprint updates its identified owner; each selected visual keeps its own optional occlusion zone and owner-origin-relative shadow pivot. Removing a footprint preserves custom representation settings.
 * Removed ordinary-layer spatial activation and layer-dependent spatial cleanup. Spatial participation follows footprint ownership through empty and physical hierarchy nodes; Tiled map/layer structures keep their specialized behavior.
 * Occlusion zones and canvas handles follow visual rotation, signed scale, flips and deformation. Missing zone settings cover the full image; configured dimensions remain finite and strictly positive even when clipping produces empty geometry.
 * Physical copy and Game Object asset capture require the complete joint-connected group, including Gear dependencies. Incomplete transfers fail before mutation and preserve the previous clipboard instead of silently omitting joints or adding Bodies.
