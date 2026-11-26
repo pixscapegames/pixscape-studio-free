@@ -6,10 +6,13 @@ import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.document.EditorDocumentManager;
 import games.pixscape.studio.document.EditorDocumentType;
 import games.pixscape.studio.document.HudScreenEditorDocument;
+import games.pixscape.studio.document.OpenEditorDocument;
 import games.pixscape.studio.document.SceneEditorDocument;
 import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.service.StudioEditingModeService;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
+import games.pixscape.studio.ui.document.EditorDocumentHost;
+import com.kotcrab.vis.ui.widget.VisTable;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -50,7 +53,7 @@ public class BottomMenuBarSceneControlsContractTest {
     }
 
     @Test
-    public void selectingAnOpenInactiveSceneIsAStrictNoOp() {
+    public void selectingAnOpenInactiveSceneActivatesItsTabWithoutReopeningIt() {
         ProjectConfig config = project("Tutorial", "Demo");
         EditorDocumentManager documents = new EditorDocumentManager();
         SceneEditorDocument tutorial = open(documents, config, "Tutorial");
@@ -62,6 +65,9 @@ public class BottomMenuBarSceneControlsContractTest {
         selector.setSelected("Tutorial");
         AtomicInteger opens = new AtomicInteger();
         AtomicInteger busyChanges = new AtomicInteger();
+        AtomicInteger activations = trackActiveScene(documents, config);
+        EditorDocumentHost host = new EditorDocumentHost(documents, new VisTable());
+        tutorial.context().markExplicitSaveRequired();
 
         boolean opened = BottomMenuBar.navigateSceneFromSelector(
                 config, documents, selector, items,
@@ -72,10 +78,71 @@ public class BottomMenuBarSceneControlsContractTest {
         assertFalse(opened);
         assertEquals(0, opens.get());
         assertEquals(0, busyChanges.get());
-        assertSame(demo, documents.activeDocument());
+        assertSame(tutorial, documents.activeDocument());
+        assertEquals(tutorial.key(), host.selectedKey());
         assertSame(tutorial, documents.find(tutorial.key()));
         assertEquals(2, documents.documents().size());
+        assertEquals(2, host.documentTabCount());
+        assertEquals("Tutorial", selector.getSelected());
+        assertTrue(tutorial.isDirty());
+
+        assertFalse(BottomMenuBar.navigateSceneFromSelector(config, documents, selector, items,
+                ignored -> opens.incrementAndGet(), ignored -> busyChanges.incrementAndGet(), "Tutorial"));
+        assertEquals(1, activations.get());
+        assertEquals(0, opens.get());
+        assertEquals(0, busyChanges.get());
+        assertSame(demo, documents.find(demo.key()));
+    }
+
+    @Test
+    public void unchangedSceneChoiceReactivatesItsOpenTabFromHud() {
+        ProjectConfig config = project("Tutorial");
+        EditorDocumentManager documents = new EditorDocumentManager();
+        SceneEditorDocument tutorial = open(documents, config, "Tutorial");
+        documents.openHudScreen("hud/main", "HUD");
+        trackActiveScene(documents, config);
+        EditorDocumentHost host = new EditorDocumentHost(documents, new VisTable());
+        VisSelectBox<String> selector = new VisSelectBox<>("default");
+        Array<String> items = new Array<>();
+        BottomMenuBar.populateSceneSelector(selector, items, config);
+
+        assertFalse(BottomMenuBar.navigateSceneFromSelector(config, documents, selector, items,
+                ignored -> fail("An open Scene must not be reloaded"), selector::setDisabled, selector.getSelected()));
+
+        assertSame(tutorial, documents.activeDocument());
+        assertEquals(tutorial.key(), host.selectedKey());
+        assertEquals("Tutorial", selector.getSelected());
+        assertEquals(2, host.documentTabCount());
+        assertFalse(selector.isDisabled());
+    }
+
+    @Test
+    public void failedActivationRestoresSelectorAndKeepsThePreviousTab() {
+        ProjectConfig config = project("Tutorial", "Demo");
+        EditorDocumentManager documents = new EditorDocumentManager();
+        open(documents, config, "Tutorial");
+        SceneEditorDocument demo = open(documents, config, "Demo");
+        config.setCurrentSceneByName("Demo");
+        EditorDocumentHost host = new EditorDocumentHost(documents, new VisTable());
+        documents.addListener(new EditorDocumentManager.Listener() {
+            @Override
+            public void validateActivation(OpenEditorDocument current) {
+                throw new IllegalStateException("Attachment rejected");
+            }
+        });
+        VisSelectBox<String> selector = new VisSelectBox<>("default");
+        Array<String> items = new Array<>();
+        BottomMenuBar.populateSceneSelector(selector, items, config);
+        selector.setSelected("Tutorial");
+
+        assertThrows(IllegalStateException.class, () -> BottomMenuBar.navigateSceneFromSelector(
+                config, documents, selector, items,
+                ignored -> fail("An open Scene must not be reloaded"), selector::setDisabled, "Tutorial"));
+
+        assertSame(demo, documents.activeDocument());
+        assertEquals(demo.key(), host.selectedKey());
         assertEquals("Demo", selector.getSelected());
+        assertFalse(selector.isDisabled());
     }
 
     @Test
@@ -187,6 +254,20 @@ public class BottomMenuBarSceneControlsContractTest {
         ProjectConfig config = new ProjectConfig();
         for (String name : names) config.createSceneMeta(name);
         return config;
+    }
+
+    private static AtomicInteger trackActiveScene(EditorDocumentManager documents, ProjectConfig config) {
+        AtomicInteger activations = new AtomicInteger();
+        documents.addListener(new EditorDocumentManager.Listener() {
+            @Override
+            public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+                if (current instanceof SceneEditorDocument scene) {
+                    config.setCurrentSceneByName(scene.title());
+                }
+                activations.incrementAndGet();
+            }
+        });
+        return activations;
     }
 
     private static SceneEditorDocument open(EditorDocumentManager documents,

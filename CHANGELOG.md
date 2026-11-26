@@ -52,6 +52,7 @@
 * Refreshed the distributed HTML Preview player for the current Game Object composition formats and the Runtime physics bootstrap correction.
 
 ### Fixed
+* Selecting an already open scene in the bottom bar now activates its existing tab and synchronizes the scene selector, preserving the scene context and unsaved edits.
 * Shared TMX/TSX property parsing converts `file` to STRING without resolving, checking or copying the target. Unsupported properties alone are skipped with owner/name/type warnings surfaced in import results, including independent TSX import/reimport. Lists, enums and object references keep their existing validation.
 * Importing the same TMX after deleting its scene accepts reused tileset assets, including image collections, instead of failing when no new tiles need importing.
 * Spatial occlusion rectangle move/resize gestures now use the captured representation when preparing canvas geometry, avoiding an incomplete-representation exception. Rectangle and shadow-pivot clicks without changes no longer add empty history commands.

@@ -377,7 +377,11 @@ public class BottomMenuBar extends VisTable {
         EditorDocumentKey key = sceneDocumentKey(config, sceneName);
         if (key == null) return false;
         if (documents.find(key) != null) {
-            populateSceneSelector(selector, targetItems, config);
+            try {
+                documents.activate(key);
+            } finally {
+                populateSceneSelector(selector, targetItems, config);
+            }
             return false;
         }
 
