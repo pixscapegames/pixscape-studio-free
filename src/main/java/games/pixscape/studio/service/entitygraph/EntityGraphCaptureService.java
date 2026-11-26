@@ -195,7 +195,7 @@ public final class EntityGraphCaptureService {
                         if (shape != null && shape.spatialBlockId > 0) {
                             throw new IllegalArgumentException(
                                     "Game Object clipboard hierarchies do not support "
-                                            + "Physics shapes linked to Scene Spatial blocks (spatialBlockId > 0).");
+                                            + "Physics shapes linked to scene volumes.");
                         }
                     }
                 }

@@ -1152,7 +1152,7 @@ public class ItemTreePanel extends DockablePanel {
             tree.registerNode(bodyNode, mapEntityId);
         }
         if (isMapSpatialEnabled(tiled)) {
-            EntityNode spatialNode = new EntityNode("Spatial volumes", null, mapEntityId,
+            EntityNode spatialNode = new EntityNode("Volumes", null, mapEntityId,
                     !layerLocked, !layerLocked
                     ? EntityNode.NodeKind.SPATIAL_BLOCKS : EntityNode.NodeKind.INFO);
             spatialNode.getLabel().setColor(layerLocked ? Color.DARK_GRAY : Color.WHITE);

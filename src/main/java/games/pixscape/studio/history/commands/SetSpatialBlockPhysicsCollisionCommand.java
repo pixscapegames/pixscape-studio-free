@@ -71,8 +71,8 @@ public final class SetSpatialBlockPhysicsCollisionCommand
 
     @Override
     public String label() {
-        return after ? "Enable Spatial Block Physics Collision"
-                : "Disable Spatial Block Physics Collision";
+        return after ? "Enable volume physics collision"
+                : "Disable volume physics collision";
     }
 
     @Override

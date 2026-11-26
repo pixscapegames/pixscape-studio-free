@@ -110,7 +110,7 @@ public final class SpatialBlockProperties extends VisTable {
         left().top();
         defaults().left().pad(1);
 
-        VisLabel title = new VisLabel("SPATIAL VOLUME");
+        VisLabel title = new VisLabel("VOLUME");
         title.setName("spatialWallTitle");
         add(title)
                 .center()
@@ -162,7 +162,7 @@ public final class SpatialBlockProperties extends VisTable {
         data.add(particleOccluderBox).colspan(2).left().row();
         addTooltip(actorOccluderBox, "Controls actor spatial ordering.");
         addTooltip(physicsCollisionBox,
-                "Creates a static physics collision from this Spatial Block footprint.");
+                "Creates a static physics collision from this volume footprint.");
         addTooltip(lightOccluderBox,
                 "Blocks each light through the 2.5D shadow map, independently of image visibility.");
         addTooltip(shadowCasterBox,

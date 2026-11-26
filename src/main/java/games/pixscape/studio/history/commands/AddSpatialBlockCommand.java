@@ -50,7 +50,7 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
 
     @Override
     public String label() {
-        return "Add Spatial Volume";
+        return "Add volume";
     }
 
     @Override
@@ -82,7 +82,7 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
             int currentNextSpatialBlockId = current != null ? current.peekNextSpatialBlockId() : 1;
             if (currentNextSpatialBlockId != blockId) {
                 throw new IllegalStateException(
-                        "Spatial block allocation changed after command preparation: expected "
+                        "Volume allocation changed after command preparation: expected "
                                 + blockId + ", current " + currentNextSpatialBlockId + ".");
             }
         }
@@ -93,7 +93,7 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
             int allocated = component.allocateNextSpatialBlockId();
             if (allocated != blockId) {
                 throw new IllegalStateException(
-                        "Spatial block allocation changed after prevalidation: expected "
+                        "Volume allocation changed after prevalidation: expected "
                                 + blockId + ", got " + allocated + ".");
             }
             identityAllocated = true;

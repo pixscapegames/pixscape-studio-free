@@ -178,12 +178,12 @@ public final class StudioContextMenu extends InputListener {
 
         var corner = world.getSystem(games.pixscape.studio.system.PickingSystem.class)
                 .inspectCornerAt(lastRightClickWorld.x, lastRightClickWorld.y);
-        addCornerItem("Edit corner profile", corner.reason(), () -> {
+        addCornerItem(corner.actionLabel(), corner.reason(), () -> {
             if (corner.open()) spatialBlockSelectionService.setCornerProfile(corner);
         });
 
         if (spatialTileSelectionService != null && spatialTileSelectionService.hasSelection()) {
-            MenuItem createFromTiles = new MenuItem("Create Spatial Block from Selected Tiles");
+            MenuItem createFromTiles = new MenuItem("Create volume from selected tiles");
             String validationMessage = spatialTileSelectionValidationMessage(layerEntityId);
             if (validationMessage != null) {
                 createFromTiles.setDisabled(true);
@@ -217,7 +217,7 @@ public final class StudioContextMenu extends InputListener {
             menu.addSeparator();
         }
 
-        MenuItem addBlock = new MenuItem("Add spatial block");
+        MenuItem addBlock = new MenuItem("Add volume");
         addBlock.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
@@ -233,7 +233,7 @@ public final class StudioContextMenu extends InputListener {
         menu.addItem(addBlock);
 
         appendSpatialLinkItems(menu, world, history, spatialBlockSelectionService, stage, layerEntityId);
-        MenuItem deleteBlock = new MenuItem("Delete selected spatial block");
+        MenuItem deleteBlock = new MenuItem("Delete selected volume");
         deleteBlock.setDisabled(!spatialBlockSelectionService.hasSelectedBlock());
         deleteBlock.addListener(new ClickListener() {
             @Override
@@ -306,47 +306,75 @@ public final class StudioContextMenu extends InputListener {
             menu.addItem(join);
         }
         if (ids.size == 2 && component != null) {
-            MenuItem link = new MenuItem("Lier");
-            games.pixscape.runtime.spatial.SpatialBlockData firstWall = null, secondWall = null;
-            for (games.pixscape.runtime.spatial.SpatialBlockData wall : component.blocks) {
-                if (wall.id == ids.get(0)) firstWall = wall;
-                if (wall.id == ids.get(1)) secondWall = wall;
-            }
-            boolean contact = firstWall != null && secondWall != null
-                    && (games.pixscape.runtime.spatial.SpatialBlockLinks.contactFace(firstWall, secondWall) > 0
-                    || games.pixscape.runtime.spatial.SpatialBlockLinks.overlap(firstWall, secondWall));
-            link.setDisabled(!contact || games.pixscape.studio.service.spatial.SpatialLinkProposal.edgeIndex(
-                    component.links, ids.get(0), ids.get(1)) >= 0);
-            link.addListener(new ClickListener() {
+            addSpatialLinkAction(menu, world, history, stage, layerEntityId, ids.get(0), ids.get(1), false);
+            MenuItem match = new MenuItem("Match thickness");
+            new Tooltip.Builder("Copy thickness from the first selected volume to the second. Connected walls follow the existing thickness rules.")
+                    .target(match).build();
+            match.addListener(new ClickListener() {
                 @Override
                 public void clicked(InputEvent event, float x, float y) {
-                    if (link.isDisabled()) return;
-                    new games.pixscape.studio.ui.modal.SpatialLinkDialog(world, history, selection, layerEntityId, ids.get(0), ids.get(1), false).show(stage);
+                    String reason = games.pixscape.studio.service.spatial.SpatialVolumeLinkAction.matchThickness(
+                            world, history, layerEntityId, ids.get(0), ids.get(1));
+                    if (reason != null) {
+                        Dialogs.showOKDialog(stage, "Match thickness", reason);
+                    }
                     event.handle();
                 }
             });
-            menu.addItem(link);
+            menu.addItem(match);
         } else if (ids.size == 1) {
             MenuItem hint = new MenuItem("Ctrl-click another volume to link");
             hint.setDisabled(true);
             menu.addItem(hint);
         }
         if (component != null && ids.size > 0) {
+            games.pixscape.runtime.spatial.SpatialBlockLink candidate = null;
+            int count = 0;
             for (games.pixscape.runtime.spatial.SpatialBlockLink edge : component.links) {
-                if (!ids.contains(edge.firstBlockId) && !ids.contains(edge.secondBlockId)) continue;
-                if (ids.size == 2 && !(ids.contains(edge.firstBlockId) && ids.contains(edge.secondBlockId))) continue;
-                final int first = edge.firstBlockId, second = edge.secondBlockId;
-                MenuItem unlink = new MenuItem("Délier " + first + " / " + second);
-                unlink.addListener(new ClickListener() {
-                    @Override
-                    public void clicked(InputEvent event, float x, float y) {
-                        new games.pixscape.studio.ui.modal.SpatialLinkDialog(world, history, selection, layerEntityId, first, second, true).show(stage);
-                        event.handle();
-                    }
-                });
+                if (!ids.contains(edge.firstBlockId) && !ids.contains(edge.secondBlockId)) {
+                    continue;
+                }
+                if (ids.size == 2 && !(ids.contains(edge.firstBlockId) && ids.contains(edge.secondBlockId))) {
+                    continue;
+                }
+                candidate = edge;
+                count++;
+            }
+            if (count == 1) {
+                addSpatialLinkAction(menu, world, history, stage, layerEntityId, candidate.firstBlockId, candidate.secondBlockId, true);
+            } else if (count > 1) {
+                // Keep pair-wise scope: never silently turn several indistinguishable entries into "unlink all".
+                MenuItem unlink = new MenuItem("Unlink volume");
+                unlink.setDisabled(true);
                 menu.addItem(unlink);
+                MenuItem hint = new MenuItem("Select the two linked volumes to unlink");
+                hint.setDisabled(true);
+                menu.addItem(hint);
             }
         }
+    }
+
+    private static void addSpatialLinkAction(PopupMenu menu, World world,
+                                              games.pixscape.studio.history.HistoryManager history,
+                                              Stage stage, int map, int first, int second, boolean unlink) {
+        String title = unlink ? "Unlink volume" : "Link volume";
+        MenuItem item = new MenuItem(title);
+        if (!unlink) {
+            new Tooltip.Builder("The first selected volume is the fixed reference. Connected volumes follow the existing linking rules.")
+                    .target(item).build();
+        }
+        item.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                String reason = games.pixscape.studio.service.spatial.SpatialVolumeLinkAction.apply(
+                        world, history, map, first, second, unlink);
+                if (reason != null) {
+                    Dialogs.showOKDialog(stage, title, reason);
+                }
+                event.handle();
+            }
+        });
+        menu.addItem(item);
     }
 
     private String spatialTileSelectionValidationMessage(int layerEntityId) {

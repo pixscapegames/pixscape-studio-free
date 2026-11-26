@@ -355,7 +355,7 @@ public class EntityGraphGameObjectClipboardCaptureTest {
                         .captureGameObjectClipboard(new IntArray(new int[]{root}));
                 fail("Expected Spatial-linked Physics rejection.");
             } catch (IllegalArgumentException expected) {
-                assertTrue(expected.getMessage().contains("spatialBlockId > 0"));
+                assertTrue(expected.getMessage().contains("linked to scene volumes"));
             }
         } finally {
             f.world.dispose();

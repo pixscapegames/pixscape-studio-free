@@ -24,7 +24,7 @@ public final class SpatialWallEditSession {
     private String linkDescription;
     private int proposalBuilds;
     private String commitMessage;
-    private String commitTitle = "Edit Spatial Volume";
+    private String commitTitle = "Edit volume";
     private int manipulatedFaces;
     private int mapContentRevision;
     private float mapOriginX, mapOriginY, mapAltitude;
@@ -53,8 +53,8 @@ public final class SpatialWallEditSession {
 
     public String gestureMessage() {
         if (guard == null || guard.referenceId == 0) return null;
-        if (guard.ambiguous) return "Ambiguous contact: volumes stay independent. Use Lier from the menu.";
-        if (!guard.armed) return "Contact: independent volumes. Push 12 logical pixels to propose Lier.";
+        if (guard.ambiguous) return "Ambiguous contact: volumes stay independent. Use Link volume from the menu.";
+        if (!guard.armed) return "Contact: independent volumes. Push 12 logical pixels to propose Link volume.";
         return linkDescription;
     }
 
@@ -92,7 +92,7 @@ public final class SpatialWallEditSession {
         prepared = SpatialWallThicknessPropagation.prepare(committed.blocks, committed.links, wallId);
         guard = new SpatialWallContactGuard(committed, before);
         commitMessage = null;
-        commitTitle = "Edit Spatial Volume";
+        commitTitle = "Edit volume";
         manipulatedFaces = 0;
         proposalBuilds = 0;
         Evaluation initial = evaluate(candidate, false);
@@ -259,7 +259,7 @@ public final class SpatialWallEditSession {
         if (!gesture || !guard.armed || guard.ambiguous || linkProposal != null) return;
         linkProposal = SpatialLinkProposal.gesture(committed, contactSnapshot(), map, guard.movingId, guard.referenceId, defaultHeight);
         linkDescription = linkProposal.describe() + (linkProposal.valid
-                ? "\nRelease to apply Lier. Retreat below 6 logical pixels to keep independent." : "");
+                ? "\nRelease to apply Link volume. Retreat below 6 logical pixels to keep independent." : "");
         proposalBuilds++;
     }
 
@@ -268,7 +268,7 @@ public final class SpatialWallEditSession {
             cancel();
             return false;
         }
-        commitTitle = gestureProposal() != null ? "Lier" : "Edit Spatial Volume";
+        commitTitle = gestureProposal() != null ? "Link volume" : "Edit volume";
         games.pixscape.runtime.component.TiledLayerComponent tiled = world.getMapper(
                 games.pixscape.runtime.component.TiledLayerComponent.class).getSafe(layerEntityId, null);
         if (gesture && (tiled == null || tiled.data != map || map.contentRevision() != mapContentRevision

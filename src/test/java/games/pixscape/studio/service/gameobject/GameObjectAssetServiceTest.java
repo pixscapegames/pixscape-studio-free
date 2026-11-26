@@ -746,7 +746,7 @@ public class GameObjectAssetServiceTest {
             new GameObjectAssetService(world).saveGameObject(file, graph);
             Assert.fail("Expected Spatial-linked Physics rejection.");
         } catch (IllegalArgumentException expected) {
-            Assert.assertTrue(expected.getMessage().contains("spatialBlockId > 0"));
+            Assert.assertTrue(expected.getMessage().contains("linked to scene volumes"));
         }
         Assert.assertFalse(file.exists());
     }

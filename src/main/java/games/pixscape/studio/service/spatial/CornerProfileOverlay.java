@@ -4,6 +4,8 @@ import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.render.lighting.TiledLayerLightingGeometry;
+import games.pixscape.runtime.render.TiledRenderState;
+import games.pixscape.runtime.render.lighting.RoundedWallPlacement;
 import games.pixscape.runtime.render.lighting.RoundedWallDescription;
 import games.pixscape.runtime.render.lighting.RoundedWallSupport;
 import games.pixscape.runtime.render.lighting.TileSurfaceDescription;
@@ -54,6 +56,8 @@ public final class CornerProfileOverlay {
     private Object descriptions;
     private int mapId = -1, publication = -1, geometryCount = -1, blockRevision = -1, structureRevision = -1;
     private int rebuilds;
+    private int contentRevision, resourceRevision, tileWidth, tileHeight;
+    private float originX, originY, mapAltitude;
 
     public int size() {
         return corners.size;
@@ -122,12 +126,19 @@ public final class CornerProfileOverlay {
      * O(1) unchanged check; cold work visits linked memberships and affected structure boundaries only.
      */
     public void synchronize(int id, TiledLayerComponent tiled, SpatialBlocksComponent source,
-                            TiledLayerLightingGeometry published, SpatialStructureGeometryCache structures) {
+                            TiledRenderState state, int resources, SpatialStructureGeometryCache structures) {
+        TiledLayerLightingGeometry published = state.lightingEnabled ? state.lightingMaps.get(id) : null;
         int revision = published == null ? -1 : published.publicationRevision();
         int compiled = published == null ? -1 : published.roundedGeometryCompilationCount();
         if (mapId == id && map == tiled.data && blocks == source && descriptions == tiled.lightingDescriptions
                 && geometry == published && publication == revision && geometryCount == compiled
-                && blockRevision == source.revision && structureRevision == structures.publishedRevision()) return;
+                && blockRevision == source.revision && structureRevision == structures.publishedRevision()
+                && contentRevision == tiled.data.contentRevision() && resourceRevision == resources
+                && originX == tiled.data.originX && originY == tiled.data.originY
+                && mapAltitude == tiled.data.defaultTileAltitude
+                && tileWidth == tiled.data.tileWidth && tileHeight == tiled.data.tileHeight) {
+            return;
+        }
         mapId = id;
         map = tiled.data;
         blocks = source;
@@ -137,29 +148,69 @@ public final class CornerProfileOverlay {
         geometryCount = compiled;
         blockRevision = source.revision;
         structureRevision = structures.publishedRevision();
+        contentRevision = map.contentRevision();
+        resourceRevision = resources;
+        originX = map.originX;
+        originY = map.originY;
+        mapAltitude = map.defaultTileAltitude;
+        tileWidth = map.tileWidth;
+        tileHeight = map.tileHeight;
         rebuilds++;
         corners.clear();
         cornersByCell.clear();
         wires.clear();
         replacedWalls.clear();
-        if (published == null) return;
         IntMap<RoundedWallDescription> profiles = new IntMap<>();
         for (TileSurfaceDescription d : tiled.lightingDescriptions)
             // Legacy center/radius descriptions already have compiled vertices too.
             if (d.rounded != null) profiles.put(d.assetId, d.rounded);
         if (profiles.size == 0) return;
+        // Build complete occurrence membership once at the publication boundary.
+        // The saved outline also exists when lighting has never prepared a receiver.
+        LongMap<Array<SpatialBlockData>> owners = new LongMap<>();
+        for (SpatialBlockData wall : source.blocks) {
+            for (SpatialBlockData.LinkedTileRef ref : wall.linkedTileRefs) {
+                if (!profiles.containsKey(ref.tileAssetId) || map.getTile(ref.gx, ref.gy) != ref.tileAssetId) {
+                    continue;
+                }
+                long key = ((long) ref.gx << 32) ^ (ref.gy & 0xffffffffL);
+                Array<SpatialBlockData> members = owners.get(key);
+                if (members == null) {
+                    members = new Array<>();
+                    owners.put(key, members);
+                }
+                members.add(wall);
+            }
+        }
         LongMap<Corner> cells = new LongMap<>();
+        LongMap<Boolean> unavailable = new LongMap<>();
+        float[] quad = new float[8];
         IntMap<LongMap<Corner>> byStructure = new IntMap<>();
         for (SpatialBlockData wall : source.blocks)
             for (SpatialBlockData.LinkedTileRef ref : wall.linkedTileRefs) {
                 RoundedWallDescription d = profiles.get(ref.tileAssetId);
                 if (d == null || map.getTile(ref.gx, ref.gy) != ref.tileAssetId) continue;
-                RoundedWallSupport support = published.roundedSupport(ref.gx, ref.gy);
-                if (support == null) continue;
-                replacedWalls.add(wall.id);
                 long key = ((long) ref.gx << 32) ^ (ref.gy & 0xffffffffL);
+                if (unavailable.containsKey(key)) {
+                    continue;
+                }
                 Corner corner = cells.get(key);
                 if (corner == null) {
+                    RoundedWallSupport support = published == null ? null : published.roundedSupport(ref.gx, ref.gy);
+                    if (support == null) {
+                        int renderRef = map.tiledRenderRefForTile(ref.gx, ref.gy);
+                        if (!state.isRenderableRef(renderRef) || map.getTileTransformFlags(ref.gx, ref.gy) != 0) {
+                            unavailable.put(key, true);
+                            continue;
+                        }
+                        try {
+                            CornerProfileEditSession.readQuad(state, renderRef, quad);
+                            support = new RoundedWallPlacement(map, ref.gx, ref.gy, d, owners.get(key)).compile(d, quad);
+                        } catch (IllegalArgumentException invalid) {
+                            unavailable.put(key, true);
+                            continue;
+                        }
+                    }
                     float cx = ref.gx + d.centerGX, cy = ref.gy + d.centerGY;
                     corner = new Corner(new CornerProfileEditSession.Target(id, ref.gx, ref.gy, ref.tileAssetId, wall.id),
                             support, wall.altitude, wall.height, cx - d.radiusCells, cy - d.radiusCells, cx, cy);
@@ -167,6 +218,7 @@ public final class CornerProfileOverlay {
                     cornersByCell.put(key, corner);
                     corners.add(corner);
                 }
+                replacedWalls.add(wall.id);
                 LongMap<Corner> cuts = byStructure.get(wall.structureId);
                 if (cuts == null) {
                     cuts = new LongMap<>();

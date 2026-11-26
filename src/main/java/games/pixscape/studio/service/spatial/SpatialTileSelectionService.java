@@ -7,9 +7,9 @@ import games.pixscape.studio.event.EventFlow;
 
 public final class SpatialTileSelectionService {
     public static final int NO_MAP = -1;
-    public static final String INVALID_EMPTY_CELLS = "Spatial blocks can only be created from occupied tile cells.";
-    public static final String INVALID_INTERNAL_EMPTY_CELL = "Spatial block selections cannot contain internal empty cells.";
-    public static final String INVALID_NON_RECTANGULAR = "Spatial block selections must contain one filled occupied rectangle.";
+    public static final String INVALID_EMPTY_CELLS = "Volumes can only be created from occupied tile cells.";
+    public static final String INVALID_INTERNAL_EMPTY_CELL = "Volume selections cannot contain internal empty cells.";
+    public static final String INVALID_NON_RECTANGULAR = "Volume selections must contain one filled occupied rectangle.";
 
     public enum NormalizationStatus {
         VALID_FILLED_RECTANGLE,

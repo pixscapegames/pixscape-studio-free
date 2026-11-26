@@ -129,12 +129,12 @@ public class LinkedPhysicsUiContractTest {
             harness.select(1);
             Assert.assertTrue(label.isVisible());
             Assert.assertFalse(block.isCollapsed());
-            Assert.assertEquals("Linked to Spatial Block #7",
+            Assert.assertEquals("Linked to volume #7",
                     label.getText().toString());
 
             harness.select(2);
             Assert.assertTrue(label.isVisible());
-            Assert.assertEquals("Linked to Spatial Block #19",
+            Assert.assertEquals("Linked to volume #19",
                     label.getText().toString());
 
             harness.select(3);

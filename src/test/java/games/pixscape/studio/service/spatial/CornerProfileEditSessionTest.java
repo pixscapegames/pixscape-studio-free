@@ -40,7 +40,7 @@ public class CornerProfileEditSessionTest {
             SpatialStructureGeometryCache structures = new SpatialStructureGeometryCache();
             structures.synchronize(f.entity, f.blocks, f.tiled.data);
             CornerProfileOverlay overview = new CornerProfileOverlay();
-            overview.synchronize(f.entity, f.tiled, f.blocks, f.state.lightingMaps.get(f.entity), structures);
+            overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
             assertEquals(0, overview.size());
             assertNull(overview.wire(1));
             assertFalse(overview.replacesWall(1));
@@ -62,7 +62,7 @@ public class CornerProfileEditSessionTest {
             SpatialStructureGeometryCache structures = new SpatialStructureGeometryCache();
             structures.synchronize(f.entity, f.blocks, f.tiled.data);
             CornerProfileOverlay overview = new CornerProfileOverlay();
-            overview.synchronize(f.entity, f.tiled, f.blocks, f.state.lightingMaps.get(f.entity), structures);
+            overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
             var c = overview.corner(0);
             float x = (c.x(2) + c.x(3)) * .5f, y = (c.y(2) + c.y(3)) * .5f + c.height() * .5f;
             assertTrue(c.contains(x, y));
@@ -86,7 +86,7 @@ public class CornerProfileEditSessionTest {
             TiledLayerLightingGeometry geometry = f.state.lightingMaps.get(f.entity);
             int cursor = f.history.getCursor(), profiles = geometry.roundedProfileCompilationCount(), compiled = geometry.roundedGeometryCompilationCount();
             Object authored = f.tiled.lightingDescriptions;
-            overview.synchronize(f.entity, f.tiled, f.blocks, geometry, structures);
+            overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
             assertEquals(1, overview.size());
             assertEquals(7, overview.corner(0).support().segments);
             assertSame(geometry.roundedSupport(1, 1), overview.corner(0).support());
@@ -96,7 +96,7 @@ public class CornerProfileEditSessionTest {
             assertFalse(f.edit.active());
             assertEquals(f.entity, overview.pickHandle(f.entity, overview.corner(0).x(2), overview.corner(0).y(2), 3, f.state).mapId());
             assertNull(overview.pickHandle(f.entity + 1, overview.corner(0).x(2), overview.corner(0).y(2), 3, f.state));
-            for (int i = 0; i < 30; i++) overview.synchronize(f.entity, f.tiled, f.blocks, geometry, structures);
+            for (int i = 0; i < 30; i++) overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
             assertEquals(1, overview.rebuildCount());
             assertSame(authored, f.tiled.lightingDescriptions);
             assertEquals(cursor, f.history.getCursor());
@@ -114,7 +114,7 @@ public class CornerProfileEditSessionTest {
             SpatialStructureGeometryCache structures = new SpatialStructureGeometryCache();
             structures.synchronize(f.entity, f.blocks, f.tiled.data);
             CornerProfileOverlay overview = new CornerProfileOverlay();
-            overview.synchronize(f.entity, f.tiled, f.blocks, f.state.lightingMaps.get(f.entity), structures);
+            overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
             com.badlogic.gdx.utils.FloatArray line = new com.badlogic.gdx.utils.FloatArray();
             CornerProfileOverlay.subtract(new float[]{1, 1, 4, 1}, 0, overview.corner(0), line);
             assertArrayEquals(new float[]{2, 1, 4, 1}, line.toArray(), 0);
@@ -137,18 +137,18 @@ public class CornerProfileEditSessionTest {
             SpatialStructureGeometryCache structures = new SpatialStructureGeometryCache();
             structures.synchronize(f.entity, f.blocks, f.tiled.data);
             CornerProfileOverlay overview = new CornerProfileOverlay();
-            overview.synchronize(f.entity, f.tiled, f.blocks, f.state.lightingMaps.get(f.entity), structures);
+            overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
             assertEquals(1, overview.size());
             f.history.undo();
             f.prepare();
-            overview.synchronize(f.entity, f.tiled, f.blocks, f.state.lightingMaps.get(f.entity), structures);
+            overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
             assertEquals(1, overview.size());
             assertEquals(6, overview.corner(0).support().segments);
             assertNotNull(overview.wire(1));
             assertTrue(overview.replacesWall(1));
             f.history.redo();
             f.prepare();
-            overview.synchronize(f.entity, f.tiled, f.blocks, f.state.lightingMaps.get(f.entity), structures);
+            overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
             assertEquals(1, overview.size());
             assertEquals(7, overview.corner(0).support().segments);
         }
@@ -163,7 +163,7 @@ public class CornerProfileEditSessionTest {
             Object authored = f.tiled.lightingDescriptions;
             int compiled = geometry.roundedGeometryCompilationCount();
             CornerProfileOverlay overview = new CornerProfileOverlay();
-            for (int i = 0; i < 30; i++) overview.synchronize(f.entity, f.tiled, f.blocks, geometry, structures);
+            for (int i = 0; i < 30; i++) overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
             assertEquals(1, overview.size());
             assertEquals(6, overview.corner(0).support().segments);
             assertSame(geometry.roundedSupport(1, 1), overview.corner(0).support());
@@ -188,7 +188,7 @@ public class CornerProfileEditSessionTest {
             SpatialStructureGeometryCache structures = new SpatialStructureGeometryCache();
             structures.synchronize(f.entity, f.blocks, f.tiled.data);
             CornerProfileOverlay overview = new CornerProfileOverlay();
-            overview.synchronize(f.entity, f.tiled, f.blocks, f.state.lightingMaps.get(f.entity), structures);
+            overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
             assertEquals(0, overview.size());
             assertNull(overview.wire(1));
         }
@@ -220,7 +220,7 @@ public class CornerProfileEditSessionTest {
             SpatialStructureGeometryCache structures = new SpatialStructureGeometryCache();
             assertTrue(structures.synchronize(f.entity, f.blocks, f.tiled.data).success());
             CornerProfileOverlay overview = new CornerProfileOverlay();
-            overview.synchronize(f.entity, f.tiled, f.blocks, geometry, structures);
+            overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
             assertEquals(2, overview.size());
             assertNotNull(overview.wire(1));
             assertNotNull(overview.wire(2));
@@ -231,7 +231,7 @@ public class CornerProfileEditSessionTest {
             f.open();
             assertTrue(f.edit.begin(2));
             f.edit.move(f.edit.screenX(2) + 1, f.edit.screenY(2) + .5f);
-            overview.synchronize(f.entity, f.tiled, f.blocks, geometry, structures);
+            overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
             assertEquals(2, overview.size());
             assertSame(firstWire, overview.wire(1));
             assertSame(secondWire, overview.wire(2));
@@ -241,6 +241,165 @@ public class CornerProfileEditSessionTest {
             f.edit.cancelGesture();
             f.edit.close();
             assertFalse(f.edit.isEditingOccurrence(overview.corner(0).target()));
+        }
+    }
+
+    @Test
+    public void disabledLightingStillAllowsOneVertexGestureAndExactCancel() {
+        try (Fixture f = new Fixture(true)) {
+            f.state.lightingEnabled = false;
+            f.state.lightingMaps.clear();
+            f.state.lightingSurfaces.clear();
+            f.open();
+            float x = f.edit.screenX(2), y = f.edit.screenY(2);
+            assertTrue("Saved geometry must remain editable without a lighting receiver", f.edit.press(2, x, y));
+            f.edit.drag(x + 1, y + .5f);
+            assertTrue(f.edit.reason(), f.edit.valid());
+            f.edit.cancelGesture();
+            assertEquals(x, f.edit.screenX(2), 0);
+            assertFalse(f.history.canUndo());
+            assertTrue(f.edit.press(2, x, y));
+            f.edit.drag(x + 1, y + .5f);
+            f.edit.release();
+            assertEquals(1, f.history.getCursor());
+        }
+    }
+
+    @Test
+    public void overlappingPickRadiiChooseTheNearestEditableVertex() {
+        try (Fixture f = new Fixture(true)) {
+            f.open();
+            assertEquals(1, f.edit.pickVertex(f.edit.screenX(1), f.edit.screenY(1), 100));
+        }
+    }
+
+    @Test
+    public void disabledLightingOverviewUsesSavedProfileWithoutChangingWalls() {
+        try (Fixture f = new Fixture(true)) {
+            f.state.lightingEnabled = false;
+            f.state.lightingMaps.clear();
+            SpatialStructureGeometryCache structures = new SpatialStructureGeometryCache();
+            structures.synchronize(f.entity, f.blocks, f.tiled.data);
+            CornerProfileOverlay overview = new CornerProfileOverlay();
+            overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
+            assertEquals("Lighting is optional for the volume outline", 1, overview.size());
+            assertNotNull(overview.wire(1));
+            assertEquals(3, f.blocks.blocks.first().width, 0);
+            assertFalse(f.history.canUndo());
+        }
+    }
+
+    @Test
+    public void unlitOverviewTracksEditsHistoryAndProjectionWithoutRecompilingStableFrames() {
+        try (Fixture f = new Fixture(true)) {
+            f.state.lightingEnabled = false;
+            SpatialStructureGeometryCache structures = new SpatialStructureGeometryCache();
+            structures.synchronize(f.entity, f.blocks, f.tiled.data);
+            CornerProfileOverlay overview = new CornerProfileOverlay();
+            overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
+            float[] original = overview.corner(0).support().outerXY.clone();
+            float[] wire = overview.wire(1);
+            for (int i = 0; i < 30; i++) {
+                overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
+            }
+            assertEquals(1, overview.rebuildCount());
+            assertSame(wire, overview.wire(1));
+            f.open();
+            f.edit.press(3, f.edit.screenX(3), f.edit.screenY(3));
+            f.edit.drag(f.edit.screenX(3) + 1, f.edit.screenY(3) + .5f);
+            f.edit.release();
+            assertNull(f.edit.reason());
+            f.edit.close();
+            overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
+            float[] changed = overview.corner(0).support().outerXY.clone();
+            assertNotEquals(original[6], changed[6], 0);
+            f.history.undo();
+            overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
+            assertArrayEquals(original, overview.corner(0).support().outerXY, 0);
+            f.history.redo();
+            overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
+            assertArrayEquals(changed, overview.corner(0).support().outerXY, 0);
+            float oldX = overview.corner(0).x(3), oldY = overview.corner(0).y(3);
+            f.tiled.data.originX += 25;
+            f.tiled.data.originY += 75;
+            int ref = f.tiled.data.tiledRenderRefForTile(1, 1);
+            f.state.x1[ref] += 25;
+            f.state.x2[ref] += 25;
+            f.state.x3[ref] += 25;
+            f.state.x4[ref] += 25;
+            f.state.y1[ref] += 75;
+            f.state.y2[ref] += 75;
+            f.state.y3[ref] += 75;
+            f.state.y4[ref] += 75;
+            overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
+            assertEquals(oldX + 25, overview.corner(0).x(3), .001f);
+            assertEquals(oldY + 75, overview.corner(0).y(3), .001f);
+            assertNotSame(wire, overview.wire(1));
+        }
+    }
+
+    @Test
+    public void cornerLabelsAndLockedEndpointsKeepTheirExistingScope() {
+        try (Fixture f = new Fixture(false)) {
+            assertNull(f.edit.inspect(f.world, f.state, f.history, new CornerProfileEditSession.Target(f.entity, 1, 1, 7, 1)));
+            assertEquals("Round corner\u2026", f.edit.actionLabel());
+            f.open();
+            f.prepare();
+            assertEquals("Edit rounded corner\u2026", f.edit.actionLabel());
+            assertFalse(f.edit.begin(0));
+            assertEquals("Endpoint locked to its wall join", f.edit.reason());
+            assertFalse(f.edit.begin(f.edit.vertexCount() - 1));
+            assertEquals(1, f.history.getCursor());
+        }
+    }
+
+    @Test
+    public void bothWallOrdersWorkButMirroredAnchorsAndTransformedTilesRemainUnsupported() {
+        try (Fixture f = new Fixture(true)) {
+            f.blocks.blocks.reverse();
+            f.open();
+            assertTrue(f.edit.begin(3));
+            f.edit.cancelGesture();
+            f.edit.close();
+            f.tiled.data.setTile(1, 1, 7, (byte) 1);
+            assertEquals("Transformed tiles are not supported by this corner editor",
+                    f.edit.inspect(f.world, f.state, f.history, new CornerProfileEditSession.Target(f.entity, 1, 1, 7, 1)));
+            f.tiled.data.setTile(1, 1, 7);
+            f.blocks.blocks.first().x -= 2;
+            f.blocks.revision++;
+            assertNotNull(f.edit.inspect(f.world, f.state, f.history, new CornerProfileEditSession.Target(f.entity, 1, 1, 7, 1)));
+            assertFalse(f.history.canUndo());
+        }
+    }
+
+    @Test
+    public void unlitOverviewKeepsUnprofiledWallsAndRemovesCutsWithProfile() {
+        try (Fixture f = new Fixture(true)) {
+            f.state.lightingEnabled = false;
+            SpatialBlockData straight = f.blocks.blocks.first().copy();
+            straight.id = f.blocks.allocateNextSpatialBlockId();
+            straight.structureId = 2;
+            straight.x = 5;
+            straight.linkedTileRefs.clear();
+            straight.addLinkedTileRef(5, 1, 8);
+            f.tiled.data.setTile(5, 1, 8);
+            f.blocks.blocks.add(straight);
+            f.blocks.revision++;
+            SpatialStructureGeometryCache structures = new SpatialStructureGeometryCache();
+            assertTrue(structures.synchronize(f.entity, f.blocks, f.tiled.data).success());
+            CornerProfileOverlay overview = new CornerProfileOverlay();
+            overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
+            assertEquals(1, overview.size());
+            assertNull(overview.wire(2));
+            assertFalse(overview.replacesWall(straight.id));
+            f.open();
+            assertTrue(f.edit.removeProfile());
+            overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
+            assertEquals(0, overview.size());
+            assertNull(overview.wire(1));
+            f.history.undo();
+            overview.synchronize(f.entity, f.tiled, f.blocks, f.state, 0, structures);
+            assertEquals(1, overview.size());
         }
     }
 
@@ -255,13 +414,14 @@ public class CornerProfileEditSessionTest {
         final float[] quad = {0, 128, 0, 640, 256, 640, 256, 128};
 
         Fixture(boolean enabled) {
+            state.lightingEnabled = true;
             RuntimeTilesetProfile p = new RuntimeTilesetProfile();
             p.tilesetId = 1;
             p.referenceCellWidth = 256;
             p.referenceCellHeight = 128;
             p.projection = TiledProjection.ISO;
             p.anchor = RuntimeTilesetAnchor.BOTTOM_CENTER;
-            p.tileAssetIds = new int[]{7};
+            p.tileAssetIds = new int[]{7, 8};
             RuntimeTilesetProfiles profiles = RuntimeTilesetProfiles.empty();
             profiles.add(p);
             AtlasRuntimeService atlas = new AtlasRuntimeService() {

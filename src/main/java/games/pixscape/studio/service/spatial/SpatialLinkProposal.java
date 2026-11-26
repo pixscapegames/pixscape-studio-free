@@ -164,7 +164,7 @@ public final class SpatialLinkProposal {
 
     public String describe() {
         StringBuilder text = new StringBuilder();
-        text.append(valid ? "Lier ready.\n" : "Lier refused: " + diagnostic + "\n");
+        text.append(valid ? "Link volume ready.\n" : "Link volume refused: " + diagnostic + "\n");
         text.append("Fixed reference: ").append(reference).append("\nAdapted ensemble: ").append(affected).append('\n');
         IntMap<SpatialBlockData> previous = index(before);
         for (SpatialBlockData wall : after.blocks)
@@ -199,7 +199,7 @@ public final class SpatialLinkProposal {
         }
         if (edgeIndex(after.links, selectedId, referenceId) >= 0) return "These volumes already have a voluntary link.";
         if (Float.compare(selected.altitude, fixed.altitude) != 0)
-            return "Different base altitudes: Lier does not change altitude.";
+            return "Different base altitudes: Link volume does not change altitude.";
         int face = SpatialBlockLinks.contactFace(selected, fixed);
         if (face < 0 || face == 0 && !SpatialBlockLinks.overlap(selected, fixed))
             return "No unambiguous lateral contact between these volumes.";

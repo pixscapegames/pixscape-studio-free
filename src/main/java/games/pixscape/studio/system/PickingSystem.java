@@ -416,7 +416,8 @@ public final class PickingSystem extends BaseSystem {
                         if (inputState.isLeftDown() || released) corner.drag(mx, my);
                         if (released || !inputState.isLeftDown()) corner.release();
                     }
-                    showLightValueHint(null);
+                    corner.hover(mx, my, coordSpaces.pixelsToWorld(8));
+                    showLightValueHint(corner.reason());
                     return;
                 }
             }
@@ -756,8 +757,12 @@ public final class PickingSystem extends BaseSystem {
             corner.close();
             if (!spatialBlockSelectionService.isEditingActive() || inputState.isCtrl() || gizmoSystem == null)
                 return false;
-            CornerProfileEditSession.Target target = gizmoSystem.cornerOverview().pickBody(
-                    spatialBlockSelectionService.getEditingMapEntityId(), worldX, worldY, tiledState);
+            int map = spatialBlockSelectionService.getEditingMapEntityId();
+            CornerProfileEditSession.Target target = gizmoSystem.cornerOverview().pickHandle(
+                    map, worldX, worldY, coordSpaces.pixelsToWorld(8), tiledState);
+            if (target == null) {
+                target = gizmoSystem.cornerOverview().pickBody(map, worldX, worldY, tiledState);
+            }
             // Leave the press untouched so normal volume selection handles this very click.
             if (target == null) return false;
             CornerProfileEditSession candidate = new CornerProfileEditSession();

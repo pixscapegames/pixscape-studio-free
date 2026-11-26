@@ -1064,7 +1064,7 @@ public final class GameObjectAssetService {
             PhysicsShapeData shape = shapes.shapes.get(i);
             if (shape != null && shape.spatialBlockId > 0) {
                 throw new IllegalArgumentException(
-                        "Game Object assets cannot contain Physics shapes linked to Scene Spatial blocks (spatialBlockId > 0).");
+                        "Game Object assets cannot contain Physics shapes linked to scene volumes.");
             }
         }
     }

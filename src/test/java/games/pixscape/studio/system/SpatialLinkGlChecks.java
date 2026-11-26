@@ -37,12 +37,11 @@ import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialLinkProposal;
 import games.pixscape.studio.ui.contextmenu.StudioContextMenu;
-import games.pixscape.studio.ui.modal.SpatialLinkDialog;
 
 import static org.junit.Assert.*;
 
 /**
- * Real native menu/dialog, linked fixture publication and actor passage, called by the GL smoke.
+ * Real native direct menu, vertical dialog, linked fixture publication and actor passage, called by the GL smoke.
  */
 final class SpatialLinkGlChecks {
     static SpatialBlocksComponent run() {
@@ -88,51 +87,30 @@ final class SpatialLinkGlChecks {
         try {
             PopupMenu menu = new PopupMenu();
             StudioContextMenu.appendSpatialLinkItems(menu, world, history, selection, stage, map);
-            assertEquals(1, menu.getChildren().size);
+            assertEquals(2, menu.getChildren().size);
             MenuItem link = (MenuItem) menu.getChildren().first();
-            assertEquals("Lier", link.getText().toString());
-            click(link);
-            SpatialLinkDialog dialog = dialog(stage);
-            assertNotNull(dialog);
-            assertNotNull(selection.linkPreview());
-            assertTrue(selection.linkPreview().valid);
-            for (Actor actor : dialog.getContentTable().getChildren())
-                if (actor instanceof games.pixscape.studio.ui.widget.SimpleSelectBox) {
-                    @SuppressWarnings("unchecked") games.pixscape.studio.ui.widget.SimpleSelectBox<Integer> reference = (games.pixscape.studio.ui.widget.SimpleSelectBox<Integer>) actor;
-                    reference.setSelected(2);
-                    assertEquals(2, selection.linkPreview().referenceId);
-                    assertEquals(1, selection.linkPreview().selectedId);
-                    reference.setSelected(1);
-                    assertEquals(1, selection.linkPreview().referenceId);
-                }
-            Gdx.gl.glClearColor(.08f, .08f, .08f, 1);
-            Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-            stage.act(.5f);
-            stage.act(.5f);
-            stage.draw();
-            assertEquals(GL20.GL_NO_ERROR, Gdx.gl.glGetError());
-            assertTrue("Visible preview alpha=" + dialog.getColor().a, dialog.getColor().a > .9f);
-            Pixmap screenshot = Pixmap.createFromFrameBuffer(0, 0, 768, 576);
-            assertNotEquals("Preview must actually paint", screenshot.getPixel(0, 0), screenshot.getPixel(384, 288));
-            PixmapIO.PNG png = new PixmapIO.PNG();
-            png.setFlipY(true);
-            try {
-                png.write(new FileHandle(System.getProperty("java.io.tmpdir") + "/pixscape-voluntary-link-preview.png"), screenshot);
-            } catch (java.io.IOException failure) {
-                throw new RuntimeException(failure);
-            } finally {
-                png.dispose();
-                screenshot.dispose();
-            }
-            button(dialog, "Cancel").fire(new ChangeListener.ChangeEvent());
-            stage.act(1);
+            assertEquals("Link volume", link.getText().toString());
+            captureMenu(stage, menu, "link");
+            int actorsBefore = stage.getActors().size;
+            click(item(menu, "Match thickness"));
+            assertEquals("Match thickness must not open a dialog", actorsBefore, stage.getActors().size);
+            assertEquals("Match thickness", history.peekUndoLabel());
+            assertEquals(.3f, blocks.blocks.get(1).depth, 0);
+            assertEquals(60, blocks.blocks.get(1).height, 0);
             assertEquals(0, blocks.links.size);
-            assertNull(selection.linkPreview());
+            history.undo();
             assertFalse(history.canUndo());
+            assertEquals(.15f, blocks.blocks.get(1).depth, 0);
+            history.redo();
+            assertEquals(.3f, blocks.blocks.get(1).depth, 0);
             click(link);
-            dialog = dialog(stage);
-            button(dialog, "Lier").fire(new ChangeListener.ChangeEvent());
-            stage.act(1);
+            assertEquals("Successful link must not open a dialog", actorsBefore, stage.getActors().size);
+            assertNull(selection.linkPreview());
+            assertEquals("Link volume", history.peekUndoLabel());
+            history.undo();
+            assertEquals(0, blocks.links.size);
+            assertEquals("One link click creates exactly one history entry", "Match thickness", history.peekUndoLabel());
+            history.redo();
             assertEquals(1, blocks.links.size);
             assertEquals(.3f, blocks.blocks.get(1).depth, 0);
             assertTrue(compiled.valid);
@@ -140,6 +118,8 @@ final class SpatialLinkGlChecks {
             assertEquals(manualBefore, new com.badlogic.gdx.utils.Json().toJson(shapes.shapes.peek()));
             nativeActorPassage(compiled, tiled.data);
             verticalDialog(world, stage, history, selection, map, blocks, compiled, tiled.data, manualBefore, shapes);
+            stage.act(1);
+            stage.act(1);
             history.undo();
             assertEquals(0, blocks.links.size);
             history.redo();
@@ -148,15 +128,21 @@ final class SpatialLinkGlChecks {
             StudioContextMenu.appendSpatialLinkItems(unlinkMenu, world, history, selection, stage, map);
             MenuItem unlink = null;
             for (Actor actor : unlinkMenu.getChildren())
-                if (actor instanceof MenuItem && ((MenuItem) actor).getText().toString().startsWith("Délier"))
+                if (actor instanceof MenuItem && ((MenuItem) actor).getText().toString().equals("Unlink volume"))
                     unlink = (MenuItem) actor;
             assertNotNull(unlink);
+            captureMenu(stage, unlinkMenu, "unlink");
+            actorsBefore = stage.getActors().size;
             click(unlink);
-            dialog = dialog(stage);
-            button(dialog, "Délier").fire(new ChangeListener.ChangeEvent());
-            stage.act(1);
+            assertEquals("Successful unlink must not open a dialog", actorsBefore, stage.getActors().size);
+            assertEquals("Unlink volume", history.peekUndoLabel());
             assertEquals(0, blocks.links.size);
             assertEquals(.3f, blocks.blocks.get(1).depth, 0);
+            history.undo();
+            assertEquals(1, blocks.links.size);
+            history.redo();
+            assertEquals(0, blocks.links.size);
+            selectionMenusAndRefusals(world, history, selection, stage, map, blocks);
             return linkedSnapshot;
         } finally {
             selection.dispose();
@@ -304,18 +290,75 @@ final class SpatialLinkGlChecks {
             if (listener instanceof ClickListener) ((ClickListener) listener).clicked(event, 1, 1);
     }
 
-    private static SpatialLinkDialog dialog(Stage stage) {
-        for (int i = stage.getActors().size - 1; i >= 0; i--) {
-            Actor actor = stage.getActors().get(i);
-            if (actor instanceof SpatialLinkDialog) return (SpatialLinkDialog) actor;
+    private static void captureMenu(Stage stage, PopupMenu menu, String name) {
+        menu.showMenu(stage, 200, 350);
+        Gdx.gl.glClearColor(.08f, .08f, .08f, 1);
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+        stage.act(1);
+        stage.draw();
+        assertEquals(GL20.GL_NO_ERROR, Gdx.gl.glGetError());
+        Pixmap screenshot = Pixmap.createFromFrameBuffer(0, 0, 768, 576);
+        try {
+            PixmapIO.writePNG(new FileHandle(System.getProperty("java.io.tmpdir") + "/pixscape-volume-" + name + ".png"), screenshot, -1, true);
+        } finally {
+            screenshot.dispose();
+            menu.remove();
+        }
+    }
+
+    private static MenuItem item(PopupMenu menu, String label) {
+        for (Actor actor : menu.getChildren()) {
+            if (actor instanceof MenuItem && ((MenuItem) actor).getText().toString().equals(label)) {
+                return (MenuItem) actor;
+            }
         }
         return null;
     }
 
-    private static VisTextButton button(SpatialLinkDialog dialog, String text) {
-        for (Actor actor : dialog.getButtonsTable().getChildren())
-            if (actor instanceof VisTextButton && ((VisTextButton) actor).getText().toString().equals(text))
-                return (VisTextButton) actor;
-        throw new AssertionError("Missing button " + text);
+    private static PopupMenu menu(World world, HistoryManager history, SpatialBlockSelectionService selection, Stage stage, int map) {
+        PopupMenu menu = new PopupMenu();
+        StudioContextMenu.appendSpatialLinkItems(menu, world, history, selection, stage, map);
+        return menu;
+    }
+
+    private static void selectionMenusAndRefusals(World world, HistoryManager history,
+                                                  SpatialBlockSelectionService selection, Stage stage, int map,
+                                                  SpatialBlocksComponent blocks) {
+        selection.clearSelectionOnly();
+        assertEquals(0, menu(world, history, selection, stage, map).getChildren().size);
+        selection.selectBlock(map, 1);
+        PopupMenu single = menu(world, history, selection, stage, map);
+        assertNull(item(single, "Link volume"));
+        assertNull(item(single, "Unlink volume"));
+        assertTrue(item(single, "Ctrl-click another volume to link").isDisabled());
+        blocks.links.add(new games.pixscape.runtime.spatial.SpatialBlockLink(1, 2, 2, 1));
+        assertFalse(item(menu(world, history, selection, stage, map), "Unlink volume").isDisabled());
+        blocks.links.add(new games.pixscape.runtime.spatial.SpatialBlockLink(1, 3, 2, 1));
+        PopupMenu ambiguous = menu(world, history, selection, stage, map);
+        assertTrue(item(ambiguous, "Unlink volume").isDisabled());
+        assertNotNull(item(ambiguous, "Select the two linked volumes to unlink"));
+        selection.toggleBlock(map, 2);
+        assertFalse(item(menu(world, history, selection, stage, map), "Unlink volume").isDisabled());
+        selection.toggleBlock(map, 3);
+        assertNull(item(menu(world, history, selection, stage, map), "Link volume"));
+        assertTrue(item(menu(world, history, selection, stage, map), "Unlink volume").isDisabled());
+        blocks.links.clear();
+        selection.selectBlock(map, 1);
+        selection.toggleBlock(map, 2);
+        blocks.blocks.get(1).altitude = 10;
+        String before = new com.badlogic.gdx.utils.Json().toJson(blocks);
+        String undo = history.peekUndoLabel();
+        int actorsBefore = stage.getActors().size;
+        click(item(menu(world, history, selection, stage, map), "Link volume"));
+        assertEquals(before, new com.badlogic.gdx.utils.Json().toJson(blocks));
+        assertEquals(undo, history.peekUndoLabel());
+        assertEquals(actorsBefore + 1, stage.getActors().size);
+        com.kotcrab.vis.ui.widget.VisDialog refusal = (com.kotcrab.vis.ui.widget.VisDialog) stage.getActors().peek();
+        assertEquals("Link volume", refusal.getTitleLabel().getText().toString());
+        assertTrue(refusal.getContentTable().toString().contains("The volumes must have the same base altitude."));
+        stage.act(1);
+        stage.draw();
+        refusal.remove();
+        blocks.blocks.get(1).altitude = 0;
     }
 }

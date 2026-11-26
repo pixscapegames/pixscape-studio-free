@@ -58,9 +58,9 @@ public final class TiledSpatialMutationRejection {
         if (kind == Kind.LINKED_ANCHOR) {
             return "Cannot erase " + affectedCellCount + " tile" + (affectedCellCount == 1 ? "" : "s")
                     + " because " + (affectedCellCount == 1 ? "it is" : "they are") + " used by "
-                    + affectedWallCount + " Spatial Volume" + (affectedWallCount == 1 ? "" : "s") + ".\n\n"
+                    + affectedWallCount + " volume" + (affectedWallCount == 1 ? "" : "s") + ".\n\n"
                     + "First affected block: " + firstBlockId + ", structure: " + firstStructureId + ".\n\n"
-                    + "Edit or remove the affected Spatial Volumes first.";
+                    + "Edit or remove the affected volumes first.";
         }
         return "The tiled change would create an invalid Spatial post-state.\n\n" + detail;
     }

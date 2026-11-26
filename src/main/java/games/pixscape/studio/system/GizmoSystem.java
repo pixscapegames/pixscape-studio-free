@@ -484,7 +484,9 @@ public final class GizmoSystem extends BaseSystem {
         SpatialLinkProposal linkPreview = spatialBlockSelectionService.linkPreview();
         boolean mergedPreview = linkPreview != null && linkPreview.valid && !linkPreview.unlink;
         spatialStructureGeometryCache.synchronize(layerEntityId, component, tiled.data);
-        cornerOverview.synchronize(layerEntityId, tiled, component, tiledState.lightingMaps.get(layerEntityId), spatialStructureGeometryCache);
+        var tiledSync = world.getSystem(games.pixscape.runtime.system.RenderTiledSyncSystem.class);
+        cornerOverview.synchronize(layerEntityId, tiled, component, tiledState,
+                tiledSync == null ? 0 : tiledSync.lightingResourceRevision(tiled.atlasTag), spatialStructureGeometryCache);
         for (int i = 0; i < spatialStructureGeometryCache.structureCount(); i++) {
             CompiledSpatialStructure structure = spatialStructureGeometryCache.structure(i);
             if (mergedPreview && linkPreview.replacesStructure(structure.structureId())) continue;
@@ -576,7 +578,7 @@ public final class GizmoSystem extends BaseSystem {
         games.pixscape.runtime.render.lighting.RoundedWallSupport support = edit.support();
         drawCornerSupport(support, edit.base(), edit.height());
         for (int i = 0; i < edit.vertexCount(); i++) {
-            ctx.drawer.setColor(!edit.valid() ? Color.SCARLET : i == 0 || i == edit.vertexCount() - 1 ? Color.GOLD : Color.CYAN);
+            ctx.drawer.setColor(!edit.valid() ? Color.SCARLET : i == 0 || i == edit.vertexCount() - 1 ? Color.GOLD : i == edit.highlightedVertex() ? Color.WHITE : Color.CYAN);
             float x = edit.screenX(i), y = edit.screenY(i), size = ctx.pxToWorld(8);
             if (i > 0) ctx.drawer.line(edit.screenX(i - 1), edit.screenY(i - 1), x, y, ctx.pxToWorld(2));
             ctx.drawer.filledRectangle(x - size * .5f, y - size * .5f, size, size);

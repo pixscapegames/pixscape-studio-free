@@ -52,7 +52,7 @@ public final class EditSpatialBlockCommand implements Command, HistoryManager.Su
 
     @Override
     public String label() {
-        return "Edit Spatial Volume";
+        return "Edit volume";
     }
 
     @Override

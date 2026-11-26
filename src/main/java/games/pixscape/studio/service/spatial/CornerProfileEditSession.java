@@ -39,6 +39,7 @@ public final class CornerProfileEditSession {
     private int tileWidth, tileHeight;
     private float pressX, pressY, vertexX, vertexY, lastX, lastY;
     private boolean active, valid = true;
+    private int hoveredVertex = -1;
     public int profileCompilations, geometryCompilations;
     public long lastUpdateNanos, lastCommitNanos;
 
@@ -129,7 +130,7 @@ public final class CornerProfileEditSession {
         blockRevision = blocks.revision;
         historyRevision = history.getMutationRevision();
         resourceRevision = world.getSystem(RenderTiledSyncSystem.class).lightingResourceRevision(tiled.atlasTag);
-        geometry = state.lightingMaps.get(target.mapId);
+        geometry = state.lightingEnabled ? state.lightingMaps.get(target.mapId) : null;
         geometryRevision = geometry == null ? 0 : geometry.publicationRevision();
     }
 
@@ -157,7 +158,7 @@ public final class CornerProfileEditSession {
                 return;
             }
         }
-        TiledLayerLightingGeometry current = state.lightingMaps.get(target.mapId);
+        TiledLayerLightingGeometry current = state.lightingEnabled ? state.lightingMaps.get(target.mapId) : null;
         if (current != geometry || current != null && current.publicationRevision() != geometryRevision) {
             cancelGesture();
             geometry = current;
@@ -173,14 +174,16 @@ public final class CornerProfileEditSession {
 
     public boolean begin(int vertex) {
         synchronize();
-        if (!active || geometry == null) return false;
+        if (!active) {
+            return false;
+        }
         float[] points = vertices();
         if (vertex <= 0 || vertex >= points.length / 2 - 1) {
             message = "Endpoint locked to its wall join";
             return false;
         }
         try {
-            preview = geometry.beginRoundedPreview(target.gx, target.gy);
+            preview = geometry == null ? null : geometry.beginRoundedPreview(target.gx, target.gy);
         } catch (IllegalArgumentException unavailable) {
             message = unavailable.getMessage();
             return false;
@@ -251,6 +254,9 @@ public final class CornerProfileEditSession {
     }
 
     private void show(RoundedWallSupport compiled) {
+        if (preview == null) {
+            return;
+        }
         LightingSurface previous = state.lightingSurfaces.get(renderRef);
         compiled.receiver.ownerEntity = target.mapId;
         if (previous != null) compiled.receiver.normalMap = previous.normalMap;
@@ -262,9 +268,13 @@ public final class CornerProfileEditSession {
         if (dragVertex < 0) return;
         RoundedWallDescription next = candidate.copy();
         boolean accepted = valid && !stale();
+        String refusal = message;
         cancelGesture();
-        if (accepted) publish(next);
-        else message = "Invalid or stale gesture cancelled";
+        if (accepted) {
+            publish(next);
+        } else {
+            message = refusal.isEmpty() ? "The map changed; gesture cancelled" : refusal;
+        }
     }
 
     public void cancelGesture() {
@@ -284,6 +294,7 @@ public final class CornerProfileEditSession {
     public void close() {
         cancelGesture();
         active = false;
+        hoveredVertex = -1;
     }
 
     public boolean add(int segment) {
@@ -371,6 +382,8 @@ public final class CornerProfileEditSession {
                 values.add(value);
             }
             value.rounded = next.copy();
+            // This operation edits geometry even when scene lighting is disabled.
+            world.getSystem(RenderTiledSyncSystem.class).validateLighting(tiled, blocks, values);
             EditTileLightingDescriptionsCommand command = new EditTileLightingDescriptionsCommand(world, history.historyIds(), target.mapId, values);
             history.execute(command);
             if (command.rejection() != null) {
@@ -451,12 +464,30 @@ public final class CornerProfileEditSession {
         return candidate.profileXY == null ? 7 : candidate.profileXY.length / 2;
     }
 
+    public String actionLabel() {
+        return committed == null ? "Round corner\u2026" : "Edit rounded corner\u2026";
+    }
+
+    public void hover(float x, float y, float tolerance) {
+        hoveredVertex = pickVertex(x, y, tolerance);
+    }
+
+    public int highlightedVertex() {
+        return dragging() ? dragVertex : hoveredVertex;
+    }
+
     public int pickVertex(float x, float y, float tolerance) {
+        int nearest = -1;
+        float distance = tolerance * tolerance;
         for (int i = 0; i < vertexCount(); i++) {
             float dx = x - screenX(i), dy = y - screenY(i);
-            if (dx * dx + dy * dy <= tolerance * tolerance) return i;
+            float squared = dx * dx + dy * dy;
+            if (squared <= distance) {
+                nearest = i;
+                distance = squared;
+            }
         }
-        return -1;
+        return nearest;
     }
 
     public int pickSegment(float x, float y, float tolerance) {
@@ -469,7 +500,7 @@ public final class CornerProfileEditSession {
         return -1;
     }
 
-    private static void readQuad(TiledRenderState s, int r, float[] q) {
+    static void readQuad(TiledRenderState s, int r, float[] q) {
         q[0] = s.x1[r];
         q[1] = s.y1[r];
         q[2] = s.x2[r];

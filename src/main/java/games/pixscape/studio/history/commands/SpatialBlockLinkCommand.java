@@ -18,6 +18,7 @@ public final class SpatialBlockLinkCommand implements Command, OutcomeAwareComma
     private final long mapHistoryId;
     private final SpatialLinkProposal proposal;
     private final float beforeHeight;
+    private final String actionLabel;
     private String rejectionReason;
 
     public String rejectionReason() {
@@ -31,6 +32,11 @@ public final class SpatialBlockLinkCommand implements Command, OutcomeAwareComma
     }
 
     public SpatialBlockLinkCommand(World world, HistoryIdRegistry identities, int map, SpatialLinkProposal proposal) {
+        this(world, identities, map, proposal, proposal.referenceId == 0 ? "Edit volume" : proposal.unlink ? "Unlink volume" : "Link volume");
+    }
+
+    public SpatialBlockLinkCommand(World world, HistoryIdRegistry identities, int map, SpatialLinkProposal proposal, String actionLabel) {
+        this.actionLabel = actionLabel;
         this.world = world;
         this.identities = identities;
         mapHistoryId = identities.ensureForEntity(map);
@@ -40,7 +46,7 @@ public final class SpatialBlockLinkCommand implements Command, OutcomeAwareComma
 
     @Override
     public String label() {
-        return proposal.referenceId == 0 ? "Edit Spatial Volume" : proposal.unlink ? "Délier" : "Lier";
+        return actionLabel;
     }
 
     @Override

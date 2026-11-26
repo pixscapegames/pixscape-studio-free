@@ -44,7 +44,7 @@ public final class MoveSpatialBlockCommand implements Command, HistoryManager.Su
 
     @Override
     public String label() {
-        return "Move Spatial Block";
+        return "Move volume";
     }
 
     @Override

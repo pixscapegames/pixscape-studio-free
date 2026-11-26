@@ -502,7 +502,7 @@ public final class FixturesPanel extends CollapsibleWidget {
     private void updateLinkedSpatialBlockIndicator(PhysicsShapeData fixture) {
         boolean linked = isLinked(fixture);
         linkedSpatialBlockLabel.setText(
-                linked ? "Linked to Spatial Block #" + fixture.spatialBlockId : "");
+                linked ? "Linked to volume #" + fixture.spatialBlockId : "");
         linkedSpatialBlockLabel.setVisible(linked);
         linkedSpatialBlockBlock.show(linked);
     }

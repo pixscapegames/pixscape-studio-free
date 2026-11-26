@@ -38,7 +38,7 @@ public final class SpatialVerticalJoinCommand implements Command, OutcomeAwareCo
 
     @Override
     public String label() {
-        return "Raccorder";
+        return "Connect to wall";
     }
 
     @Override
@@ -93,7 +93,7 @@ public final class SpatialVerticalJoinCommand implements Command, OutcomeAwareCo
                 || !expectedPhysics.equals(SpatialVerticalJoinProposal.MapState.physicsSignature(world, source))
                 || pixelsPerMeter != proposal.selected.pixelsPerMeter
                 || source != fixed && !proposal.candidate.reference.matches(world, fixed, proposal.candidate.reference.revision)) {
-            rejectionReason = "The map context changed after the preview. Reopen Raccorder. Nothing was modified.";
+            rejectionReason = "The map context changed after the preview. Reopen Connect to wall. Nothing was modified.";
             return CommandOutcome.REJECTED;
         }
         SpatialBlocksComponent reference = world.getMapper(SpatialBlocksComponent.class).getSafe(fixed, null);
