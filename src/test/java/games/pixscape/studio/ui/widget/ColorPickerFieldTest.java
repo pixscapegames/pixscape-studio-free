@@ -54,11 +54,42 @@ public class ColorPickerFieldTest {
                 .bind(bound::get, color -> bound.get().set(color));
         ColorPickerListener listener = listener(field);
 
-        listener.changed(selected);
+        listener.changed(rgba(0xA0B0C0D0));
         listener.finished(selected);
 
         assertColor(0x50607080, bound.get());
         assertColor(0x50607080, field.getCurrentColor());
+    }
+
+    @Test
+    public void finishingWithoutAPreviewAppliesTheFinalRgbaAndUpdatesTheSwatch() throws Exception {
+        AtomicReference<Color> bound = new AtomicReference<>(rgba(0x01020304));
+        ColorPickerField field = new ColorPickerField("Color", "Choose")
+                .useColorSwatch(20f, 20f)
+                .bind(bound::get, color -> bound.get().set(color));
+        beginPickerSession(field);
+
+        listener(field).finished(rgba(0x50607080));
+
+        assertColor(0x50607080, bound.get());
+        assertColor(0x50607080, field.getCurrentColor());
+        assertColor(0x50607080, field(field, "colorSwatch", VisImage.class).getColor());
+    }
+
+    @Test
+    public void resetRestoresThePickerValueAfterAPreview() throws Exception {
+        Color original = rgba(0x01020304);
+        Color preview = rgba(0x50607080);
+        AtomicReference<Color> bound = new AtomicReference<>(new Color(original));
+        ColorPickerField field = new ColorPickerField("Color", "Choose")
+                .bind(bound::get, color -> bound.get().set(color));
+        ColorPickerListener listener = listener(field);
+        listener.changed(preview);
+
+        listener.reset(preview, original);
+
+        assertColor(0x01020304, bound.get());
+        assertColor(0x01020304, field.getCurrentColor());
     }
 
     @Test

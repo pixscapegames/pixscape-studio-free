@@ -231,6 +231,45 @@ public class EditPropertiesDialogTest {
     }
 
     @Test
+    public void confirmedColorIsAppliedToThePropertyWithoutRequiringALivePreview() throws Exception {
+        PropertySet source = new PropertySet().putColorRgba8888("tint", 0x10203040);
+        AtomicReference<PropertySet> applied = new AtomicReference<>();
+        var dialog = new EditPropertiesDialog("Properties", source, applied::set);
+        var colorField = field(rowNamed(dialog, "tint"), "colorField", ColorPickerField.class);
+
+        pickerListener(colorField).finished(rgba(0x50607080));
+        Assert.assertEquals(0x10203040, source.getColorRgba8888("tint", 0));
+        invokeResult(dialog, true);
+
+        Assert.assertEquals(0x50607080, applied.get().getColorRgba8888("tint", 0));
+    }
+
+    @Test
+    public void confirmedListColorRemainsLocalUntilTheParentIsApplied() throws Exception {
+        PropertySet source = new PropertySet().putList("colors", Array.with(PropertyValue.ofColorRgba8888(0x10203040)));
+        AtomicReference<PropertySet> applied = new AtomicReference<>();
+        var stage = testStage();
+        try {
+            var parent = new EditPropertiesDialog("Properties", source, applied::set);
+            stage.addActor(parent);
+            field(rowNamed(parent, "colors"), "editListButton", VisTextButton.class).fire(
+                    new com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent());
+            var child = (EditPropertiesDialog) stage.getActors().peek();
+            var colorField = field(rows(child).first(), "colorField", ColorPickerField.class);
+
+            pickerListener(colorField).finished(rgba(0x50607080));
+            invokeResult(child, true);
+            Assert.assertNull(applied.get());
+            Assert.assertEquals(0x10203040, source.getListValue("colors").getColorRgba8888(0));
+            invokeResult(parent, true);
+
+            Assert.assertEquals(0x50607080, applied.get().getListValue("colors").getColorRgba8888(0));
+        } finally {
+            stage.dispose();
+        }
+    }
+
+    @Test
     public void cancelingColorPickerRestoresTheDialogWorkingValueBeforeParentApply()
             throws Exception {
         int original = 0x10203040;
@@ -293,6 +332,90 @@ public class EditPropertiesDialogTest {
         Assert.assertEquals(source.getImportedValue("file").sourceXml(), applied.get().getImportedValue("file").sourceXml());
         Assert.assertEquals(4, applied.get().getClassValue("stats").properties().getInt("hp", 0));
         Assert.assertEquals(3, source.getInt("cost", 0));
+    }
+
+    @Test
+    public void locallyCreatedEnumsApplyInPropertiesAndListsAndSurviveSerialization() throws Exception {
+        for (boolean listMode : new boolean[]{false, true}) {
+            var stage = testStage();
+            PropertySet source = listMode ? new PropertySet().putList("states", new Array<>()) : new PropertySet();
+            AtomicReference<PropertySet> applied = new AtomicReference<>();
+            try {
+                var parent = new EditPropertiesDialog("Properties", source, applied::set);
+                stage.addActor(parent);
+                var editor = parent;
+                if (listMode) {
+                    field(rowNamed(parent, "states"), "editListButton", VisTextButton.class).fire(
+                            new com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent());
+                    editor = (EditPropertiesDialog) stage.getActors().peek();
+                }
+                field(editor, "addButton", VisTextButton.class).fire(
+                        new com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent());
+                Object row = rows(editor).peek();
+                if (!listMode) {
+                    field(row, "nameField", VisTextField.class).setText("state");
+                }
+                field(row, "typeBox", VisSelectBox.class).setSelected(PropertyType.ENUM);
+                var creator = (EnumDefinitionDialog) stage.getActors().peek();
+                field(creator, "nameField", VisTextField.class).setText("Movement");
+                field(creator, "valuesField", VisTextArea.class).setText("Idle\nWalking\nRunning");
+                clickButton(creator, "Create");
+                Assert.assertEquals(PropertyType.ENUM, field(row, "typeBox", VisSelectBox.class).getSelected());
+                Assert.assertNull(applied.get());
+                if (listMode) {
+                    Assert.assertEquals(0, source.getListValue("states").size());
+                } else {
+                    Assert.assertTrue(source.isEmpty());
+                }
+
+                Method enumEditor = row.getClass().getDeclaredMethod("enumEditor");
+                enumEditor.setAccessible(true);
+                var table = (com.kotcrab.vis.ui.widget.VisTable) enumEditor.invoke(row);
+                ((VisSelectBox<String>) table.getChildren().get(1)).setSelected("Running");
+                invokeResult(editor, true);
+                if (listMode) {
+                    Assert.assertNull(applied.get());
+                    invokeResult(parent, true);
+                }
+                var json = new com.badlogic.gdx.utils.Json();
+                PropertySet restored = json.fromJson(PropertySet.class, json.toJson(applied.get()));
+                restored.validate();
+                var value = listMode ? restored.getListValue("states").getEnumValue(0) : restored.getEnumValue("state");
+                Assert.assertEquals("Movement", value.typeName());
+                Assert.assertEquals("Running", value.stringValue());
+                Assert.assertEquals(3, value.choiceCount());
+                Assert.assertEquals("Idle", value.choiceAt(0));
+                AtomicReference<PropertySet> reopened = new AtomicReference<>();
+                invokeResult(new EditPropertiesDialog("Properties", restored, reopened::set), true);
+                Assert.assertTrue(restored.contentEquals(reopened.get()));
+            } finally {
+                stage.dispose();
+            }
+        }
+    }
+
+    @Test
+    public void cancelingEnumCreationPreservesThePreviousPropertyTypeAndValue() throws Exception {
+        var stage = testStage();
+        PropertySet source = new PropertySet().putString("state", "original");
+        AtomicReference<PropertySet> applied = new AtomicReference<>();
+        try {
+            var parent = new EditPropertiesDialog("Properties", source, applied::set);
+            stage.addActor(parent);
+            Object row = rowNamed(parent, "state");
+            field(row, "typeBox", VisSelectBox.class).setSelected(PropertyType.ENUM);
+            clickButton((com.kotcrab.vis.ui.widget.VisDialog) stage.getActors().peek(), "OK");
+            var creator = (EnumDefinitionDialog) stage.getActors().peek();
+            field(creator, "nameField", VisTextField.class).setText("Movement");
+            field(creator, "valuesField", VisTextArea.class).setText("Idle\nRunning");
+            clickButton(creator, "Cancel");
+            Assert.assertEquals(PropertyType.STRING, field(row, "typeBox", VisSelectBox.class).getSelected());
+            invokeResult(parent, true);
+            Assert.assertEquals("original", applied.get().getString("state", ""));
+            Assert.assertEquals("original", source.getString("state", ""));
+        } finally {
+            stage.dispose();
+        }
     }
 
     private static Object rowNamed(EditPropertiesDialog dialog, String name) throws Exception {

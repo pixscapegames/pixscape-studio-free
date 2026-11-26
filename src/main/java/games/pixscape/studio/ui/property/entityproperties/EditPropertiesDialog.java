@@ -16,7 +16,6 @@ import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.property.PropertyValue;
-import games.pixscape.runtime.property.EnumDefinition;
 import games.pixscape.studio.ui.modal.StudioDialog;
 import games.pixscape.studio.ui.widget.ColorPickerField;
 
@@ -350,14 +349,14 @@ public final class EditPropertiesDialog extends StudioDialog {
                         selectingType = false;
                         Runnable replace = () -> {
                             if (selected == PropertyType.ENUM) {
-                                chooseEnumDefinition(definition -> {
+                                new EnumDefinitionDialog(definition -> {
                                     PropertyValue candidate = definition.storageType() == PropertyType.STRING
                                             ? PropertyValue.ofEnum(definition, definition.isFlags() ? "" : definition.choiceAt(0))
                                             : PropertyValue.ofEnum(definition, 0);
                                     resetForType(selected);
                                     enumValue = candidate;
                                     selectType(selected);
-                                });
+                                }).show(getStage());
                             } else {
                                 resetForType(selected);
                                 selectType(selected);
@@ -509,7 +508,7 @@ public final class EditPropertiesDialog extends StudioDialog {
             var definition = enumValue.enumDefinitionCopy();
             var view = enumValue.asEnum();
             VisTable table = new VisTable(true);
-            table.add(new VisLabel(view.typeName())).left().row();
+            table.add(new VisLabel(view.typeName())).left().padRight(8);
             if (!view.isFlags()) {
                 VisSelectBox<String> choice = new VisSelectBox<>();
                 Array<String> names = new Array<>();
@@ -532,6 +531,7 @@ public final class EditPropertiesDialog extends StudioDialog {
                 });
                 table.add(choice).growX();
             } else {
+                table.row();
                 VisTable choices = new VisTable(true);
                 Array<VisCheckBox> boxes = new Array<>();
                 for (int i = 0; i < view.choiceCount(); i++) {
@@ -632,42 +632,6 @@ public final class EditPropertiesDialog extends StudioDialog {
         dialog.button("Cancel", false).button("OK", true);
         dialog.closeOnEscape();
         dialog.show(getStage());
-    }
-
-    private void chooseEnumDefinition(Consumer<EnumDefinition> selected) {
-        games.pixscape.studio.ui.importer.TiledProjectChooser.show(getStage(), null, file -> {
-            try {
-                var definitions = games.pixscape.studio.importer.tmx.TiledPropertyTypes.load(file).enums();
-                if (definitions.isEmpty()) {
-                    throw new IllegalArgumentException("This project defines no enums.");
-                }
-                VisSelectBox<String> types = new VisSelectBox<>();
-                Array<String> names = new Array<>();
-                for (var definition : definitions) {
-                    names.add(definition.name());
-                }
-                types.setItems(names);
-                StudioDialog dialog = new StudioDialog("Choose enum type") {
-                    @Override
-                    protected void result(Object result) {
-                        if (Boolean.TRUE.equals(result)) {
-                            try {
-                                selected.accept(definitions.get(types.getSelectedIndex()));
-                            }
-                            catch (RuntimeException ex) {
-                                validationLabel.setText(ex.getMessage());
-                            }
-                        }
-                    }
-                };
-                dialog.getContentTable().add(types).width(280);
-                dialog.button("Cancel", false).button("OK", true);
-                dialog.closeOnEscape();
-                dialog.show(getStage());
-            } catch (RuntimeException ex) {
-                validationLabel.setText(ex.getMessage());
-            }
-        });
     }
 
     private static final class ObjectChoice {

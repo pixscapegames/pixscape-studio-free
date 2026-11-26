@@ -9,6 +9,7 @@
 * Shadow pivots now reference the footprint owner's origin. Footprint edits no longer compensate pivot offsets or visit dependent clips/descendants. Existing offsets load unchanged and may place old pivots differently; no migration or additional format change is introduced.
 
 ### Added
+* Custom property enums can now be created directly in Studio by entering a name and one value per line. Importing enum definitions from a Tiled project remains available as an explicit option.
 * Global tileset custom properties now survive TMX/TSX import, independent TSX reimport, catalog save/reload and Runtime export, separately from tile properties. Runtime `TiledAPI.tilesetProperties(int)` exposes read-only snapshots in O(1); only reachable tilesets are exported. Profile format 3 and its public schema carry these values, including exact STRING paths converted from Tiled `file` properties.
 * Custom-property dialogs resize their tables, fields and scrolling content while retaining usable minimum dimensions and accessible actions. Tile properties show a bounded, aspect-preserving preview of the exact grid or collection tile, borrowing shared texture resources.
 * Items supports dragging a tile layer into another map with matching projection, cell size and grid dimensions. Transfers preserve world placement and layer content through Undo/Redo, and reject splitting Spatial Depth across maps.
@@ -52,6 +53,7 @@
 * Refreshed the distributed HTML Preview player for the current Game Object composition formats and the Runtime physics bootstrap correction.
 
 ### Fixed
+* Color fields now apply the final RGBA value when the picker is confirmed, including custom properties and list items. Reset updates the bound value; cancel still restores the opening color.
 * Selecting an already open scene in the bottom bar now activates its existing tab and synchronizes the scene selector, preserving the scene context and unsaved edits.
 * Shared TMX/TSX property parsing converts `file` to STRING without resolving, checking or copying the target. Unsupported properties alone are skipped with owner/name/type warnings surfaced in import results, including independent TSX import/reimport. Lists, enums and object references keep their existing validation.
 * Importing the same TMX after deleting its scene accepts reused tileset assets, including image collections, instead of failing when no new tiles need importing.

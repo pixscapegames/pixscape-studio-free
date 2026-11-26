@@ -117,10 +117,12 @@ public final class ColorPickerField extends VisTable {
 
             @Override
             public void reset(Color previousColor, Color newColor) {
+                applyColor(newColor);
             }
 
             @Override
             public void finished(Color newColor) {
+                applyColor(newColor);
             }
         };
     }
