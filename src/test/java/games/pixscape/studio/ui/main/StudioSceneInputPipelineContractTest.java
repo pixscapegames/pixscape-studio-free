@@ -12,7 +12,7 @@ public class StudioSceneInputPipelineContractTest {
     @Test
     public void cornerEditingKeepsOverviewAndCreationMenuWithoutInstructionOverlay() throws Exception {
         String menu = read("src/main/java/games/pixscape/studio/ui/contextmenu/StudioContextMenu.java");
-        assertTrue(menu.contains("\"Edit corner profile\""));
+        assertTrue(containsCode(menu, "addCornerItem(corner.actionLabel(),corner.reason(),()->{"));
         assertTrue(menu.contains("edit::removeProfile"));
         String picking = read("src/main/java/games/pixscape/studio/system/PickingSystem.java");
         assertFalse(containsCode(picking, "showLightValueHint(corner.hint())"));
