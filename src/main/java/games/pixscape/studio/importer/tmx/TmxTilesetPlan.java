@@ -1,5 +1,6 @@
 package games.pixscape.studio.importer.tmx;
 
+import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.studio.service.asset.TsxTilesetDescriptor;
 
 import java.util.List;
@@ -26,12 +27,19 @@ public record TmxTilesetPlan(int planIndex,
                              int localTileIdEndExclusive,
                              List<TsxTilesetDescriptor.ImageCollectionTile> imageCollectionTiles,
                              List<TsxTilesetDescriptor.TileAnimation> tileAnimations,
-                             List<TmxTileDefinitionPlan> tileDefinitions) {
+                             List<TmxTileDefinitionPlan> tileDefinitions,
+                             PropertySet properties) {
 
     public TmxTilesetPlan {
+        properties = properties.copy();
         imageCollectionTiles = imageCollectionTiles == null ? List.of() : List.copyOf(imageCollectionTiles);
         tileAnimations = tileAnimations == null ? List.of() : List.copyOf(tileAnimations);
         tileDefinitions = tileDefinitions == null ? List.of() : List.copyOf(tileDefinitions);
+    }
+
+    @Override
+    public PropertySet properties() {
+        return properties.copy();
     }
 
     public boolean imageCollection() {

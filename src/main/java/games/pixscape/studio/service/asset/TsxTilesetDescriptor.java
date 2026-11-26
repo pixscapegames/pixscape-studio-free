@@ -1,6 +1,7 @@
 package games.pixscape.studio.service.asset;
 
 import com.badlogic.gdx.files.FileHandle;
+import games.pixscape.runtime.property.PropertySet;
 
 import java.util.Collections;
 import java.util.List;
@@ -20,7 +21,9 @@ public record TsxTilesetDescriptor(String name,
                                    List<ImageCollectionTile> imageCollectionTiles,
                                    List<TileAnimation> tileAnimations,
                                    java.util.Map<Integer, games.pixscape.runtime.property.PropertySet> tileProperties,
-                                   FileHandle tiledProject) {
+                                   FileHandle tiledProject,
+                                   List<games.pixscape.studio.importer.tmx.TmxDiagnostic> diagnostics,
+                                   PropertySet properties) {
 
     public TsxTilesetDescriptor {
         imageCollectionTiles = imageCollectionTiles == null
@@ -30,6 +33,13 @@ public record TsxTilesetDescriptor(String name,
                 ? List.of()
                 : Collections.unmodifiableList(List.copyOf(tileAnimations));
         tileProperties = java.util.Map.copyOf(tileProperties);
+        diagnostics = List.copyOf(diagnostics);
+        properties = properties.copy();
+    }
+
+    @Override
+    public PropertySet properties() {
+        return properties.copy();
     }
 
     public boolean imageCollection() {

@@ -7,6 +7,9 @@ import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.widget.VisSelectBox;
+import com.kotcrab.vis.ui.widget.VisLabel;
+import games.pixscape.studio.asset.TilesetAssetMeta;
+import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.asset.TileAssetMeta;
 import games.pixscape.studio.configuration.ProjectConfig;
@@ -70,6 +73,7 @@ public class TsxImportDialogGlSmokeTest {
                         png(root.child("external/shared.png"), 16, 8, 0x112233ff);
                         atlas = root.child("external/atlas.tsx");
                         atlas.writeString("<tileset name=\"atlas\" tilewidth=\"8\" tileheight=\"8\" tilecount=\"2\" columns=\"2\">"
+                                + globalProperties(3)
                                 + "<image source=\"shared.png\" width=\"16\" height=\"8\"/>"
                                 + "<tile id=\"0\"><properties><property name=\"cost\" type=\"int\" value=\"3\"/></properties>"
                                 + "<animation><frame tileid=\"1\" duration=\"100\"/></animation></tile>"
@@ -77,6 +81,7 @@ public class TsxImportDialogGlSmokeTest {
                         first = collectionTsx(root, "first", 1);
                         second = collectionTsx(root, "second", 9);
                         tsxDialog(studio, atlas);
+                        assertPropertyWarning(studio);
                         click(review(studio), "Import");
                         step = 1;
                     } catch (Throwable error) {
@@ -166,6 +171,7 @@ public class TsxImportDialogGlSmokeTest {
                                 atlas.writeString(atlas.readString().replace("value=\"3\"", "value=\"5\""), false);
                                 tsxDialog(studio, atlas);
                                 find(review(studio), VisSelectBox.class, actor -> true).setSelectedIndex(1);
+                                assertPropertyWarning(studio);
                                 click(review(studio), "Update");
                                 step = 6;
                             }
@@ -211,6 +217,14 @@ public class TsxImportDialogGlSmokeTest {
         assertEquals(local, saved.sheetIndex);
         assertEquals(cost, live.properties.getInt("cost", -1));
         assertEquals(cost, saved.properties.getInt("cost", -1));
+        for (AssetMetaDatabase database : new AssetMetaDatabase[]{db, AssetMetaDatabase.load(root.child("assets.json"))}) {
+            var properties = ((TilesetAssetMeta) database.findById(live.tilesetId)).properties;
+            assertEquals(cost, properties.getInt("globalCost", -1));
+            assertEquals(PropertyType.STRING, properties.typeOf("file"));
+            assertEquals("../missing folder/config.json", properties.getString("file", null));
+            assertEquals("", properties.getString("empty", null));
+            assertFalse(properties.contains("unsupportedGlobal"));
+        }
     }
 
     private static void assertCostExport(FileHandle root, ProjectConfig cfg, TileAssetMeta tile, int cost) {
@@ -223,9 +237,23 @@ public class TsxImportDialogGlSmokeTest {
     private static FileHandle collectionTsx(FileHandle root, String name, int cost) {
         FileHandle file = root.child("external/" + name + ".tsx");
         file.writeString("<tileset name=\"same\" tilewidth=\"16\" tileheight=\"8\" tilecount=\"1\" columns=\"0\">"
+                + globalProperties(cost)
                 + "<tile id=\"7\"><image source=\"shared.png\" width=\"16\" height=\"8\"/>"
                 + "<properties><property name=\"cost\" type=\"int\" value=\"" + cost + "\"/></properties></tile></tileset>", false);
         return file;
+    }
+
+    private static String globalProperties(int cost) {
+        return "<properties><property name='globalCost' type='int' value=\"" + cost + "\"/>"
+                + "<property name='file' type='file' value='../missing folder/config.json'/>"
+                + "<property name='empty' type='file' value=''/><property name='unsupportedGlobal' type='future-type'/></properties>";
+    }
+
+    private static void assertPropertyWarning(StudioApplicationAdapter studio) {
+        assertNotNull(find(review(studio), VisLabel.class, actor -> {
+            String text = ((VisLabel) actor).getText().toString();
+            return text.contains("unsupportedGlobal") && text.contains("future-type") && text.contains("tileset 'atlas'");
+        }));
     }
 
     private static void tsxDialog(StudioApplicationAdapter studio, FileHandle tsx) throws Exception {

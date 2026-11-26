@@ -127,7 +127,7 @@ public class TilePropertiesPipelineTest {
         assertEquals(7, saved.sheetIndex);
         assertEquals(9, saved.properties.getInt("cost", 0));
         assertFalse(saved.properties.contains("label"));
-        assertEquals(original.getImportedValue("file").sourceXml(), saved.properties.getImportedValue("file").sourceXml());
+        assertEquals(original.getString("file", null), saved.properties.getString("file", null));
         assertEquals(20, saved.properties.getClassValue("custom").properties().getInt("health", 0));
         assertEquals("Other", ((TileAssetMeta) reopened.findById(second.localTileAssetIds().get(7))).properties.getString("label", ""));
 
@@ -180,8 +180,8 @@ public class TilePropertiesPipelineTest {
         assertFalse(properties.getBoolean("solid", true));
         assertEquals(3, properties.getInt("cost", 0));
         assertEquals(0.5f, properties.getFloat("speed", 0), 0);
-        assertEquals(PropertyType.IMPORTED, properties.typeOf("file"));
-        assertEquals("file", properties.getImportedValue("file").typeName());
+        assertEquals(PropertyType.STRING, properties.typeOf("file"));
+        assertEquals("../scripts/water.lua", properties.getString("file", null));
         assertEquals(-1, properties.getObjectStableId("object", 0));
         assertEquals("Terrain", properties.getEnumValue("enum").typeName());
         assertEquals("water", properties.getEnumValue("enum").stringValue());

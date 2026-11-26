@@ -427,7 +427,7 @@ public class TmxObjectLayerPreflightTest {
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_NAME_DUPLICATE"));
         assertEquals(3, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_NAME_INVALID"));
         assertEquals(9, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_VALUE_INVALID"));
-        assertEquals(2, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
+        assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.WARNING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROJECT_REQUIRED"));
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING,
                 "TMX_OBJECT_REFERENCE_UNRESOLVED"));
@@ -457,7 +457,7 @@ public class TmxObjectLayerPreflightTest {
 
         assertTrue(report.hasBlockingDiagnostics());
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_NAME_DUPLICATE"));
-        assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
+        assertEquals(0, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING,
                 "TMX_OBJECT_REFERENCE_UNRESOLVED"));
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_CLASS_PROPERTY_TYPE_INVALID"));

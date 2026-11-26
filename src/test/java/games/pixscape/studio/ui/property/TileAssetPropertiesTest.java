@@ -35,7 +35,7 @@ public class TileAssetPropertiesTest {
         AtomicReference<AssetMetaDatabase> project = new AtomicReference<>(db);
         FileHandle file = new FileHandle(temp.newFolder("assets")).child("assets.json");
         AtomicInteger published = new AtomicInteger();
-        TileAssetProperties inspector = new TileAssetProperties(project::get, () -> file, ignored -> published.incrementAndGet());
+        TileAssetProperties inspector = new TileAssetProperties(project::get, () -> file, ignored -> published.incrementAndGet(), ignored -> null);
         String snapshot = db.toSnapshotJson();
         inspector.select(first.id());
         assertEquals("7", ((VisLabel) inspector.findActor("tileLocalId")).getText().toString());
@@ -66,7 +66,7 @@ public class TileAssetPropertiesTest {
         FileHandle regularFile = new FileHandle(temp.newFile("not-a-directory"));
         AtomicInteger published = new AtomicInteger();
         TileAssetProperties inspector = new TileAssetProperties(() -> db,
-                () -> regularFile.child("assets.json"), ignored -> published.incrementAndGet());
+                () -> regularFile.child("assets.json"), ignored -> published.incrementAndGet(), ignored -> null);
         inspector.select(tile.id());
         assertThrows(RuntimeException.class, () -> inspector.apply(tile.id(), new PropertySet().putInt("cost", 4)));
         assertTrue(tile.properties.isEmpty());

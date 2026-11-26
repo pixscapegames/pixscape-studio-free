@@ -838,6 +838,7 @@ public final class RuntimeExport {
 
         JsonValue node = new JsonValue(JsonValue.ValueType.object);
         node.addChild("tilesetId", new JsonValue(tileset.id()));
+        node.addChild("properties", new JsonReader().parse(new Json().toJson(tileset.properties)));
         node.addChild("logicalPath", new JsonValue(tileset.logicalPath()));
         node.addChild("tileWidth", new JsonValue(tileset.tileWidth));
         node.addChild("tileHeight", new JsonValue(tileset.tileHeight));

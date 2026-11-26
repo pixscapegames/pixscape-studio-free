@@ -101,6 +101,7 @@ public final class StudioTilesetProfileResolver {
 
             tileIds.sort();
             RuntimeTilesetProfile profile = toRuntimeProfile(tileset);
+            profile.properties = tileset.properties.copy();
             profile.tileAssetIds = tileIds.toArray();
             for (int id : profile.tileAssetIds) {
                 TileAssetMeta tile = (TileAssetMeta) assetDb.findById(id);

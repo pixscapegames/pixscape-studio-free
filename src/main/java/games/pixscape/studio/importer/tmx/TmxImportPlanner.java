@@ -109,7 +109,8 @@ public final class TmxImportPlanner {
                     Math.max(info.tileCount(), 0),
                     info.imageCollectionTiles(),
                     info.tileAnimations(),
-                    buildTileDefinitions(info.tileDefinitions())
+                    buildTileDefinitions(info.tileDefinitions()),
+                    info.properties()
             ));
         }
         return plans;

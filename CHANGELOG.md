@@ -4,11 +4,13 @@
 ## [0.4.3-SNAPSHOT]
 
 ### Compatibility
-* Uses Runtime `0.2.5-SNAPSHOT`, scene schema 8, Game Object definition schema 7, Runtime fragment schema 6, asset catalog 4 and tileset profiles 2. Older formats are rejected without historical readers, conversion or migration.
+* Uses Runtime `0.2.5-SNAPSHOT`, scene schema 8, Game Object definition schema 7, Runtime fragment schema 6, asset catalog 4 and tileset profiles 3. Older formats are rejected without historical readers, conversion or migration.
 * Occlusion zones now use normalized image-local storage and are edited in logical image pixels. Existing files using the previous rectangle coordinates must be adapted explicitly.
 * Shadow pivots now reference the footprint owner's origin. Footprint edits no longer compensate pivot offsets or visit dependent clips/descendants. Existing offsets load unchanged and may place old pivots differently; no migration or additional format change is introduced.
 
 ### Added
+* Global tileset custom properties now survive TMX/TSX import, independent TSX reimport, catalog save/reload and Runtime export, separately from tile properties. Runtime `TiledAPI.tilesetProperties(int)` exposes read-only snapshots in O(1); only reachable tilesets are exported. Profile format 3 and its public schema carry these values, including exact STRING paths converted from Tiled `file` properties.
+* Custom-property dialogs resize their tables, fields and scrolling content while retaining usable minimum dimensions and accessible actions. Tile properties show a bounded, aspect-preserving preview of the exact grid or collection tile, borrowing shared texture resources.
 * Items supports dragging a tile layer into another map with matching projection, cell size and grid dimensions. Transfers preserve world placement and layer content through Undo/Redo, and reject splitting Spatial Depth across maps.
 * Added typed heterogeneous LIST and Tiled enums to custom properties on every supported owner, including tile definitions and inherited tile-object values. Explicit empty lists override inherited lists. Required enum definitions come from an explicitly selected `.tiled-project`; unresolved values and unsupported list items are diagnosed before import.
 * The existing properties dialog edits bounded, scrollable lists with indexed rows, insertion/removal/reordering, nested CLASS/LIST dialogs, enum choices and flag checkboxes. Nested Apply stays in the parent working copy; one final Apply creates one history command. Cancel/Escape discard edits, and destructive type changes require confirmation.
@@ -50,6 +52,8 @@
 * Refreshed the distributed HTML Preview player for the current Game Object composition formats and the Runtime physics bootstrap correction.
 
 ### Fixed
+* Shared TMX/TSX property parsing converts `file` to STRING without resolving, checking or copying the target. Unsupported properties alone are skipped with owner/name/type warnings surfaced in import results, including independent TSX import/reimport. Lists, enums and object references keep their existing validation.
+* Importing the same TMX after deleting its scene accepts reused tileset assets, including image collections, instead of failing when no new tiles need importing.
 * Spatial occlusion rectangle move/resize gestures now use the captured representation when preparing canvas geometry, avoiding an incomplete-representation exception. Rectangle and shadow-pivot clicks without changes no longer add empty history commands.
 * Game Object asset export now reads custom properties, PointLight and ConeLight from the captured initializer data. Independent copies retain component absence, all light parameters including cone inclination, and recursive typed-property reference remapping.
 * Spatial inspector group titles now have consistent spacing above their fields when footprint inheritance controls are hidden.

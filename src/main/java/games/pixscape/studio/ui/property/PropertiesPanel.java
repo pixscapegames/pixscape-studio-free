@@ -144,7 +144,8 @@ public class PropertiesPanel extends DockablePanel {
                 () -> games.pixscape.studio.io.StudioFs.requireStudioProjectDir(
                                 games.pixscape.studio.configuration.ProjectConfig.getInstance())
                         .child(games.pixscape.studio.io.StudioFs.FILE_ASSETS_JSON),
-                database -> app.getCanvas().publishAssetMetaDatabase(database));
+                database -> app.getCanvas().publishAssetMetaDatabase(database),
+                assetId -> app.getCanvas().getAssetVisualResolver().resolveFirst(assetId, null));
         animationAssetProperties = new AnimationAssetProperties(app.getSceneService()::getAssetMetaDatabase,
                 assetId -> games.pixscape.studio.ui.asset.AnimationAssetClipsEditor.show(app, assetId, getStage()));
 

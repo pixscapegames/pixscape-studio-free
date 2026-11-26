@@ -62,6 +62,181 @@ import static org.junit.Assert.*;
 public class TmxSceneImportServiceTest {
 
     @Test
+    public void globalTilesetPropertiesSurviveImportReloadTsxReimportExportAndPublicRuntimeApi() throws Exception {
+        for (boolean collection : new boolean[]{false, true}) {
+            Harness h = harness("tileset-global-pipeline");
+            FileHandle map = TmxPropertyImportTest.fixture(h.projectDir, true, collection);
+            FileHandle tsx = h.projectDir.child("sets/terrain.tsx");
+            String original = h.projectDir.child("terrain.tsx").readString()
+                    .replace("source='terrain.png'", "source='../terrain.png'");
+            int tileStart = original.indexOf("<tile id=");
+            original = original.substring(0, tileStart)
+                    + original.substring(tileStart).replace("value=\"42\"", "value=\"7\"");
+            tsx.writeString(original, false);
+            map.writeString(map.readString().replace("source='terrain.tsx'", "source='sets/terrain.tsx'"), false);
+            var imported = h.importer().importScene(new TmxSceneImportRequest(map, "Imported", false));
+            assertTrue(String.valueOf(imported.failure()), imported.imported());
+            int tilesetId = requireTileset(h.db.findByLogicalPath("tiles/terrain")).id();
+            FileHandle catalog = h.projectDir.child(StudioFs.FILE_ASSETS_JSON);
+            AssetMetaDatabase reopened = AssetMetaDatabase.load(catalog);
+
+            // Independent TSX import: this tileset stays outside scene reachability and export.
+            var reimporter = new games.pixscape.studio.service.asset.TilesetReimportService(reopened);
+            var unusedPlan = reimporter.prepareTsx(tsx, h.projectDir.child(StudioFs.DIR_ORIG_TILES),
+                    -1, ids -> java.util.Map.of());
+            var unused = reimporter.apply(unusedPlan, (candidate, colors) -> {}, () -> reopened.save(catalog));
+            assertNotEquals(tilesetId, unused.tilesetAssetId());
+
+            var engine = new games.pixscape.runtime.engine.PixscapeEngine();
+            var api = engine.api().tiled();
+            for (int revision = 0; revision < 3; revision++) {
+                String expectedPath = revision == 0 ? "../scripts/missing.lua" : "../new folder/updated.lua";
+                if (revision > 0) {
+                    String updated = original.replace("../scripts/missing.lua", expectedPath)
+                            .replace("value=\"42\"", "value=\"84\"");
+                    if (revision == 2) {
+                        int start = updated.indexOf("<properties>");
+                        int end = updated.indexOf("</properties>") + "</properties>".length();
+                        updated = updated.substring(0, start) + updated.substring(end);
+                    }
+                    tsx.writeString(updated, false);
+                    var plan = reimporter.prepareTsx(tsx, h.projectDir.child(StudioFs.DIR_ORIG_TILES),
+                            tilesetId, ids -> java.util.Map.of());
+                    var result = reimporter.apply(plan, (candidate, colors) -> {}, () -> reopened.save(catalog));
+                    assertEquals(tilesetId, result.tilesetAssetId());
+                }
+                AssetMetaDatabase saved = AssetMetaDatabase.load(catalog);
+                var stored = ((TilesetAssetMeta) saved.findById(tilesetId)).properties;
+                assertEquals(revision == 2, stored.isEmpty());
+                if (revision < 2) {
+                    assertEquals(expectedPath, stored.getString("relative", null));
+                }
+                var preview = games.pixscape.studio.service.tiled.StudioTilesetProfileResolver.buildRuntimeProfiles(saved);
+                assertEquals(stored.size(), preview.tilesetProperties(tilesetId).size());
+                FileHandle output = h.projectDir.child("export");
+                RuntimeExport.exportRuntime(h.cfg, h.projectDir, output);
+                var loaded = games.pixscape.runtime.loading.RuntimeProjectIO.loadTilesetProfiles(
+                        output.child(RuntimeExport.RUNTIME_DIR_NAME));
+                engine.getTilesetProfiles().clear();
+                for (var profile : loaded.profiles()) {
+                    engine.getTilesetProfiles().add(profile);
+                }
+                assertNull(api.tilesetProperties(unused.tilesetAssetId()));
+                assertNull(api.tilesetProperties(Integer.MAX_VALUE));
+                var global = api.tilesetProperties(tilesetId);
+                assertNotNull(global);
+                assertEquals(revision == 2, global.isEmpty());
+                if (revision < 2) {
+                    assertRuntimeFilePaths(global, expectedPath);
+                    assertEquals(revision == 0 ? 42 : 84, global.getInt("kept", 0));
+                }
+                var tile = api.tile(tilesetId, 0);
+                assertNotNull(tile);
+                assertRuntimeFilePaths(tile.properties(), expectedPath);
+                assertEquals(7, tile.properties().getInt("kept", 0));
+            }
+            assertFalse(h.projectDir.child("scripts/missing.lua").exists());
+            assertFalse(h.projectDir.child("new folder/updated.lua").exists());
+        }
+    }
+
+    private static void assertRuntimeFilePaths(games.pixscape.runtime.api.CustomProperties properties, String relative) {
+        for (String key : List.of("relative", "spaces", "empty", "noValue", "text", "customFile")) {
+            assertEquals(key, PropertyType.STRING, properties.typeOf(key));
+        }
+        assertEquals(relative, properties.getString("relative", null));
+        assertEquals("folder with spaces/missing file.txt", properties.getString("spaces", null));
+        assertEquals("", properties.getString("empty", null));
+        assertEquals("", properties.getString("noValue", null));
+        assertEquals("../text path.txt", properties.getString("text", null));
+        assertEquals("missing.dat", properties.getString("customFile", null));
+        assertFalse(properties.contains("unknown"));
+    }
+
+    @Test
+    public void aSkippedCollectionStillFailsAndRollsBack() throws Exception {
+        Harness h = harness("tmx-skipped-collection");
+        FileHandle map = TmxPropertyImportTest.fixture(h.projectDir, true, true);
+        h.projectDir.child("terrain.png").copyTo(h.projectDir.child("terrain_n.png"));
+        FileHandle tsx = h.projectDir.child("terrain.tsx");
+        tsx.writeString(tsx.readString().replace("terrain.png", "terrain_n.png"), false);
+        String catalog = h.db.toSnapshotJson();
+        var result = h.importer().importScene(new TmxSceneImportRequest(map, "Skipped", false));
+        assertEquals(TmxSceneImportStatus.FAILED_ROLLED_BACK, result.status());
+        assertTrue(result.rollbackSucceeded());
+        assertEquals("Tileset import failed: terrain", result.failure().getMessage());
+        assertNull(h.cfg.getSceneMeta("Skipped"));
+        assertEquals(catalog, h.db.toSnapshotJson());
+    }
+
+    @Test
+    public void reimportReusesCollectionTilesAfterTheImportedSceneWasDeleted() throws Exception {
+        Harness h = harness("tmx-reimport-collection");
+        FileHandle map = TmxPropertyImportTest.fixture(h.projectDir, true, true);
+        var first = h.importer().importScene(new TmxSceneImportRequest(map, "Imported", false));
+        assertTrue(String.valueOf(first.failure()), first.imported());
+        AssetMetaDatabase saved = AssetMetaDatabase.load(h.projectDir.child(StudioFs.FILE_ASSETS_JSON));
+        for (int i = 0; i < saved.size(); i++) {
+            if (saved.assetAt(i) instanceof TilesetAssetMeta tileset) {
+                TmxPropertyImportTest.assertProperties(tileset.properties);
+            }
+        }
+        String catalog = h.db.toSnapshotJson();
+        int nextAssetId = h.db.nextId();
+        for (int cycle = 0; cycle < 3; cycle++) {
+            games.pixscape.studio.service.ProjectFileCleanupService.deleteFileAndBackups(
+                    h.projectDir.child(StudioFs.DIR_SCENES).child(first.sceneFileName()));
+            games.pixscape.studio.service.ProjectFileCleanupService.deleteSceneAtlasFiles(h.projectDir, first.sceneTag());
+            games.pixscape.studio.service.ProjectFileCleanupService.deleteSceneAtlasInput(h.projectDir, first.sceneTag());
+            h.cfg.removeSceneMeta(first.sceneName());
+            ProjectConfig.ProjectIO.saveProject(h.cfg, StudioFs.requireStudioProjectFile(h.cfg));
+
+            var imported = h.importer().importScene(new TmxSceneImportRequest(map, "Imported", false));
+            assertTrue(String.valueOf(imported.failure()), imported.imported());
+            assertFalse(imported.rollbackAttempted());
+            assertEquals(catalog, h.db.toSnapshotJson());
+            assertEquals(nextAssetId, h.db.nextId());
+            World world = loadImportedWorld(h, imported);
+            try {
+                var layers = world.getAspectSubscriptionManager().get(Aspect.all(TiledLayerComponent.class)).getEntities();
+                assertEquals(1, layers.size());
+                assertEquals(2, imported.importedCellCount());
+                var owners = world.getAspectSubscriptionManager().get(Aspect.all(CustomPropertiesComponent.class)).getEntities();
+                for (int i = 0; i < owners.size(); i++) {
+                    TmxPropertyImportTest.assertProperties(ownerProperties(world, owners.get(i)));
+                }
+            } finally {
+                world.dispose();
+            }
+            first = imported;
+        }
+    }
+
+    @Test
+    public void filePropertiesAndWarningsSurviveRealImportAndReachTheUserResult() throws Exception {
+        Harness h = harness("file-properties");
+        FileHandle map = TmxPropertyImportTest.fixture(h.projectDir, true, true);
+        var result = h.importer().importScene(new TmxSceneImportRequest(map, "File properties", false));
+        assertTrue(String.valueOf(result.failure()), result.imported());
+        assertEquals(7, games.pixscape.studio.ui.importer.TmxImportUiSupport.warningCount(result.diagnostics()));
+        assertTrue(games.pixscape.studio.ui.importer.TmxImportUiSupport.formatSuccessMessage(result).contains("7 warnings"));
+        String shown = games.pixscape.studio.ui.importer.TmxImportUiSupport.formatDiagnostics(result.diagnostics());
+        assertTrue(shown, shown.contains("unknown") && shown.contains("future-type") && shown.contains("tile 0"));
+        World world = loadImportedWorld(h, result);
+        try {
+            var owners = world.getAspectSubscriptionManager().get(Aspect.all(CustomPropertiesComponent.class)).getEntities();
+            assertEquals(6, owners.size());
+            for (int i = 0; i < owners.size(); i++) {
+                TmxPropertyImportTest.assertProperties(ownerProperties(world, owners.get(i)));
+            }
+        } finally {
+            world.dispose();
+        }
+        assertFalse(h.projectDir.child("scripts/missing.lua").exists());
+        assertFalse(h.projectDir.child("folder with spaces").exists());
+    }
+
+    @Test
     public void listEnumsSurviveRealImportEditDeleteCopyExportAndRuntimeApi() throws Exception {
         for (String projection : new String[]{"orthogonal", "isometric"}) {
             Harness h = harness("list-enums-" + projection);
@@ -180,8 +355,7 @@ public class TmxSceneImportServiceTest {
     @Test
     public void invalidListItemsAndEnumsLeaveProjectAndCatalogUntouched() throws Exception {
         Harness h = harness("tmx-invalid-list-enums");
-        for (String item : new String[]{"<item type='file' value='missing.png'/>",
-                "<item type='object' value='999'/>", "<item propertytype='Missing' value='X'/>",
+        for (String item : new String[]{"<item type='object' value='999'/>", "<item propertytype='Missing' value='X'/>",
                 "<item propertytype='Direction' value='Unknown'/>", "<item type='int' propertytype='Flags' value='8'/>"}) {
             FileHandle tmx = writeTmx(h.root.resolve("invalid.tmx"),
                     "<map orientation='orthogonal' width='1' height='1' tilewidth='16' tileheight='16'>"
@@ -208,7 +382,6 @@ public class TmxSceneImportServiceTest {
         Harness h = harness("tmx-invalid-owner-properties");
         String[][] invalid = {
                 {"<property name=\"bad\" type=\"list\" value=\"1,2\"/>", "TMX_PROPERTY_VALUE_INVALID", "LIST"},
-                {"<property name=\"bad\" type=\"file\" value=\"asset.png\"/>", "TMX_PROPERTY_TYPE_UNSUPPORTED", "file"},
                 {"<property name=\"bad\" propertytype=\"Direction\" value=\"North\"/>", "TMX_PROJECT_REQUIRED", "Direction"},
                 {"<property name=\"bad\" type=\"object\" value=\"9999\"/>", "TMX_OBJECT_REFERENCE_UNRESOLVED", "9999"},
                 {"<property name=\"bad\" type=\"object\" value=\"2002\"/>", "TMX_OBJECT_REFERENCE_TARGET_UNSUPPORTED", "2002"},

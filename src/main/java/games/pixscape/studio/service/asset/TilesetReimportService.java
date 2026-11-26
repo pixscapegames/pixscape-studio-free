@@ -131,13 +131,18 @@ public final class TilesetReimportService {
 
     public Plan prepareTsx(FileHandle file, FileHandle tilesRoot, int targetId, UsageProof usage, FileHandle tiledProject) {
         TsxTilesetDescriptor tsx = new TsxTilesetImportParser().parse(file, tiledProject);
+        List<String> notices = new ArrayList<>();
+        for (var diagnostic : tsx.diagnostics()) {
+            notices.add(diagnostic.message() + " (" + diagnostic.location() + ")");
+        }
         String name = tsx.name() == null || tsx.name().isBlank() ? StudioFs.baseName(file.name()) : tsx.name();
         if (!tsx.imageCollection()) {
             Plan atlas = prepareAtlas(new TilesetAtlasImportRequest(tsx.imageFile(), tilesRoot,
                     tsx.tileWidth(), tsx.tileHeight(), tsx.spacing(), tsx.margin(), name), targetId, usage);
+            notices.addAll(atlas.notices());
             return new Plan(atlas.tilesRoot(), file, atlas.base(), atlas.kind(), atlas.settings(), atlas.grid(),
                     targetId, atlas.sources(), atlas.matches(), atlas.removed(), atlas.retained(),
-                    atlas.notices(), atlas.catalogSnapshot(), tsx);
+                    List.copyOf(notices), atlas.catalogSnapshot(), tsx);
         }
         if (targetId > 0) validateProvenance(targetId);
         List<Source> sources = new ArrayList<>();
@@ -152,7 +157,7 @@ public final class TilesetReimportService {
         }
         return prepare(tilesRoot, file, name, "collection",
                 TilesetProfileImportSettings.defaults(tsx.tileWidth(), tsx.tileHeight()), null,
-                targetId, sources, usage, new ArrayList<>(), tsx);
+                targetId, sources, usage, notices, tsx);
     }
 
     private Plan prepare(FileHandle root, FileHandle source, String base, String kind,
@@ -313,6 +318,7 @@ public final class TilesetReimportService {
             if (plan.tsx() != null) {
                 for (int id : ids.values())
                     ((TileAssetMeta) db.findById(id)).properties = new games.pixscape.runtime.property.PropertySet();
+                set.properties = plan.tsx().properties();
                 TilePropertiesImportSupport.apply(db, ids, plan.tsx().tileProperties());
             }
             prepareMetadata.accept(result);

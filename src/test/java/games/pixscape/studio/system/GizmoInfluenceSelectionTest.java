@@ -64,15 +64,38 @@ public class GizmoInfluenceSelectionTest {
     }
 
     @Test
-    public void focusedFootprintPaintsInPhysicsModeWithoutAViewportSelection() throws Exception {
+    public void physicsFocusHidesInfluenceUntilNormalSelectionResumes() throws Exception {
         try (Harness h = new Harness()) {
             h.physics.focusBody(h.actor);
             h.paint();
-            Assert.assertTrue(h.draws > 0);
             Assert.assertEquals(StudioEditingMode.PHYSICS, h.modes.getCurrentMode());
+            Assert.assertEquals(0, h.draws);
+
+            h.select(h.actor);
+            h.paint();
+            Assert.assertEquals(0, h.draws);
+
+            h.physics.clear();
+            h.paint();
+            Assert.assertEquals(StudioEditingMode.NORMAL, h.modes.getCurrentMode());
+            Assert.assertTrue(h.draws > 0);
+        }
+    }
+
+    @Test
+    public void hudDocumentHidesInfluenceUntilSceneDocumentResumes() throws Exception {
+        try (Harness h = new Harness()) {
+            h.select(h.actor);
+            h.paint();
+            Assert.assertTrue(h.draws > 0);
+
             h.modes.activateHudDocument(0);
             h.paint();
             Assert.assertEquals(0, h.draws);
+
+            h.modes.activateSceneDocument(StudioEditingMode.NORMAL, 0);
+            h.paint();
+            Assert.assertTrue(h.draws > 0);
         }
     }
 

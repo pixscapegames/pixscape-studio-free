@@ -121,19 +121,22 @@ public final class EditPropertiesDialog extends StudioDialog {
     private void buildUi() {
         VisTable root = new VisTable(true);
         root.left().top();
-        root.add(new VisLabel(listMode ? "Index" : "Name")).width(120).left();
+        root.add(new VisLabel(listMode ? "Index" : "Name")).minWidth(120).prefWidth(120).growX().left();
         root.add(new VisLabel("Type")).width(105).left();
-        root.add(new VisLabel("Value")).width(260).left();
+        root.add(new VisLabel("Value")).minWidth(260).prefWidth(260).growX().left();
         root.add().width(listMode ? 110 : 28).row();
 
         VisScrollPane scroll = new VisScrollPane(rowsTable);
         scroll.setFadeScrollBars(false);
-        root.add(scroll).colspan(4).grow().minWidth(listMode ? 680 : 580).height(300).row();
+        scroll.setScrollingDisabled(true, false);
+        root.add(scroll).colspan(4).grow().minWidth(listMode ? 680 : 580).minHeight(140).prefHeight(300).row();
         root.add(addButton).colspan(4).left().padTop(4).row();
         if (tileDefinition) {
             VisLabel notice = new VisLabel("Tile definitions cannot reference scene entities. Preserved unsupported metadata is read-only.");
-            root.add(notice).colspan(4).left().padTop(6).row();
+            notice.setWrap(true);
+            root.add(notice).colspan(4).growX().left().padTop(6).row();
         }
+        validationLabel.setWrap(true);
         validationLabel.setColor(1f, 0.4f, 0.4f, 1f);
         root.add(validationLabel).colspan(4).growX().left().padTop(6).row();
         getContentTable().add(root).grow();
@@ -148,9 +151,9 @@ public final class EditPropertiesDialog extends StudioDialog {
             if (listMode) {
                 row.nameField.setText("[" + i + "]");
             }
-            rowsTable.add(row.nameField).width(120).growX();
+            rowsTable.add(row.nameField).minWidth(120).prefWidth(120).growX();
             rowsTable.add(row.typeBox).width(105).left();
-            rowsTable.add(row.valueEditor()).width(260).growX();
+            rowsTable.add(row.valueEditor()).minWidth(260).prefWidth(260).growX();
             VisTable actions = new VisTable(true);
             if (listMode) {
                 actions.add(actionButton("+", () -> {
@@ -287,7 +290,7 @@ public final class EditPropertiesDialog extends StudioDialog {
         } catch (IllegalArgumentException | IllegalStateException ex) {
             validationLabel.setText(ex.getMessage() != null ? ex.getMessage() : "Invalid property value.");
             validationLabel.invalidateHierarchy();
-            pack();
+            setSize(Math.max(getWidth(), getMinWidth()), Math.max(getHeight(), getMinHeight()));
             cancel();
         }
     }
@@ -595,7 +598,7 @@ public final class EditPropertiesDialog extends StudioDialog {
                     return enumEditor();
                 case CLASS:
                     VisTable classEditor = new VisTable(true);
-                    classEditor.add(classNameField).width(155).growX();
+                    classEditor.add(classNameField).minWidth(100).prefWidth(155).growX();
                     classEditor.add(editClassButton).right();
                     return classEditor;
                 default:

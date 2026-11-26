@@ -46,6 +46,9 @@ public final class TsxTilesetImportParser {
             throw new IllegalArgumentException("TSX file is invalid.");
         }
 
+        List<games.pixscape.studio.importer.tmx.TmxDiagnostic> diagnostics = new ArrayList<>();
+        var properties = games.pixscape.studio.importer.tmx.TmxPreflightService.readAssetProperties(tileset,
+                "tileset '" + tileset.getAttribute("name", "<unnamed>") + "'", types, diagnostics::add);
         int tileWidth = intAttribute(tileset, "tilewidth", 0);
         int tileHeight = intAttribute(tileset, "tileheight", 0);
         int spacing = intAttribute(tileset, "spacing", 0);
@@ -81,7 +84,7 @@ public final class TsxTilesetImportParser {
                         columns,
                         imageCollectionTiles,
                         parseTileAnimationsForStandalone(tileset, effectiveTileCount),
-                        parseTileProperties(tileset, types), tiledProject
+                        parseTileProperties(tileset, types, diagnostics), tiledProject, diagnostics, properties
                 );
             }
             throw new IllegalArgumentException("TSX tileset image is missing.");
@@ -115,7 +118,7 @@ public final class TsxTilesetImportParser {
                 columns,
                 imageCollectionTiles,
                 parseTileAnimationsForStandalone(tileset, effectiveTileCount),
-                parseTileProperties(tileset, types), tiledProject
+                parseTileProperties(tileset, types, diagnostics), tiledProject, diagnostics, properties
         );
     }
 
@@ -133,7 +136,8 @@ public final class TsxTilesetImportParser {
         return animations;
     }
 
-    private static java.util.Map<Integer, games.pixscape.runtime.property.PropertySet> parseTileProperties(XmlReader.Element tileset, games.pixscape.studio.importer.tmx.TiledPropertyTypes types) {
+    private static java.util.Map<Integer, games.pixscape.runtime.property.PropertySet> parseTileProperties(XmlReader.Element tileset, games.pixscape.studio.importer.tmx.TiledPropertyTypes types,
+            List<games.pixscape.studio.importer.tmx.TmxDiagnostic> diagnostics) {
         var properties = new java.util.LinkedHashMap<Integer, games.pixscape.runtime.property.PropertySet>();
         for (int i = 0; i < tileset.getChildCount(); i++) {
             XmlReader.Element tile = tileset.getChild(i);
@@ -141,7 +145,8 @@ public final class TsxTilesetImportParser {
             int localId = intAttribute(tile, "id", -1);
             if (localId < 0 || properties.containsKey(localId))
                 throw new IllegalArgumentException("Invalid or duplicate local tile ID: " + localId);
-            properties.put(localId, games.pixscape.studio.importer.tmx.TmxPreflightService.readTileProperties(tile, "tile " + localId, types));
+            properties.put(localId, games.pixscape.studio.importer.tmx.TmxPreflightService.readAssetProperties(tile, "tileset '" + tileset.getAttribute("name", "<unnamed>")
+                    + "' / tile " + localId, types, diagnostics::add));
         }
         return properties;
     }

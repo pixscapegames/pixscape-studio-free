@@ -324,6 +324,7 @@ public final class AssetMetaDatabase implements Json.Serializable {
             copyAnimation.clips = copyClips(sourceAnimation.clips);
         } else if (source instanceof TilesetAssetMeta sourceTileset
                 && copy instanceof TilesetAssetMeta copyTileset) {
+            copyTileset.properties = sourceTileset.properties.copy();
             copyTileset.imageWidth = sourceTileset.imageWidth;
             copyTileset.imageHeight = sourceTileset.imageHeight;
             copyTileset.tileWidth = sourceTileset.tileWidth;
@@ -919,6 +920,7 @@ public final class AssetMetaDatabase implements Json.Serializable {
             } else if (object instanceof TilesetAssetMeta tileset) {
 
                 tileset.normalizeProfileDefaults();
+                json.writeValue("properties", tileset.properties, games.pixscape.runtime.property.PropertySet.class);
                 json.writeValue("imageWidth", tileset.imageWidth);
                 json.writeValue("imageHeight", tileset.imageHeight);
                 json.writeValue("tileWidth", tileset.tileWidth);
@@ -971,6 +973,10 @@ public final class AssetMetaDatabase implements Json.Serializable {
                 animation.currentClip = jsonData.getString("currentClip", null);
                 animation.clips = readAnimationClips(jsonData.get("clips"));
             } else if (meta instanceof TilesetAssetMeta tileset) {
+                if (jsonData.has("properties")) {
+                    tileset.properties = json.readValue(games.pixscape.runtime.property.PropertySet.class, jsonData.get("properties"));
+                    tileset.properties.validate();
+                }
                 tileset.imageWidth = jsonData.getInt("imageWidth", 0);
                 tileset.imageHeight = jsonData.getInt("imageHeight", 0);
                 tileset.tileWidth = jsonData.getInt("tileWidth", 0);

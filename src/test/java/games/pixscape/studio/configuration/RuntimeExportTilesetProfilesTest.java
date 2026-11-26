@@ -186,7 +186,7 @@ public class RuntimeExportTilesetProfilesTest {
 
         JsonValue root = new JsonReader().parse(manifest);
         assertEquals("pixscape.tileset-profiles", root.getString("format"));
-        assertEquals(2, root.getInt("version"));
+        assertEquals(3, root.getInt("version"));
 
         JsonValue tilesets = root.get("tilesets");
         assertEquals(2, tilesets.size);

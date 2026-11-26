@@ -162,9 +162,11 @@ public final class TmxSceneImportService {
                         tileset.margin()
                 ));
             }
-            if (result.importedCount() <= 0) {
+            // Reusing an existing collection creates no assets but still supplies valid tile identities.
+            if (result.tilesetAssetId() <= 0 || result.localTileAssetIds().isEmpty()) {
                 throw new IllegalStateException("Tileset import failed: " + tileset.name());
             }
+            ((TilesetAssetMeta) assetDb.findById(result.tilesetAssetId())).properties = tileset.properties();
             importedTilesetCount += result.importedCount();
             Map<Integer, games.pixscape.runtime.property.PropertySet> tileProperties = new HashMap<>();
             for (TmxTileDefinitionPlan definition : tileset.tileDefinitions())

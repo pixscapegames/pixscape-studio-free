@@ -1932,7 +1932,9 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
                     + descriptor.tileWidth() + "x" + descriptor.tileHeight()
                     + ", margin " + descriptor.margin()
                     + ", spacing " + descriptor.spacing()
-                    + ", image: " + imageName;
+                    + ", image: " + imageName
+                    + (descriptor.diagnostics().isEmpty() ? "" : "\n"
+                    + games.pixscape.studio.ui.importer.TmxImportUiSupport.formatDiagnostics(descriptor.diagnostics()));
         } catch (IllegalArgumentException ex) {
             String message = ex.getMessage();
             return message == null || message.isBlank() ? "TSX file is invalid." : message;

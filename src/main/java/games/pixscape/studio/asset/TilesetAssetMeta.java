@@ -1,9 +1,11 @@
 package games.pixscape.studio.asset;
 
+import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.tiled.TiledProjection;
 
 public final class TilesetAssetMeta extends AssetMeta {
 
+    public PropertySet properties = new PropertySet();
     public int imageWidth;
     public int imageHeight;
     public int tileWidth;

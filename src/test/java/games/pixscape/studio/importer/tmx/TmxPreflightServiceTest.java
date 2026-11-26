@@ -19,7 +19,7 @@ import static org.junit.Assert.*;
 public class TmxPreflightServiceTest {
 
     @Test
-    public void excludedOwnersKeepWarningsWithoutLeakingTheirPropertiesToMapOrLayers() throws Exception {
+    public void tilesetPropertiesStayOnTheirOwnerAndExcludedGroupsKeepWarnings() throws Exception {
         Path dir = Files.createTempDirectory("tmx-excluded-owner-properties");
         writeFile(dir.resolve("image.png"), "preflight image witness");
         FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
@@ -36,7 +36,12 @@ public class TmxPreflightServiceTest {
                 """);
         TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
         assertFalse(report.hasBlockingDiagnostics());
-        assertEquals(2, report.diagnostics().stream().filter(d -> d.code().equals("TMX_CUSTOM_PROPERTIES_IGNORED")).count());
+        assertEquals(1, report.diagnostics().stream().filter(d -> d.code().equals("TMX_CUSTOM_PROPERTIES_IGNORED")).count());
+        var tileset = report.tilesets().get(0);
+        assertEquals(games.pixscape.runtime.property.PropertyType.STRING, tileset.properties().typeOf("tilesetOnly"));
+        assertEquals("settings.json", tileset.properties().getString("tilesetOnly", null));
+        tileset.properties().putString("tilesetOnly", "edited copy");
+        assertEquals("settings.json", tileset.properties().getString("tilesetOnly", null));
         assertTrue(report.mapInfo().properties().isEmpty());
         assertTrue(report.layers().get(0).properties().isEmpty());
     }

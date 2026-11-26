@@ -48,6 +48,48 @@ public class EditPropertiesDialogTest {
     }
 
     @Test
+    public void resizingExpandsTheViewportAndFieldsAndKeepsActionsOutsideTheScroll() throws Exception {
+        for (boolean tile : new boolean[]{false, true}) {
+            PropertySet source = new PropertySet();
+            for (int i = 0; i < 30; i++) {
+                source.putString("value" + i, "Text " + i);
+            }
+            EditPropertiesDialog dialog = new EditPropertiesDialog("Properties", source, ignored -> {}, tile);
+            var stage = testStage();
+            stage.addActor(dialog);
+            dialog.validate();
+            var table = field(dialog, "rowsTable", com.kotcrab.vis.ui.widget.VisTable.class);
+            var scroll = (com.kotcrab.vis.ui.widget.VisScrollPane) table.getParent();
+            scroll.validate();
+            table.validate();
+            Object row = rowNamed(dialog, "value0");
+            VisTextField name = field(row, "nameField", VisTextField.class);
+            VisTextArea value = field(row, "stringField", VisTextArea.class);
+            float width = name.getWidth();
+            float valueWidth = value.getWidth();
+            float height = scroll.getHeight();
+            dialog.setSize(dialog.getWidth() + 240, dialog.getHeight() + 180);
+            dialog.validate();
+            scroll.validate();
+            table.validate();
+            Assert.assertTrue(name.getWidth() > width);
+            Assert.assertTrue(value.getWidth() > valueWidth);
+            Assert.assertTrue(scroll.getHeight() > height + 150);
+            Assert.assertTrue(scroll.getMaxY() > 0);
+            Assert.assertFalse(scroll.isScrollX());
+            Assert.assertTrue(dialog.getMinWidth() >= 580);
+            Assert.assertTrue(dialog.getMinHeight() > 140);
+            dialog.setSize(dialog.getMinWidth(), dialog.getMinHeight());
+            dialog.validate();
+            var add = field(dialog, "addButton", VisTextButton.class);
+            var bottom = add.localToAscendantCoordinates(dialog, new com.badlogic.gdx.math.Vector2());
+            Assert.assertTrue(bottom.y >= dialog.getButtonsTable().getHeight());
+            Assert.assertTrue(dialog.getButtonsTable().getHeight() > 0);
+            stage.dispose();
+        }
+    }
+
+    @Test
     public void appliesADeepWorkingCopyAndPreservesMultilineStringAndClassValues() throws Exception {
         PropertySet source = new PropertySet()
                 .putString("title", "  first\nsecond  ")
@@ -74,8 +116,12 @@ public class EditPropertiesDialogTest {
 
         field(dialog, "addButton", VisTextButton.class).fire(
                 new com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent());
+        dialog.setSize(dialog.getMinWidth() + 200, dialog.getMinHeight());
+        float chosenWidth = dialog.getWidth();
         invokeResult(dialog, true);
 
+        Assert.assertEquals(chosenWidth, dialog.getWidth(), 0f);
+        Assert.assertTrue(dialog.getHeight() >= dialog.getMinHeight());
         Assert.assertNull(applied.get());
         Assert.assertEquals(100, source.getInt("health", 0));
         Assert.assertEquals(2, rows(dialog).size);

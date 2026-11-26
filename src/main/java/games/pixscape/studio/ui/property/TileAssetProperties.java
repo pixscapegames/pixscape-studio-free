@@ -3,10 +3,13 @@ package games.pixscape.studio.ui.property;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
+import com.badlogic.gdx.utils.Scaling;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.studio.asset.AssetMetaDatabase;
@@ -14,9 +17,11 @@ import games.pixscape.studio.asset.TileAssetMeta;
 import games.pixscape.studio.asset.TilesetAssetMeta;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.EditTilePropertiesCommand;
+import games.pixscape.studio.service.asset.StudioAssetVisual;
 import games.pixscape.studio.ui.property.entityproperties.EditPropertiesDialog;
 
 import java.util.function.Consumer;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 /**
@@ -26,6 +31,8 @@ public final class TileAssetProperties extends VisTable {
     private final Supplier<AssetMetaDatabase> databaseSource;
     private final Supplier<FileHandle> assetsFile;
     private final Consumer<AssetMetaDatabase> publisher;
+    private final IntFunction<StudioAssetVisual> previewSource;
+    private final VisImage preview = new VisImage();
     private AssetMetaDatabase database;
     private final HistoryManager history = new HistoryManager(128);
     private int assetId = -1;
@@ -36,17 +43,21 @@ public final class TileAssetProperties extends VisTable {
     private final VisTextButton edit = new VisTextButton("Edit properties…");
 
     public TileAssetProperties(Supplier<AssetMetaDatabase> databaseSource, Supplier<FileHandle> assetsFile,
-                               Consumer<AssetMetaDatabase> publisher) {
+                               Consumer<AssetMetaDatabase> publisher, IntFunction<StudioAssetVisual> previewSource) {
         super(true);
         this.databaseSource = databaseSource;
         this.assetsFile = assetsFile;
         this.publisher = publisher;
+        this.previewSource = previewSource;
         top().left();
         id.setName("tileLocalId");
         tileset.setName("tileTileset");
         summary.setName("tileCustomPropertiesSummary");
         edit.setName("editTileCustomProperties");
         add(new VisLabel("TILE")).colspan(2).center().row();
+        preview.setName("tileAssetPreview");
+        preview.setScaling(Scaling.fit);
+        add(preview).colspan(2).size(160).center().row();
         add(new VisLabel("Tileset:")).left();
         add(tileset).left().growX().row();
         add(new VisLabel("Id:")).left();
@@ -141,6 +152,10 @@ public final class TileAssetProperties extends VisTable {
     private void refresh() {
         TileAssetMeta tile = tile();
         TilesetAssetMeta owner = tile != null && database.findById(tile.tilesetId) instanceof TilesetAssetMeta set ? set : null;
+        StudioAssetVisual visual = tile != null ? previewSource.apply(assetId) : null;
+        // Borrow the exact tile region; the resolver retains ownership of the shared texture.
+        preview.setDrawable(visual != null ? new TextureRegionDrawable(new TextureRegion(
+                visual.texture(), visual.u1(), visual.v1(), visual.u2(), visual.v2())) : null);
         tileset.setText(owner != null ? owner.logicalPath() + " (#" + owner.id() + ")" : "Unavailable");
         id.setText(tile != null && tile.sheetIndex >= 0 ? Integer.toString(tile.sheetIndex) : "Not assigned");
         int count = tile != null ? tile.properties.size() : 0;

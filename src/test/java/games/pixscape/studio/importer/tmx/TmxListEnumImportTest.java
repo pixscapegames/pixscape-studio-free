@@ -39,8 +39,7 @@ public class TmxListEnumImportTest {
         assertTrue(missing.hasBlockingDiagnostics());
         assertTrue(missing.diagnostics().stream().anyMatch(d -> d.code().equals("TMX_PROJECT_REQUIRED")
                 && d.message().contains("Direction") && d.location().contains("direction")));
-        for (String item : new String[]{"<item type='file' value='missing.png'/>",
-                "<item type='object' value='999'/>", "<item propertytype='Missing' value='X'/>",
+        for (String item : new String[]{"<item type='object' value='999'/>", "<item propertytype='Missing' value='X'/>",
                 "<item propertytype='Direction' value='Unknown'/>", "<item type='int' propertytype='Flags' value='8'/>"}) {
             var file = new FileHandle(java.nio.file.Files.createTempFile("list-invalid", ".tmx").toFile());
             file.writeString("<map orientation='orthogonal' width='1' height='1' tilewidth='16' tileheight='16'>"
